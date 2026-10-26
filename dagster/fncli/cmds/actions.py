@@ -59,7 +59,7 @@ SETUP_STEPS = [
     (init_backend_dataset_command, {}),
     (verify_git_secret_command, {"entity": "trigger"}),
     (verify_git_secret_command, {"entity": "results"}),
-    # New projects start disabled so their links can be set up; enable once they are
+    # New projects start disabled so their resources can be set up; enable once they are
     (project_set_command, {"enabled": "true"}),
     (project_healthcheck_command, {}),
 ]

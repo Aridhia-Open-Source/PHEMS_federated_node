@@ -42,14 +42,14 @@ class Dataset(BaseModel):
 
 class ProjectDataset(BaseModel):
     """
-    A project's link to a global dataset, from backend API. Addressed by the dataset's id,
+    A project's resource for a global dataset, from backend API. Addressed by the dataset's id,
     dataset.id.
 
-    - project_id: the project the dataset is linked to.
+    - project_id: the project the dataset is assigned to.
     - dataset: the global dataset.
     - enabled: a person turned the dataset on for the project.
     - revoked: the controller withdrew the project's access.
-    - active: the global dataset is enabled, and the link is enabled and not revoked, the only state a task may run in.
+    - active: the global dataset is enabled, and the project resource is enabled and not revoked, the only state a task may run in.
     """
     model_config = ConfigDict(extra="allow")
 

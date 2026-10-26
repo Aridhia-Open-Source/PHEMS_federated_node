@@ -48,7 +48,7 @@ else
 fi
 
 echo
-echo -e "${BLUE}=== Project's link to it ===${NC}"
+echo -e "${BLUE}=== Project's resource for it ===${NC}"
 if [ -z "${project_id:-}" ] || [ -z "${repo_id:-}" ]; then
   echo "Not found. Run init_repo.sh first."
 else

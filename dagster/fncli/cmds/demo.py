@@ -41,7 +41,7 @@ from fncli.cmds.secret import (
     init_git_secret_command,
     verify_git_secret_command,
 )
-from fncli.cmds.state import get, project_links, project_set_command, snapshot
+from fncli.cmds.state import get, project_resources, project_set_command, snapshot
 from fncli.cmds.verify import Links, verify_project_command, verify_repo_command
 from fncli.sensors import DagsterAPI
 
@@ -105,11 +105,11 @@ def show_project(api, state):
     return as_json("project", state["project"])
 
 
-def show_links(kind, name, config_class=None):
-    """The project's links of that kind, shown under the name of what they link to, with the global repository, provider or dataset in each."""
+def show_resources(kind, name, config_class=None):
+    """The project's resources of that kind, shown under the name of the global resource they are assigned, with the global repository, provider or dataset in each."""
     def show(api, state):
-        links = as_json(name, project_links(api, state["project"]["id"])[kind])
-        return f"Open: {gitea_repo_url(config_class())}\n{links}" if config_class else links
+        resources = as_json(name, project_resources(api, state["project"]["id"])[kind])
+        return f"Open: {gitea_repo_url(config_class())}\n{resources}" if config_class else resources
 
     return show
 
@@ -131,7 +131,7 @@ def show_pull_request(api, state):
     config = TriggerRepoConfig()
     links = Links(config.web_url, DagsterConfig().dagster_url, config.repo_path, config.pulls_page)
     project_id = state["project"]["id"]
-    pull_requests = [pr for link in state["trigger_links"] for pr in link["pull_requests"]]
+    pull_requests = [pr for resource in state["trigger_resources"] for pr in resource["pull_requests"]]
     pr = max(pull_requests, key=lambda pr: pr["number"])
     lines = [f"Open: {links.trigger_pr(pr['number'])}", as_json("pull_request", pr)]
     if pr["task_id"]:
@@ -224,7 +224,7 @@ STEPS = [
     Step(
         "Create the project",
         "Creates {TEST_PROJECT_NAME}. A new project is disabled: a results repository can only "
-        "be linked while it is disabled. Nothing is linked to it yet.",
+        "be assigned while it is disabled. Nothing is assigned to it yet.",
         "fncli init-backend-project",
         init_backend_project_command,
         {},
@@ -232,36 +232,36 @@ STEPS = [
         show=show_project,
     ),
     Step(
-        "Trigger repository: the Git provider, the repository, and the project's link",
+        "Trigger repository: the Git provider, the repository, and the project's resource",
         "Global: the GitProvider for the Gitea host, and the trigger repository on it (using "
         "the secret).\n"
-        "Project: the link, with watch_dir {TEST_TRIGGER_REPO_WATCH_DIR} and the "
+        "Project: the resource, with watch_dir {TEST_TRIGGER_REPO_WATCH_DIR} and the "
         "branch to watch (the repo's default branch).",
         "fncli init-backend-trigger-repo",
         init_backend_trigger_repo_command,
         {},
-        wait_for=Wait("the trigger repository link", lambda state: bool(state["trigger_links"])),
-        show=show_links("trigger", "trigger_repositories", TriggerRepoConfig),
+        wait_for=Wait("the trigger repository resource", lambda state: bool(state["trigger_resources"])),
+        show=show_resources("trigger", "trigger_repositories", TriggerRepoConfig),
     ),
     Step(
-        "Results repository and the project's link",
+        "Results repository and the project's resource",
         "Global: the results repository, on the same provider.\n"
-        "Project: the link, with target_dir {TEST_RESULTS_TARGET_DIR}.",
+        "Project: the resource, with target_dir {TEST_RESULTS_TARGET_DIR}.",
         "fncli init-backend-results-repo",
         init_backend_results_repo_command,
         {},
-        wait_for=Wait("the results repository link", lambda state: bool(state["results_links"])),
-        show=show_links("results", "results_repositories", ResultsRepoConfig),
+        wait_for=Wait("the results repository resource", lambda state: bool(state["results_resources"])),
+        show=show_resources("results", "results_repositories", ResultsRepoConfig),
     ),
     Step(
-        "Dataset and the project's link",
+        "Dataset and the project's resource",
         "Global: the dataset {DEFAULT_PROJECT_DATASET} (a stand-in with dummy credentials).\n"
-        "Project: the link; the first dataset linked becomes the project's default.",
+        "Project: the resource; the first dataset assigned becomes the project's default.",
         "fncli init-backend-dataset",
         init_backend_dataset_command,
         {},
-        wait_for=Wait("the dataset link", lambda state: bool(state["dataset_links"])),
-        show=show_links("dataset", "datasets"),
+        wait_for=Wait("the dataset resource", lambda state: bool(state["dataset_resources"])),
+        show=show_resources("dataset", "datasets"),
     ),
     Step(
         "Check Gitea accepts the trigger token",
@@ -280,7 +280,7 @@ STEPS = [
     ),
     Step(
         "Enable the project",
-        "All links are in place, so switch the project on.",
+        "All resources are in place, so switch the project on.",
         "fncli project-set --enabled true",
         project_set_command,
         {"enabled": "true"},
@@ -418,7 +418,7 @@ def demo_command(ctx, yes_to_all, from_step, env_file):
     """
     Set up everything needed to watch a Gitea repo with fncli, then prove it works, one step
     at a time. Before each step it says what the step creates (a global object, a project
-    link, or Gitea only), shows the command and asks: Enter runs it, s skips it, q quits.
+    resource, or Gitea only), shows the command and asks: Enter runs it, s skips it, q quits.
 
     Every step is idempotent, so the demo can be rerun. A failing step stops it: rerun with
     --from N. The names it uses are in .demo.env in the repo root (cp .demo.env.example

@@ -50,7 +50,7 @@ class PullRequestTrigger(Trigger):
 
     @property
     def trigger_repository_id(self) -> int:
-        """The global repository, which is how the API addresses the project's link to it."""
+        """The global repository, which is how the API addresses the project's resource for it."""
         return self.project_trigger_repository.trigger_repository_id
 
     @property
@@ -75,7 +75,7 @@ class PullRequestTrigger(Trigger):
 
     @property
     def spec_files(self) -> list[str]:
-        """The paths of the spec files the pull request carries under the link's watch_dir."""
+        """The paths of the spec files the pull request carries under the project resource's watch_dir."""
         return spec_files(self.pull_request, self.project_trigger_repository.watch_dir)
 
     @property

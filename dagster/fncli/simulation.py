@@ -4,7 +4,7 @@ The logic of the multi-provider simulation (`fncli simulate`), with no I/O so it
 A layout of several projects over several git providers, trigger repositories and results repositories; a seeded plan
 of pull requests to merge in each trigger repository; and a checker that compares the backend's end state with what that
 plan must have produced, per project and repository. It looks for wrong-resource and concurrency mistakes: a pull request
-that reaches a project not linked to its repository, a task shared by two projects, results delivered to another
+that reaches a project not assigned its repository, a task shared by two projects, results delivered to another
 project's results repository, a number from one repository mistaken for the same number in another.
 """
 
@@ -20,7 +20,7 @@ DELIVERED_STEPS = {"OPENED", "MERGED"}
 
 @dataclass(frozen=True)
 class Layout:
-    """Which provider each repository is on, and what each project links."""
+    """Which provider each repository is on, and what each project is assigned."""
 
     trigger_repos: dict[str, str]  # repository name -> provider key
     results_repos: dict[str, str]
@@ -52,9 +52,9 @@ def make_plan(layout: Layout, seed: int, per_repo: int) -> dict[str, list[str]]:
     }
 
 
-def repo_of_link(link: dict) -> str:
-    """The repository name of a trigger link of a project snapshot: the last segment of its uri."""
-    return (link.get("repository") or "").rstrip("/").split("/")[-1]
+def repo_of_resource(resource: dict) -> str:
+    """The repository name of a trigger resource of a project snapshot: the last segment of its uri."""
+    return (resource.get("repository") or "").rstrip("/").split("/")[-1]
 
 
 def results_title(admin: str, repo: str, number: int, task_id: int) -> str:
@@ -66,8 +66,8 @@ def _yielded(kind: str) -> bool:
     return kind in (WATCHED, FAILING)
 
 
-def _links_of(snapshot: dict) -> dict[str, list[dict]]:
-    return {repo_of_link(link): link["pull_requests"] for link in snapshot["trigger_links"]}
+def _resources_of(snapshot: dict) -> dict[str, list[dict]]:
+    return {repo_of_resource(resource): resource["pull_requests"] for resource in snapshot["trigger_resources"]}
 
 
 def pending(layout: Layout, merged: dict[str, list[dict]], snapshots: dict[str, dict]) -> list[str]:
@@ -75,11 +75,11 @@ def pending(layout: Layout, merged: dict[str, list[dict]], snapshots: dict[str, 
     waiting = []
     for project, spec in layout.projects.items():
         snapshot = snapshots[project]
-        links = _links_of(snapshot)
+        resources = _resources_of(snapshot)
         tasks = {task["id"]: task for task in snapshot["tasks"]}
         results = {result["task_id"]: result for result in snapshot["results"]}
         for repo in spec["triggers"]:
-            seen = {pr["number"]: pr for pr in links.get(repo, [])}
+            seen = {pr["number"]: pr for pr in resources.get(repo, [])}
             for pull in merged.get(repo, []):
                 if pull["kind"] == UNWATCHED:
                     continue
@@ -116,16 +116,16 @@ def check(
 
     for project, spec in layout.projects.items():
         snapshot = snapshots[project]
-        links = _links_of(snapshot)
+        resources = _resources_of(snapshot)
         tasks = {task["id"]: task for task in snapshot["tasks"]}
         results = {result["task_id"]: result for result in snapshot["results"]}
 
-        if set(links) != set(spec["triggers"]):
-            problems.append(f"{project}: linked to repositories {sorted(links)}, expected {sorted(spec['triggers'])}")
+        if set(resources) != set(spec["triggers"]):
+            problems.append(f"{project}: assigned repositories {sorted(resources)}, expected {sorted(spec['triggers'])}")
 
         expected_tasks = 0
         for repo in spec["triggers"]:
-            seen = {pr["number"]: pr for pr in links.get(repo, [])}
+            seen = {pr["number"]: pr for pr in resources.get(repo, [])}
             wanted = {pull["number"]: pull for pull in merged.get(repo, []) if pull["kind"] != UNWATCHED}
             for number in sorted(set(seen) - set(wanted)):
                 problems.append(f"{project}/{repo}: unexpected pull request #{number} ({seen[number]['state']})")

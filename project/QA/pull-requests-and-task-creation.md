@@ -7,11 +7,11 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 ## A merged pull request on another base branch gets no trigger
 
 1. Note the counts (pull requests, stored, tasks) with the command in [the index](README.md).
-2. In Gitea create a branch `qa-other` in the trigger repository. Create a branch off the default branch with a new `.json` spec file under the link's `watch_dir`, open a pull request into `qa-other`, merge it.
+2. In Gitea create a branch `qa-other` in the trigger repository. Create a branch off the default branch with a new `.json` spec file under the project resource's `watch_dir`, open a pull request into `qa-other`, merge it.
 3. Wait five sensor intervals. Note the counts again.
 
 - **Expected:** the stored count goes up by one; the project's pull request count and task count do not change.
-- **Rule:** a link gets a trigger only when the pull request's base branch equals the link's `base_branch` ([Pull requests stored once per repository, fanned out to project links, with cursors]).
+- **Rule:** a project resource gets a trigger only when the pull request's base branch equals the project resource's `base_branch` ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_base_branch_default_override_and_case`, `test_file_matching_against_watch_dir`). No end-to-end group covers a base branch.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -24,7 +24,7 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 4. Wait five intervals after each merge and compare the counts.
 
 - **Expected:** neither pull request gets a trigger. Both are stored.
-- **Rule:** a trigger needs a file the pull request adds, ending in `.json`, under `watch_dir` ([Pull requests stored once per repository, fanned out to project links, with cursors]).
+- **Rule:** a trigger needs a file the pull request adds, ending in `.json`, under `watch_dir` ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_a_trigger_lists_its_spec_files`, `test_file_matching_against_watch_dir`). No end-to-end group covers a modified file or another extension.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -42,12 +42,12 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 
 ## A spec naming a dataset the project cannot use is rejected; one naming none uses the default
 
-1. Commit a spec file under `watch_dir` (in Gitea) shaped like the watched one, `{"spec": {"image": "<same image as the watched spec>", "dataset": "<a name no project links>"}}`, and merge it. Check the field name in [TaskSpec, and a Task derived from spec and trigger].
+1. Commit a spec file under `watch_dir` (in Gitea) shaped like the watched one, `{"spec": {"image": "<same image as the watched spec>", "dataset": "<a name no project has assigned>"}}`, and merge it. Check the field name in [TaskSpec, and a Task derived from spec and trigger].
 2. Merge a normal watched pull request (no dataset in the spec).
 3. `GET /projects/<pid>/tasks/<id>` for the second task.
 
 - **Expected:** step 1: the trigger is `REJECTED` with a cause; no task. Step 2: a task. Step 3: its spec has the project's default dataset.
-- **Rule:** the dataset a spec names must be one the project has an active link to; with none named the default is used ([TaskSpec, and a Task derived from spec and trigger]).
+- **Rule:** the dataset a spec names must be one assigned to the project and active; with none named the default is used ([TaskSpec, and a Task derived from spec and trigger]).
 - **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_unusable_dataset_rejects_the_pr`, `test_dataset_default_and_case_insensitive_override`). Switching the dataset off is in [enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md). They miss the live evaluate run.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -65,17 +65,17 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 - [ ] Pass
 - [ ] Fail — notes:
 
-## A pull request merged before a project was linked gets no trigger for it
+## A pull request merged before a project was assigned gets no trigger for it
 
 1. `fncli open-pr --kind watched --merge` and wait until it is stored.
-2. `fncli second-project-setup QaTwo` (links the same GlobalResources, enabled).
+2. `fncli second-project-setup QaTwo` (assigns the same GlobalResources, enabled).
 3. `fncli project-show --project QaTwo`.
 4. `fncli open-pr --kind watched --merge` again.
 5. `fncli project-show --project QaTwo`, then `fncli second-project-teardown QaTwo`.
 
 - **Expected:** step 3: no pull requests and no tasks for the new project, although the pull request is stored. Step 5: only the new pull request has a trigger and a task there.
-- **Rule:** a new link's cursor is the latest stored pull request (or the link's creation time); history before it is not replayed ([Pull requests stored once per repository, fanned out to project links, with cursors]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_cursor_rule_link_first_then_ingest`, `test_cursor_with_nothing_stored_is_link_creation_time`). The end-to-end second-project group links before it merges.
+- **Rule:** a new project resource's cursor is the latest stored pull request (or the project resource's creation time); history before it is not replayed ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
+- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_cursor_rule_assign_first_then_ingest`, `test_cursor_with_nothing_stored_is_resource_creation_time`). The end-to-end second-project group assigns the resources before it merges.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -100,7 +100,7 @@ This is a probe listed in the end-to-end README, not a pass or fail there.
 3. Note the counts again, and `fncli sensor-status`.
 
 - **Expected:** the counts are unchanged and no tick fails. Posting the same pull requests again changes nothing: the stored numbers come back as `existing`.
-- **Rule:** the store is idempotent (unique on repository and number, and on repository, base branch and merge commit) ([Pull requests stored once per repository, fanned out to project links, with cursors]).
+- **Rule:** the store is idempotent (unique on repository and number, and on repository, base branch and merge commit) ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_ingest_fans_out_and_is_idempotent`, `test_posting_the_same_pull_request_again_changes_nothing`) and the "nothing happens" waits of the end-to-end failure suite. Restarts are in [sensors, restarts and catch-up](sensors-restarts-and-catch-up.md).
 - [ ] Pass
 - [ ] Fail — notes:
@@ -113,8 +113,8 @@ Optional; do it only if you can produce a fast-forward merge to two base branche
 2. Create a branch with a new watched spec file. Open two pull requests from it, one into the default branch and one into `qa-other`, and merge both with fast-forward merges (check how your Gitea does that) so both get the same merge commit.
 3. Look at the stored pull requests and each project's triggers (`fncli project-show` and `fncli project-show --project QaTwo`), then `fncli second-project-teardown QaTwo`.
 
-- **Expected:** both pull requests are stored, and each project's link gets a trigger only for the pull request on its own base branch. A pull request that repeats a merge commit already stored on the same base branch under a new number is skipped (a warning naming both numbers) and does not fail the batch.
-- **Rule:** one commit on one base branch belongs to one pull request ([Pull requests stored once per repository, fanned out to project links, with cursors]).
+- **Expected:** both pull requests are stored, and each project's resource gets a trigger only for the pull request on its own base branch. A pull request that repeats a merge commit already stored on the same base branch under a new number is skipped (a warning naming both numbers) and does not fail the batch.
+- **Rule:** one commit on one base branch belongs to one pull request ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (the two tests on a merge commit on two base branches and on a repeated merge commit); they miss a real merge.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -123,20 +123,20 @@ Optional; do it only if you can produce a fast-forward merge to two base branche
 
 Needs a test repository on GitHub and a token for it. The end-to-end suites use Gitea only.
 
-1. `POST /global/providers` with `type` `github`, `uri` `https://github.com`, `api_uri` `https://api.github.com`. Create a trigger repository and a results repository on test repositories, each with its own Secret, and link them to a test project.
+1. `POST /global/providers` with `type` `github`, `uri` `https://github.com`, `api_uri` `https://api.github.com`. Create a trigger repository and a results repository on test repositories, each with its own Secret, and assign them to a test project.
 2. Merge a pull request that adds a spec file under `watch_dir`.
 3. Follow it as in [run a task and deliver the result](run-a-task-and-deliver-the-result.md).
 
 - **Expected:** the same states as on Gitea: trigger `UNKNOWN`, `YIELDED`, a task, a results pull request. Ingest uses the list-pulls endpoint (no search rate limit). Errors map the same way as on Gitea.
 - **Rule:** both providers give the same results ([GitAPI protocol and GitAPIFactory over Gitea and GitHub]; [Ingest merged pull requests through the pulls endpoint, not search]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_github.py`, `dagster/app/tests/test_github_parity.py` (canned responses). No end-to-end test uses GitHub. A pull request whose file list hit the provider's cap (3000 on GitHub) is treated as matching every link of the right branch, so its trigger may be rejected at evaluation for having no spec file ([Pull requests stored once per repository, fanned out to project links, with cursors]); do not try that by hand.
+- **Automated by:** Partly automated: `dagster/app/tests/test_github.py`, `dagster/app/tests/test_github_parity.py` (canned responses). No end-to-end test uses GitHub. A pull request whose file list hit the provider's cap (3000 on GitHub) is treated as matching every project resource of the right branch, so its trigger may be rejected at evaluation for having no spec file ([Pull requests stored once per repository, fanned out to project resources, with cursors]); do not try that by hand.
 - [ ] Pass
 - [ ] Fail — notes:
 
 <!-- link definitions -->
 [GitAPI protocol and GitAPIFactory over Gitea and GitHub]: ../decisions/0010-git-api-protocol-and-factory.md
 [Ingest merged pull requests through the pulls endpoint, not search]: ../decisions/0012-github-ingest-pulls-endpoint.md
-[Pull requests stored once per repository, fanned out to project links, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
+[Pull requests stored once per repository, fanned out to project resources, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
 [State transition tables for triggers, tasks and result steps; 409 on a refused move]: ../decisions/0005-state-transition-tables.md
 [TaskSpec, and a Task derived from spec and trigger]: ../decisions/0002-task-spec-and-derivation.md
 [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]: ../decisions/0014-dagster-pipeline-ops-sensors-and-retries.md

@@ -74,9 +74,9 @@ def test_a_400_from_the_task_endpoint_is_left_as_the_backend_rejected_it():
     backend_api.patch_pull_request.assert_not_called()
 
 
-@pytest.mark.parametrize("cause", ["The link is not active", "Project 'p' is disabled", "Project 1 is revoked"])
+@pytest.mark.parametrize("cause", ["The project's trigger repository 1 is not active", "Project 'p' is disabled", "Project 1 is revoked"])
 def test_a_409_from_the_task_endpoint_skips_the_pr(cause):
-    """The PR stays UNKNOWN (no patch, no raise): it is evaluated again once the link or project accepts a task."""
+    """The PR stays UNKNOWN (no patch, no raise): it is evaluated again once the resource or project accepts a task."""
     backend_api = MagicMock()
     backend_api.create_task_for_pull_request.side_effect = http_error(409, cause)
 

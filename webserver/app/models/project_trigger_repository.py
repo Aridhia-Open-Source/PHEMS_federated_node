@@ -35,7 +35,7 @@ class ProjectTriggerRepository(SoftDeleteMixin, db.Model, BaseModel):
         sa.DateTime, nullable=False, server_default=func.now(), default=now_ts
     )
     # Where the cursor stands within initial_cursor's timestamp: the assignment starts after
-    # (initial_cursor, initial_cursor_number). Both are set when the link is created, from the
+    # (initial_cursor, initial_cursor_number). Both are set when the project resource is created, from the
     # latest pull request stored. 0 starts at the timestamp itself, as pull request numbers
     # begin at 1; the number of the latest pull request starts after it.
     initial_cursor_number = sa.Column(sa.Integer, nullable=False, default=0, server_default='0')
@@ -65,7 +65,7 @@ class ProjectTriggerRepository(SoftDeleteMixin, db.Model, BaseModel):
 
     @property
     def accepts_triggers(self) -> bool:
-        """Whether a new pull request gets a trigger for this link: it is active and its project is enabled and not revoked."""
+        """Whether a new pull request gets a trigger for this project resource: it is active and its project is enabled and not revoked."""
         return self.active and self.project.enabled and not self.project.revoked
 
     @property

@@ -37,7 +37,7 @@ def sync_results_pull_requests(context: OpExecCtx):
       step if there is one, with the state DELIVERED. None is left alone.
     - OPENED: record the step of the pull request when it changed, MERGED or CLOSED.
       One deleted on the provider (404) is logged and skipped, not guessed CLOSED.
-    A result whose link is deleted (404) is logged and skipped.
+    A result whose project resource is deleted (404) is logged and skipped.
     A 409 from the backend (the result moved on already) is logged and skipped.
     """
     backend_api = cast(BackendAPI, context.resources.backend_api)
@@ -56,7 +56,7 @@ def sync_results_pull_requests(context: OpExecCtx):
                 repositories[result.results_repository_id] = None
         repository = repositories[result.results_repository_id]
         if repository is None:
-            context.log.warning(f"The link of result {result.id} is deleted, skipped")
+            context.log.warning(f"The project resource of result {result.id} is deleted, skipped")
             continue
         git_api = git_apis.for_repository(repository)
         if result.step == PullRequestResultStep.PUSHED:

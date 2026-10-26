@@ -20,9 +20,9 @@ Relaunches `deliver_results_job` for each result whose delivery failed and may s
 | Who | Call | Filter or note |
 |---|---|---|
 | sensor | `GET /projects` | All projects, disabled and revoked ones too. |
-| sensor | `GET /projects/{id}/results` | `state=FAILED`, `active_link=true` (the ProjectResultsRepository is enabled and not revoked, and its ResultsRepository and GitProvider are enabled and not revoked). The sensor then keeps results whose `step` is not final (`OPENED`, `MERGED`, `CLOSED`, `REVOKED`, `STALE`) and whose `attempts` is below the maximum. |
+| sensor | `GET /projects/{id}/results` | `state=FAILED`, `active_resource=true` (the ProjectResultsRepository is enabled and not revoked, and its ResultsRepository and GitProvider are enabled and not revoked). The sensor then keeps results whose `step` is not final (`OPENED`, `MERGED`, `CLOSED`, `REVOKED`, `STALE`) and whose `attempts` is below the maximum. |
 | sensor | `GET /projects/{id}/tasks/{task}` | The task's `executor_run_id`: the folder of its artifacts. |
-| job | task, its pinned config, `POST /projects/{id}/results`, `GET /global/repositories/results/{id}`, the task's trigger | The pinned `config_snapshot` gives the results repository and `target_dir`, because the project's link may be deleted by now. |
+| job | task, its pinned config, `POST /projects/{id}/results`, `GET /global/repositories/results/{id}`, the task's trigger | The pinned `config_snapshot` gives the results repository and `target_dir`, because the project's resource may be deleted by now. |
 | job | git provider | Clone, push, find or open the pull request, with the ResultsRepository's secret. |
 
 It considers every project, the ProjectResultsRepository that its results were delivered to (only active ones are retried), and the GlobalResource ResultsRepository through it. It does not look at the project's `enabled` or `revoked`.
@@ -33,7 +33,7 @@ Sensor:
 
 ```mermaid
 flowchart TD
-    A([Tick]) --> B["For every project: GET its results, state=FAILED, active_link=true"]
+    A([Tick]) --> B["For every project: GET its results, state=FAILED, active_resource=true"]
     B --> C["Keep the results with a step that is not final and attempts below the maximum"]
     C --> D{"Next result?"}
     D -->|"none left"| Z{"Anything launched?"}
@@ -58,7 +58,7 @@ flowchart TD
     B --> C{"Result step and state"}
     C -->|"REVOKED or STALE"| S2(["Log and end: never delivered, final"])
     C -->|"OPENED, MERGED, CLOSED"| S3(["Already delivered: end"])
-    C -->|"FAILED, error: results link switched off, attempts 0"| S4["PATCH attempts +1 and end. The retry sensor delivers once the link is active."]
+    C -->|"FAILED, error: results resource switched off, attempts 0"| S4["PATCH attempts +1 and end. The retry sensor delivers once the project resource is active."]
     C -->|otherwise| D["GET the ResultsRepository. A 404 or 409 ends it."]
     D --> E["If the state is FAILED: PATCH state IN_PROGRESS"]
     E --> F["GET the pull request that yielded the task"]
@@ -91,7 +91,7 @@ What the job writes: the result (`POST /projects/{id}/results`, then `PATCH` per
 
 ## 6. Retries and failure handling
 
-- The sensor relaunches a FAILED result whose step is not final, whose link is active and whose `attempts` is below the maximum. Every try, failed or not, adds one to `attempts`.
+- The sensor relaunches a FAILED result whose step is not final, whose project resource is active and whose `attempts` is below the maximum. Every try, failed or not, adds one to `attempts`.
 - The job resumes. A branch already on the remote is not pushed again, its pull request is looked up before one is opened, and a pull request merged or closed meanwhile is recorded as such.
 - After the maximum the result stays FAILED. It is retried only by hand: reset `attempts` with a PATCH, or run `deliver_results_job` again.
 - A failure inside the job is written on the result (`FAILED`, the error text, one more attempt, the step left where it was) and raised, so the run fails visibly.
@@ -107,8 +107,8 @@ The backend decides when it creates the result (`POST /projects/{id}/results`), 
 |---|---|
 | The project revoked, or anything the task used revoked or deleted: its TriggerRepository, Dataset or ResultsRepository, at the ProjectResource, the GlobalResource or (for repositories) the GitProvider | Step `REVOKED`, state `FAILED`. Final. Nothing is pushed. |
 | Task configuration changed since the task was created | Step `STALE`, state `FAILED`. Final. |
-| ProjectResultsRepository disabled, or its ResultsRepository or GitProvider disabled | Step `UNKNOWN`, state `FAILED`, error `results link switched off`. The job adds one attempt and ends. The retry sensor skips it (`active_link=true`) until the link is active, then delivers it. |
+| ProjectResultsRepository disabled, or its ResultsRepository or GitProvider disabled | Step `UNKNOWN`, state `FAILED`, error `results resource switched off`. The job adds one attempt and ends. The retry sensor skips it (`active_resource=true`) until the project resource is active, then delivers it. |
 
-- A result that exists already is returned as it is. The revoked check is not made again for it, only the link's `active_link` filter.
+- A result that exists already is returned as it is. The revoked check is not made again for it, only the project resource's `active_resource` filter.
 - A project that is disabled does not stop a delivery or a retry.
 - A disabled secret: the job fails when it reads the token (`PermissionError`) and the result is FAILED. The sensor does not check secrets, so it retries until the attempts run out. Enable the secret before then.

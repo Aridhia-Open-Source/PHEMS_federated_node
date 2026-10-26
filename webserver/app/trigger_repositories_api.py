@@ -1,7 +1,7 @@
 """
-trigger repository endpoints, global: a project is linked to one under
+trigger repository endpoints, global: a project is assigned one under
 /projects/<id>/repositories/triggers (see project_trigger_repositories_api.py). Create, edit and delete are admin
-only. Deleting one is a soft delete, refused with a 409 naming the projects it is linked to unless ?force=true. A secret_label naming a disabled secret is a 400 on POST and PATCH.
+only. Deleting one is a soft delete, refused with a 409 naming the projects it is assigned to unless ?force=true. A secret_label naming a disabled secret is a 400 on POST and PATCH.
 - GET /global/repositories/triggers
 - GET /global/repositories/triggers/<id>
 - POST /global/repositories/triggers
@@ -45,7 +45,7 @@ def get_repositories():
     """
     GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled and
     not revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project
-    links: that is what Dagster polls.
+    resources say: that is what Dagster polls.
     """
     query = TriggerRepository.query
     if request.args.get('pollable', '').lower() == 'true':
@@ -117,7 +117,7 @@ def post_pull_requests_batch(repo_id):
 @auth(scope='can_do_admin')
 def delete_repository(repo_id):
     """
-    DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is linked to, unless ?force=true, which also revokes and deletes their links.
+    DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
     """
     repo = TriggerRepository.get_by_id(repo_id)
     delete_global(repo, repo.project_assignments)
@@ -129,13 +129,13 @@ def delete_repository(repo_id):
 @auth(scope='can_do_admin')
 def post_repository():
     """
-    POST /global/repositories/triggers/ — create a new repository, linked to no project yet.
+    POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
     """
     body = request.json or {}
     if "project_id" in body or "watch_dir" in body or "base_branch" in body:
         raise InvalidRequest(
             "project_id, watch_dir and base_branch are not accepted, trigger "
-            "repositories are global. Link one with PUT /projects/<id>/repositories/triggers/<repository id>"
+            "repositories are global. Assign one with PUT /projects/<id>/repositories/triggers/<repository id>"
         )
     req = RepositoryRequest.parse(body)
 

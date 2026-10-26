@@ -1,5 +1,5 @@
 """
-Pull request ingest, fan-out to project links, the per-link trigger state, creating a task from a PR
+Pull request ingest, fan-out to project resources, the per-resource trigger state, creating a task from a PR
 (post_task rules) and the task status routes (ADRs 0008 and 0011).
 """
 import json
@@ -38,19 +38,19 @@ def post_prs(client, headers, repo_id, *prs):
                        json={"pull_requests": list(prs)}, headers=headers)
 
 
-def link(client, headers, pid, repo_id, **body):
+def assign(client, headers, pid, repo_id, **body):
     body.setdefault("watch_dir", "triggers")
     r = client.put(f"/projects/{pid}/repositories/triggers/{repo_id}", json=body, headers=headers)
     assert r.status_code in (200, 201), r.json
     return r
 
 
-def link_url(pid, repo_id):
+def resource_url(pid, repo_id):
     return f"/projects/{pid}/repositories/triggers/{repo_id}"
 
 
 def trig_url(pid, repo_id, number=None):
-    base = f"{link_url(pid, repo_id)}/pull_requests"
+    base = f"{resource_url(pid, repo_id)}/pull_requests"
     return base if number is None else f"{base}/{number}"
 
 
@@ -73,9 +73,9 @@ def set_enabled(project, enabled=True):
 
 
 def test_a_trigger_lists_its_spec_files(client, admin_headers, system_headers, project, global_trigger_repo):
-    """Only added .json files under the link's watch_dir, the rule that decides the fan-out."""
+    """Only added .json files under the resource's watch_dir, the rule that decides the fan-out."""
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     files = added("triggers/a.json", "triggers/sub/b.json", "triggers/c.txt", "other/d.json", "triggers-old/e.json")
     files.append({"path": "triggers/f.json", "status": "modified"})
     post_prs(client, system_headers, T, pr(1, changed_files=files))
@@ -88,7 +88,7 @@ def test_a_trigger_lists_its_spec_files(client, admin_headers, system_headers, p
 def test_ingest_fans_out_and_is_idempotent(client, admin_headers, system_headers, project, global_trigger_repo):
     """Re-ingest never changes facts or state."""
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
 
     assert post_prs(client, system_headers, T).json == {"created": [], "existing": []}  # empty batch is fine
     assert post_prs(client, system_headers, T, pr(1, title="original"), pr(2)).json == {"created": [1, 2], "existing": []}
@@ -113,7 +113,7 @@ def test_ingest_fans_out_and_is_idempotent(client, admin_headers, system_headers
 @pytest.mark.parametrize("count, status", [(100, 201), (101, 400)])
 def test_batch_limit(client, admin_headers, system_headers, project, global_trigger_repo, count, status):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     r = post_prs(client, system_headers, T, *[pr(n) for n in range(1, count + 1)])
     assert r.status_code == status
     expected = count if status == 201 else 0  # a refused batch stores nothing
@@ -147,7 +147,7 @@ def test_invalid_ingest_bodies_are_400_and_store_nothing(client, admin_headers, 
 
 def test_merged_at_formats_and_utc_conversion(client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     formats = ["2030-01-01T10:00:00", "2030-01-01T10:00:00.123456Z", "2030-01-01T10:00:00+00:00", "2030-01-01"]
     for n, merged_at in enumerate(formats, 1):
         assert post_prs(client, system_headers, T, pr(n, merged_at=merged_at)).status_code == 201
@@ -170,11 +170,11 @@ def test_disabled_and_unknown_repository_refuse_ingest(client, admin_headers, sy
 # --------------------------------------------------------------------------- cursor rule
 
 
-def test_cursor_rule_link_first_then_ingest(client, admin_headers, system_headers, project, global_trigger_repo):
-    """A link triggers only PRs after the latest stored PR (merged_at, ties by number); history is not replayed."""
+def test_cursor_rule_assign_first_then_ingest(client, admin_headers, system_headers, project, global_trigger_repo):
+    """A resource triggers only PRs after the latest stored PR (merged_at, ties by number); history is not replayed."""
     T = global_trigger_repo.id
-    assert post_prs(client, system_headers, T, pr(5)).status_code == 201   # stored before any link: no trigger
-    response = link(client, admin_headers, project.id, T)
+    assert post_prs(client, system_headers, T, pr(5)).status_code == 201   # stored before any resource: no trigger
+    response = assign(client, admin_headers, project.id, T)
     assert response.status_code == 201 and response.json["pr_count"] == 0
     assert states(client, admin_headers, project.id, T) == {}
 
@@ -186,16 +186,16 @@ def test_cursor_rule_link_first_then_ingest(client, admin_headers, system_header
     post_prs(client, system_headers, T, pr(8, merged_at=LATER))
     assert states(client, admin_headers, project.id, T) == {6: "UNKNOWN", 8: "UNKNOWN"}
 
-    # a relink PUT neither replays nor moves the cursor
-    before = client.get(link_url(project.id, T), headers=admin_headers).json
-    again = link(client, admin_headers, project.id, T)
+    # a reassign PUT neither replays nor moves the cursor
+    before = client.get(resource_url(project.id, T), headers=admin_headers).json
+    again = assign(client, admin_headers, project.id, T)
     assert again.status_code == 200
     assert (again.json["pr_count"], again.json["pr_cursor"]) == (before["pr_count"], before["pr_cursor"]) == (2, LATER)
 
 
-def test_cursor_with_nothing_stored_is_link_creation_time(client, admin_headers, system_headers, project, global_trigger_repo):
+def test_cursor_with_nothing_stored_is_resource_creation_time(client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     post_prs(client, system_headers, T, pr(1, merged_at="2020-01-01T00:00:00Z"))
     assert states(client, admin_headers, project.id, T) == {}
 
@@ -205,10 +205,10 @@ def merged_hours_from_now(hours: int) -> str:
 
 
 def test_unrevoke_skips_the_gap(client, admin_headers, system_headers, project, global_trigger_repo):
-    """A PR merged while the link was revoked is stored but gets no trigger; one merged after the re-grant does."""
+    """A PR merged while the resource was revoked is stored but gets no trigger; one merged after the re-grant does."""
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
-    url = link_url(project.id, T)
+    assign(client, admin_headers, project.id, T)
+    url = resource_url(project.id, T)
     assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
     post_prs(client, system_headers, T, pr(2, merged_at=merged_hours_from_now(-1)))
     assert states(client, admin_headers, project.id, T) == {}
@@ -220,12 +220,12 @@ def test_unrevoke_skips_the_gap(client, admin_headers, system_headers, project, 
     assert states(client, admin_headers, project.id, T) == {4: "UNKNOWN"}
 
 
-def test_enabling_a_link_skips_the_gap(client, admin_headers, system_headers, project, global_trigger_repo):
+def test_enabling_a_resource_skips_the_gap(client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T, enabled=False)
+    assign(client, admin_headers, project.id, T, enabled=False)
     post_prs(client, system_headers, T, pr(1, merged_at=merged_hours_from_now(-1)))
     assert states(client, admin_headers, project.id, T) == {}
-    r = client.put(link_url(project.id, T), json={"watch_dir": "triggers"}, headers=admin_headers)
+    r = client.put(resource_url(project.id, T), json={"watch_dir": "triggers"}, headers=admin_headers)
     assert r.status_code == 200 and r.json["active"] is True
     assert states(client, admin_headers, project.id, T) == {}
 
@@ -233,7 +233,7 @@ def test_enabling_a_link_skips_the_gap(client, admin_headers, system_headers, pr
 def test_a_disabled_project_gets_no_trigger_and_enabling_it_skips_the_gap(
         client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     # the cursor far back, so only the project being off keeps PR 1 from a trigger
     ProjectTriggerRepository.query.filter_by(project_id=project.id).one().initial_cursor = datetime(2000, 1, 1)
     db.session.commit()
@@ -251,7 +251,7 @@ def test_a_disabled_project_gets_no_trigger_and_enabling_it_skips_the_gap(
 def test_a_revoked_project_gets_no_trigger_and_re_granting_it_skips_the_gap(
         client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     # the cursor far back, so only the project being revoked keeps PR 1 from a trigger
     ProjectTriggerRepository.query.filter_by(project_id=project.id).one().initial_cursor = datetime(2000, 1, 1)
     db.session.commit()
@@ -268,8 +268,8 @@ def test_a_revoked_project_gets_no_trigger_and_re_granting_it_skips_the_gap(
 
 
 def disabled_project_with_a_stored_pull_request(client, admin_headers, system_headers, project, T):
-    """The project linked to T, then disabled, then PR 1 stored while it is off: it has no trigger."""
-    link(client, admin_headers, project.id, T)
+    """The project assigned to T, then disabled, then PR 1 stored while it is off: it has no trigger."""
+    assign(client, admin_headers, project.id, T)
     assert client.patch(f"/projects/{project.id}", json={"enabled": False}, headers=admin_headers).status_code == 200
     post_prs(client, system_headers, T, pr(1, merged_at=merged_hours_from_now(1)))
     assert states(client, admin_headers, project.id, T) == {}
@@ -291,7 +291,7 @@ def test_enabling_with_backfill_creates_the_triggers_stored_while_it_was_off(
     assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN", 2: "UNKNOWN", 3: "UNKNOWN"}
 
 
-def test_enabling_with_backfill_false_or_without_it_skips_the_gap(client, admin_headers, project, global_trigger_repo):
+def test_enabling_with_backfill_false_or_without_it_skips_the_gap(client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
     disabled_project_with_a_stored_pull_request(client, admin_headers, system_headers, project, T)
 
@@ -301,7 +301,7 @@ def test_enabling_with_backfill_false_or_without_it_skips_the_gap(client, admin_
     assert states(client, admin_headers, project.id, T) == {}
 
 
-def test_enabling_with_backfill_twice_creates_no_duplicates(client, admin_headers, project, global_trigger_repo):
+def test_enabling_with_backfill_twice_creates_no_duplicates(client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
     disabled_project_with_a_stored_pull_request(client, admin_headers, system_headers, project, T)
     patch_project = lambda **body: client.patch(f"/projects/{project.id}", json=body, headers=admin_headers)
@@ -311,13 +311,13 @@ def test_enabling_with_backfill_twice_creates_no_duplicates(client, admin_header
     assert patch_project(enabled=True, backfill=True).status_code == 200  # a second time, the trigger exists
 
     assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
-    link_row = ProjectTriggerRepository.query.filter_by(project_id=project.id).one()
-    assert len(link_row.pull_request_triggers) == 1
+    resource_row = ProjectTriggerRepository.query.filter_by(project_id=project.id).one()
+    assert len(resource_row.pull_request_triggers) == 1
 
 
-def test_backfill_leaves_a_link_that_is_off_without_triggers(client, admin_headers, system_headers, project, global_trigger_repo):
+def test_backfill_leaves_a_resource_that_is_off_without_triggers(client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T, enabled=False)
+    assign(client, admin_headers, project.id, T, enabled=False)
     client.patch(f"/projects/{project.id}", json={"enabled": False}, headers=admin_headers)
     post_prs(client, system_headers, T, pr(1, merged_at=merged_hours_from_now(1)))
 
@@ -329,8 +329,8 @@ def test_backfill_leaves_a_link_that_is_off_without_triggers(client, admin_heade
 
 def test_a_deleted_project_gets_no_trigger(client, admin_headers, system_headers, project, other_project, global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
-    link(client, admin_headers, other_project.id, T)
+    assign(client, admin_headers, project.id, T)
+    assign(client, admin_headers, other_project.id, T)
     assert client.delete(f"/projects/{project.id}", headers=admin_headers).status_code == 204
     post_prs(client, system_headers, T, pr(1, merged_at=merged_hours_from_now(1)))
     assert states(client, admin_headers, other_project.id, T) == {1: "UNKNOWN"}
@@ -354,7 +354,7 @@ def test_a_deleted_project_gets_no_trigger(client, admin_headers, system_headers
 def test_file_matching_against_watch_dir(client, admin_headers, system_headers, project, global_trigger_repo, watch_dir,
                                          changed_files, matches):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T, watch_dir=watch_dir)
+    assign(client, admin_headers, project.id, T, watch_dir=watch_dir)
     assert post_prs(client, system_headers, T, pr(1, changed_files=changed_files)).status_code == 201
     assert states(client, admin_headers, project.id, T) == ({1: "UNKNOWN"} if matches else {})
 
@@ -362,7 +362,7 @@ def test_file_matching_against_watch_dir(client, admin_headers, system_headers, 
 def test_truncated_file_list_matches_but_base_branch_still_applies(client, admin_headers, system_headers, project,
                                                                    global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     truncated = dict(files_truncated=True, changed_files=added("unrelated/file.txt"))
     post_prs(client, system_headers, T, pr(1, **truncated), pr(2, base_branch="dev", **truncated))
     assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
@@ -370,8 +370,8 @@ def test_truncated_file_list_matches_but_base_branch_still_applies(client, admin
 
 def test_base_branch_default_override_and_case(client, admin_headers, system_headers, project, other_project, global_trigger_repo):
     T = global_trigger_repo.id
-    assert link(client, admin_headers, project.id, T).json["base_branch"] == "main"
-    link(client, admin_headers, other_project.id, T, base_branch="release/1.0")
+    assert assign(client, admin_headers, project.id, T).json["base_branch"] == "main"
+    assign(client, admin_headers, other_project.id, T, base_branch="release/1.0")
     post_prs(client, system_headers, T, pr(1), pr(2, base_branch="Main"), pr(3, base_branch="release/1.0"),
              pr(4, base_branch="master"))
     assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
@@ -380,18 +380,18 @@ def test_base_branch_default_override_and_case(client, admin_headers, system_hea
 
 def test_two_projects_on_one_repo_are_independent(client, admin_headers, system_headers, project, other_project, global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     post_prs(client, system_headers, T, pr(1))
-    link(client, admin_headers, other_project.id, T, watch_dir="other")  # its cursor is after PR 1
+    assign(client, admin_headers, other_project.id, T, watch_dir="other")  # its cursor is after PR 1
     post_prs(client, system_headers, T, pr(2, merged_at=LATER, changed_files=added("other/x.json")),
              pr(3, merged_at=LATER, changed_files=added("triggers/y.json")))
     assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN", 3: "UNKNOWN"}
     assert states(client, admin_headers, other_project.id, T) == {2: "UNKNOWN"}
-    assert global_total(client, admin_headers, T) == 3  # one PR row, a trigger per matching link
+    assert global_total(client, admin_headers, T) == 3  # one PR row, a trigger per matching resource
 
     # a state change and a revoke in one project do not touch the other
     client.patch(trig_url(project.id, T, 1), json={"state": "REJECTED", "state_cause": "x"}, headers=system_headers)
-    client.patch(link_url(project.id, T), json={"revoked": True}, headers=admin_headers)
+    client.patch(resource_url(project.id, T), json={"revoked": True}, headers=admin_headers)
     post_prs(client, system_headers, T, pr(4, merged_at="2030-02-01T00:00:00Z", changed_files=added("other/z.json")))
     assert states(client, admin_headers, other_project.id, T) == {2: "UNKNOWN", 4: "UNKNOWN"}
     assert states(client, admin_headers, project.id, T) == {1: "REJECTED", 3: "UNKNOWN"}
@@ -514,7 +514,7 @@ def test_spec_options_are_kept(client, system_headers, pr_trigger):
 
 
 def test_dataset_default_and_case_insensitive_override(client, admin_headers, system_headers, project, global_trigger_repo,
-                                                       linked_dataset, global_dataset, make_global_dataset,
+                                                       assigned_dataset, global_dataset, make_global_dataset,
                                                        pr_trigger, spec_raw):
     second = make_global_dataset(name="Second")
     assert client.put(f"/projects/{project.id}/datasets/{second.id}", json={}, headers=admin_headers).status_code == 201
@@ -526,14 +526,14 @@ def test_dataset_default_and_case_insensitive_override(client, admin_headers, sy
     assert named["spec"]["dataset_id"] == second.id
 
 
-@pytest.mark.parametrize("problem", ["unknown_name", "unlinked", "globally_disabled", "revoked_link"])
-def test_unusable_dataset_rejects_the_pr(client, admin_headers, system_headers, project, linked_dataset, global_dataset,
+@pytest.mark.parametrize("problem", ["unknown_name", "unassigned", "globally_disabled", "revoked_resource"])
+def test_unusable_dataset_rejects_the_pr(client, admin_headers, system_headers, project, assigned_dataset, global_dataset,
                                          make_global_dataset, pr_trigger, spec_raw, problem):
     raw = spec_raw
     if problem == "unknown_name":
         raw = spec(dataset="does-not-exist")
-    elif problem == "unlinked":
-        make_global_dataset(name="elsewhere")  # exists globally, never linked to the project
+    elif problem == "unassigned":
+        make_global_dataset(name="elsewhere")  # exists globally, never assigned to the project
         raw = spec(dataset="elsewhere")
     elif problem == "globally_disabled":
         global_dataset.enabled = False
@@ -568,9 +568,9 @@ def test_spec_raw_must_be_a_string_and_the_pr_is_not_judged(client, admin_header
 
 
 @pytest.mark.parametrize("setup", ["rejected", "revoked", "disabled"])
-def test_only_unknown_triggers_of_an_active_link_get_a_task(client, admin_headers, system_headers, project, global_trigger_repo,
+def test_only_unknown_triggers_of_an_active_resource_get_a_task(client, admin_headers, system_headers, project, global_trigger_repo,
                                                             pr_trigger, spec_raw, setup):
-    url = link_url(project.id, global_trigger_repo.id)
+    url = resource_url(project.id, global_trigger_repo.id)
     if setup == "rejected":
         client.patch(pr_trigger, json={"state": "REJECTED", "state_cause": "bad"}, headers=system_headers)
     elif setup == "revoked":
@@ -583,9 +583,9 @@ def test_only_unknown_triggers_of_an_active_link_get_a_task(client, admin_header
 
 def test_post_task_404s_and_disabled_project(client, system_headers, project, other_project, global_trigger_repo,
                                            pr_trigger, spec_raw):
-    base = link_url(project.id, global_trigger_repo.id)
+    base = resource_url(project.id, global_trigger_repo.id)
     assert post_task(client, system_headers, f"{base}/pull_requests/99", spec_raw).status_code == 404
-    other = f"{link_url(other_project.id, global_trigger_repo.id)}/pull_requests/1"
+    other = f"{resource_url(other_project.id, global_trigger_repo.id)}/pull_requests/1"
     assert post_task(client, system_headers, other, spec_raw).status_code == 404
 
 
@@ -665,7 +665,7 @@ def test_retry_resets_a_failed_task_only(client, admin_headers, system_headers, 
     assert retry.json["executor_run_id"] is None and retry.json["exit_code"] is None
 
 
-def test_task_results_list_the_delivery(client, admin_headers, system_headers, project, linked_results_repo, global_results_repo,
+def test_task_results_list_the_delivery(client, admin_headers, system_headers, project, assigned_results_repo, global_results_repo,
                                         make_task):
     task = make_task()
     assert patch_task(client, system_headers, project, task.id, {"status": "SUCCESS"}).status_code == 200
@@ -757,16 +757,16 @@ def test_cancel_is_not_implemented_and_leaves_the_task_alone(client, admin_heade
 
 
 def test_one_merge_commit_on_two_base_branches_is_stored_twice_and_fans_out_to_each(
-    client, admin_headers, project, other_project, global_trigger_repo
+    client, admin_headers, system_headers, project, other_project, global_trigger_repo
 ):
     """A fast-forward or rebase merge gives a release branch and main the same commit under two numbers."""
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T, base_branch="main")
-    link(client, admin_headers, other_project.id, T, base_branch="release")
+    assign(client, admin_headers, project.id, T, base_branch="main")
+    assign(client, admin_headers, other_project.id, T, base_branch="release")
     sha = f"{9:040x}"
 
     response = post_prs(
-        client, admin_headers, T,
+        client, system_headers, T,
         pr(1, merge_commit_sha=sha, base_branch="main"), pr(2, merge_commit_sha=sha, base_branch="release"),
     )
 
@@ -782,7 +782,7 @@ def test_a_repeated_merge_commit_on_the_same_base_branch_under_a_new_number_is_s
 ):
     """The duplicate stores nothing and gets no trigger, the rest of the batch is stored, and the post is a 201."""
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     assert post_prs(client, system_headers, T, pr(1)).status_code == 201
 
     with caplog.at_level("WARNING", logger="pull_request_fanout"):
@@ -799,7 +799,7 @@ def test_a_repeated_merge_commit_on_the_same_base_branch_under_a_new_number_is_s
 
 def test_posting_the_same_pull_request_again_changes_nothing(client, admin_headers, system_headers, project, global_trigger_repo):
     T = global_trigger_repo.id
-    link(client, admin_headers, project.id, T)
+    assign(client, admin_headers, project.id, T)
     assert post_prs(client, system_headers, T, pr(1)).status_code == 201
 
     again = post_prs(client, system_headers, T, pr(1))

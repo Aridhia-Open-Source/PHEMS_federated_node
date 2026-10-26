@@ -58,8 +58,8 @@ if [ -z "$project_id" ]; then
 fi
 echo "Project id: $project_id"
 
-echo -e "${BLUE}=== 3/3 Secret, git provider, global trigger repository, project link ===${NC}"
-# The secret, the provider and the repository are global; the project holds a link to the repository.
+echo -e "${BLUE}=== 3/3 Secret, git provider, global trigger repository, project resource ===${NC}"
+# The secret, the provider and the repository are global; the project holds a resource for the repository.
 # The secret holds a placeholder token until `fncli init-git-secret` writes a real one.
 secret_label="$TEST_TRIGGER_REPO-creds"
 if ! curl -sf "$BACKEND_URL/global/secrets/$secret_label" \
@@ -102,7 +102,7 @@ if ! curl -sf "$BACKEND_URL/projects/$project_id/repositories/triggers/$repo_id"
     --header "Authorization: Bearer $BACKEND_TOKEN" \
     --data "{\"watch_dir\": \"$TEST_TRIGGER_REPO_WATCH_DIR\", \"base_branch\": \"$default_branch\"}" > /dev/null
 fi
-echo "Linked to project $project_id"
+echo "Assigned to project $project_id"
 
 echo
 echo -e "${BLUE}=== Fresh GET: project ===${NC}"
@@ -110,7 +110,7 @@ curl -sf "$BACKEND_URL/projects/$project_id" \
   --header "Authorization: Bearer $BACKEND_TOKEN" | jq .
 
 echo
-echo -e "${BLUE}=== Fresh GET: trigger repository link ===${NC}"
+echo -e "${BLUE}=== Fresh GET: project trigger repository ===${NC}"
 curl -sf "$BACKEND_URL/projects/$project_id/repositories/triggers/$repo_id" \
   --header "Authorization: Bearer $BACKEND_TOKEN" | jq .
 

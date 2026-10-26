@@ -19,7 +19,7 @@ def ideal_state():
     next_task = iter(range(100, 1000))
     snapshots, titles = {}, {name: [] for name in LAYOUT.results_repos}
     for project, spec in LAYOUT.projects.items():
-        links, tasks, results = [], [], []
+        resources, tasks, results = [], [], []
         for repo in spec["triggers"]:
             prs = []
             for pull in MERGED[repo]:
@@ -35,8 +35,8 @@ def ideal_state():
                 if not failing:
                     results.append({"task_id": task_id, "step": "OPENED", "state": "DELIVERED"})
                     titles[spec["results"]].append(sim.results_title(ADMIN, repo, pull["number"], task_id))
-            links.append({"repository": f"http://gitea.fn.svc:4000/{ADMIN}/{repo}", "pull_requests": prs})
-        snapshots[project] = {"trigger_links": links, "tasks": tasks, "results": results}
+            resources.append({"repository": f"http://gitea.fn.svc:4000/{ADMIN}/{repo}", "pull_requests": prs})
+        snapshots[project] = {"trigger_resources": resources, "tasks": tasks, "results": results}
     return snapshots, titles
 
 
@@ -71,7 +71,7 @@ def test_an_undelivered_result_is_pending():
 
 def test_a_pull_request_that_reached_the_wrong_project_is_found():
     snapshots, titles = ideal_state()
-    snapshots["SimThree"]["trigger_links"][0]["pull_requests"].append(
+    snapshots["SimThree"]["trigger_resources"][0]["pull_requests"].append(
         {"number": 7, "state": "YIELDED", "state_cause": None, "task_id": 999}
     )
     assert any("SimThree/sim-trig-a2: unexpected pull request #7" in p for p in problems_of(snapshots, titles))
@@ -79,8 +79,8 @@ def test_a_pull_request_that_reached_the_wrong_project_is_found():
 
 def test_a_task_shared_by_two_projects_is_found():
     snapshots, titles = ideal_state()
-    shared = snapshots["SimOne"]["trigger_links"][0]["pull_requests"][0]["task_id"]
-    snapshots["SimTwo"]["trigger_links"][0]["pull_requests"][0]["task_id"] = shared
+    shared = snapshots["SimOne"]["trigger_resources"][0]["pull_requests"][0]["task_id"]
+    snapshots["SimTwo"]["trigger_resources"][0]["pull_requests"][0]["task_id"] = shared
     snapshots["SimTwo"]["tasks"][0]["id"] = shared
     assert any("is shared with" in p for p in problems_of(snapshots, titles))
 
@@ -96,7 +96,7 @@ def test_a_results_pull_request_in_the_wrong_repository_is_found():
 
 def test_a_missing_pull_request_a_wrong_status_and_a_result_for_a_failed_task_are_found():
     snapshots, titles = ideal_state()
-    del snapshots["SimFour"]["trigger_links"][0]["pull_requests"][1]
+    del snapshots["SimFour"]["trigger_resources"][0]["pull_requests"][1]
     snapshots["SimOne"]["tasks"][0]["status"] = "FAILED"
     failed_task = snapshots["SimThree"]["tasks"][1]["id"]
     snapshots["SimThree"]["results"].append({"task_id": failed_task, "step": "OPENED", "state": "DELIVERED"})
@@ -108,15 +108,15 @@ def test_a_missing_pull_request_a_wrong_status_and_a_result_for_a_failed_task_ar
 
 def test_a_rejected_pull_request_with_a_task_is_found():
     snapshots, titles = ideal_state()
-    rejected = copy.deepcopy(snapshots)["SimOne"]["trigger_links"][0]["pull_requests"][1]
+    rejected = copy.deepcopy(snapshots)["SimOne"]["trigger_resources"][0]["pull_requests"][1]
     assert rejected["state"] == "REJECTED"
-    snapshots["SimOne"]["trigger_links"][0]["pull_requests"][1]["task_id"] = 5
+    snapshots["SimOne"]["trigger_resources"][0]["pull_requests"][1]["task_id"] = 5
     assert any("should be REJECTED without a task" in p for p in problems_of(snapshots, titles))
 
 
-def test_a_project_linked_to_another_repository_is_found():
+def test_a_project_assigned_another_repository_is_found():
     snapshots, titles = ideal_state()
-    snapshots["SimOne"]["trigger_links"].append(
+    snapshots["SimOne"]["trigger_resources"].append(
         {"repository": f"http://gitea.fn.svc:4000/{ADMIN}/sim-trig-a2", "pull_requests": []}
     )
-    assert any("SimOne: linked to repositories" in p for p in problems_of(snapshots, titles))
+    assert any("SimOne: assigned repositories" in p for p in problems_of(snapshots, titles))
