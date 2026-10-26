@@ -152,8 +152,8 @@ def test_up_installs_the_release_with_every_project_database(repo, commands):
     ]
 
 
-def test_setup_checks_the_release_then_seeds_then_sets_up_the_node_project(repo, commands, steps):
-    invoke("setup", "x")
+def test_seed_checks_the_release_then_loads_the_seed_sql(repo, commands, steps):
+    invoke("seed", "x")
 
     projects = repo / "experiments" / "projects"
     assert commands.lines == [
@@ -162,6 +162,13 @@ def test_setup_checks_the_release_then_seeds_then_sets_up_the_node_project(repo,
         "kubectl exec -i -n experiments deploy/db-datasets -- psql -v ON_ERROR_STOP=1 -q -U x_user -d x-db",
     ]
     assert commands.calls[2][1]["input"] == "SEED SQL"
+    assert steps == []
+
+
+def test_setup_checks_the_release_then_sets_up_the_node_project(commands, steps):
+    invoke("setup", "x")
+
+    assert commands.lines == ["helm status experiments --namespace experiments"]
     (name, _, env), = steps
     assert name == "setup-project"
     assert env["CLUSTER_DATASET_HOST"] == "db-datasets.experiments.svc"
@@ -171,10 +178,11 @@ def test_setup_checks_the_release_then_seeds_then_sets_up_the_node_project(repo,
     assert env["NAMESPACE"] == "fn"
 
 
-def test_setup_without_the_release_tells_you_to_run_up(commands, steps):
+@pytest.mark.parametrize("command", ["seed", "setup"])
+def test_without_the_release_seed_and_setup_tell_you_to_run_up(command, commands, steps):
     commands.failing = "helm"
 
-    result = CliRunner().invoke(experiment_group, ["setup", "x"])
+    result = CliRunner().invoke(experiment_group, [command, "x"])
 
     assert result.exit_code == 1
     assert "fncli experiment up" in result.output
@@ -198,13 +206,12 @@ def test_up_without_the_data_dir_stops_before_helm(repo, commands):
     assert commands.calls == []
 
 
-def test_a_failing_command_stops_setup_with_its_exit_status(commands, steps):
+def test_a_failing_command_stops_seed_with_its_exit_status(commands):
     commands.failing = "kubectl"
 
-    result = CliRunner().invoke(experiment_group, ["setup", "x"])
+    result = CliRunner().invoke(experiment_group, ["seed", "x"])
 
     assert result.exit_code == 3
-    assert steps == []
 
 
 def test_run_starts_the_sensors_then_opens_a_watched_pr_with_the_image_and_dev_env(steps):

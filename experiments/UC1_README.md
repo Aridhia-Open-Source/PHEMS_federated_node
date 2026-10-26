@@ -15,19 +15,21 @@ root. If `make experiments` says "No such command", reinstall fncli from this ch
 ```bash
 git clone https://github.com/PHDS-centralized-services/MVP-Code experiments/sources/uc1
 make experiments up          # the experiments release, with the uc1-omop database
-make experiments setup uc1   # dummy OMOP data, project "uc1"
+make experiments seed uc1    # dummy OMOP data into uc1-omop
+make experiments setup uc1   # project "uc1" in the node
 make experiments build uc1   # localhost:5001/uc1-fn:latest (slow: R package restore)
 make experiments run uc1     # trigger PR -> task -> results PR in Gitea uc1-results-repo
 ```
 
-`up`, `setup` and `run` can be rerun after a failure. `fncli experiment run uc1 --local` runs the
+`up`, `seed`, `setup` and `run` can be rerun after a failure. `fncli experiment run uc1 --local` runs the
 image in docker straight against the database, with no node involved, to tell an analysis
 failure from a node one.
 
 | Step | What it does | Where |
 |---|---|---|
 | `up` | helm upgrade of the `experiments` release: Postgres, database `uc1-omop`, role `uc1_omop_user`, generated password | namespace `experiments` |
-| `setup` | checks the release is up, loads the synthetic OMOP data over `kubectl exec` (recreating its schemas), then `fncli setup-project`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | backend + Gitea |
+| `seed` | checks the release is up, loads the synthetic OMOP data over `kubectl exec` (recreating its schemas) | namespace `experiments` |
+| `setup` | checks the release is up, then `fncli setup-project`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | backend + Gitea |
 | `build` | `docker build experiments/sources/uc1`, push to the kind registry | host Docker |
 | `run` | starts the sensors, opens and merges a spec PR, watches the task and the results PR | Gitea + Dagster |
 
@@ -40,7 +42,7 @@ small (832 patients); the time goes on the many small queries the R packages run
 make experiments teardown uc1   # remove project "uc1", its global resources and Gitea repos
 make experiments down           # or: teardown every experiment, then uninstall the release
 make experiments up             # back again (the database files survive `down`)
-make experiments setup uc1
+make experiments setup uc1      # `seed uc1` too if you wiped the data
 make experiments run uc1        # `build uc1` first only if the source changed
 ```
 

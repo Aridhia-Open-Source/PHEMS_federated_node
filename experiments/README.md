@@ -28,16 +28,17 @@ Needs the dev cluster up with Tilt (port-forwards for backend 5000, Gitea 4000 a
 
 ```bash
 make experiments up                    # the release: Postgres with every project's database
-make experiments setup uc1             # dummy OMOP data, project "uc1" in the node
+make experiments seed uc1              # dummy OMOP data into uc1-omop
+make experiments setup uc1             # project "uc1" in the node, with its global resources
 make experiments build uc1             # localhost:5001/uc1-fn:latest (slow: renv restore)
 fncli experiment run uc1 --local       # optional: image straight against the DB, no node
 make experiments run uc1               # trigger PR -> task -> results PR in uc1-results-repo
 ```
 
-These call `fncli experiment up|setup|build|run` (also `teardown NAME` and `down`, see Clean
-up). `--local` needs fncli directly, since make takes `--` options as its own. `setup` fails
-and tells you to run `up` if the release isn't installed. `up`, `setup`, `run` and `teardown`
-can be rerun after a failure. If `make experiments`
+These call `fncli experiment up|seed|setup|build|run` (also `teardown NAME` and `down`, see Clean
+up). `--local` needs fncli directly, since make takes `--` options as its own. `seed` and `setup`
+fail and tell you to run `up` if the release isn't installed. `up`, `seed`, `setup`, `run` and
+`teardown` can be rerun after a failure. If `make experiments`
 says "No such command", reinstall fncli from this checkout:
 `pipx install --force --editable './dagster[cli]'`.
 
@@ -52,7 +53,7 @@ uc1` runs the whole study.
    to `ARTIFACT_PATH`.
 2. Copy `projects/uc1` to `projects/NAME`, then change the names and the seed.
 3. Run `make experiments up` (it upgrades the release with the new database, so this works
-   on a running cluster), then `setup NAME`, `build NAME` and `run NAME`.
+   on a running cluster), then `seed NAME`, `setup NAME`, `build NAME` and `run NAME`.
 
 ## Clean up
 
