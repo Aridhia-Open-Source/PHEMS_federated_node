@@ -18,12 +18,12 @@ def test_full_flow(client, admin_headers, system_headers, k8s_client, disabled_p
     D = call("post", "/global/datasets", 201,
              json={"name": "E2eDs", "host": "db", "port": 5432, "secret_label": "e2e-creds"})["id"]
 
-    # 5-7. Link secret, dataset and trigger repository (the project is still disabled)
+    # 5-7. Assign secret, dataset and trigger repository (the project is still disabled)
     call("put", f"/projects/{pid}/secrets/e2e-creds", 201, json={})
     call("put", f"/projects/{pid}/datasets/{D}", 201, json={})
     call("put", f"/projects/{pid}/repositories/triggers/{T}", 201, json={"watch_dir": "triggers"})
 
-    # 8. Link the results repository (the project must still be disabled)
+    # 8. Assign the results repository (the project must still be disabled)
     call("put", f"/projects/{pid}/repositories/results/{R}", 201, json={"target_dir": "results"})
 
     # 9-10. Enable the project

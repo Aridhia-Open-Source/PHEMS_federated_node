@@ -108,7 +108,7 @@ def upgrade() -> None:
     )
     _unique_when_live('uq_project_datasets_project_dataset', 'project_datasets', ['project_id', 'dataset_id'])
 
-    # Create project_secrets table (a project's link to a global secret)
+    # Create project_secrets table (a project's resource for a global secret)
     op.create_table(
         'project_secrets',
         sa.Column('id', sa.Integer(), nullable=False),

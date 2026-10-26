@@ -8,9 +8,9 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 
 1. On the dev project: `kubectl get secret -A | grep fn-secret-` and note the namespace of the trigger Secret.
 2. `fncli secret-set --entity trigger --enabled false`.
-3. `kubectl get secret -A | grep <key>` again. `GET /global/secrets/<label>` and `GET /global/repositories/triggers/<id>`. `fncli project-show` (the trigger link `active`).
+3. `kubectl get secret -A | grep <key>` again. `GET /global/secrets/<label>` and `GET /global/repositories/triggers/<id>`. `fncli project-show` (the trigger resource `active`).
 
-- **Expected:** the value is now in the quarantine namespace, not the original one. The Secret's row keeps the original namespace, so reads of it fail while it is moved. The Secret is `enabled: false`, and so is every GlobalResource that uses it (here the trigger repository; the link is inactive). The change is one commit: if the move fails the request fails and nothing changes.
+- **Expected:** the value is now in the quarantine namespace, not the original one. The Secret's row keeps the original namespace, so reads of it fail while it is moved. The Secret is `enabled: false`, and so is every GlobalResource that uses it (here the trigger repository; the project resource is inactive). The change is one commit: if the move fails the request fails and nothing changes.
 - **Rule:** disabling a Secret also disables what uses it and quarantines its value ([docs/architecture/revoke-and-enabled.md#secrets]; [Generic Secret model and SecretProvider; per-repository tokens]).
 - **Automated by:** Partly automated: `webserver/tests/test_secrets_quarantine.py` (in-memory store); the end-to-end failure suite, group "a PR merged while the trigger repository's Secret is switched off gets no task" (`dagster/fncli/tests/e2e/test_failure_paths.py`, written, never run on a cluster). Both miss the real Kubernetes move and the quarantine namespace.
 - [ ] Pass
@@ -19,10 +19,10 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 ## Enabling a Secret brings the value back and does not switch the users on
 
 1. Continue from the previous case: `fncli secret-set --entity trigger --enabled true`.
-2. Check the namespace of the value, then `fncli project-show` (the trigger link `active`).
+2. Check the namespace of the value, then `fncli project-show` (the trigger resource `active`).
 3. `fncli global-set trigger --enabled true`, then `fncli project-show` again.
 
-- **Expected:** the value is back in its original namespace. The trigger repository is still off and the link still inactive after step 1; it is active only after step 3. Pull requests merged while it was off get no trigger (the gap is skipped; see [enabled and revoked: trigger side](enabled-and-revoked-ingest-side.md)).
+- **Expected:** the value is back in its original namespace. The trigger repository is still off and the project resource still inactive after step 1; it is active only after step 3. Pull requests merged while it was off get no trigger (the gap is skipped; see [enabled and revoked: trigger side](enabled-and-revoked-ingest-side.md)).
 - **Rule:** enabling a Secret does not re-enable them; it is two steps ([docs/architecture/revoke-and-enabled.md#secrets]).
 - **Automated by:** Partly automated: the same unit file and end-to-end group as above; they miss a Secret shared by more than one GlobalResource (next case).
 - [ ] Pass
@@ -109,9 +109,9 @@ Run it after [run a task and deliver the result](run-a-task-and-deliver-the-resu
 2. Let the task finish. Watch `fncli project-show` results.
 3. `fncli secret-set --entity results --enabled true`, then `fncli global-set results --enabled true`.
 
-- **Expected:** the results repository is switched off with the Secret, so the result is recorded `FAILED` with "results link switched off" and held, and nothing is pushed. After step 3 the delivery retry sensor delivers it (result `OPENED`). If a delivery attempt instead fails while reading the token, record the error text: the sources say a delivery fails when it reads a disabled Secret and is retried until the attempts run out (check which path happens).
-- **Rule:** a disabled Secret switches off the ResultsRepository using it; a switched-off results link holds the result ([Enabled, revoked and soft delete]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` (a disabled Secret fails the delivery before its token is read) and the unit tests for the held result. Neither combines the Secret with a live delivery; the end-to-end held-result group switches off the results link only.
+- **Expected:** the results repository is switched off with the Secret, so the result is recorded `FAILED` with "results resource switched off" and held, and nothing is pushed. After step 3 the delivery retry sensor delivers it (result `OPENED`). If a delivery attempt instead fails while reading the token, record the error text: the sources say a delivery fails when it reads a disabled Secret and is retried until the attempts run out (check which path happens).
+- **Rule:** a disabled Secret switches off the ResultsRepository using it; a switched-off results resource holds the result ([Enabled, revoked and soft delete]).
+- **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` (a disabled Secret fails the delivery before its token is read) and the unit tests for the held result. Neither combines the Secret with a live delivery; the end-to-end held-result group switches off the results resource only.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -124,7 +124,7 @@ Needs the launcher stopped so the task is still `PENDING` (see "Make a change wh
 3. Start the launcher.
 
 - **Expected:** the task goes `FAILED` at launch with a cause naming the dataset. The dataset was switched off with its Secret, so the cause may say the dataset is not active rather than that the Secret is disabled (check and record the text). No run, no result.
-- **Rule:** the launcher fails a task whose dataset link is not active or whose dataset's Secret is disabled ([Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]).
+- **Rule:** the launcher fails a task whose dataset resource is not active or whose dataset's Secret is disabled ([Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]).
 - **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (the order of the two causes); it misses the live launcher.
 - [ ] Pass
 - [ ] Fail — notes:

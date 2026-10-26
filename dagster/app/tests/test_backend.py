@@ -394,9 +394,9 @@ class TestResults:
         assert result.state == ResultState.FAILED
         session.get.assert_called_once_with("/projects/1/results", params={"state": "FAILED"})
 
-    def test_list_by_state_with_an_active_link(self, api, session):
+    def test_list_by_state_with_an_active_resource(self, api, session):
         session.get.return_value = make_response([])
 
-        api.get_results_by_state(1, "FAILED", active_link=True)
+        api.get_results_by_state(1, "FAILED", active_resource=True)
 
-        session.get.assert_called_once_with("/projects/1/results", params={"state": "FAILED", "active_link": "true"})
+        session.get.assert_called_once_with("/projects/1/results", params={"state": "FAILED", "active_resource": "true"})

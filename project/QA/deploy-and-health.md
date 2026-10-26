@@ -20,7 +20,7 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 1. `kubectl get jobs -A` and `kubectl get pods -A | grep -i init`.
 
 - **Expected:** the database init, migration and Keycloak init hooks are `Completed`. The schema is the single baseline migration, applied once. Check the hook names on your release.
-- **Rule:** one baseline migration ([Global resources, linked to projects]).
+- **Rule:** one baseline migration ([Global resources and project resources]).
 - **Automated by:** Partly automated: `webserver/integration_tests/` runs the Keycloak initialiser against a real Keycloak over several runs; it misses the chart's hooks on a real cluster.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -75,8 +75,8 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 1. `fncli project-healthcheck` (exit code 0 and `ok` expected).
 2. `fncli verify-project`.
 
-- **Expected:** both exit 0. On a node that is not set up with fncli, use `GET /projects/<pid>/healthcheck` and the project's link healthchecks (`/projects/<pid>/repositories/triggers/<id>/healthcheck`, `.../results/<id>/healthcheck`, `/projects/<pid>/datasets/<id>/healthcheck`, `/projects/<pid>/secrets/<label>/healthcheck`).
-- **Rule:** a project reports its links' health (`project_healthcheck` in `webserver/app/healthcheck_api.py`).
+- **Expected:** both exit 0. On a node that is not set up with fncli, use `GET /projects/<pid>/healthcheck` and the project's resource healthchecks (`/projects/<pid>/repositories/triggers/<id>/healthcheck`, `.../results/<id>/healthcheck`, `/projects/<pid>/datasets/<id>/healthcheck`, `/projects/<pid>/secrets/<label>/healthcheck`).
+- **Rule:** a project reports its project resources' health (`project_healthcheck` in `webserver/app/healthcheck_api.py`).
 - **Automated by:** Partly automated: both fncli commands run in the setup steps of every end-to-end suite (dev cluster, Gitea only); `webserver/tests/test_healthchecks_all.py` covers the shapes. Neither covers a deployed node with GitHub.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -84,6 +84,6 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 [docs/architecture/flows.md#components-and-network]: ../../docs/architecture/flows.md#components-and-network
 
 <!-- link definitions -->
-[Global resources, linked to projects]: ../decisions/0006-global-resources-and-project-links.md
+[Global resources and project resources]: ../decisions/0006-global-resources-and-project-resources.md
 [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]: ../decisions/0014-dagster-pipeline-ops-sensors-and-retries.md
 [dagster/fncli/tests/e2e/README.md]: ../../dagster/fncli/tests/e2e/README.md

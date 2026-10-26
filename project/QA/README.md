@@ -45,7 +45,7 @@ Rules for the notes you keep:
 **Counts.** The numbers a case compares before and after:
 
 ```bash
-fncli project-show | jq -c '{prs: .trigger_links[0].pr_count, stored: .trigger_links[0].stored_pr_count, tasks: (.tasks | length), results: (.results | length)}'
+fncli project-show | jq -c '{prs: .trigger_resources[0].pr_count, stored: .trigger_resources[0].stored_pr_count, tasks: (.tasks | length), results: (.results | length)}'
 ```
 
 `prs` are the pull requests that have a trigger in the project; `stored` is how many the repository has stored, with or without a trigger for this project.
@@ -55,14 +55,14 @@ fncli project-show | jq -c '{prs: .trigger_links[0].pr_count, stored: .trigger_l
 **State.** The states a case watches:
 
 ```bash
-fncli project-show | jq -c '{project: (.project | {enabled, revoked}), trigger: (.trigger_links[0] | {enabled, revoked, active, global_enabled}), result: (.results_links[0] | {target_dir, enabled, revoked, active}), prs: [.trigger_links[0].pull_requests[] | {number, state, task_id}], tasks: [.tasks[] | {id, status, state_cause}], results: [.results[] | {task_id, step, state, number}]}'
+fncli project-show | jq -c '{project: (.project | {enabled, revoked}), trigger: (.trigger_resources[0] | {enabled, revoked, active, global_enabled}), result: (.results_resources[0] | {target_dir, enabled, revoked, active}), prs: [.trigger_resources[0].pull_requests[] | {number, state, task_id}], tasks: [.tasks[] | {id, status, state_cause}], results: [.results[] | {task_id, step, state, number}]}'
 ```
 
 Add `--project QaTwo` to look at the second project.
 
 **Merge a watched pull request.** `fncli open-pr --kind watched --merge`. Other kinds: `unwatched`, `invalid`, `failing` (a valid spec whose task exits non-zero).
 
-**Second project.** `fncli second-project-setup QaTwo` creates a project that links the same Secrets, dataset and repositories as the test project, with the same settings, and enables it. `fncli second-project-teardown QaTwo` deletes it and leaves the GlobalResources. Use `QaThree` for a third.
+**Second project.** `fncli second-project-setup QaTwo` creates a project with the same Secrets, dataset and repositories assigned as the test project, with the same settings, and enables it. `fncli second-project-teardown QaTwo` deletes it and leaves the GlobalResources. Use `QaThree` for a third.
 
 **Make a change while a task is still PENDING.** Used by [task pinning](task-pinning.md) and [enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md).
 
@@ -111,7 +111,7 @@ Ranked by risk: how complex the rules are, and how little of them an automated t
 | [Pull request ingest and task creation](pull-requests-and-task-creation.md) | Medium | The matching rules are unit-tested; no end-to-end test of base branch, file types, spec files, datasets or GitHub |
 | [Failure paths](failure-paths.md) | Medium | Each is in the end-to-end failure suite, which is written but has never run on a cluster |
 | [Run a task and deliver the result](run-a-task-and-deliver-the-result.md) | Medium | The end-to-end success suite passed on the dev cluster, on Gitea only, before the launch endpoint and the reconcile sensor landed, and has not run since; layout, close and delete are not checked live |
-| [GlobalResources and project links](globalresources-and-project-links.md) | Lower | Well covered by the route tests |
+| [GlobalResources and project resources](globalresources-and-project-resources.md) | Lower | Well covered by the route tests |
 | [Deploy and health checks](deploy-and-health.md) | Lower, but do it first | Unit tests mock reachability |
 | [Sign-in and admin-only actions](sign-in-and-admin-actions.md) | Lower | Only the administrator and the System user matter for the beta |
 | [Permissions and what is out of scope](permissions-and-out-of-scope.md) | Lower | Mostly a list of what not to test |
@@ -123,7 +123,7 @@ This is the dependency order; use the table above to choose where to put your ti
 
 1. [Deploy and health checks](deploy-and-health.md): the node is up and honest about it.
 2. [Sign-in and admin-only actions](sign-in-and-admin-actions.md): the logins you need for the rest.
-3. [GlobalResources and project links](globalresources-and-project-links.md): the setup everything else builds on.
+3. [GlobalResources and project resources](globalresources-and-project-resources.md): the setup everything else builds on.
 4. [Secrets and quarantine](secrets-and-quarantine.md): the real store, before anything depends on it. The last two cases need a task, so do them after "Run a task and deliver the result".
 5. [Pull request ingest and task creation](pull-requests-and-task-creation.md): the matching rules.
 6. [Two projects on the same GlobalResources](two-projects-on-the-same-globalresources.md): the second project is used by many later cases.

@@ -26,8 +26,8 @@ Needs: the dev project with sensors running; an administrator token for the API 
 4. `PATCH` with `{"state": "REJECTED"}` and no `state_cause`.
 
 - **Expected:** steps 1 to 3 are 409 and nothing changes. Step 4 is 400 (a cause is required for `REJECTED`).
-- **Rule:** `YIELDED` and `REJECTED` have no moves; a task is made only from an `UNKNOWN` trigger of an active link ([State transition tables for triggers, tasks and result steps; 409 on a refused move]).
-- **Automated by:** Automated: `webserver/tests/test_state_rules.py`, `webserver/tests/test_pull_requests_and_tasks.py` (`test_patch_state_unknown_to_yielded_is_final`, `test_rejected_trigger_cannot_go_back_to_unknown`, `test_only_unknown_triggers_of_an_active_link_get_a_task`). It misses a live node.
+- **Rule:** `YIELDED` and `REJECTED` have no moves; a task is made only from an `UNKNOWN` trigger of an active project resource ([State transition tables for triggers, tasks and result steps; 409 on a refused move]).
+- **Automated by:** Automated: `webserver/tests/test_state_rules.py`, `webserver/tests/test_pull_requests_and_tasks.py` (`test_patch_state_unknown_to_yielded_is_final`, `test_rejected_trigger_cannot_go_back_to_unknown`, `test_only_unknown_triggers_of_an_active_resource_get_a_task`). It misses a live node.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -83,13 +83,13 @@ fncli stops the reconcile sensor together with the run-status sensors (`--group 
 
 ## A held result is retried at most once per retry interval and delivered when the cause goes
 
-1. Hold a result: merge a watched pull request, `fncli link-set results --enabled false` while it runs, wait until the result is `UNKNOWN` and `FAILED`.
-2. In the Dagster UI watch `results_delivery_retry_sensor` for several intervals with the link still off.
-3. `fncli link-set results --enabled true`.
+1. Hold a result: merge a watched pull request, `fncli resource-set results --enabled false` while it runs, wait until the result is `UNKNOWN` and `FAILED`.
+2. In the Dagster UI watch `results_delivery_retry_sensor` for several intervals with the project resource still off.
+3. `fncli resource-set results --enabled true`.
 
-- **Expected:** step 2: the sensor does not launch a delivery (the link is not active), so there are no `deliver-retry` runs. Step 3: one delivery run starts (run key `deliver-retry/<result>/<slot>`) and the result goes `OPENED`, `DELIVERED`; the run is not repeated.
-- **Rule:** the retry sensor lists `FAILED` results at a non-final step on an active link; the run key carries a slot so a failing delivery is retried at most once per interval ([Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results link switched off before delivery is held FAILED, delivered once the link is on" (written, never run on a cluster); `dagster/app/tests/test_results_delivery.py` (the retry sensor tests). It does not look at the run keys.
+- **Expected:** step 2: the sensor does not launch a delivery (the project resource is not active), so there are no `deliver-retry` runs. Step 3: one delivery run starts (run key `deliver-retry/<result>/<slot>`) and the result goes `OPENED`, `DELIVERED`; the run is not repeated.
+- **Rule:** the retry sensor lists `FAILED` results at a non-final step on an active project resource; the run key carries a slot so a failing delivery is retried at most once per interval ([Run keys, retries and the results pull request sync]).
+- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on" (written, never run on a cluster); `dagster/app/tests/test_results_delivery.py` (the retry sensor tests). It does not look at the run keys.
 - [ ] Pass
 - [ ] Fail — notes:
 

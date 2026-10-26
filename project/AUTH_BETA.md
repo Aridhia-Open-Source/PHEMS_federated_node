@@ -215,7 +215,7 @@ Current = effective scope after hooks. All handlers on shared-resources (a `/` a
 
 ## Decisions
 
-1. (2026-10-17) Project setup is **admin** for the beta: create/patch/delete projects, links and project secrets, and task retry/cancel/approve/block. **user** can read projects and run/read tasks only.
+1. (2026-10-17) Project setup is **admin** for the beta: create/patch/delete projects, project resources and project secrets, and task retry/cancel/approve/block. **user** can read projects and run/read tasks only.
 2. (2026-10-17) The six Dagster write routes (PR batch ingest, PR PATCH, PR→task POST, task PATCH, result POST, result PATCH) are **system** only. Humans use retry/cancel/approve/block.
 3. (2026-10-17) `/dagster/sensors` (list, get, start/stop) is **admin** (system included by nesting).
 4. (2026-10-17) Remove the per-user task owner check in `tasks_api.py`: any user can see any task. Ownership and project isolation are a future ticket.

@@ -1,4 +1,4 @@
-"""Which backend login `link-set` uses: revoking is admin only, everything else uses the dagster system user."""
+"""Which backend login `resource-set` uses: revoking is admin only, everything else uses the dagster system user."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -12,8 +12,8 @@ from fncli.cmds import state
 def calls(monkeypatch):
     made = []
     monkeypatch.setattr(state, "find_project", lambda api, name: SimpleNamespace(id=1))
-    monkeypatch.setattr(state, "first_link", lambda api, project_id, kind: {})
-    monkeypatch.setattr(state, "link_key", lambda kind, link: 7)
+    monkeypatch.setattr(state, "first_resource", lambda api, project_id, kind: {})
+    monkeypatch.setattr(state, "resource_key", lambda kind, resource: 7)
     monkeypatch.setattr(state, "call", lambda api, method, path, **kw: made.append((api, method, path, kw)) or MagicMock())
     monkeypatch.setattr(state, "report", lambda response, expect: 0)
     return made
@@ -22,7 +22,7 @@ def calls(monkeypatch):
 def test_revoking_uses_the_admin_login(calls):
     system, admin = MagicMock(name="system"), MagicMock(name="admin")
 
-    state.set_link(system, "p", "trigger", None, "true", None, admin_api=admin)
+    state.set_resource(system, "p", "trigger", None, "true", None, admin_api=admin)
 
     ((used, method, path, kwargs),) = calls
     assert used is admin and method == "PATCH" and path.endswith("/7") and kwargs["json"] == {"revoked": True}
@@ -31,15 +31,15 @@ def test_revoking_uses_the_admin_login(calls):
 def test_other_changes_keep_the_system_login_even_when_an_admin_is_given(calls):
     system, admin = MagicMock(name="system"), MagicMock(name="admin")
 
-    state.set_link(system, "p", "results", "false", None, None, target_dir="out/", admin_api=admin)
+    state.set_resource(system, "p", "results", "false", None, None, target_dir="out/", admin_api=admin)
 
     ((used, _, _, kwargs),) = calls
     assert used is system and kwargs["json"] == {"enabled": False, "target_dir": "out/"}
 
 
-def test_target_dir_is_only_for_the_results_link(calls):
-    with pytest.raises(Exception, match="results link"):
-        state.set_link(MagicMock(), "p", "trigger", None, None, None, target_dir="x/")
+def test_target_dir_is_only_for_the_results_resource(calls):
+    with pytest.raises(Exception, match="results resource"):
+        state.set_resource(MagicMock(), "p", "trigger", None, None, None, target_dir="x/")
 
 
 def test_enabling_a_project_with_backfill_sends_both(calls):
@@ -125,7 +125,7 @@ def test_global_set_needs_a_flag(calls):
         state.set_global(MagicMock(), "p", "trigger", None, None)
 
 
-def test_second_project_is_created_disabled_linked_then_enabled(monkeypatch):
+def test_second_project_is_created_disabled_assigned_then_enabled(monkeypatch):
     sent = []
 
     def respond(api, method, path, **kwargs):
@@ -133,7 +133,7 @@ def test_second_project_is_created_disabled_linked_then_enabled(monkeypatch):
         return SimpleNamespace(status_code=201, content=b"{}", json=lambda: {"id": 5}, text="")
 
     monkeypatch.setattr(state, "find_project", lambda api, name: SimpleNamespace(id=1))
-    monkeypatch.setattr(state, "project_links", lambda api, pid: {
+    monkeypatch.setattr(state, "project_resources", lambda api, pid: {
         "secret": [{"secret": {"label": "s"}}], "dataset": [{"dataset": {"id": 2}}], "trigger": [],
         "results": [{"results_repository": {"id": 3}, "target_dir": "out"}],
     })

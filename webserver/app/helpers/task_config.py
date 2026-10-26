@@ -7,7 +7,7 @@ and compared: a task whose setup changed fails and is never run or published aga
 Not in the snapshot: credentials and secrets (a rotation has to reach running work), the trigger
 repository (the task is pinned to the pull request's merge sha) and the enabled and revoked flags
 (those have their own rules). One of those is shared: a task whose project, or a trigger, dataset or
-results repository it uses (the project's link, the global resource, a repository's provider) is revoked or
+results repository it uses (the project resource, the global resource, a repository's provider) is revoked or
 deleted (see revoked_resources) does not launch and its results are never delivered.
 """
 import hashlib
@@ -24,17 +24,17 @@ SNAPSHOT_VERSION = 1
 def build_snapshot(project, dataset) -> dict:
     """
     The snapshot of the configuration a task of the project, running on the dataset (or none), is
-    built against. The project has at most one results link.
+    built against. The project has at most one results resource.
     """
-    link = project.get_results_repository()
+    resource = project.get_results_repository()
     results = None
-    if link is not None:
-        repository = link.results_repository
+    if resource is not None:
+        repository = resource.results_repository
         results = {
             "repository_id": repository.id,
             "repository": repository.uri,
             "api_uri": repository.provider.api_uri,
-            "target_dir": link.target_dir,
+            "target_dir": resource.target_dir,
         }
     return {
         "version": SNAPSHOT_VERSION,
@@ -90,11 +90,11 @@ def config_changes(task) -> list[str]:
     return diff(task.config_snapshot, current_snapshot(task))
 
 
-def results_link(project_id: int, results_repository_id: int | None = None) -> ProjectResultsRepository | None:
+def results_resource(project_id: int, results_repository_id: int | None = None) -> ProjectResultsRepository | None:
     """
-    The project's link to the results repository, a deleted one too (it is revoked, so its delivery gets
+    The project's resource for the results repository, a deleted one too (it is revoked, so its delivery gets
     the final REVOKED result), the newest if there are several. Without a repository id, the project's
-    newest link to any.
+    newest resource for any.
     """
     query = ProjectResultsRepository.query.filter_by(project_id=project_id)
     if results_repository_id is not None:
@@ -107,11 +107,11 @@ def revoked_resources(task, results_repository_id: int | None = None) -> list[st
     What the task uses that is revoked or deleted; empty when nothing is. A task with a revoked resource does
     not launch and its results are never delivered. Switched off is not revoked. Each is named once:
     - the project the task is in: "project p (revoked)";
-    - the pull request trigger's repository: its project link, "trigger repository o/r", the global repository
+    - the pull request trigger's repository: its project resource, "trigger repository o/r", the global repository
       and its provider, "trigger repository o/r (revoked)", "provider git (revoked)";
-    - the dataset: its project link, "dataset ds" (also when the project has none), the global dataset,
+    - the dataset: its project resource, "dataset ds" (also when the project has none), the global dataset,
       "dataset ds (revoked)";
-    - the results repository, like the trigger one. Its link is to the given repository, else the one the
+    - the results repository, like the trigger one. Its project resource is for the given repository, else the one the
       task was pinned to, else the project's newest.
     """
     revoked = []
@@ -120,8 +120,8 @@ def revoked_resources(task, results_repository_id: int | None = None) -> list[st
         if name not in revoked:
             revoked.append(name)
 
-    def add_repository(kind: str, link, repository):
-        if link.revoked:
+    def add_repository(kind: str, resource, repository):
+        if resource.revoked:
             add(f"{kind} {repository.repo_path}")
         if repository.revoked:
             add(f"{kind} {repository.repo_path} (revoked)")
@@ -131,21 +131,21 @@ def revoked_resources(task, results_repository_id: int | None = None) -> list[st
     if task.project.revoked:
         add(f"project {task.project.name} (revoked)")
     if isinstance(task.trigger, PullRequestTrigger):
-        link = task.trigger.project_trigger_repository
-        add_repository("trigger repository", link, link.trigger_repository)
+        resource = task.trigger.project_trigger_repository
+        add_repository("trigger repository", resource, resource.trigger_repository)
     if task.spec.dataset_id:
-        link = ProjectDataset.query.filter_by(
+        resource = ProjectDataset.query.filter_by(
             project_id=task.project_id, dataset_id=task.spec.dataset_id
         ).execution_options(include_deleted=True).order_by(ProjectDataset.id.desc()).first()
-        if link is None or link.revoked:
+        if resource is None or resource.revoked:
             add(f"dataset {task.spec.dataset.name}")
         if task.spec.dataset.revoked:
             add(f"dataset {task.spec.dataset.name} (revoked)")
     if results_repository_id is None and task.config_snapshot and task.config_snapshot["results"]:
         results_repository_id = task.config_snapshot["results"]["repository_id"]
-    link = results_link(task.project_id, results_repository_id)
-    if link is not None:
-        add_repository("results repository", link, link.results_repository)
+    resource = results_resource(task.project_id, results_repository_id)
+    if resource is not None:
+        add_repository("results repository", resource, resource.results_repository)
     return revoked
 
 
@@ -167,7 +167,7 @@ def decide_launch(task) -> LaunchDecision:
     rule that applies decides, in this order, and its cause is what the task records:
     1. something the task uses is revoked or deleted: "revoked: <names joined by '; '>" (see revoked_resources);
     2. its pinned configuration changed: "task configuration changed since the task was created: <changes joined by '; '>";
-    3. its dataset's project link is not active (link or global dataset switched off, revoked or deleted):
+    3. its dataset's project resource is not active (project resource or global dataset switched off, revoked or deleted):
        "Dataset <name> is not active in project <project>";
     4. its dataset's secret is disabled: "The secret of dataset <name> is disabled".
     Otherwise it is "launch". A task without a dataset skips rules 3 and 4. The cause is not truncated: its column
@@ -182,8 +182,8 @@ def decide_launch(task) -> LaunchDecision:
         return LaunchDecision("fail", cause, revoked, changes)
     dataset = task.spec.dataset if task.spec.dataset_id else None
     if dataset is not None:
-        link = ProjectDataset.query.filter_by(project_id=task.project_id, dataset_id=dataset.id).first()
-        if link is None or not link.active:
+        resource = ProjectDataset.query.filter_by(project_id=task.project_id, dataset_id=dataset.id).first()
+        if resource is None or not resource.active:
             cause = f"Dataset {dataset.name} is not active in project {task.project.name}"
             return LaunchDecision("fail", cause, revoked, changes)
         if not dataset.secret.enabled:

@@ -1,33 +1,33 @@
 """
 The quick failure paths of the GlobalResource flow. Same style as the happy path: one test per fncli command or expected state,
 in order, on one project, stopping at the first failure with the last snapshot. Each group of tests leaves the project as
-the next expects it: links active, tokens restored, everything switched back on.
+the next expects it: resources active, tokens restored, everything switched back on.
 
 None of the groups waits for a task to run: they are commands, states and "nothing happens" checks. It starts with an invalid
-spec, a pull request outside the watched directory and a revoked trigger link. Then come the groups that switch something off
-or withdraw it: a revoked project, a trigger link switched off, a GlobalResource (the trigger repository) switched off or
+spec, a pull request outside the watched directory and a revoked trigger resource. Then come the groups that switch something off
+or withdraw it: a revoked project, a trigger resource switched off, a GlobalResource (the trigger repository) switched off or
 revoked, and a Secret switched off. In each of them a pull request is merged while something is off, and none of them may get
 a task. Switching it back on skips the gap, so the pull request still gets no task. The rules are in
 ../../../../docs/architecture/revoke-and-enabled.md.
 
 The groups where a task runs to the end or a result is delivered (a second project, a lost token and its recovery, a failing
-task, enabling a project with backfill, a results link switched off before delivery) are in test_failure_paths_long.py, run
+task, enabling a project with backfill, a results resource switched off before delivery) are in test_failure_paths_long.py, run
 with `--e2e failure_long`.
 
 Not covered by any e2e suite for now: the scenarios that stop and start sensors were removed, and the reconcile sensor is
 expected to make up for sensors being down. Only the webserver and Dagster unit tests cover revoking a result that is already
 held, and retrying tasks is not covered (on hold until after beta). These behaviours are therefore not checked end to end (the
 rules are in revoke-and-enabled.md, "May a waiting task launch?" and "May a finished task's result be delivered?"):
-- restarting the ingest sensor does not duplicate pull requests or tasks, also after a trigger link was revoked and un-revoked;
-- a task whose results link's target_dir changes before it launches fails, and its cause names the change
+- restarting the ingest sensor does not duplicate pull requests or tasks, also after a trigger resource was revoked and un-revoked;
+- a task whose results resource's target_dir changes before it launches fails, and its cause names the change
   (the pinned configuration changed);
 - sensors that were all stopped while a pull request was merged catch up when started: the pull request gets one trigger
   and one task, and no task stays PENDING;
-- a results link revoked after the task succeeded and before its delivery: the result is REVOKED and FAILED, never
-  delivered, and un-revoking the link delivers nothing;
-- a results link's target_dir changed after the task succeeded and before its delivery: the result is STALE and FAILED, never
+- a results resource revoked after the task succeeded and before its delivery: the result is REVOKED and FAILED, never
+  delivered, and un-revoking the resource delivers nothing;
+- a results resource's target_dir changed after the task succeeded and before its delivery: the result is STALE and FAILED, never
   delivered, and restoring the target_dir delivers nothing;
-- a dataset link revoked while the task is PENDING: the task fails at launch with a cause that starts "revoked: " and names
+- a dataset resource revoked while the task is PENDING: the task fails at launch with a cause that starts "revoked: " and names
   the dataset, and has no result;
 - a global dataset switched off while the task is PENDING: the task fails at launch with a cause saying the dataset is not
   active and naming it, and has no result.
@@ -44,7 +44,7 @@ from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
 from fncli.cmds.common import build_admin_backend_api
 from fncli.cmds.state import (
     global_set_command,
-    link_set_command,
+    resource_set_command,
     project_set_command,
     second_project_teardown_command,
     secret_set_command,
@@ -70,7 +70,7 @@ from fncli.tests.e2e.conftest import (
     stored_without_a_trigger,
     summary,
     teardown_step,
-    trigger_link,
+    trigger_resource,
 )
 
 pytestmark = [pytest.mark.e2e, pytest.mark.e2e_failure]
@@ -122,7 +122,7 @@ def test_verify_project_after_setup(fncli):
 def test_project_starts_empty(fncli):
     snapshot = fncli.snapshot()
     assert counts(snapshot) == (0, 0), f"expected a project with no PRs or tasks\n{summary(snapshot)}"
-    assert trigger_link(snapshot)["active"] is True
+    assert trigger_resource(snapshot)["active"] is True
 
 
 # --- an invalid spec is rejected, no task -------------------------------------------------
@@ -195,49 +195,49 @@ def test_unwatched_pr_nothing_created(fncli, flow):
     fncli.assert_counts(flow["unwatched_pr_before"], "unwatched PR")
 
 
-# --- a PR merged while the link is revoked never gets a trigger -------------------------------
+# --- a PR merged while the resource is revoked never gets a trigger -------------------------------
 
 
-def test_revoked_link_record_counts(fncli, flow):
-    record_counts(fncli, flow, "revoked_link_before")
+def test_revoked_resource_record_counts(fncli, flow):
+    record_counts(fncli, flow, "revoked_resource_before")
 
 
-def test_revoked_link_revoke_link(fncli):
-    fncli.call(link_set_command, kind="trigger", revoked="true", expect=200)
+def test_revoked_resource_revoke_resource(fncli):
+    fncli.call(resource_set_command, kind="trigger", revoked="true", expect=200)
 
 
-def test_revoked_link_link_inactive(fncli):
-    fncli.wait_for_state("the trigger link inactive", STEP_TIMEOUT, lambda s: trigger_link(s)["active"] is False)
+def test_revoked_resource_inactive(fncli):
+    fncli.wait_for_state("the trigger resource inactive", STEP_TIMEOUT, lambda s: trigger_resource(s)["active"] is False)
 
-def test_revoked_link_create_branch(fncli, flow):
-    create_branch(fncli, flow, "revoked_link")
-
-
-def test_revoked_link_commit_file(fncli, flow):
-    commit_file(fncli, flow, "revoked_link", "watched")
+def test_revoked_resource_create_branch(fncli, flow):
+    create_branch(fncli, flow, "revoked_resource")
 
 
-def test_revoked_link_create_pr(fncli, flow):
-    create_pr(fncli, flow, "revoked_link", "watched")
+def test_revoked_resource_commit_file(fncli, flow):
+    commit_file(fncli, flow, "revoked_resource", "watched")
 
 
-def test_revoked_link_merge_pr(fncli, flow):
-    merge_pr(fncli, flow, "revoked_link")
+def test_revoked_resource_create_pr(fncli, flow):
+    create_pr(fncli, flow, "revoked_resource", "watched")
 
 
-def test_revoked_link_nothing_ingested_while_revoked(fncli, flow):
+def test_revoked_resource_merge_pr(fncli, flow):
+    merge_pr(fncli, flow, "revoked_resource")
+
+
+def test_revoked_resource_nothing_ingested_while_revoked(fncli, flow):
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["revoked_link_before"], "revoked link")
+    fncli.assert_counts(flow["revoked_resource_before"], "revoked resource")
 
 
-def test_revoked_link_unrevoke_link(fncli):
-    fncli.call(link_set_command, kind="trigger", revoked="false", expect=200)
+def test_revoked_resource_unrevoke_resource(fncli):
+    fncli.call(resource_set_command, kind="trigger", revoked="false", expect=200)
 
 
-def test_revoked_link_missed_pr_not_replayed(fncli, flow):
-    """Un-revoking moves the link's cursor to now: the PR merged while revoked is stored but gets no trigger."""
+def test_revoked_resource_missed_pr_not_replayed(fncli, flow):
+    """Un-revoking moves the resource's cursor to now: the PR merged while revoked is stored but gets no trigger."""
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["revoked_link_before"], "PR merged while the link was revoked, after un-revoking")
+    fncli.assert_counts(flow["revoked_resource_before"], "PR merged while the resource was revoked, after un-revoking")
 
 
 # --- a PR merged while the project is revoked is stored and gets no task --------------------
@@ -273,36 +273,36 @@ def test_revoked_project_missed_pr_not_replayed(fncli, flow):
     assert_no_new_task(fncli, flow, "revoked_project_before", "PR merged while the project was revoked, after restoring it")
 
 
-# --- a PR merged while the trigger link is switched off gets no task ----------------------------
+# --- a PR merged while the trigger resource is switched off gets no task ----------------------------
 
 
-def test_disabled_link_record_counts(fncli, flow):
-    record_counts(fncli, flow, "disabled_link_before")
+def test_disabled_resource_record_counts(fncli, flow):
+    record_counts(fncli, flow, "disabled_resource_before")
 
 
-def test_disabled_link_switch_off_link(fncli):
-    fncli.call(link_set_command, kind="trigger", enabled="false", expect=200)
+def test_disabled_resource_switch_off_resource(fncli):
+    fncli.call(resource_set_command, kind="trigger", enabled="false", expect=200)
 
 
-def test_disabled_link_link_inactive(fncli):
-    fncli.wait_for_state("the trigger link inactive", STEP_TIMEOUT, lambda s: trigger_link(s)["active"] is False)
+def test_disabled_resource_inactive(fncli):
+    fncli.wait_for_state("the trigger resource inactive", STEP_TIMEOUT, lambda s: trigger_resource(s)["active"] is False)
 
 
-def test_disabled_link_merge_pr(fncli, flow):
-    merge_watched_pr(fncli, flow, "disabled_link")
+def test_disabled_resource_merge_pr(fncli, flow):
+    merge_watched_pr(fncli, flow, "disabled_resource")
 
 
-def test_disabled_link_nothing_ingested_while_off(fncli, flow):
+def test_disabled_resource_nothing_ingested_while_off(fncli, flow):
     quiet_wait(QUIET_TICKS)
-    fncli.assert_counts(flow["disabled_link_before"], "trigger link switched off")
+    fncli.assert_counts(flow["disabled_resource_before"], "trigger resource switched off")
 
 
-def test_disabled_link_switch_on_link(fncli):
-    fncli.call(link_set_command, kind="trigger", enabled="true", expect=200)
+def test_disabled_resource_switch_on_resource(fncli):
+    fncli.call(resource_set_command, kind="trigger", enabled="true", expect=200)
 
 
-def test_disabled_link_missed_pr_not_replayed(fncli, flow):
-    assert_no_new_task(fncli, flow, "disabled_link_before", "PR merged while the trigger link was off, after switching it on")
+def test_disabled_resource_missed_pr_not_replayed(fncli, flow):
+    assert_no_new_task(fncli, flow, "disabled_resource_before", "PR merged while the trigger resource was off, after switching it on")
 
 
 # --- a PR merged while the GlobalResource is switched off gets no task ------------------------
@@ -316,8 +316,8 @@ def test_disabled_global_switch_off_global(fncli):
     fncli.call(global_set_command, kind="trigger", enabled="false", expect=200)
 
 
-def test_disabled_global_link_inactive(fncli):
-    fncli.wait_for_state("the trigger link inactive", STEP_TIMEOUT, lambda s: trigger_link(s)["active"] is False)
+def test_disabled_global_resource_inactive(fncli):
+    fncli.wait_for_state("the trigger resource inactive", STEP_TIMEOUT, lambda s: trigger_resource(s)["active"] is False)
 
 
 def test_disabled_global_merge_pr(fncli, flow):
@@ -333,8 +333,8 @@ def test_disabled_global_switch_on_global(fncli):
     fncli.call(global_set_command, kind="trigger", enabled="true", expect=200)
 
 
-def test_disabled_global_link_active_again(fncli):
-    fncli.wait_for_state("the trigger link active", STEP_TIMEOUT, lambda s: trigger_link(s)["active"] is True)
+def test_disabled_global_resource_active_again(fncli):
+    fncli.wait_for_state("the trigger resource active", STEP_TIMEOUT, lambda s: trigger_resource(s)["active"] is True)
 
 
 def test_disabled_global_missed_pr_not_replayed(fncli, flow):
@@ -353,8 +353,8 @@ def test_revoked_global_revoke_global(fncli):
     fncli.call(global_set_command, kind="trigger", revoked="true", expect=200)
 
 
-def test_revoked_global_link_inactive(fncli):
-    fncli.wait_for_state("the trigger link inactive", STEP_TIMEOUT, lambda s: trigger_link(s)["active"] is False)
+def test_revoked_global_resource_inactive(fncli):
+    fncli.wait_for_state("the trigger resource inactive", STEP_TIMEOUT, lambda s: trigger_resource(s)["active"] is False)
 
 
 def test_revoked_global_merge_pr(fncli, flow):
@@ -370,8 +370,8 @@ def test_revoked_global_restore_global(fncli):
     fncli.call(global_set_command, kind="trigger", revoked="false", expect=200)
 
 
-def test_revoked_global_link_active_again(fncli):
-    fncli.wait_for_state("the trigger link active", STEP_TIMEOUT, lambda s: trigger_link(s)["active"] is True)
+def test_revoked_global_resource_active_again(fncli):
+    fncli.wait_for_state("the trigger resource active", STEP_TIMEOUT, lambda s: trigger_resource(s)["active"] is True)
 
 
 def test_revoked_global_missed_pr_not_replayed(fncli, flow):
@@ -391,7 +391,7 @@ def test_disabled_secret_switch_off_secret(fncli):
 
 def test_disabled_secret_switches_off_the_repository(fncli):
     """Switching a Secret off switches off every repository that uses it."""
-    fncli.wait_for_state("the trigger link inactive", STEP_TIMEOUT, lambda s: trigger_link(s)["active"] is False)
+    fncli.wait_for_state("the trigger resource inactive", STEP_TIMEOUT, lambda s: trigger_resource(s)["active"] is False)
 
 
 def test_disabled_secret_merge_pr(fncli, flow):
@@ -409,15 +409,15 @@ def test_disabled_secret_switch_on_secret(fncli):
 
 def test_disabled_secret_repository_stays_off(fncli):
     """Switching the Secret on changes only the Secret: the repository stays off until it is switched on itself."""
-    assert trigger_link(fncli.snapshot())["active"] is False
+    assert trigger_resource(fncli.snapshot())["active"] is False
 
 
 def test_disabled_secret_switch_on_repository(fncli):
     fncli.call(global_set_command, kind="trigger", enabled="true", expect=200)
 
 
-def test_disabled_secret_link_active_again(fncli):
-    fncli.wait_for_state("the trigger link active", STEP_TIMEOUT, lambda s: trigger_link(s)["active"] is True)
+def test_disabled_secret_resource_active_again(fncli):
+    fncli.wait_for_state("the trigger resource active", STEP_TIMEOUT, lambda s: trigger_resource(s)["active"] is True)
 
 
 def test_disabled_secret_missed_pr_not_replayed(fncli, flow):

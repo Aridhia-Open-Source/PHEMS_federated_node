@@ -12,9 +12,9 @@ from app.models import ProjectTriggerRepository, TriggerState
 class PullRequestEvaluateSensor(LaunchingSensor, GitSensor):
     """
     Launches one evaluation run per trigger repository of an enabled project that has
-    UNKNOWN PRs, reading each project's links.
+    UNKNOWN PRs, reading each project's resources.
 
-    The run key names the link and its newest UNKNOWN PR number, see run_key: a newly ingested
+    The run key names the project resource and its newest UNKNOWN PR number, see run_key: a newly ingested
     PR launches at once, and a failed batch is retried once per retry interval. A repository
     with a run still queued or started is skipped.
     """
@@ -38,7 +38,7 @@ class PullRequestEvaluateSensor(LaunchingSensor, GitSensor):
         return {"repo_id": str(item.trigger_repository.id), "project_id": str(item.project_id)}
 
     def ready(self, item: ProjectTriggerRepository) -> bool:
-        """Whether the link has UNKNOWN PRs, noting the newest one's number for the run key."""
+        """Whether the project resource has UNKNOWN PRs, noting the newest one's number for the run key."""
         unknown = self.backend_api.get_pull_requests(
             item.project_id, item.trigger_repository.id, state=TriggerState.UNKNOWN.value
         )

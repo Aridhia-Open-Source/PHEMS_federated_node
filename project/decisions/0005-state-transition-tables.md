@@ -11,7 +11,7 @@ The allowed moves are data, in tables next to the enums in `webserver/app/models
 - `transition(moves, current, new)`: `new` must be in `moves[current]`.
 - `forward_only(order, current, new)`: `new` must have a higher rank than `current`.
 
-**Trigger** (`TRIGGER_MOVES` in `trigger_state.py`, checked by `Trigger.set_state`): `UNKNOWN` to `YIELDED` or `REJECTED`; `YIELDED` and `REJECTED` have no moves, so both are final. `state_cause` is required for `REJECTED` and refused otherwise. A task is created only from an `UNKNOWN` trigger of an active link; a `REJECTED` or `YIELDED` trigger gives 409.
+**Trigger** (`TRIGGER_MOVES` in `trigger_state.py`, checked by `Trigger.set_state`): `UNKNOWN` to `YIELDED` or `REJECTED`; `YIELDED` and `REJECTED` have no moves, so both are final. `state_cause` is required for `REJECTED` and refused otherwise. A task is created only from an `UNKNOWN` trigger of an active project resource; a `REJECTED` or `YIELDED` trigger gives 409.
 
 **Task** (`TASK_MOVES` and `RETRYABLE` in `task_status.py`, used by `patch_task` and `retry_task` in `tasks_api.py`): forward only.
 - `PENDING` may go to `QUEUED`, `RUNNING` or a finished status (the sensors can see a run start before it is queued); `QUEUED` to `RUNNING` or a finished status; `RUNNING` to a finished status.
@@ -21,9 +21,9 @@ The allowed moves are data, in tables next to the enums in `webserver/app/models
 **Result step** (`RESULT_ORDER` in `pull_request_result_step.py`, checked by `PullRequestResult.set_step`, called from `PATCH /projects/<pid>/results/<id>`):
 - `UNKNOWN` (0) < `PUSHED` (1) < `OPENED` (2) < `MERGED` = `CLOSED` = `REVOKED` = `STALE` (all 3).
 - The last four are terminal and of equal rank, so none moves to another. A late delivery retry cannot undo what the sync sensor found.
-- `REVOKED` and `STALE` are normally set when `POST /projects/<pid>/results` creates the result (revoked link, changed task configuration). `POST` also moves an existing, non-final result to `REVOKED` when something it uses was revoked since. Nothing is delivered for either.
+- `REVOKED` and `STALE` are normally set when `POST /projects/<pid>/results` creates the result (revoked project resource, changed task configuration). `POST` also moves an existing, non-final result to `REVOKED` when something it uses was revoked since. Nothing is delivered for either.
 
-**Result state** (`result_state.py`: `IN_PROGRESS`, `DELIVERED`, `FAILED`) is a separate column from the step ([0004](0004-polymorphic-result-and-forward-only-state.md)). It has no move table: `PATCH` accepts any valid value. A `FAILED` result whose step is not final, on an active link, is relaunched by the delivery retry sensor ([0015](0015-run-keys-retries-and-results-pr-sync.md)).
+**Result state** (`result_state.py`: `IN_PROGRESS`, `DELIVERED`, `FAILED`) is a separate column from the step ([0004](0004-polymorphic-result-and-forward-only-state.md)). It has no move table: `PATCH` accepts any valid value. A `FAILED` result whose step is not final, on an active project resource, is relaunched by the delivery retry sensor ([0015](0015-run-keys-retries-and-results-pr-sync.md)).
 
 **Dagster copies the enums, not the tables.** `dagster/app/models/` repeats the values (the step also has `from_git`). There is no copy of `TRIGGER_MOVES`, `TASK_MOVES` or `RESULT_ORDER` there: Dagster sends the move and the webserver decides. The run-status sensors and the delivery and sync jobs treat the 409 as "already moved on" and skip ([0014](0014-dagster-pipeline-ops-sensors-and-retries.md)).
 

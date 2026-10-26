@@ -17,7 +17,7 @@ class SecretDTO(DTO):
 
 
 class ProjectSecretDTO(DTO):
-    """A project's link to a global secret, the reference nested. Addressed by the secret's label. Never carries values."""
+    """A project's resource for a global secret, the reference nested. Addressed by the secret's label. Never carries values."""
     project_id: int
     secret: SecretDTO
     enabled: bool

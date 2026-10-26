@@ -46,7 +46,7 @@ class Dataset(SoftDeleteMixin, db.Model, BaseModel):
     write_schema = sa.Column(sa.String(256), nullable=True)
     type = sa.Column(sa.String(256), server_default="postgres", nullable=False)
     extra_connection_args = sa.Column(sa.String(4096), nullable=True)
-    # Turned on or off for the whole node, whatever the projects' links say
+    # Turned on or off for the whole node, whatever the project resources say
     enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
     # The controller withdrew the dataset from the whole node: every project's use of it is blocked.
     # Never touches enabled, so a re-grant restores the previous state.

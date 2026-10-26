@@ -67,7 +67,7 @@ TEARDOWN_IDS = [step_id(step) for step in TEARDOWN_STEPS]
 
 
 def pull_requests(snapshot: dict) -> list[dict]:
-    return [pr for link in snapshot["trigger_links"] for pr in link["pull_requests"]]
+    return [pr for resource in snapshot["trigger_resources"] for pr in resource["pull_requests"]]
 
 
 def counts(snapshot: dict) -> tuple[int, int]:
@@ -76,15 +76,15 @@ def counts(snapshot: dict) -> tuple[int, int]:
 
 
 def stored_count(snapshot: dict) -> int:
-    """Pull requests stored for the trigger repository, whether or not the project link got a trigger for them."""
-    return sum(link["stored_pr_count"] for link in snapshot["trigger_links"])
+    """Pull requests stored for the trigger repository, whether or not the project resource got a trigger for them."""
+    return sum(resource["stored_pr_count"] for resource in snapshot["trigger_resources"])
 
 
 def summary(snapshot: dict) -> dict:
     """The part of a snapshot a failure message shows."""
     return {
         "project": {k: snapshot["project"][k] for k in ("enabled", "revoked")},
-        "links": [{k: link[k] for k in ("enabled", "revoked", "active", "global_enabled")} for link in snapshot["trigger_links"]],
+        "resources": [{k: resource[k] for k in ("enabled", "revoked", "active", "global_enabled")} for resource in snapshot["trigger_resources"]],
         "prs": pull_requests(snapshot),
         "stored_prs": stored_count(snapshot),
         "tasks": snapshot["tasks"],
@@ -293,8 +293,8 @@ def pr_of(snapshot, flow, key):
     return next((pr for pr in pull_requests(snapshot) if pr["number"] == flow[f"{key}_pr"]), None)
 
 
-def trigger_link(snapshot):
-    return snapshot["trigger_links"][0]
+def trigger_resource(snapshot):
+    return snapshot["trigger_resources"][0]
 
 
 def tasks_finished(snapshot):
@@ -330,13 +330,13 @@ def assert_no_new_task(fncli, flow, key, what):
 
 
 def record_stored(fncli, flow, key):
-    """Records the counts and, for the link that gets no trigger, how many pull requests the repository has stored."""
+    """Records the counts and, for the resource that gets no trigger, how many pull requests the repository has stored."""
     record_counts(fncli, flow, key)
     flow[f"{key}_stored"] = stored_count(fncli.snapshot())
 
 
 def stored_without_a_trigger(flow, key):
-    """The pull request is stored (+1, read from the repository: the link gets no trigger for it) and has no task."""
+    """The pull request is stored (+1, read from the repository: the resource gets no trigger for it) and has no task."""
     return lambda snapshot: stored_count(snapshot) == flow[f"{key}_stored"] + 1 and counts(snapshot) == flow[key]
 
 
