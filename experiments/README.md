@@ -28,9 +28,9 @@ Needs the dev cluster up with Tilt (port-forwards for backend 5000, Gitea 4000 a
 
 ```bash
 make experiments up                    # the release: Postgres with every project's database
+make experiments build uc1             # localhost:5001/uc1-fn:latest (slow: renv restore)
 make experiments seed uc1              # dummy OMOP data into uc1-omop
 make experiments setup uc1             # project "uc1" in the node, with its global resources
-make experiments build uc1             # localhost:5001/uc1-fn:latest (slow: renv restore)
 fncli experiment run uc1 --local       # optional: image straight against the DB, no node
 make experiments run uc1               # trigger PR -> task -> results PR in uc1-results-repo
 ```
@@ -53,7 +53,7 @@ uc1` runs the whole study.
    to `ARTIFACT_PATH`.
 2. Copy `projects/uc1` to `projects/NAME`, then change the names and the seed.
 3. Run `make experiments up` (it upgrades the release with the new database, so this works
-   on a running cluster), then `seed NAME`, `setup NAME`, `build NAME` and `run NAME`.
+   on a running cluster), then `build NAME`, `seed NAME`, `setup NAME` and `run NAME`.
 
 ## Clean up
 

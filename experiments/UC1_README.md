@@ -15,9 +15,9 @@ root. If `make experiments` says "No such command", reinstall fncli from this ch
 ```bash
 git clone https://github.com/PHDS-centralized-services/MVP-Code experiments/sources/uc1
 make experiments up          # the experiments release, with the uc1-omop database
+make experiments build uc1   # localhost:5001/uc1-fn:latest (slow: R package restore)
 make experiments seed uc1    # dummy OMOP data into uc1-omop
 make experiments setup uc1   # project "uc1" in the node
-make experiments build uc1   # localhost:5001/uc1-fn:latest (slow: R package restore)
 make experiments run uc1     # trigger PR -> task -> results PR in Gitea uc1-results-repo
 ```
 
@@ -28,9 +28,9 @@ failure from a node one.
 | Step | What it does | Where |
 |---|---|---|
 | `up` | helm upgrade of the `experiments` release: Postgres, database `uc1-omop`, role `uc1_omop_user`, generated password | namespace `experiments` |
+| `build` | `docker build experiments/sources/uc1`, push to the kind registry | host Docker |
 | `seed` | checks the release is up, loads the synthetic OMOP data over `kubectl exec` (recreating its schemas) | namespace `experiments` |
 | `setup` | checks the release is up, then `fncli setup-project`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | backend + Gitea |
-| `build` | `docker build experiments/sources/uc1`, push to the kind registry | host Docker |
 | `run` | starts the sensors, opens and merges a spec PR, watches the task and the results PR | Gitea + Dagster |
 
 A full run takes about 8 minutes, nearly all of it in the R cohort building. The data is

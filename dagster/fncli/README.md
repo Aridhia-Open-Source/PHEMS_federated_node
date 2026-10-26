@@ -237,9 +237,9 @@ On GitHub (`TEST_GIT_PROVIDER=github`, see `.demo-github.env.example`) the repo 
 
 ```bash
 fncli experiment up              # install/upgrade the release: Postgres + every project's database
+fncli experiment build NAME      # docker build + push of the image
 fncli experiment seed NAME       # load the dummy data (recreates its schemas); needs `up`; safe to rerun
 fncli experiment setup NAME      # setup-project against that database; needs `up`; safe to rerun
-fncli experiment build NAME      # docker build + push of the image
 fncli experiment run NAME        # start-sensor, then open-pr --merge --watch; FULL=1 leaves out DEV_ENV
 fncli experiment run NAME --local  # the image in docker against the database, no node
 fncli experiment teardown NAME   # remove NAME's node project, global resources and Gitea repos
