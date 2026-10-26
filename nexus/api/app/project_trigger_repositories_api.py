@@ -1,8 +1,8 @@
 """
-A project's trigger repositories: its links to the global repositories, and its triggers for
-the pull requests ingested for each. A link is addressed by the global repository's id. PUT
-links one, 201 the first time and 200 after, replacing the project's settings. Dagster calls
-the pull request routes (evaluation state). With ?active=true the list has only the active links
+A project's trigger repositories: its resources for the global repositories, and its triggers for
+the pull requests ingested for each. A project resource is addressed by the global repository's id. PUT
+assigns one, 201 the first time and 200 after, replacing the project's settings. Dagster calls
+the pull request routes (evaluation state). With ?active=true the list has only the active resources
 (enabled, not revoked, repository enabled).
 - GET /projects/<project_id>/repositories/triggers[?active=true]
 - GET|PUT|PATCH|DELETE /projects/<project_id>/repositories/triggers/<repository_id>
@@ -43,12 +43,12 @@ session = db.session
 
 
 def _assignment(project_id: int, repo_id: int) -> ProjectTriggerRepository:
-    """The project's link to a global repository, found by the repository's id."""
+    """The project's resource for a global repository, found by the repository's id."""
     assignment = ProjectTriggerRepository.query.filter_by(
         trigger_repository_id=repo_id, project_id=project_id
     ).one_or_none()
     if assignment is None:
-        raise DBRecordNotFoundError(f"Trigger repository {repo_id} is not linked to project {project_id}")
+        raise DBRecordNotFoundError(f"Trigger repository {repo_id} is not assigned to project {project_id}")
     return assignment
 
 
@@ -65,7 +65,7 @@ def _check_loop(assignment: ProjectTriggerRepository):
 def list_project_trigger_repositories(project_id: int, active: str = ''):
     """
     GET /projects/<project_id>/repositories/triggers — the project's trigger repository
-    links, inactive ones included with their flags unless ?active=true, which returns only the
+    resources, inactive ones included with their flags unless ?active=true, which returns only the
     active ones.
     """
     Project.get_by_id(project_id)
@@ -80,12 +80,12 @@ def put_project_trigger_repository(
     project_id: int, repo_id: int, response: Response, body: dict = Body(default_factory=dict)
 ):
     """
-    PUT /projects/<project_id>/repositories/triggers/<repo_id> — links a global trigger
-    repository to the project, 201, or replaces the project's settings if it is linked already,
+    PUT /projects/<project_id>/repositories/triggers/<repo_id> — assigns a global trigger
+    repository to the project, 201, or replaces the project's settings if it is assigned already,
     200: a change of
     watch_dir or base_branch applies at once. A new watcher does not touch work in
     flight. Fields left out take their defaults. The cursor is set when
-    the link is created, after the latest pull request stored, and stays where it is.
+    the project resource is created, after the latest pull request stored, and stays where it is.
     Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir is
     required, the rest optional.
     """
@@ -119,7 +119,7 @@ def put_project_trigger_repository(
         base_branch=body.get("base_branch", "main"),
         enabled=body.get("enabled", True),
     )
-    # History is not replayed: start after the latest pull request stored, or at the link's
+    # History is not replayed: start after the latest pull request stored, or at the project resource's
     # creation when there is none
     latest = PullRequest.query.filter_by(trigger_repository_id=repo.id)\
         .order_by(PullRequest.merged_at.desc(), PullRequest.number.desc()).first()
@@ -147,7 +147,7 @@ def patch_project_trigger_repository(
 ):
     """
     PATCH /projects/<project_id>/repositories/triggers/<repo_id> — changes what the
-    project watches (watch_dir, base_branch), at any time, or turns the link on or off
+    project watches (watch_dir, base_branch), at any time, or turns the project resource on or off
     (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
@@ -189,8 +189,8 @@ def patch_project_trigger_repository(
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_project_trigger_repository(project_id: int, repo_id: int):
     """
-    DELETE /projects/<project_id>/repositories/triggers/<repo_id> — unlinks the
-    repository, not the repository itself: a soft delete that also revokes the link.
+    DELETE /projects/<project_id>/repositories/triggers/<repo_id> — unassigns the
+    repository, not the repository itself: a soft delete that also revokes the project resource.
     """
     assignment = _assignment(project_id, repo_id)
     assignment.soft_delete()
@@ -280,7 +280,7 @@ def post_task(
     Body: {"spec_raw": "..."}, the pull request's spec file as read. It is kept on the pull
     request before it is parsed, so a rejected pull request keeps it too.
     Idempotent: if the pull request already has a task it is returned with a 200. Only an
-    UNKNOWN trigger of an active link of an enabled, not revoked project may create a task, otherwise 409 (REJECTED is final).
+    UNKNOWN trigger of an active project resource of an enabled, not revoked project may create a task, otherwise 409 (REJECTED is final).
     """
     pr = _pull_request(project_id, repo_id, number)
 
@@ -290,7 +290,7 @@ def post_task(
         raise InvalidRequest(f"PR #{number} is {pr.state}, only an UNKNOWN pull request can create a task", HTTPStatus.CONFLICT)
     require_accepts_tasks(Project.get_by_id(project_id))
     if not _assignment(project_id, repo_id).active:
-        raise InvalidRequest(f"The link to trigger repository {repo_id} is not active", HTTPStatus.CONFLICT)
+        raise InvalidRequest(f"The project's trigger repository {repo_id} is not active", HTTPStatus.CONFLICT)
 
     spec_raw = body.get('spec_raw')
     if not isinstance(spec_raw, str):

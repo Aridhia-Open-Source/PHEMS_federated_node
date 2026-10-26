@@ -28,7 +28,7 @@ class ResultsRepositoryDTO(DTO):
 
 
 class ProjectResultsRepositoryDTO(DTO):
-    """A project's link to a global results repository, the repository nested. Addressed by the repository's id."""
+    """A project's resource for a global results repository, the repository nested. Addressed by the repository's id."""
     project_id: int
     results_repository: ResultsRepositoryDTO
     target_dir: str

@@ -117,19 +117,19 @@ def test_system_cannot_revoke(client, system_headers, request, url_of, model, fi
 def _revoke_target(request, kind):
     get = request.getfixturevalue
     project = get("project")
-    if kind == "dataset link":
-        get("linked_dataset")
+    if kind == "dataset resource":
+        get("assigned_dataset")
         ds = get("global_dataset")
         return f"/projects/{project.id}/datasets/{ds.id}", ProjectDataset, {"project_id": project.id}
-    if kind == "secret link":
-        get("linked_secret")
+    if kind == "secret resource":
+        get("assigned_secret")
         return f"/projects/{project.id}/secrets/{get('global_secret').label}", ProjectSecret, {"project_id": project.id}
-    if kind == "trigger link":
-        get("linked_trigger_repo")
+    if kind == "trigger resource":
+        get("assigned_trigger_repo")
         return (f"/projects/{project.id}/repositories/triggers/{get('global_trigger_repo').id}",
                 ProjectTriggerRepository, {"project_id": project.id})
-    if kind == "results link":
-        get("linked_results_repo")
+    if kind == "results resource":
+        get("assigned_results_repo")
         return (f"/projects/{project.id}/repositories/results/{get('global_results_repo').id}",
                 ProjectResultsRepository, {"project_id": project.id})
     resource = get({"dataset": "global_dataset", "trigger repository": "global_trigger_repo",
@@ -142,7 +142,7 @@ def _revoke_target(request, kind):
 
 
 REVOKE_KINDS = ["dataset", "trigger repository", "results repository", "git provider", "project",
-                "dataset link", "secret link", "trigger link", "results link"]
+                "dataset resource", "secret resource", "trigger resource", "results resource"]
 
 
 def _revoked(model, where):

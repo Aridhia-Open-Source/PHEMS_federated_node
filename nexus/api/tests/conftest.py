@@ -250,7 +250,7 @@ def project(client) -> Project:
 
 @fixture
 def disabled_project(project) -> Project:
-    """The project disabled, as linking its results repository needs."""
+    """The project disabled, as assigning its results repository needs."""
     project.enabled = False
     db.session.commit()
     return project
@@ -370,7 +370,7 @@ def results_assignment(client, project, results_repo) -> ProjectResultsRepositor
     return assignment
 
 
-# Global resources: unlinked factories, then the same linked to `project` through the PUT routes
+# Global resources: unassigned factories, then the same assigned to `project` through the PUT routes
 @fixture
 def admin_headers(post_json_admin_header):
     """Admin bearer token with a JSON content type, for client.get/put/post/patch/delete."""
@@ -430,24 +430,24 @@ def global_results_repo(make_results_repo) -> ResultsRepository:
 
 
 @fixture
-def linked_secret(client, admin_headers, project, global_secret) -> dict:
-    """PUT /projects/<pid>/secrets/<label>; the link as the route returns it."""
+def assigned_secret(client, admin_headers, project, global_secret) -> dict:
+    """PUT /projects/<pid>/secrets/<label>; the project resource as the route returns it."""
     response = client.put(f"/projects/{project.id}/secrets/{global_secret.label}", json={}, headers=admin_headers)
     assert response.status_code == 201, response.json()
     return response.json()
 
 
 @fixture
-def linked_dataset(client, admin_headers, project, global_dataset) -> dict:
-    """PUT /projects/<pid>/datasets/<dataset id>; the link as the route returns it."""
+def assigned_dataset(client, admin_headers, project, global_dataset) -> dict:
+    """PUT /projects/<pid>/datasets/<dataset id>; the project resource as the route returns it."""
     response = client.put(f"/projects/{project.id}/datasets/{global_dataset.id}", json={}, headers=admin_headers)
     assert response.status_code == 201, response.json()
     return response.json()
 
 
 @fixture
-def linked_trigger_repo(client, admin_headers, project, global_trigger_repo) -> dict:
-    """PUT /projects/<pid>/repositories/triggers/<repo id>, watching "triggers"; the link as returned."""
+def assigned_trigger_repo(client, admin_headers, project, global_trigger_repo) -> dict:
+    """PUT /projects/<pid>/repositories/triggers/<repo id>, watching "triggers"; the project resource as returned."""
     response = client.put(
         f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}",
         json={"watch_dir": "triggers"}, headers=admin_headers
@@ -457,8 +457,8 @@ def linked_trigger_repo(client, admin_headers, project, global_trigger_repo) -> 
 
 
 @fixture
-def linked_results_repo(client, admin_headers, project, global_results_repo) -> dict:
-    """PUT /projects/<pid>/repositories/results/<repo id>, target_dir "results"; the link as returned.
+def assigned_results_repo(client, admin_headers, project, global_results_repo) -> dict:
+    """PUT /projects/<pid>/repositories/results/<repo id>, target_dir "results"; the project resource as returned.
     The route needs the project disabled, so it is disabled for the PUT and enabled again."""
     project.enabled = False
     db.session.commit()
@@ -472,10 +472,10 @@ def linked_results_repo(client, admin_headers, project, global_results_repo) -> 
     return response.json()
 
 
-# A pull request posted after a link is created has to be merged after the link's cursor (the
-# link's creation time when no PR is stored yet), so the default is a fixed date in the future.
+# A pull request posted after a project resource is created has to be merged after its cursor (the
+# resource's creation time when no PR is stored yet), so the default is a fixed date in the future.
 PR_MERGED_AT = "2030-01-01T10:00:00Z"
-# A spec file the linked_trigger_repo link (watch_dir "triggers") matches
+# A spec file the assigned_trigger_repo project resource (watch_dir "triggers") matches
 WATCHED_SPEC_FILE = {"path": "triggers/spec.json", "status": "added"}
 SPEC_RAW = json.dumps({"spec": {"image": "img:1"}})
 
@@ -485,7 +485,7 @@ def make_pr_batch():
     """
     Body for POST /global/repositories/triggers/<id>/pull_requests, one valid PR per number
     (default [1]). By default each is merged at PR_MERGED_AT into "main" and adds
-    triggers/spec.json, so it matches linked_trigger_repo. **fields override every PR's
+    triggers/spec.json, so it matches assigned_trigger_repo. **fields override every PR's
     fields, e.g. base_branch="dev" or changed_files=[...].
     """
     def _make(*numbers, **fields) -> dict:
@@ -511,9 +511,9 @@ def ingest_prs(client, system_headers, make_pr_batch):
 
 
 @fixture
-def pr_trigger(project, global_trigger_repo, linked_trigger_repo, ingest_prs) -> str:
+def pr_trigger(project, global_trigger_repo, assigned_trigger_repo, ingest_prs) -> str:
     """
-    PR #1 ingested after linking global_trigger_repo to `project`, so the project has an
+    PR #1 ingested after assigning global_trigger_repo to `project`, so the project has an
     UNKNOWN trigger for it. Returns the URL of that trigger:
     /projects/<project id>/repositories/triggers/<repo id>/pull_requests/1
     """

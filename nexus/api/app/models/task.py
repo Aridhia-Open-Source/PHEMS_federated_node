@@ -118,7 +118,7 @@ class Task(db.Model, BaseModel):
                 ) if normalise_repo_uri(a.trigger_repository.uri) == uri
             ]
             if not assignments:
-                raise InvalidRequest(f"No datasets linked with the repository {repository}")
+                raise InvalidRequest(f"No datasets assigned with the repository {repository}")
             if len(assignments) > 1:
                 raise InvalidRequest(f"The repository {repository} is assigned to several projects")
             # The sensor sends no project, so a PR-driven task takes its repository's.

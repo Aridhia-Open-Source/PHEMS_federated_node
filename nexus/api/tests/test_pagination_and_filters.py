@@ -47,7 +47,7 @@ def paged(request, client):
         make_task = request.getfixturevalue("make_task")
         make_task(), make_task()
         return f"/projects/{request.getfixturevalue('project').id}/tasks", "tasks"
-    request.getfixturevalue("linked_trigger_repo")
+    request.getfixturevalue("assigned_trigger_repo")
     repo = request.getfixturevalue("global_trigger_repo")
     request.getfixturevalue("ingest_prs")(repo.id, 1, 2)
     return pr_list_url(request.getfixturevalue("project"), repo), "items"
@@ -172,11 +172,11 @@ def test_global_repo_lists_are_ordered_arrays(client, admin_headers, make_trigge
 
 def test_trigger_repos_pollable_filter(client, admin_headers, global_trigger_repo, make_trigger_repo):
     url = "/global/repositories/triggers"
-    unlinked = make_trigger_repo(uri="github.com/org/unlinked")  # no project link needed
-    assert ids(get(client, admin_headers, url + "?pollable=false").json()) == [global_trigger_repo.id, unlinked.id]
+    unassigned = make_trigger_repo(uri="github.com/org/unassigned")  # no project resource needed
+    assert ids(get(client, admin_headers, url + "?pollable=false").json()) == [global_trigger_repo.id, unassigned.id]
     for value in ("true", "TRUE", "True"):  # case-insensitive
-        assert ids(get(client, admin_headers, f"{url}?pollable={value}").json()) == [global_trigger_repo.id, unlinked.id]
-    unlinked.enabled = False
+        assert ids(get(client, admin_headers, f"{url}?pollable={value}").json()) == [global_trigger_repo.id, unassigned.id]
+    unassigned.enabled = False
     db.session.commit()
     assert ids(get(client, admin_headers, url + "?pollable=true").json()) == [global_trigger_repo.id]
     global_trigger_repo.secret.enabled = False
@@ -195,7 +195,7 @@ def test_trigger_repo_cursor_is_the_latest_merge_or_the_creation(client, admin_h
     assert get(client, admin_headers, url).json()["pr_cursor"] == "2031-01-02T03:04:05Z"
 
 
-def test_project_trigger_link_list_is_ordered_and_404_for_unknown_project(
+def test_project_trigger_resource_list_is_ordered_and_404_for_unknown_project(
         client, admin_headers, project, make_trigger_repo):
     repos = [make_trigger_repo(uri=f"github.com/org/l{i}") for i in range(3)]
     for repo in repos:
@@ -207,7 +207,7 @@ def test_project_trigger_link_list_is_ordered_and_404_for_unknown_project(
     assert get(client, admin_headers, "/projects/999/repositories/triggers").status_code == 404
 
 
-def test_pr_list_shape_order_and_paging(client, admin_headers, project, linked_trigger_repo, global_trigger_repo,
+def test_pr_list_shape_order_and_paging(client, admin_headers, project, assigned_trigger_repo, global_trigger_repo,
                                         ingest_prs):
     ingest_prs(global_trigger_repo.id, 1, 2, 3, 4, 5)  # same merged_at: ties broken by number desc
     response = get(client, admin_headers, pr_list_url(project, global_trigger_repo)).json()
@@ -223,7 +223,7 @@ def test_pr_list_shape_order_and_paging(client, admin_headers, project, linked_t
     assert glob.json()["pages"] == 3 and [i["number"] for i in glob.json()["items"]] == [5, 4]
 
 
-def test_pr_list_sorted_by_merge_time_desc(client, admin_headers, system_headers, project, linked_trigger_repo, global_trigger_repo,
+def test_pr_list_sorted_by_merge_time_desc(client, admin_headers, system_headers, project, assigned_trigger_repo, global_trigger_repo,
                                            make_pr_batch):
     body = make_pr_batch(1)
     body["pull_requests"] = []
@@ -236,7 +236,7 @@ def test_pr_list_sorted_by_merge_time_desc(client, admin_headers, system_headers
     assert [i["number"] for i in listed.json()["items"]] == [2, 3, 1]
 
 
-def test_pr_list_state_filter(client, admin_headers, project, linked_trigger_repo, global_trigger_repo, ingest_prs):
+def test_pr_list_state_filter(client, admin_headers, project, assigned_trigger_repo, global_trigger_repo, ingest_prs):
     ingest_prs(global_trigger_repo.id, 1, 2, 3)
     ingest_prs(global_trigger_repo.id, 4, base_branch="dev")  # non-matching PR creates no project trigger
 
@@ -251,7 +251,7 @@ def test_pr_list_state_filter(client, admin_headers, project, linked_trigger_rep
         assert state(bad).status_code == 400, bad
 
 
-def test_pr_list_state_reflects_patch_and_is_scoped_to_link(client, admin_headers, system_headers, project, other_project, pr_trigger,
+def test_pr_list_state_reflects_patch_and_is_scoped_to_resource(client, admin_headers, system_headers, project, other_project, pr_trigger,
                                                             global_trigger_repo):
     patched = client.patch(pr_trigger, json={"state": "REJECTED", "state_cause": "bad"}, headers=system_headers)
     assert patched.status_code == 200
@@ -279,7 +279,7 @@ def make_result(client, headers, project, make_task, repo_id, step=None):
     return created.json()["id"]
 
 
-def test_results_step_filter(client, admin_headers, system_headers, project, other_project, linked_results_repo, global_results_repo,
+def test_results_step_filter(client, admin_headers, system_headers, project, other_project, assigned_results_repo, global_results_repo,
                              make_task):
     pushed = make_result(client, system_headers, project, make_task, global_results_repo.id, "PUSHED")
     opened = make_result(client, system_headers, project, make_task, global_results_repo.id, "OPENED")

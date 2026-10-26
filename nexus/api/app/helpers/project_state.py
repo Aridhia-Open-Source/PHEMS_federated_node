@@ -5,10 +5,10 @@ from app.models.project import Project
 
 
 def require_disabled(project: Project):
-    """Guards creating a project's results link: allowed only while the project is disabled, otherwise a 409."""
+    """Guards creating a project's results resource: allowed only while the project is disabled, otherwise a 409."""
     if project.enabled:
         raise InvalidRequest(
-            f"Project {project.id} must be disabled to link a results repository", HTTPStatus.CONFLICT
+            f"Project {project.id} must be disabled to assign a results repository", HTTPStatus.CONFLICT
         )
 
 

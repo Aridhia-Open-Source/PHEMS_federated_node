@@ -7,11 +7,11 @@ project endpoints:
 - DELETE /projects/<project_id>
 - GET /projects/<project_id>/healthcheck, see healthcheck_api.py
 
-A project's links to the global resources (datasets, secrets, results repositories; the
-trigger repositories are in project_trigger_repositories_api.py). A link is addressed by the
-global resource's id (a secret's label), never by the link row's. Projects create no resource:
-PUT links one that exists, 201 the first time and 200 after, replacing the project's settings,
-PATCH changes some of them, DELETE unlinks. `revoked` is the controller's, so only PATCH sets
+A project's resources, its rows for the global resources (datasets, secrets, results repositories; the
+trigger repositories are in project_trigger_repositories_api.py). A project resource is addressed by the
+global resource's id (a secret's label), never by the project resource row's. Projects create no global resource:
+PUT assigns one that exists, 201 the first time and 200 after, replacing the project's settings,
+PATCH changes some of them, DELETE unassigns. `revoked` is the controller's, so only PATCH sets
 it, admin only.
 - GET /projects/<project_id>/datasets
 - GET|PUT|PATCH|DELETE /projects/<project_id>/datasets/<dataset_id>
@@ -129,28 +129,28 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
 def delete_project(project_id: int):
     """
     DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes
-    every link under it: datasets, secrets, results repository and trigger repositories. Its tasks
+    every project resource under it: datasets, secrets, results repository and trigger repositories. Its tasks
     and triggers stay. Secrets, datasets and results repositories belong to no project: they, and
     their stored values, are left alone.
     """
     project = Project.get_by_id(project_id)
-    for link in (
+    for resource in (
         *project.dataset_assignments, *project.secret_assignments,
         *project.trigger_repository_assignments, *project.results_repository_assignments,
     ):
-        link.soft_delete()
+        resource.soft_delete()
     project.soft_delete()
     db.session.commit()
 
 
-def _link(model, project_id: int, resource_id: int, what: str):
-    """The project's link to a global resource, found by the resource's id."""
+def _resource(model, project_id: int, resource_id: int, what: str):
+    """The project's resource for a global resource, found by the global resource's id."""
     column = {ProjectDataset: ProjectDataset.dataset_id, ProjectSecret: ProjectSecret.secret_id,
               ProjectResultsRepository: ProjectResultsRepository.results_repository_id}[model]
-    link = model.query.filter(model.project_id == project_id, column == resource_id).one_or_none()
-    if link is None:
-        raise DBRecordNotFoundError(f"{what} is not linked to project {project_id}")
-    return link
+    resource = model.query.filter(model.project_id == project_id, column == resource_id).one_or_none()
+    if resource is None:
+        raise DBRecordNotFoundError(f"{what} is not assigned to project {project_id}")
+    return resource
 
 
 def _enabled(body: dict) -> bool:
@@ -159,19 +159,19 @@ def _enabled(body: dict) -> bool:
     return body.get("enabled", True)
 
 
-def _dataset_link(project_id: int, dataset_id: int) -> ProjectDataset:
-    return _link(ProjectDataset, project_id, dataset_id, f"Dataset {dataset_id}")
+def _dataset_resource(project_id: int, dataset_id: int) -> ProjectDataset:
+    return _resource(ProjectDataset, project_id, dataset_id, f"Dataset {dataset_id}")
 
 
 @router.get('/{project_id}/datasets', response_model=list[ProjectDatasetDTO])
 def list_project_datasets(project_id: int):
     """
-    GET /projects/<project_id>/datasets endpoint. The project's dataset links, inactive
+    GET /projects/<project_id>/datasets endpoint. The project's dataset resources, inactive
     ones included with their flags.
     """
     Project.get_by_id(project_id)
-    links = ProjectDataset.query.filter_by(project_id=project_id).order_by(ProjectDataset.id)
-    return [ProjectDatasetDTO.from_model(a) for a in links]
+    resources = ProjectDataset.query.filter_by(project_id=project_id).order_by(ProjectDataset.id)
+    return [ProjectDatasetDTO.from_model(a) for a in resources]
 
 
 @router.get('/{project_id}/datasets/{dataset_id}', response_model=ProjectDatasetDTO)
@@ -179,14 +179,14 @@ def get_project_dataset(project_id: int, dataset_id: int):
     """
     GET /projects/<project_id>/datasets/<dataset_id> endpoint. The dataset is the global one's id.
     """
-    return ProjectDatasetDTO.from_model(_dataset_link(project_id, dataset_id))
+    return ProjectDatasetDTO.from_model(_dataset_resource(project_id, dataset_id))
 
 
 @router.put('/{project_id}/datasets/{dataset_id}', response_model=ProjectDatasetDTO)
 def put_project_dataset(project_id: int, dataset_id: int, response: Response, body: dict = Body(default_factory=dict)):
     """
-    PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Links a global dataset to the
-    project, 201, and replaces the project's settings if it is linked already, 200. The first one linked becomes the project's default.
+    PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Assigns a global dataset to the
+    project, 201, and replaces the project's settings if it is assigned already, 200. The first one assigned becomes the project's default.
     Body: {"enabled": true}, optional.
     """
     project = Project.get_by_id(project_id)
@@ -195,25 +195,25 @@ def put_project_dataset(project_id: int, dataset_id: int, response: Response, bo
     enabled = _enabled(body)
     dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id)
 
-    link = ProjectDataset.query.filter_by(project_id=project.id, dataset_id=dataset.id).one_or_none()
-    if link is None:
-        link = ProjectDataset(project.id, dataset.id, enabled=enabled)
-        link.add()
+    resource = ProjectDataset.query.filter_by(project_id=project.id, dataset_id=dataset.id).one_or_none()
+    if resource is None:
+        resource = ProjectDataset(project.id, dataset.id, enabled=enabled)
+        resource.add()
         response.status_code = HTTPStatus.CREATED
-        return ProjectDatasetDTO.from_model(link)
+        return ProjectDatasetDTO.from_model(resource)
 
-    link.enabled = enabled
+    resource.enabled = enabled
     db.session.commit()
-    return ProjectDatasetDTO.from_model(link)
+    return ProjectDatasetDTO.from_model(resource)
 
 
 @router.patch('/{project_id}/datasets/{dataset_id}', response_model=ProjectDatasetDTO)
 def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
-    PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the link on or
+    PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the project resource on or
     off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
-    link = _dataset_link(project_id, dataset_id)
+    resource = _dataset_resource(project_id, dataset_id)
     fields = {"enabled", "revoked"}
     if not body or not set(body) <= fields:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
@@ -224,39 +224,39 @@ def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(de
         raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
 
     for field in body:
-        setattr(link, field, body[field])
+        setattr(resource, field, body[field])
     db.session.commit()
-    return ProjectDatasetDTO.from_model(link)
+    return ProjectDatasetDTO.from_model(resource)
 
 
 @router.delete('/{project_id}/datasets/{dataset_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_project_dataset(project_id: int, dataset_id: int):
     """
-    DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unlinks the dataset, not the
-    dataset itself: a soft delete that also revokes the link. If it was the project's default,
+    DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unassigns the dataset, not the
+    dataset itself: a soft delete that also revokes the project resource. If it was the project's default,
     the project has none afterwards.
     """
-    link = _dataset_link(project_id, dataset_id)
-    link.soft_delete()
+    resource = _dataset_resource(project_id, dataset_id)
+    resource.soft_delete()
     db.session.commit()
 
 
-def _secret_link(project_id: int, label: str) -> ProjectSecret:
+def _secret_resource(project_id: int, label: str) -> ProjectSecret:
     secret = Secret.query.filter_by(label=label).one_or_none()
     if secret is None:
         raise DBRecordNotFoundError(f"Secret {label} does not exist")
-    return _link(ProjectSecret, project_id, secret.id, f"Secret {label}")
+    return _resource(ProjectSecret, project_id, secret.id, f"Secret {label}")
 
 
 @router.get('/{project_id}/secrets', response_model=list[ProjectSecretDTO])
 def list_project_secrets(project_id: int):
     """
-    GET /projects/<project_id>/secrets endpoint. The project's secret links, inactive ones
+    GET /projects/<project_id>/secrets endpoint. The project's secret resources, inactive ones
     included with their flags. References only, never the values.
     """
     Project.get_by_id(project_id)
-    links = ProjectSecret.query.filter_by(project_id=project_id).order_by(ProjectSecret.id)
-    return [ProjectSecretDTO.from_model(a) for a in links]
+    resources = ProjectSecret.query.filter_by(project_id=project_id).order_by(ProjectSecret.id)
+    return [ProjectSecretDTO.from_model(a) for a in resources]
 
 
 @router.get('/{project_id}/secrets/{label}', response_model=ProjectSecretDTO)
@@ -264,14 +264,14 @@ def get_project_secret(project_id: int, label: str):
     """
     GET /projects/<project_id>/secrets/{label} endpoint.
     """
-    return ProjectSecretDTO.from_model(_secret_link(project_id, label))
+    return ProjectSecretDTO.from_model(_secret_resource(project_id, label))
 
 
 @router.put('/{project_id}/secrets/{label}', response_model=ProjectSecretDTO)
 def put_project_secret(project_id: int, label: str, response: Response, body: dict = Body(default_factory=dict)):
     """
-    PUT /projects/<project_id>/secrets/{label} endpoint. Links a global secret to the project,
-    201, and replaces the project's settings if it is linked already, 200.
+    PUT /projects/<project_id>/secrets/{label} endpoint. Assigns a global secret to the project,
+    201, and replaces the project's settings if it is assigned already, 200.
     Body: {"enabled": true}, optional.
     """
     project = Project.get_by_id(project_id)
@@ -282,25 +282,25 @@ def put_project_secret(project_id: int, label: str, response: Response, body: di
     if secret is None:
         raise DBRecordNotFoundError(f"Secret {label} does not exist")
 
-    link = ProjectSecret.query.filter_by(project_id=project.id, secret_id=secret.id).one_or_none()
-    if link is None:
-        link = ProjectSecret(project.id, secret.id, enabled=enabled)
-        link.add()
+    resource = ProjectSecret.query.filter_by(project_id=project.id, secret_id=secret.id).one_or_none()
+    if resource is None:
+        resource = ProjectSecret(project.id, secret.id, enabled=enabled)
+        resource.add()
         response.status_code = HTTPStatus.CREATED
-        return ProjectSecretDTO.from_model(link)
+        return ProjectSecretDTO.from_model(resource)
 
-    link.enabled = enabled
+    resource.enabled = enabled
     db.session.commit()
-    return ProjectSecretDTO.from_model(link)
+    return ProjectSecretDTO.from_model(resource)
 
 
 @router.patch('/{project_id}/secrets/{label}', response_model=ProjectSecretDTO)
 def patch_project_secret(project_id: int, label: str, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
-    PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the link on or off (enabled),
+    PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the project resource on or off (enabled),
     or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
-    link = _secret_link(project_id, label)
+    resource = _secret_resource(project_id, label)
     fields = {"enabled", "revoked"}
     if not body or not set(body) <= fields:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
@@ -311,24 +311,24 @@ def patch_project_secret(project_id: int, label: str, body: dict = Body(default_
         raise UnauthorizedError("Only an admin can revoke or re-grant a secret")
 
     for field in body:
-        setattr(link, field, body[field])
+        setattr(resource, field, body[field])
     db.session.commit()
-    return ProjectSecretDTO.from_model(link)
+    return ProjectSecretDTO.from_model(resource)
 
 
 @router.delete('/{project_id}/secrets/{label}', status_code=HTTPStatus.NO_CONTENT)
 def delete_project_secret(project_id: int, label: str):
     """
-    DELETE /projects/<project_id>/secrets/{label} endpoint. Unlinks the secret, not the secret
-    itself: a soft delete that also revokes the link.
+    DELETE /projects/<project_id>/secrets/{label} endpoint. Unassigns the secret, not the secret
+    itself: a soft delete that also revokes the project resource.
     """
-    link = _secret_link(project_id, label)
-    link.soft_delete()
+    resource = _secret_resource(project_id, label)
+    resource.soft_delete()
     db.session.commit()
 
 
-def _results_link(project_id: int, repository_id: int) -> ProjectResultsRepository:
-    return _link(ProjectResultsRepository, project_id, repository_id, f"Results repository {repository_id}")
+def _results_resource(project_id: int, repository_id: int) -> ProjectResultsRepository:
+    return _resource(ProjectResultsRepository, project_id, repository_id, f"Results repository {repository_id}")
 
 
 def _check_results_loop(assignment: ProjectResultsRepository):
@@ -344,11 +344,11 @@ def _check_results_loop(assignment: ProjectResultsRepository):
 def list_project_results_repositories(project_id: int):
     """
     GET /projects/<project_id>/repositories/results endpoint. The project's results repository
-    link, an inactive one included with its flags, so a project always lists exactly one.
+    resource, an inactive one included with its flags, so a project always lists exactly one.
     """
     Project.get_by_id(project_id)
-    links = ProjectResultsRepository.query.filter_by(project_id=project_id).order_by(ProjectResultsRepository.id)
-    return [ProjectResultsRepositoryDTO.from_model(a) for a in links]
+    resources = ProjectResultsRepository.query.filter_by(project_id=project_id).order_by(ProjectResultsRepository.id)
+    return [ProjectResultsRepositoryDTO.from_model(a) for a in resources]
 
 
 @router.get('/{project_id}/repositories/results/{repository_id}', response_model=ProjectResultsRepositoryDTO)
@@ -356,7 +356,7 @@ def get_project_results_repository(project_id: int, repository_id: int):
     """
     GET /projects/<project_id>/repositories/results/<repository_id> endpoint. The repository is the global one's id.
     """
-    return ProjectResultsRepositoryDTO.from_model(_results_link(project_id, repository_id))
+    return ProjectResultsRepositoryDTO.from_model(_results_resource(project_id, repository_id))
 
 
 @router.put('/{project_id}/repositories/results/{repository_id}', response_model=ProjectResultsRepositoryDTO)
@@ -364,9 +364,9 @@ def put_project_results_repository(
     project_id: int, repository_id: int, response: Response, body: dict = Body(default_factory=dict)
 ):
     """
-    PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Links a global
+    PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global
     results repository to the project, which has one, 201, and replaces the project's settings
-    if it is linked already, 200. Linking needs the project disabled. A change of target_dir
+    if it is assigned already, 200. Assigning needs the project disabled. A change of target_dir
     is caught by the configuration snapshot of the tasks created before, which then fail
     instead of delivering there.
     Body: {"target_dir": "results", "owned_by_federated_node": true, "enabled": true}, the last
@@ -383,24 +383,24 @@ def put_project_results_repository(
         raise InvalidRequest("target_dir is required")
 
     repo = ResultsRepository.get_by_id(repository_id)
-    link = ProjectResultsRepository.query.filter_by(project_id=project.id).first()
-    if link and link.results_repository_id != repo.id:
+    resource = ProjectResultsRepository.query.filter_by(project_id=project.id).first()
+    if resource and resource.results_repository_id != repo.id:
         raise InvalidRequest(f"Project {project.id} already has a results repository", HTTPStatus.CONFLICT)
-    if link is None:
+    if resource is None:
         require_disabled(project)
 
-    created = link is None
+    created = resource is None
     if created:
-        link = ProjectResultsRepository(project.id, repo.id, target_dir)
-        link.add(commit=False)
-    link.target_dir = target_dir
-    link.owned_by_federated_node = body.get("owned_by_federated_node", True)
-    link.enabled = body.get("enabled", True)
+        resource = ProjectResultsRepository(project.id, repo.id, target_dir)
+        resource.add(commit=False)
+    resource.target_dir = target_dir
+    resource.owned_by_federated_node = body.get("owned_by_federated_node", True)
+    resource.enabled = body.get("enabled", True)
     db.session.flush()
-    _check_results_loop(link)
+    _check_results_loop(resource)
     db.session.commit()
     response.status_code = HTTPStatus.CREATED if created else HTTPStatus.OK
-    return ProjectResultsRepositoryDTO.from_model(link)
+    return ProjectResultsRepositoryDTO.from_model(resource)
 
 
 @router.patch('/{project_id}/repositories/results/{repository_id}', response_model=ProjectResultsRepositoryDTO)
@@ -408,11 +408,11 @@ def patch_project_results_repository(project_id: int, repository_id: int, body: 
     """
     PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
     the project's results go (target_dir, owned_by_federated_node), at any time (the tasks created
-    before fail instead of delivering to the new place), or turns the link on or
+    before fail instead of delivering to the new place), or turns the project resource on or
     off (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
-    link = _results_link(project_id, repository_id)
+    resource = _results_resource(project_id, repository_id)
     fields = {"target_dir", "owned_by_federated_node", "enabled", "revoked"}
     if not body or not set(body) <= fields:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
@@ -428,20 +428,20 @@ def patch_project_results_repository(project_id: int, repository_id: int, body: 
             raise InvalidRequest("target_dir cannot be empty")
         body["target_dir"] = target_dir
     for field in body:
-        setattr(link, field, body[field])
+        setattr(resource, field, body[field])
     db.session.flush()
-    _check_results_loop(link)
+    _check_results_loop(resource)
     db.session.commit()
-    return ProjectResultsRepositoryDTO.from_model(link)
+    return ProjectResultsRepositoryDTO.from_model(resource)
 
 
 @router.delete('/{project_id}/repositories/results/{repository_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_project_results_repository(project_id: int, repository_id: int):
     """
-    DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unlinks the
-    repository, not the repository itself: a soft delete that also revokes the link. A task of the
+    DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unassigns the
+    repository, not the repository itself: a soft delete that also revokes the project resource. A task of the
     project still in flight gets a REVOKED result.
     """
-    link = _results_link(project_id, repository_id)
-    link.soft_delete()
+    resource = _results_resource(project_id, repository_id)
+    resource.soft_delete()
     db.session.commit()

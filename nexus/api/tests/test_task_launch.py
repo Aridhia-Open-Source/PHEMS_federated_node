@@ -13,7 +13,7 @@ from app.models.task import Task
 
 # Fixtures the module shares with test_task_config.py
 from tests.test_task_config import (  # noqa: F401
-    full_task, links, patch, pinned_task, reload_task, set_target_dir,
+    full_task, resources, patch, pinned_task, reload_task, set_target_dir,
 )
 
 CONTRACT = Path(__file__).resolve().parents[2] / "dagster" / "app" / "tests" / "contract" / "launch_response.json"
@@ -54,8 +54,8 @@ def test_launch_returns_the_run_inputs_and_changes_nothing(client, admin_headers
     assert body["task"]["spec"] == {"image": full_task.spec.image, "dataset_id": global_dataset.id, "env": full_task.spec.env}
     assert body["task"]["attempt"] == full_task.attempt
     # the dataset as the project-dataset GET returns it, secret reference included
-    link = client.get(f"/projects/{project.id}/datasets/{global_dataset.id}", headers=admin_headers).json()
-    assert body["dataset"] == link["dataset"]
+    resource = client.get(f"/projects/{project.id}/datasets/{global_dataset.id}", headers=admin_headers).json()
+    assert body["dataset"] == resource["dataset"]
     assert {"provider", "key", "namespace"} <= set(body["dataset"]["secret"])
     assert stored(full_task.id) == before
 
@@ -76,9 +76,9 @@ def test_launch_is_safe_to_repeat(client, system_headers, project, full_task):
 # --------------------------------------------------------------------------- fail
 
 
-def fail_revoked(client, admin_headers, links, **_):
-    patch(client, admin_headers, links["dataset"][0], revoked=True)
-    return f"revoked: {links['dataset'][1]}"
+def fail_revoked(client, admin_headers, resources, **_):
+    patch(client, admin_headers, resources["dataset"][0], revoked=True)
+    return f"revoked: {resources['dataset'][1]}"
 
 
 def fail_changed(client, admin_headers, project, global_results_repo, **_):
@@ -86,8 +86,8 @@ def fail_changed(client, admin_headers, project, global_results_repo, **_):
     return "task configuration changed since the task was created: results.target_dir: 'results' -> 'out'"
 
 
-def fail_inactive(client, admin_headers, project, links, global_dataset, **_):
-    patch(client, admin_headers, links["dataset"][0], enabled=False)
+def fail_inactive(client, admin_headers, project, resources, global_dataset, **_):
+    patch(client, admin_headers, resources["dataset"][0], enabled=False)
     return f"Dataset {global_dataset.name} is not active in project {project.name}"
 
 
@@ -100,8 +100,8 @@ def fail_secret(global_dataset, **_):
 @pytest.mark.parametrize("cause_of", [fail_revoked, fail_changed, fail_inactive, fail_secret],
                          ids=["revoked", "changed", "not-active", "secret-disabled"])
 def test_each_cause_fails_the_task_with_it_and_a_repeat_changes_nothing(
-        client, admin_headers, system_headers, project, full_task, links, global_dataset, global_results_repo, cause_of):
-    cause = cause_of(client=client, admin_headers=admin_headers, project=project, links=links,
+        client, admin_headers, system_headers, project, full_task, resources, global_dataset, global_results_repo, cause_of):
+    cause = cause_of(client=client, admin_headers=admin_headers, project=project, resources=resources,
                      global_dataset=global_dataset, global_results_repo=global_results_repo)
 
     response = launch(client, system_headers, project, full_task)
@@ -116,8 +116,8 @@ def test_each_cause_fails_the_task_with_it_and_a_repeat_changes_nothing(
     assert stored(full_task.id) == ("FAILED", cause, full_task.attempt)
 
 
-def test_the_decision_in_config_and_in_launch_agree(client, admin_headers, system_headers, project, full_task, links):
-    patch(client, admin_headers, links["dataset"][0], revoked=True)
+def test_the_decision_in_config_and_in_launch_agree(client, admin_headers, system_headers, project, full_task, resources):
+    patch(client, admin_headers, resources["dataset"][0], revoked=True)
     decided = client.get(f"/projects/{project.id}/tasks/{full_task.id}/config", headers=admin_headers).json()
     launched = launch(client, system_headers, project, full_task).json()
     assert (decided["outcome"], decided["cause"]) == (launched["outcome"], launched["cause"])
@@ -156,18 +156,18 @@ def test_a_task_of_another_project_is_a_404(client, system_headers, other_projec
 # --------------------------------------------------------------------------- permissions
 
 
-def test_the_system_user_may_launch_and_fail(client, system_headers, admin_headers, project, full_task, links):
+def test_the_system_user_may_launch_and_fail(client, system_headers, admin_headers, project, full_task, resources):
     assert launch(client, system_headers, project, full_task).json()["outcome"] == "launch"
-    patch(client, admin_headers, links["dataset"][0], revoked=True)
+    patch(client, admin_headers, resources["dataset"][0], revoked=True)
     response = launch(client, system_headers, project, full_task)
     assert response.status_code == 200 and response.json()["outcome"] == "fail"
     assert stored(full_task.id)[0] == "FAILED"
 
 
 def test_a_caller_without_the_scope_is_refused_and_nothing_changes(
-        client, mock_kc_client, post_json_user_header, admin_headers, system_headers, project, full_task, links):
+        client, mock_kc_client, post_json_user_header, admin_headers, system_headers, project, full_task, resources):
     """The scope is PATCH task's (can_admin_dataset); Keycloak refuses a caller whose roles lack it."""
-    patch(client, admin_headers, links["dataset"][0], revoked=True)
+    patch(client, admin_headers, resources["dataset"][0], revoked=True)
     before = stored(full_task.id)
     keycloak = mock_kc_client["wrappers_kc"].return_value
     keycloak.is_token_valid.side_effect = lambda token, scope, *a, **k: token in ("admin_token", "system_token")

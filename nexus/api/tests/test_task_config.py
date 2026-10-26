@@ -61,7 +61,7 @@ def test_build_snapshot_of_a_project_with_nothing(project):
     assert build_snapshot(project, None) == {"version": 1, "results": None, "dataset": None}
 
 
-def test_build_snapshot_holds_identity_fields_only(project, global_results_repo, linked_results_repo, global_dataset):
+def test_build_snapshot_holds_identity_fields_only(project, global_results_repo, assigned_results_repo, global_dataset):
     snap = build_snapshot(project, global_dataset)
     assert snap["results"] == {
         "repository_id": global_results_repo.id, "repository": global_results_repo.uri, "api_uri": global_results_repo.provider.api_uri,
@@ -84,7 +84,7 @@ def reload_task(task_id) -> Task:
 
 
 def test_pr_task_is_pinned_at_creation_and_retry_does_not_repin(
-        client, admin_headers, system_headers, project, pr_trigger, spec_raw, linked_results_repo, global_results_repo):
+        client, admin_headers, system_headers, project, pr_trigger, spec_raw, assigned_results_repo, global_results_repo):
     created = client.post(f"{pr_trigger}/task", json={"spec_raw": spec_raw}, headers=system_headers)
     assert created.status_code == 201, created.json()
     task = reload_task(created.json()["id"])
@@ -126,7 +126,7 @@ def set_target_dir(client, admin_headers, project, repo, target_dir):
 
 
 def test_config_is_current_then_stale_after_target_dir_changes(
-        client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
+        client, admin_headers, project, assigned_results_repo, global_results_repo, make_task):
     task = pinned_task(project, make_task)
     current = client.get(config_url(project, task), headers=admin_headers)
     assert current.status_code == 200
@@ -160,7 +160,7 @@ def test_config_404_for_a_task_of_another_project(client, admin_headers, project
 
 
 def test_dataset_change_makes_the_task_stale(
-        client, admin_headers, project, linked_results_repo, linked_dataset, global_dataset, make_task):
+        client, admin_headers, project, assigned_results_repo, assigned_dataset, global_dataset, make_task):
     task = pinned_task(project, make_task, dataset=global_dataset)
     old_host = global_dataset.host
     assert client.get(config_url(project, task), headers=admin_headers).json()["current"] is True
@@ -176,7 +176,7 @@ def post_result(client, headers, project, task, repo):
 
 
 def test_post_result_is_stale_when_the_target_dir_changed_after_creation(
-        client, admin_headers, system_headers, project, linked_results_repo, global_results_repo, make_task):
+        client, admin_headers, system_headers, project, assigned_results_repo, global_results_repo, make_task):
     task = pinned_task(project, make_task)
     set_target_dir(client, admin_headers, project, global_results_repo, "out")
     task.status = "SUCCESS"
@@ -196,7 +196,7 @@ def test_post_result_is_stale_when_the_target_dir_changed_after_creation(
 
 
 def test_post_result_of_a_current_task_is_not_stale(
-        client, system_headers, project, linked_results_repo, global_results_repo, make_task):
+        client, system_headers, project, assigned_results_repo, global_results_repo, make_task):
     task = pinned_task(project, make_task)
     task.status = "SUCCESS"
     db.session.commit()
@@ -204,8 +204,8 @@ def test_post_result_of_a_current_task_is_not_stale(
     assert response.status_code == 201 and response.json()["step"] == "UNKNOWN"
 
 
-def test_revoked_link_is_checked_before_stale(
-        client, admin_headers, system_headers, project, linked_results_repo, global_results_repo, make_task):
+def test_revoked_resource_is_checked_before_stale(
+        client, admin_headers, system_headers, project, assigned_results_repo, global_results_repo, make_task):
     task = pinned_task(project, make_task)
     set_target_dir(client, admin_headers, project, global_results_repo, "out")
     url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
@@ -219,8 +219,8 @@ def test_revoked_link_is_checked_before_stale(
 
 
 @pytest.fixture
-def full_task(client, system_headers, project, pr_trigger, spec_raw, linked_dataset, linked_results_repo) -> Task:
-    """A task made from a pull request, on the project's dataset, with its results link: all three active."""
+def full_task(client, system_headers, project, pr_trigger, spec_raw, assigned_dataset, assigned_results_repo) -> Task:
+    """A task made from a pull request, on the project's dataset, with its results resource: all three active."""
     created = client.post(f"{pr_trigger}/task", json={"spec_raw": spec_raw}, headers=system_headers)
     assert created.status_code == 201, created.json()
     task = reload_task(created.json()["id"])
@@ -229,8 +229,8 @@ def full_task(client, system_headers, project, pr_trigger, spec_raw, linked_data
 
 
 @pytest.fixture
-def links(project, global_trigger_repo, global_dataset, global_results_repo) -> dict:
-    """Per resource of a task: the URL of the project's link to it, and the name revoked gives it."""
+def resources(project, global_trigger_repo, global_dataset, global_results_repo) -> dict:
+    """Per kind of resource a task uses: the URL of the project's resource for it, and the name revoked gives it."""
     return {
         "trigger": (f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}",
                     f"trigger repository {global_trigger_repo.repo_path}"),
@@ -246,17 +246,17 @@ def revoked_of(client, admin_headers, project, task) -> list[str]:
     return response.json()["revoked"]
 
 
-def test_nothing_is_revoked_for_a_current_task_or_for_links_only_switched_off(
-        client, admin_headers, project, full_task, links):
+def test_nothing_is_revoked_for_a_current_task_or_for_resources_only_switched_off(
+        client, admin_headers, project, full_task, resources):
     assert revoked_of(client, admin_headers, project, full_task) == []
-    for url, _ in links.values():
+    for url, _ in resources.values():
         assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
     assert revoked_of(client, admin_headers, project, full_task) == []
 
 
 @pytest.mark.parametrize("kind", ["trigger", "dataset", "results"])
-def test_a_revoked_link_is_named(client, admin_headers, project, full_task, links, kind):
-    url, name = links[kind]
+def test_a_revoked_resource_is_named(client, admin_headers, project, full_task, resources, kind):
+    url, name = resources[kind]
     assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
     assert revoked_of(client, admin_headers, project, full_task) == [name]
     # revoking is the controller's and does not touch the other rules: the snapshot is still current
@@ -264,27 +264,27 @@ def test_a_revoked_link_is_named(client, admin_headers, project, full_task, link
 
 
 @pytest.mark.parametrize("kind", ["dataset", "results"])
-def test_a_deleted_link_is_named(client, admin_headers, project, full_task, links, kind):
-    url, name = links[kind]
+def test_a_deleted_resource_is_named(client, admin_headers, project, full_task, resources, kind):
+    url, name = resources[kind]
     assert client.delete(url, headers=admin_headers).status_code == 204
     assert revoked_of(client, admin_headers, project, full_task) == [name]
 
 
-def test_every_revoked_link_is_named_in_the_order_of_the_trigger_dataset_and_results(
-        client, admin_headers, project, full_task, links):
-    for url, _ in links.values():
+def test_every_revoked_resource_is_named_in_the_order_of_the_trigger_dataset_and_results(
+        client, admin_headers, project, full_task, resources):
+    for url, _ in resources.values():
         assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
-    assert revoked_of(client, admin_headers, project, full_task) == [name for _, name in links.values()]
+    assert revoked_of(client, admin_headers, project, full_task) == [name for _, name in resources.values()]
 
 
-def test_a_dataset_the_project_has_no_link_to_is_revoked(
+def test_a_dataset_not_assigned_to_the_project_is_revoked(
         client, admin_headers, project, global_dataset, make_task):
     task = make_task(dataset_id=global_dataset.id)
     assert revoked_of(client, admin_headers, project, task) == [f"dataset {global_dataset.name}"]
 
 
-def test_a_task_without_a_pull_request_or_a_snapshot_is_checked_against_the_projects_results_link(
-        client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
+def test_a_task_without_a_pull_request_or_a_snapshot_is_checked_against_the_projects_results_resource(
+        client, admin_headers, project, assigned_results_repo, global_results_repo, make_task):
     task = make_task()
     assert revoked_of(client, admin_headers, project, task) == []
     url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
@@ -322,10 +322,10 @@ def test_a_revoked_global_resource_provider_or_project_is_named_until_it_is_rest
 
 
 def test_everything_revoked_is_named_once_the_project_first(
-        client, admin_headers, project, full_task, links, global_revokes):
-    for url, _ in (*links.values(), *global_revokes.values()):
+        client, admin_headers, project, full_task, resources, global_revokes):
+    for url, _ in (*resources.values(), *global_revokes.values()):
         assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
-    names = {kind: name for kind, (_, name) in links.items()}
+    names = {kind: name for kind, (_, name) in resources.items()}
     revoked = {kind: name for kind, (_, name) in global_revokes.items()}
     assert revoked_of(client, admin_headers, project, full_task) == [
         revoked["project"],
@@ -336,7 +336,7 @@ def test_everything_revoked_is_named_once_the_project_first(
 
 
 def test_a_task_without_a_pull_request_names_its_revoked_dataset_and_the_projects_results_repository(
-        client, admin_headers, project, linked_dataset, linked_results_repo, global_dataset, global_results_repo,
+        client, admin_headers, project, assigned_dataset, assigned_results_repo, global_dataset, global_results_repo,
         make_task):
     task = make_task(dataset_id=global_dataset.id)
     assert revoked_of(client, admin_headers, project, task) == []
@@ -355,7 +355,7 @@ def test_stale_step_is_a_valid_filter(client, admin_headers, project):
 
 
 def test_edit_of_target_dir_enabled_and_delete_of_an_enabled_project_with_a_task_in_flight(
-        client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
+        client, admin_headers, project, assigned_results_repo, global_results_repo, make_task):
     make_task()  # in flight
     url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
     assert project.enabled is True
@@ -389,20 +389,20 @@ def test_a_task_without_a_dataset_is_launch(client, admin_headers, project, make
     assert decision_of(client, admin_headers, project, make_task()) == ("launch", None)
 
 
-def test_a_revoked_resource_fails_with_the_revoked_cause(client, admin_headers, project, full_task, links):
-    url, name = links["dataset"]
+def test_a_revoked_resource_fails_with_the_revoked_cause(client, admin_headers, project, full_task, resources):
+    url, name = resources["dataset"]
     patch(client, admin_headers, url, revoked=True)
     assert decision_of(client, admin_headers, project, full_task) == ("fail", f"revoked: {name}")
 
 
-def test_every_revoked_name_is_in_the_cause(client, admin_headers, project, full_task, links):
-    for url, _ in links.values():
+def test_every_revoked_name_is_in_the_cause(client, admin_headers, project, full_task, resources):
+    for url, _ in resources.values():
         patch(client, admin_headers, url, revoked=True)
-    names = [name for _, name in links.values()]
+    names = [name for _, name in resources.values()]
     assert decision_of(client, admin_headers, project, full_task) == ("fail", "revoked: " + "; ".join(names))
 
 
-def test_revoked_wins_over_changed(client, admin_headers, project, linked_results_repo, global_results_repo, make_task):
+def test_revoked_wins_over_changed(client, admin_headers, project, assigned_results_repo, global_results_repo, make_task):
     task = pinned_task(project, make_task)
     set_target_dir(client, admin_headers, project, global_results_repo, "out")
     assert decision_of(client, admin_headers, project, task)[1].startswith("task configuration changed")
@@ -410,18 +410,18 @@ def test_revoked_wins_over_changed(client, admin_headers, project, linked_result
     assert decision_of(client, admin_headers, project, task) == ("fail", f"revoked: project {project.name} (revoked)")
 
 
-def test_changed_wins_over_the_dataset_link_not_active(
-        client, admin_headers, project, full_task, links, global_results_repo):
+def test_changed_wins_over_the_dataset_resource_not_active(
+        client, admin_headers, project, full_task, resources, global_results_repo):
     set_target_dir(client, admin_headers, project, global_results_repo, "out")
-    patch(client, admin_headers, links["dataset"][0], enabled=False)
+    patch(client, admin_headers, resources["dataset"][0], enabled=False)
     outcome, cause = decision_of(client, admin_headers, project, full_task)
     assert outcome == "fail"
     assert cause == "task configuration changed since the task was created: results.target_dir: 'results' -> 'out'"
 
 
-def test_a_dataset_link_switched_off_fails_naming_the_dataset_and_project(
-        client, admin_headers, project, full_task, links, global_dataset):
-    patch(client, admin_headers, links["dataset"][0], enabled=False)
+def test_a_dataset_resource_switched_off_fails_naming_the_dataset_and_project(
+        client, admin_headers, project, full_task, resources, global_dataset):
+    patch(client, admin_headers, resources["dataset"][0], enabled=False)
     assert decision_of(client, admin_headers, project, full_task) == (
         "fail", f"Dataset {global_dataset.name} is not active in project {project.name}")
 
@@ -442,11 +442,11 @@ def test_a_disabled_dataset_secret_fails_naming_the_dataset(
         "fail", f"The secret of dataset {global_dataset.name} is disabled")
 
 
-def test_the_dataset_link_not_active_wins_over_a_disabled_secret(
-        client, admin_headers, project, full_task, links, global_dataset):
+def test_the_dataset_resource_not_active_wins_over_a_disabled_secret(
+        client, admin_headers, project, full_task, resources, global_dataset):
     global_dataset.secret.enabled = False
     db.session.commit()
-    patch(client, admin_headers, links["dataset"][0], enabled=False)
+    patch(client, admin_headers, resources["dataset"][0], enabled=False)
     assert decision_of(client, admin_headers, project, full_task) == (
         "fail", f"Dataset {global_dataset.name} is not active in project {project.name}")
 

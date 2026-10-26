@@ -207,13 +207,13 @@ def test_dataset_get_list_and_404(client, admin_headers, global_dataset):
     assert_error(client.get(f"{DS}/999", headers=admin_headers), 404)
 
 
-def test_linked_dataset_can_be_edited_disabled_and_force_deleted(client, admin_headers, linked_dataset, project):
-    url = f"{DS}/{linked_dataset['dataset']['id']}"
+def test_assigned_dataset_can_be_edited_disabled_and_force_deleted(client, admin_headers, assigned_dataset, project):
+    url = f"{DS}/{assigned_dataset['dataset']['id']}"
     # an edit of the identity fields applies at once: the tasks created before are pinned to the old ones
     patched = client.patch(url, json={"host": "new"}, headers=admin_headers)
     assert patched.status_code == 200 and patched.json()["host"] == "new"
     assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
-    assert client.delete(url, headers=admin_headers).status_code == 409  # linked: needs force
+    assert client.delete(url, headers=admin_headers).status_code == 409  # assigned: needs force
     assert client.delete(url + "?force=true", headers=admin_headers).status_code == 204
     assert_error(client.get(url, headers=admin_headers), 404)
     assert client.get(f"/projects/{project.id}/datasets", headers=admin_headers).json() == []
@@ -410,13 +410,13 @@ def test_secret_delete_once_unused_and_repointing_frees_it(
     assert_error(client.get(f"{SEC}/test-creds", headers=admin_headers), 404)
 
 
-def test_linked_secret_enabled_flag_and_rotation_need_no_lock(client, admin_headers, k8s_client, linked_secret):
+def test_assigned_secret_enabled_flag_and_rotation_need_no_lock(client, admin_headers, k8s_client, assigned_secret):
     assert client.patch(f"{SEC}/test-creds", json={"values": {"TOKEN": "n"}}, headers=admin_headers).status_code == 200
     assert client.patch(f"{SEC}/test-creds", json={"enabled": False}, headers=admin_headers).status_code == 200
 
 
 def test_a_deleted_secret_is_gone_its_stored_value_deleted_and_its_label_free(
-        client, admin_headers, k8s_client, linked_secret, project):
+        client, admin_headers, k8s_client, assigned_secret, project):
     assert client.delete(f"{SEC}/test-creds", headers=admin_headers).status_code == 204
     assert k8s_client["delete_namespaced_secret_mock"].called
     assert_error(client.get(f"{SEC}/test-creds", headers=admin_headers), 404)
@@ -433,8 +433,8 @@ def test_unused_resources_delete_204_then_404(client, admin_headers, global_data
         assert_error(client.get(f"{base}/{rid}", headers=admin_headers), 404)
 
 
-def test_linked_repo_needs_no_lock_to_delete_or_disable_and_its_path_is_free_again(
-        client, admin_headers, linked_trigger_repo, global_trigger_repo, git_provider):
+def test_assigned_repo_needs_no_lock_to_delete_or_disable_and_its_path_is_free_again(
+        client, admin_headers, assigned_trigger_repo, global_trigger_repo, git_provider):
     url = f"{TRIG}/{global_trigger_repo.id}"
     assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
     assert client.delete(url + "?force=true", headers=admin_headers).status_code == 204
