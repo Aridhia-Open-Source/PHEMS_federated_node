@@ -17,7 +17,7 @@ from the federated-node chart. The node only sees the dataset that fncli registe
 | `projects/NAME/values.yaml` | yes | the project's `dbs.NAME` entry for the chart |
 | `projects/NAME/seed.sh` | yes | prints the SQL that seeds the database; must be safe to rerun |
 | `sources/NAME/` | no | the image's build context (often its own git repo) |
-| `results/NAME/` | no | output of `run-local` |
+| `results/NAME/` | no | output of `run --local` |
 
 ## Run UC1
 
@@ -27,18 +27,21 @@ Needs the dev cluster up with Tilt (port-forwards for backend 5000, Gitea 4000 a
 `sources/uc1`. Dev mode (`UC1_DEV`) needs its R changes for that, which are not merged there yet.
 
 ```bash
-make experiments setup uc1         # release + uc1-omop database, dummy OMOP data, project "uc1" in the node
-make experiments build uc1         # localhost:5001/uc1-fn:latest (slow: renv restore)
-make experiments run-local uc1     # optional: image straight against the DB, no node
-make experiments run uc1           # trigger PR -> task -> results PR in uc1-results-repo
+make experiments up                    # the release: Postgres with every project's database
+make experiments setup uc1             # dummy OMOP data, project "uc1" in the node
+make experiments build uc1             # localhost:5001/uc1-fn:latest (slow: renv restore)
+fncli experiment run uc1 --local       # optional: image straight against the DB, no node
+make experiments run uc1               # trigger PR -> task -> results PR in uc1-results-repo
 ```
 
-These call `fncli experiment setup|build|run-local|run uc1` (also `teardown NAME` and `down`,
-see Clean up). `setup`, `run` and `teardown` can be rerun after a failure. If `make experiments`
+These call `fncli experiment up|setup|build|run` (also `teardown NAME` and `down`, see Clean
+up). `--local` needs fncli directly, since make takes `--` options as its own. `setup` fails
+and tells you to run `up` if the release isn't installed. `up`, `setup`, `run` and `teardown`
+can be rerun after a failure. If `make experiments`
 says "No such command", reinstall fncli from this checkout:
 `pipx install --force --editable './dagster[cli]'`.
 
-`run` and `run-local` pass the project's `DEV_ENV` (JSON, from `project.env`) to the task.
+`run` and `run --local` pass the project's `DEV_ENV` (JSON, from `project.env`) to the task.
 For UC1 that is `UC1_DEV=1`, a quick run with fewer cohorts. `FULL=1 make experiments run
 uc1` runs the whole study.
 
@@ -48,8 +51,8 @@ uc1` runs the whole study.
    (`server=;database=;port=;uid=;pwd=;`), `CDM_SCHEMA`, `WRITE_SCHEMA`, and writes results
    to `ARTIFACT_PATH`.
 2. Copy `projects/uc1` to `projects/NAME`, then change the names and the seed.
-3. Run `make experiments setup NAME`, then `build NAME` and `run NAME`. `setup` upgrades the
-   release, so this works on a running cluster.
+3. Run `make experiments up` (it upgrades the release with the new database, so this works
+   on a running cluster), then `setup NAME`, `build NAME` and `run NAME`.
 
 ## Clean up
 

@@ -236,15 +236,16 @@ On GitHub (`TEST_GIT_PROVIDER=github`, see `.demo-github.env.example`) the repo 
 `fncli experiment` runs a real experiment against the dev node. Its names are in `experiments/projects/NAME/project.env`, which wins over `.dev.env` and the shell. Run it from inside the repo.
 
 ```bash
-fncli experiment setup NAME      # release + database + seed + setup-project; safe to rerun
+fncli experiment up              # install/upgrade the release: Postgres + every project's database
+fncli experiment setup NAME      # seed + setup-project; needs `up` first; safe to rerun
 fncli experiment build NAME      # docker build + push of the image
 fncli experiment run NAME        # start-sensor, then open-pr --merge --watch; FULL=1 leaves out DEV_ENV
-fncli experiment run-local NAME  # the image in docker against the database, no node
+fncli experiment run NAME --local  # the image in docker against the database, no node
 fncli experiment teardown NAME   # remove NAME's node project, global resources and Gitea repos
 fncli experiment down            # teardown every experiment, then uninstall the release (secrets and database files stay)
 ```
 
-`setup` runs, in order: `helm upgrade --install` of the `experiments` release, the project's `seed.sh` over `kubectl exec` (which recreates its schemas), then `setup-project` with `CLUSTER_DATASET_HOST=db-datasets.experiments.svc`, `DATASET_PORT=5432` and the generated database password. `make experiments setup NAME` calls it. See [experiments/README.md](../../experiments/README.md).
+`up` runs `helm upgrade --install` of the `experiments` release. `setup` checks it is installed (if not, it tells you to run `up`), then runs the project's `seed.sh` over `kubectl exec` (which recreates its schemas), then `setup-project` with `CLUSTER_DATASET_HOST=db-datasets.experiments.svc`, `DATASET_PORT=5432` and the generated database password. `make experiments setup NAME` calls it. See [experiments/README.md](../../experiments/README.md).
 
 ## Maintenance
 
