@@ -17,7 +17,7 @@ class PullRequestTrigger(BaseModel):
     state: TriggerState
     state_cause: str | None = None
     task_id: int | None = None
-    # Paths of the new spec files under the link's watch_dir, matched by the backend
+    # Paths of the new spec files under the project resource's watch_dir, matched by the backend
     spec_files: list[str]
 
 

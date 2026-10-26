@@ -1,10 +1,10 @@
 # Task pinning
 
-When a task is created it stores a snapshot of the configuration it was built against: the results repository (id, uri, the GitProvider's `api_uri`, the link's `target_dir`) and the dataset (name, host, port, type, read and write schema). It holds no credentials, no trigger repository and no `enabled` or `revoked` flags. Before launch, and before a result is created, the webserver rebuilds the snapshot from the current state and compares. A task whose setup changed fails at launch, or its result is `STALE` (final, never delivered). Edits to a GlobalResource or a link are always allowed; the cost falls on the work in flight.
+When a task is created it stores a snapshot of the configuration it was built against: the results repository (id, uri, the GitProvider's `api_uri`, the project resource's `target_dir`) and the dataset (name, host, port, type, read and write schema). It holds no credentials, no trigger repository and no `enabled` or `revoked` flags. Before launch, and before a result is created, the webserver rebuilds the snapshot from the current state and compares. A task whose setup changed fails at launch, or its result is `STALE` (final, never delivered). Edits to a GlobalResource or a project resource are always allowed; the cost falls on the work in flight.
 
 Two of the behaviours below (marked in their titles) were removed from the end-to-end suites; all of this section is only unit-tested. That is why it is ranked high in [the index](README.md).
 
-Needs: the dev project with sensors running and no task in flight. Use the two recipes in [the index](README.md): "Make a change while a task is still PENDING" and "Make a change while a task is RUNNING or before delivery". Note the original `target_dir` first (`fncli project-show | jq '.results_links[0].target_dir'`) and put it back at the end of each case.
+Needs: the dev project with sensors running and no task in flight. Use the two recipes in [the index](README.md): "Make a change while a task is still PENDING" and "Make a change while a task is RUNNING or before delivery". Note the original `target_dir` first (`fncli project-show | jq '.results_resources[0].target_dir'`) and put it back at the end of each case.
 
 ## The snapshot is recorded at creation and holds no credentials
 
@@ -16,16 +16,16 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 - [ ] Pass
 - [ ] Fail — notes:
 
-## A results link's `target_dir` changed while the task waits fails the task at launch (removed from the end-to-end suites)
+## A results resource's `target_dir` changed while the task waits fails the task at launch (removed from the end-to-end suites)
 
 1. Recipe: task `PENDING`, launcher stopped.
-2. `fncli link-set results --target-dir <another directory>` (a directory that no trigger link watches).
+2. `fncli resource-set results --target-dir <another directory>` (a directory that no trigger resource watches).
 3. `GET /projects/<pid>/tasks/<id>/config`. Start the launcher.
 4. Restore the `target_dir`.
 
 - **Expected:** step 2 is accepted (an edit is free). Step 3: `current` is false and `changes` names `target_dir`. The task goes `FAILED` with a cause that names the change (the pinned configuration changed). No run, no result. It stays `FAILED` after step 4.
 - **Rule:** a task that is not current is not launched; the webserver fails it with the changes as the cause ([A task is pinned to its configuration]).
-- **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (`test_config_is_current_then_stale_after_target_dir_changes`, `test_changed_wins_over_the_dataset_link_not_active`), `webserver/tests/test_task_launch.py`. Removed from the end-to-end failure suite. They miss the live launcher.
+- **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (`test_config_is_current_then_stale_after_target_dir_changes`, `test_changed_wins_over_the_dataset_resource_not_active`), `webserver/tests/test_task_launch.py`. Removed from the end-to-end failure suite. They miss the live launcher.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -55,7 +55,7 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 
 ## A `target_dir` changed after the task succeeded and before delivery leaves the result `STALE` (removed from the end-to-end suites)
 
-1. Merge a watched pull request. While the task is `RUNNING` (preferred), or after `SUCCESS` with the delivery sensors stopped (the recipe and its caution are in [the index](README.md)): `fncli link-set results --target-dir <another directory>`.
+1. Merge a watched pull request. While the task is `RUNNING` (preferred), or after `SUCCESS` with the delivery sensors stopped (the recipe and its caution are in [the index](README.md)): `fncli resource-set results --target-dir <another directory>`.
 2. Wait for the result.
 3. Restore the `target_dir`. Wait ten intervals.
 
@@ -78,14 +78,14 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 
 ## Swapping the project's results repository fails or stales the task
 
-The results link can be replaced only while the project is disabled.
+The results resource can be replaced only while the project is disabled.
 
 1. Recipe: task `PENDING`, launcher stopped.
-2. `fncli project-set --enabled false`. Unlink the results link and link a different ResultsRepository (a scratch one), then `fncli project-set --enabled true`.
-3. Start the launcher. Put the original link back the same way afterwards.
+2. `fncli project-set --enabled false`. Unassign the results resource and assign a different ResultsRepository (a scratch one), then `fncli project-set --enabled true`.
+3. Start the launcher. Put the original project resource back the same way afterwards.
 
 - **Expected:** the task goes `FAILED` with a cause that names the changed results repository (its id and uri are pinned). Check the text.
-- **Rule:** the results repository's id and uri are in the snapshot; a link swap is a material edit ([A task is pinned to its configuration]).
+- **Rule:** the results repository's id and uri are in the snapshot; a project resource swap is a material edit ([A task is pinned to its configuration]).
 - **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (the diff of added, removed and changed fields). Not tested with a real swap.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -93,7 +93,7 @@ The results link can be replaced only while the project is disabled.
 ## Changes that are not pinned do not touch tasks in flight
 
 1. Recipe: task `PENDING`, launcher stopped.
-2. Change things the snapshot does not hold: the trigger link's `watch_dir` (`PATCH` the link), and a Secret's value (`fncli init-git-secret --entity results` writes a fresh token). The `enabled` and `revoked` flags are not pinned either, but they have their own rules ([enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md)).
+2. Change things the snapshot does not hold: the trigger resource's `watch_dir` (`PATCH` the project resource), and a Secret's value (`fncli init-git-secret --entity results` writes a fresh token). The `enabled` and `revoked` flags are not pinned either, but they have their own rules ([enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md)).
 3. Start the launcher. Put things back.
 
 - **Expected:** the task launches and runs; `GET .../config` shows `current` true. A credential rotation reaches the running work.
@@ -105,11 +105,11 @@ The results link can be replaced only while the project is disabled.
 ## An edit after the result exists changes nothing
 
 1. Run a task to `OPENED`.
-2. `fncli link-set results --target-dir <another directory>`. Wait for two sync intervals. Restore.
+2. `fncli resource-set results --target-dir <another directory>`. Wait for two sync intervals. Restore.
 
-- **Expected:** the result stays `OPENED`; the results pull request and branch are untouched; the sync sensor goes on recording its state. The result's repository and directory came from the snapshot, not from the link.
-- **Rule:** at delivery the results repository id and `target_dir` come from the snapshot, so an edited link does not redirect a push ([A task is pinned to its configuration]). An existing non-final result is re-checked only for a revoke (check that an edit does not change it) ([docs/architecture/revoke-and-enabled.md#may-a-finished-tasks-result-be-delivered]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` (`test_delivery_takes_the_target_dir_from_the_pinned_configuration_and_reads_no_link`); no test edits the link after the result exists.
+- **Expected:** the result stays `OPENED`; the results pull request and branch are untouched; the sync sensor goes on recording its state. The result's repository and directory came from the snapshot, not from the project resource.
+- **Rule:** at delivery the results repository id and `target_dir` come from the snapshot, so an edited project resource does not redirect a push ([A task is pinned to its configuration]). An existing non-final result is re-checked only for a revoke (check that an edit does not change it) ([docs/architecture/revoke-and-enabled.md#may-a-finished-tasks-result-be-delivered]).
+- **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` (`test_delivery_takes_the_target_dir_from_the_pinned_configuration_and_reads_no_resource`); no test edits the project resource after the result exists.
 - [ ] Pass
 - [ ] Fail — notes:
 

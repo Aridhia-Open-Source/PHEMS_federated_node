@@ -48,7 +48,7 @@ class BackendAPI:
     def get_pollable_trigger_repositories(self) -> list[TriggerRepository]:
         """
         Get the global trigger repositories to poll: enabled, on an enabled provider, with an enabled
-        secret, whatever their project links. Each carries the cursor to poll from, as pr_cursor.
+        secret, whatever their project resources. Each carries the cursor to poll from, as pr_cursor.
         """
         self.logger.info("Fetching the trigger repositories to poll")
         response = self.session.get("/global/repositories/triggers", params={"pollable": "true"})
@@ -61,27 +61,27 @@ class BackendAPI:
         return TriggerRepository(**response.json())
 
     def get_project_trigger_repositories(self, project_id: int, active: bool = False) -> list[ProjectTriggerRepository]:
-        """Get a project's links to trigger repositories, inactive ones included unless active is set"""
+        """Get a project's trigger repositories, inactive ones included unless active is set"""
         self.logger.info(f"Fetching trigger repositories of project {project_id}")
         params = {"active": "true"} if active else None
         response = self.session.get(f"/projects/{project_id}/repositories/triggers", params=params)
         return [ProjectTriggerRepository(**repo) for repo in response.json()]
 
     def get_project_trigger_repository(self, project_id: int, repository_id: int) -> ProjectTriggerRepository:
-        """Get a project's link to a trigger repository, by the repository's id"""
+        """Get a project's trigger repository, by the repository's id"""
         self.logger.info(f"Fetching trigger repository {repository_id} of project {project_id}")
         response = self.session.get(f"/projects/{project_id}/repositories/triggers/{repository_id}")
         return ProjectTriggerRepository(**response.json())
 
     def patch_project_trigger_repository(self, project_id: int, repository_id: int, data: dict) -> ProjectTriggerRepository:
-        """Update a project's link to a trigger repository"""
+        """Update a project's trigger repository"""
         self.logger.info(f"Updating trigger repository {repository_id} of project {project_id}")
         response = self.session.patch(f"/projects/{project_id}/repositories/triggers/{repository_id}", json=data)
         return ProjectTriggerRepository(**response.json())
 
     def get_pull_requests(self, project_id: int, repository_id: int, **filters: str | int) -> list[PullRequestTrigger]:
         """
-        Get all pull requests of a project's trigger repository link, automatically handling pagination.
+        Get all pull requests of a project's trigger repository, automatically handling pagination.
         Filters are the webserver's, e.g. state=.
         """
         self.logger.info(f"Fetching pull requests for repo {repository_id} matching {filters}")
@@ -222,7 +222,7 @@ class BackendAPI:
         return ResultsRepository(**response.json())
 
     def get_results_repository_by_id(self, project_id: int, repository_id: int) -> ProjectResultsRepository:
-        """Get a project's link to a results repository, by the repository's id"""
+        """Get a project's results repository, by the repository's id"""
         self.logger.info(f"Fetching results repository {repository_id} of project {project_id}")
         response = self.session.get(f"/projects/{project_id}/repositories/results/{repository_id}")
         return ProjectResultsRepository(**response.json())
@@ -234,7 +234,7 @@ class BackendAPI:
         return [PullRequestResult(**result) for result in response.json()]
 
     def create_result(self, project_id: int, task_id: int, results_repository_id: int) -> PullRequestResult:
-        """Create the delivery of a task's results to a results repository its project is linked to, or return the existing one"""
+        """Create the delivery of a task's results to a results repository its project is assigned, or return the existing one"""
         self.logger.info(f"Creating result of task {task_id} for results repository {results_repository_id}")
         response = self.session.post(
             f"/projects/{project_id}/results",
@@ -254,10 +254,10 @@ class BackendAPI:
         response = self.session.get(f"/projects/{project_id}/results", params={"step": steps})
         return [PullRequestResult(**result) for result in response.json()]
 
-    def get_results_by_state(self, project_id: int, state: str, active_link: bool = False) -> list[PullRequestResult]:
-        """Get the project's results in a state, only those whose link to the results repository is active if active_link"""
+    def get_results_by_state(self, project_id: int, state: str, active_resource: bool = False) -> list[PullRequestResult]:
+        """Get the project's results in a state, only those whose project results repository is active if active_resource"""
         self.logger.info(f"Fetching {state} results of project {project_id}")
-        params = {"state": state, "active_link": "true"} if active_link else {"state": state}
+        params = {"state": state, "active_resource": "true"} if active_resource else {"state": state}
         response = self.session.get(f"/projects/{project_id}/results", params=params)
         return [PullRequestResult(**result) for result in response.json()]
 
@@ -300,13 +300,13 @@ class BackendAPI:
         return Dataset(**response.json())
 
     def get_project_dataset(self, project_id: int, dataset_id: int) -> ProjectDataset:
-        """The project's link to a dataset, active or not, by the dataset's id"""
+        """The project's dataset, active or not, by the dataset's id"""
         self.logger.info(f"Fetching dataset {dataset_id} of project {project_id}")
         response = self.session.get(f"/projects/{project_id}/datasets/{dataset_id}")
         return ProjectDataset(**response.json())
 
     def delete_dataset(self, dataset_id: int) -> None:
-        """Delete a dataset, and with it (force) every project's link to it"""
+        """Delete a dataset, and with it (force) every project's resource for it"""
         self.logger.info(f"Deleting dataset {dataset_id}")
         self.session.delete(f"/global/datasets/{dataset_id}", params={"force": "true"})
 
@@ -324,12 +324,12 @@ class BackendAPI:
         watch_dir: str,
         base_branch: str,
     ) -> ProjectTriggerRepository:
-        """Link a global trigger repository to a project"""
+        """Assign a global trigger repository to a project"""
         self.logger.info(f"Assigning repository {trigger_repository_id} to project {project_id}")
         data = {"watch_dir": watch_dir, "base_branch": base_branch}
         response = self.session.put(f"/projects/{project_id}/repositories/triggers/{trigger_repository_id}", json=data)
         return ProjectTriggerRepository(**response.json())
 
     def delete_repository(self, repo_id: int) -> None:
-        """Delete a repository, and with it (force) every project's link to it"""
+        """Delete a repository, and with it (force) every project's resource for it"""
         self.session.delete(f"/global/repositories/triggers/{repo_id}", params={"force": "true"})

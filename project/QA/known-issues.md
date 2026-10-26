@@ -4,15 +4,15 @@ Open items and the known limits in [docs/architecture/revoke-and-enabled.md#know
 
 Needs: the dev project, an administrator login, and the second project (`fncli second-project-setup QaTwo`) for the destructive cases.
 
-## Deleting a trigger link that has pull requests
+## Deleting a trigger resource that has pull requests
 
 1. Run a watched pull request through so the second project has a trigger (`fncli second-project-setup QaTwo` before the merge).
 2. `DELETE /projects/<QaTwo pid>/repositories/triggers/<id>`.
 3. `fncli second-project-teardown QaTwo` when finished.
 
-- **Expected today:** 204. The unlink is a soft delete that also revokes the link, so the `RESTRICT` keys of the triggers never fire. The link is gone from the API (`GET` is 404), and its triggers and pull requests are kept. Record the status; a 400 or 409 is a fail.
-- **Rule:** a link is only ever soft deleted ([Enabled, revoked and soft delete]); `RESTRICT` stops a real row delete while triggers exist, and no route makes one ([Pull requests stored once per repository, fanned out to project links, with cursors]).
-- **Automated by:** `webserver/tests/test_trigger_repositories_and_links.py` (`test_unlinking_a_trigger_link_with_pull_requests_keeps_its_triggers`). This case can move out of the known issues.
+- **Expected today:** 204. The unassign is a soft delete that also revokes the project resource, so the `RESTRICT` keys of the triggers never fire. The project resource is gone from the API (`GET` is 404), and its triggers and pull requests are kept. Record the status; a 400 or 409 is a fail.
+- **Rule:** a project resource is only ever soft deleted ([Enabled, revoked and soft delete]); `RESTRICT` stops a real row delete while triggers exist, and no route makes one ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
+- **Automated by:** `webserver/tests/test_trigger_repositories_and_resources.py` (`test_unassigning_a_trigger_resource_with_pull_requests_keeps_its_triggers`). This case can move out of the known issues.
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 
@@ -22,19 +22,19 @@ Needs: the dev project, an administrator login, and the second project (`fncli s
 2. Compare the Secret's `updated_at` with `date -u`.
 
 - **Expected today:** `updated_at` is set from local time, not UTC. Record the time offset. The route is admin-only (`can_do_admin`), so a non-admin token gets a 403.
-- **Rule:** global writes need the admin scope ([Global resources, linked to projects]).
+- **Rule:** global writes need the admin scope ([Global resources and project resources]).
 - **Automated by:** `webserver/tests/test_global_resources.py` (`test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources`) covers the 403 for the Secret `PATCH`; `test_system_user_routes.py` covers the System user. Nothing covers the time zone.
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 
-## A revoked Secret link is not checked when a token is read
+## A revoked Secret resource is not checked when a token is read
 
 This is a probe from the end-to-end README, not a pass or fail there.
 
-1. `fncli link-set secret --revoked true`. `fncli open-pr --kind watched --merge`. Watch the pull request and the task.
-2. `fncli link-set secret --revoked false`.
+1. `fncli resource-set secret --revoked true`. `fncli open-pr --kind watched --merge`. Watch the pull request and the task.
+2. `fncli resource-set secret --revoked false`.
 
-- **Expected today:** the pull request is processed as usual: the link is not read when the token is read.
+- **Expected today:** the pull request is processed as usual: the project resource is not read when the token is read.
 - **Rule:** `ProjectSecret` has the flags but nothing reads them ([Enabled, revoked and soft delete], open questions).
 - **Automated by:** Manual only (an end-to-end probe).
 - [ ] Pass (matches the README)
@@ -46,7 +46,7 @@ This is a probe from the end-to-end README, not a pass or fail there.
 2. `PATCH /global/datasets/<id>` with a harmless change.
 
 - **Expected today:** step 1 returns 200 with values clamped to 1 rather than a 400; step 2 returns 200. Both are listed as open questions.
-- **Rule:** open questions in [Global resources, linked to projects].
+- **Rule:** open questions in [Global resources and project resources].
 - **Automated by:** Partly automated: `webserver/tests/test_pagination_and_filters.py`. It misses a live node.
 - [ ] Pass (matches the open question)
 - [ ] Fail (differs; note what you saw)
@@ -80,7 +80,7 @@ This is a probe from the end-to-end README, not a pass or fail there.
 - A delivery that stays `FAILED` after the maximum attempts raises no alert ([task and result state machines](task-and-result-state-machines.md)).
 - A `CLOSED` result is terminal: a results pull request reopened on the provider is not followed; one deleted on the provider stays at its last step.
 - The failure suite's check that a failed ingest tick's error text contains "Ingest failed" reads the tick error's `stack` and `causes`; that Dagster puts the text there is unconfirmed ([failure paths](failure-paths.md)).
-- The ingest-versus-link-create race, and `get_or_assign_*` in fncli returning an existing link with different settings (setup tooling): no case; they need fault injection.
+- The ingest-versus-assign race, and `get_or_assign_*` in fncli returning an existing project resource with different settings (setup tooling): no case; they need fault injection.
 - The cross-project loop check keys on provider and repository path, so the same server under two host names is not seen.
 - `openapi.json` is not regenerated for the `revoked` fields.
 - A leaked or lost token on the git side is a separate action at the git host.
@@ -93,7 +93,7 @@ Check this against the checked-out code and update this page.
 
 <!-- link definitions -->
 [Enabled, revoked and soft delete]: ../decisions/0008-enabled-revoked-and-soft-delete.md
-[Global resources, linked to projects]: ../decisions/0006-global-resources-and-project-links.md
-[Pull requests stored once per repository, fanned out to project links, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
+[Global resources and project resources]: ../decisions/0006-global-resources-and-project-resources.md
+[Pull requests stored once per repository, fanned out to project resources, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
 [Task status is written by the run-status sensors and the reconcile sensor]: ../decisions/0003-task-status-written-by-run-status-sensors.md
 [docs/architecture/revoke-and-enabled.md#known-limits]: ../../docs/architecture/revoke-and-enabled.md#known-limits

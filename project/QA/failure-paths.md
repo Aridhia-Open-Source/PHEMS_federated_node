@@ -22,7 +22,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 2. Wait five intervals. Note them again.
 
 - **Expected:** the stored count is up by one; the project's pull request and task counts are unchanged. Nothing is rejected: there is simply no trigger.
-- **Rule:** a link gets a trigger only for a new `.json` file under its `watch_dir`; otherwise none (the cause is only logged) ([Pull requests stored once per repository, fanned out to project links, with cursors]).
+- **Rule:** a project resource gets a trigger only for a new `.json` file under its `watch_dir`; otherwise none (the cause is only logged) ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **Automated by:** Partly automated: the end-to-end failure suite, group "a PR outside the watched directory creates no trigger" (written, never run on a cluster); `webserver/tests/test_pull_requests_and_tasks.py`. The suite checks the project's counts, not the stored count.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -38,7 +38,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 7. Watch `fncli project-show`; then `fncli project-healthcheck` again.
 
 - **Expected:** step 3: the counts do not change. Step 4: the ingest sensor's ticks fail, naming the repository with an authentication error, while the evaluate and launcher sensors keep ticking. Step 5: exit code is not 0. Step 7: the pull request merged during the outage gets a trigger and a task (this is not a gap: the global cursor did not move because nothing was stored), and the healthcheck is `ok` again.
-- **Rule:** the cursor moves only when a batch is stored, so a failed poll loses nothing ([Pull requests stored once per repository, fanned out to project links, with cursors]; [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]).
+- **Rule:** the cursor moves only when a batch is stored, so a failed poll loses nothing ([Pull requests stored once per repository, fanned out to project resources, with cursors]; [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]).
 - **Automated by:** Partly automated: the end-to-end failure suite, group "a lost token fails clearly, then recovers" (written, never run on a cluster). Its check that the failed tick's error text contains "Ingest failed" reads the tick error's stack and causes, and it is unconfirmed that Dagster puts that text there ([known issues](known-issues.md)). `dagster/app/tests/test_pr_ingest_sensor.py` covers a failing repository. A lost results-repository token is in [failures mid-flow and limits](failures-mid-flow-and-limits.md).
 - [ ] Pass
 - [ ] Fail — notes:
@@ -69,7 +69,7 @@ Needs a spec with an image name that does not exist (commit it by hand under `wa
 - [ ] Fail — notes:
 
 <!-- link definitions -->
-[Pull requests stored once per repository, fanned out to project links, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
+[Pull requests stored once per repository, fanned out to project resources, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md
 [State transition tables for triggers, tasks and result steps; 409 on a refused move]: ../decisions/0005-state-transition-tables.md
 [Task status is written by the run-status sensors and the reconcile sensor]: ../decisions/0003-task-status-written-by-run-status-sensors.md

@@ -120,7 +120,7 @@ def test_a_result_is_synced_against_its_own_repository_fetched_once():
     assert [c.args[0] for c in git_apis.for_repository.call_args_list] == [other_global, GLOBAL_REPOSITORY, GLOBAL_REPOSITORY]
 
 
-def test_a_result_whose_link_is_deleted_is_skipped():
+def test_a_result_whose_resource_is_deleted_is_skipped():
     backend_api = MagicMock()
     backend_api.get_projects.return_value = [Project(id=1, name="p")]
     backend_api.get_results_by_step.return_value = [result(9), result(10, number=4)]

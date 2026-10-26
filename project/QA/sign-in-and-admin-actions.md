@@ -10,7 +10,7 @@ Needs: the administrator's login. Never write a password or token into the notes
 2. With the token, `GET /global/secrets` and `GET /projects`.
 
 - **Expected:** both return 200 and a list. No Secret value is in the response.
-- **Rule:** creating GlobalResources and writing their flags needs the admin role ([Global resources, linked to projects]).
+- **Rule:** creating GlobalResources and writing their flags needs the admin role ([Global resources and project resources]).
 - **Automated by:** Partly automated: the failure suite logs in as the first Keycloak user before it starts (`dagster/fncli/tests/e2e/test_failure_paths.py`, the admin login check). The webserver tests mock Keycloak, so real logins are not covered elsewhere.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -29,7 +29,7 @@ Needs: the administrator's login. Never write a password or token into the notes
 ## The System user can never revoke or un-revoke
 
 1. Send `PATCH /projects/<pid>/repositories/triggers/<id>` with `{"revoked": true}` using the System user's token. Skip this case if you cannot get that token without reading the Secret that holds it (do not decode it).
-2. For comparison, `fncli link-set trigger --revoked true` (it logs in as the first Keycloak user) and then `--revoked false`.
+2. For comparison, `fncli resource-set trigger --revoked true` (it logs in as the first Keycloak user) and then `--revoked false`.
 
 - **Expected:** step 1 is refused with 403 and nothing changes. Step 2 returns 200 both ways.
 - **Rule:** `revoked` is set only by administrators; the pipeline's System user can never revoke ([Enabled, revoked and soft delete]).
@@ -41,21 +41,21 @@ Needs: the administrator's login. Never write a password or token into the notes
 
 Needs a Keycloak user without the Administrator role. If there is none, mark Not run: normal-user permissions are out of scope, so this is an observation.
 
-1. With that user's token send `PATCH` with `{"revoked": true}` on a link, and `POST /global/datasets`.
+1. With that user's token send `PATCH` with `{"revoked": true}` on a project resource, and `POST /global/datasets`.
 
 - **Expected:** both are refused (403). Record what a normal user can read, for the follow-up work.
 - **Rule:** `revoked` needs the Administrator role on every route that has it; global writes need the admin scope ([docs/architecture/revoke-and-enabled.md#who-may-do-what]).
-- **Automated by:** Partly automated: `webserver/tests/test_trigger_repositories_and_links.py` (`test_revoke_admin_only`) and `webserver/tests/test_global_resources.py` (non-admin refused on the write routes). The mocked Keycloak lets a non-admin token through every scope except `revoked`, so scopes are not tested for real.
+- **Automated by:** Partly automated: `webserver/tests/test_trigger_repositories_and_resources.py` (`test_revoke_admin_only`) and `webserver/tests/test_global_resources.py` (non-admin refused on the write routes). The mocked Keycloak lets a non-admin token through every scope except `revoked`, so scopes are not tested for real.
 - [ ] Pass
 - [ ] Fail — notes:
 
-## `revoked` cannot be set when creating or linking
+## `revoked` cannot be set when creating or assigning
 
 1. `POST /global/datasets` (and one repository) with `"revoked": true` in an otherwise valid body.
 2. `PUT /projects/<pid>/repositories/triggers/<id>` with `"revoked": true` in the body.
 
 - **Expected:** 400 each time, and nothing is created or changed.
-- **Rule:** `revoked` is the controller's flag, set only by an admin `PATCH` ([Global resources, linked to projects]).
+- **Rule:** `revoked` is the controller's flag, set only by an admin `PATCH` ([Global resources and project resources]).
 - **Automated by:** Automated: `webserver/tests/test_create_refuses_revoked.py` for the create routes (it misses real roles, since Keycloak is mocked). The PUT case is a rule in the decision; check it by hand.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -73,5 +73,5 @@ Needs a Keycloak user without the Administrator role. If there is none, mark Not
 <!-- link definitions -->
 [Authorization detached from DAR, Keycloak and whitelisted images]: ../decisions/0017-authorization-detached-from-dar-and-keycloak.md
 [Enabled, revoked and soft delete]: ../decisions/0008-enabled-revoked-and-soft-delete.md
-[Global resources, linked to projects]: ../decisions/0006-global-resources-and-project-links.md
+[Global resources and project resources]: ../decisions/0006-global-resources-and-project-resources.md
 [docs/architecture/revoke-and-enabled.md#who-may-do-what]: ../../docs/architecture/revoke-and-enabled.md#who-may-do-what

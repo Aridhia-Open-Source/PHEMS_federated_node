@@ -12,9 +12,9 @@ Authorization (Keycloak resources, per-DAR clients, token exchange) is designed 
   - DAR checking and per-DAR token exchange in `@auth` are bypassed, so every caller takes the plain path (admin scope or the endpoint's scope);
   - Keycloak calls from dataset create, delete and rename are detached;
   - the DAR and whitelisted-image DTOs do not exist.
-- Dataset-level authorisation is not part of the dataset design ([0006](0006-global-resources-and-project-links.md)).
+- Dataset-level authorisation is not part of the dataset design ([0006](0006-global-resources-and-project-resources.md)).
 - The Dagster side authenticates to the backend with a Keycloak system user (`DAGSTER_KC_USER`); the git token read in delivery is marked `TODO(auth)` ([0007](0007-secrets-and-secret-providers.md)).
-- Creating global resources, and the `revoked` flag, need the admin role ([0006](0006-global-resources-and-project-links.md), [0008](0008-enabled-revoked-and-soft-delete.md)).
+- Creating global resources, and the `revoked` flag, need the admin role ([0006](0006-global-resources-and-project-resources.md), [0008](0008-enabled-revoked-and-soft-delete.md)).
 
 ## Consequences
 

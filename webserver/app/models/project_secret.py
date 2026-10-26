@@ -1,6 +1,6 @@
 """
-A project's link to a global secret, holding the project's own state for it. Only the
-reference is linked: the values stay in the secret store.
+A project's resource for a global secret, holding the project's own state for it. Only the
+reference is assigned: the values stay in the secret store.
 """
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship

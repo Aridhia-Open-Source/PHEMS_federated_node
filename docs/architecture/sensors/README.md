@@ -32,7 +32,7 @@ flowchart TD
     C -->|"POST /global/repositories/triggers/id/pull_requests"| D[("Pull request stored once")]
     D -->|"backend fan-out"| E["Trigger UNKNOWN for each matching ProjectTriggerRepository"]
     E --> F["git_pull_request_evaluate_sensor"]
-    F -->|"RunRequest per link with UNKNOWN pull requests"| G["evaluate_repository_pull_requests_job"]
+    F -->|"RunRequest per project resource with UNKNOWN pull requests"| G["evaluate_repository_pull_requests_job"]
     G -->|"no valid spec"| H(["Trigger REJECTED"])
     G -->|"valid spec"| I["Trigger YIELDED, task PENDING"]
     I --> J["task_launcher_sensor"]
@@ -62,19 +62,19 @@ Read once, when the code location loads (`dagster/app/config.py`).
 
 ## `enabled` and `revoked`
 
-A GlobalResource (a `Dataset`, `TriggerRepository`, `ResultsRepository` or `GitProvider`) and a ProjectResource (a project's link to one: `ProjectDataset`, `ProjectTriggerRepository`, `ProjectResultsRepository`) each have two flags. A project has them too.
+A GlobalResource (a `Dataset`, `TriggerRepository`, `ResultsRepository` or `GitProvider`) and a ProjectResource (a project's own row for one: `ProjectDataset`, `ProjectTriggerRepository`, `ProjectResultsRepository`) each have two flags. A project has them too.
 
 - `enabled`: switched on or off. A person does it.
 - `revoked`: access withdrawn. Only an admin sets it, and it takes effect at once. It never changes `enabled`, so a re-grant restores the old state.
-- Active: enabled and not revoked, at the link, the GlobalResource and (for repositories) the GitProvider.
-- A deleted link or GlobalResource counts as revoked.
+- Active: enabled and not revoked, at the project resource, the GlobalResource and (for repositories) the GitProvider.
+- A deleted project resource or GlobalResource counts as revoked.
 
 | Sensor | Projects it looks at | What it leaves out |
 |---|---|---|
 | ingest | none | a TriggerRepository or GitProvider that is disabled or revoked, or a disabled secret, is not polled |
-| evaluate | enabled projects (a revoked one is still listed) | links that are not active |
+| evaluate | enabled projects (a revoked one is still listed) | project resources that are not active |
 | task launcher | enabled projects (a revoked one is still listed) | it fails a task that uses anything revoked, whose configuration changed, or whose dataset is not active or has a disabled secret |
 | run-status sensors | any | nothing: they follow runs |
 | task reconcile | enabled projects | tasks of a disabled project, and tasks that are finished |
-| delivery retry | all projects | results whose link is not active, and results at a final step |
+| delivery retry | all projects | results whose project resource is not active, and results at a final step |
 | results pull request sync | all projects | nothing |

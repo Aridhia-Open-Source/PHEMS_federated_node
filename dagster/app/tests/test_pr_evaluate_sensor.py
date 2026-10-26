@@ -52,7 +52,7 @@ def test_the_run_is_configured_and_tagged_for_its_repository():
     assert result[0].run_config == {"ops": {"load_unknown_pull_requests": {"config": {"project_id": 3, "repo_id": 10}}}}
 
 
-def test_the_run_key_is_the_link_the_newest_unknown_pr_and_the_retry_slot():
+def test_the_run_key_is_the_resource_the_newest_unknown_pr_and_the_retry_slot():
     result, _, _ = run([project(1)], [repo(10, 1)], unknown={10: unknown_prs(4, 9, 6)})
 
     assert re.fullmatch(r"evaluate/1/10/9/\d+", result[0].run_key)

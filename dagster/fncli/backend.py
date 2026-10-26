@@ -46,22 +46,22 @@ class FncliBackendAPI(BackendAPI):
         return self.create_dataset(name=name, **kwargs)
 
     def get_project_datasets(self, project_id: int) -> list[ProjectDataset]:
-        """The project's dataset links, inactive ones included"""
+        """The project's datasets, inactive ones included"""
         self.logger.info(f"Fetching datasets of project {project_id}")
         return [ProjectDataset(**a) for a in self.session.get(f"/projects/{project_id}/datasets").json()]
 
     def find_project_dataset(self, name: str, project_id: int) -> ProjectDataset | None:
-        """The project's link to the dataset of that name, if any"""
+        """The project's dataset of that name, if any"""
         for assignment in self.get_project_datasets(project_id):
             if assignment.dataset.name.lower() == name.lower():
                 return assignment
         return None
 
     def get_or_assign_dataset(self, project_id: int, dataset: Dataset) -> ProjectDataset:
-        """Reuse the project's link to the dataset if there is one, else link it"""
+        """Reuse the project's dataset if there is one, else assign it"""
         assignment = self.find_project_dataset(dataset.name, project_id)
         if assignment:
-            self.logger.info(f"Reusing existing link to dataset {dataset.name} in project {project_id}")
+            self.logger.info(f"Reusing existing dataset {dataset.name} in project {project_id}")
             return assignment
         self.logger.info(f"Assigning dataset {dataset.name} to project {project_id}")
         response = self.session.put(f"/projects/{project_id}/datasets/{dataset.id}", json={})
@@ -185,7 +185,7 @@ class FncliBackendAPI(BackendAPI):
         return self.create_repository(provider_id, repo_path_of(uri), secret_label)
 
     def find_repository(self, uri: str, project_id: int) -> ProjectTriggerRepository | None:
-        """The project's link to the trigger repository with that uri, if any"""
+        """The project's trigger repository with that uri, if any"""
         stored_uri = normalise_repo_uri(uri)
         for assignment in self.get_project_trigger_repositories(project_id):
             if normalise_repo_uri(assignment.trigger_repository.uri) == stored_uri:
@@ -199,10 +199,10 @@ class FncliBackendAPI(BackendAPI):
         watch_dir: str,
         base_branch: str,
     ) -> ProjectTriggerRepository:
-        """Reuse the project's link to the repository if there is one, else link it"""
+        """Reuse the project's repository if there is one, else assign it"""
         assignment = self.find_repository(repo.uri, project_id)
         if assignment:
-            self.logger.info(f"Reusing existing link to repository {repo.uri} in project {project_id}")
+            self.logger.info(f"Reusing existing repository {repo.uri} in project {project_id}")
             return assignment
         self.logger.info(f"Assigning repository {repo.uri} to project {project_id}")
         data = {"watch_dir": watch_dir, "base_branch": base_branch}
@@ -238,18 +238,18 @@ class FncliBackendAPI(BackendAPI):
         return self.create_results_repository(provider_id, repo_path_of(uri), secret_label)
 
     def get_project_results_repositories(self, project_id: int) -> list[ProjectResultsRepository]:
-        """The project's results repository links (it has at most one), inactive ones included"""
+        """The project's results repositories (it has at most one), inactive ones included"""
         response = self.session.get(f"/projects/{project_id}/repositories/results")
         return [ProjectResultsRepository(**a) for a in response.json()]
 
     def get_or_assign_results_repository(
         self, project_id: int, repo: ResultsRepository, target_dir: str, owned_by_federated_node: bool | None = None
     ) -> ProjectResultsRepository:
-        """Reuse the project's results repository link if there is one, else link the repository"""
+        """Reuse the project's results repository if there is one, else assign the repository"""
         assignments = self.get_project_results_repositories(project_id)
         if assignments:
             self.logger.info(
-                f"Reusing existing link to results repository {assignments[0].results_repository.id} in project {project_id}"
+                f"Reusing existing results repository {assignments[0].results_repository.id} in project {project_id}"
             )
             return assignments[0]
         self.logger.info(f"Assigning results repository {repo.uri} to project {project_id}")
@@ -260,6 +260,6 @@ class FncliBackendAPI(BackendAPI):
         return ProjectResultsRepository(**response.json())
 
     def delete_results_repository(self, repo_id: int) -> None:
-        """Delete a global results repository, and with it (force) every project's link to it"""
+        """Delete a global results repository, and with it (force) every project's resource for it"""
         self.logger.info(f"Deleting results repository {repo_id}")
         self.session.delete(f"/global/repositories/results/{repo_id}", params={"force": "true"})

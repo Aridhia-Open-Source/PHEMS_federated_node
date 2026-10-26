@@ -1,6 +1,6 @@
 # Entities and state machines
 
-The final backend schema (`webserver/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0004](../../project/decisions/0004-polymorphic-result-and-forward-only-state.md), [0005](../../project/decisions/0005-state-transition-tables.md) (the state tables behind the three diagrams below), [0006](../../project/decisions/0006-global-resources-and-project-links.md), [0008](../../project/decisions/0008-enabled-revoked-and-soft-delete.md), [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
+The final backend schema (`webserver/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0004](../../project/decisions/0004-polymorphic-result-and-forward-only-state.md), [0005](../../project/decisions/0005-state-transition-tables.md) (the state tables behind the three diagrams below), [0006](../../project/decisions/0006-global-resources-and-project-resources.md), [0008](../../project/decisions/0008-enabled-revoked-and-soft-delete.md), [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
 
 Not drawn: `audit`, `registries`, `whitelisted_images`, `catalogues`, `dictionaries`, `dars` (disconnected, [0017](../../project/decisions/0017-authorization-detached-from-dar-and-keycloak.md)) and `results_backends` (present in the baseline, unused by the pipeline).
 
@@ -13,7 +13,7 @@ erDiagram
         string name UK
         bool enabled
         bool revoked
-        int default_dataset_id FK "first linked dataset"
+        int default_dataset_id FK "first assigned dataset"
     }
     secrets {
         int id PK
@@ -196,7 +196,7 @@ erDiagram
     results ||--o| pull_request_results : "is a"
 ```
 
-`projects.default_dataset_id` references `datasets` and is set with the first dataset linked; it is only used while the project's link to it is active. Global resources (`secrets`, `git_providers`, `trigger_repositories`, `results_repositories`, `datasets`) have no `project_id`. A repository's `uri` is its provider's `uri` and its `repo_path`. Pull requests are stored once per global repository (`UNIQUE(trigger_repository_id, number)` and `UNIQUE(trigger_repository_id, base_branch, merge_commit_sha)`), with their changed files in `pull_request_files` and `files_truncated` set when the provider's list was cut. A `pull_request_triggers` row is unique per `(assignment, pull request)` and keeps the evaluation state; the pull request's number, title, author, merge time and commit are read through `pull_request`. A `project_trigger_repositories` row has `UNIQUE(project_id, trigger_repository_id)`, so the API addresses it by the global repository id. A `project_secrets` row links a project to a secret (`UNIQUE(project_id, secret_id)`, `enabled`, `revoked`) and never holds values. `pr_cursor` is not a column. For a global repository it is the latest `merged_at` of its pull requests, or the repository's creation when none is stored. For an assignment it is the latest `merged_at` of its triggers, or `initial_cursor` when it has none. Fan-out starts after the pair `(initial_cursor, initial_cursor_number)`, set when the link is created and moved to now by `skip_gap` when the link becomes active again ([0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md)). An assignment is active when `enabled` and not `revoked`. A `results` row is unique per `(task_id, results_repository_id)` where `results_repository_id` is the `project_results_repositories` id.
+`projects.default_dataset_id` references `datasets` and is set with the first dataset assigned; it is only used while its `project_datasets` row is active. Global resources (`secrets`, `git_providers`, `trigger_repositories`, `results_repositories`, `datasets`) have no `project_id`. A repository's `uri` is its provider's `uri` and its `repo_path`. Pull requests are stored once per global repository (`UNIQUE(trigger_repository_id, number)` and `UNIQUE(trigger_repository_id, base_branch, merge_commit_sha)`), with their changed files in `pull_request_files` and `files_truncated` set when the provider's list was cut. A `pull_request_triggers` row is unique per `(assignment, pull request)` and keeps the evaluation state; the pull request's number, title, author, merge time and commit are read through `pull_request`. A `project_trigger_repositories` row has `UNIQUE(project_id, trigger_repository_id)`, so the API addresses it by the global repository id. A `project_secrets` row ties a project to a secret (`UNIQUE(project_id, secret_id)`, `enabled`, `revoked`) and never holds values. `pr_cursor` is not a column. For a global repository it is the latest `merged_at` of its pull requests, or the repository's creation when none is stored. For an assignment it is the latest `merged_at` of its triggers, or `initial_cursor` when it has none. Fan-out starts after the pair `(initial_cursor, initial_cursor_number)`, set when the project resource is created and moved to now by `skip_gap` when the project resource becomes active again ([0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md)). An assignment is active when `enabled` and not `revoked`. A `results` row is unique per `(task_id, results_repository_id)` where `results_repository_id` is the `project_results_repositories` id.
 
 ## Inheritance trees
 
@@ -257,7 +257,7 @@ classDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> UNKNOWN : a stored PR is fanned out to a link that accepts triggers (active, project enabled)
+    [*] --> UNKNOWN : a stored PR is fanned out to a project resource that accepts triggers (active, project enabled)
     UNKNOWN --> YIELDED : valid spec, task created in the same transaction
     UNKNOWN --> REJECTED : no spec file, several, invalid spec, or backend 400 (state_cause)
     YIELDED --> [*]
