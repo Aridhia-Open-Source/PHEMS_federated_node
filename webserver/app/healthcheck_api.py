@@ -1,7 +1,7 @@
 """
 Healthcheck endpoints. A failed check is reported in the body, still with a 200. Nothing
 returned includes a secret's value. Each resource has one check, run for the global
-resource and for a project's link to it (which adds the link's state, and a 404 if the
+resource and for a project's resource for it (which adds the project resource's state, and a 404 if the
 project has none); the roll-ups are built from the same per-resource functions. Whatever
 reads the database or the cluster happens in the request (the prepare_* functions), and
 only the network calls run in the threads.
@@ -11,7 +11,7 @@ only the network calls run in the threads.
 - GET /global/providers/<provider_id>/healthcheck, does the git provider's API answer
 - GET /global/repositories/triggers/<repository_id>/healthcheck
 - GET /global/repositories/results/<repository_id>/healthcheck
-- GET /projects/<project_id>/healthcheck, the project's trigger and results repository links
+- GET /projects/<project_id>/healthcheck, the project's trigger and results repository resources
 - GET /projects/<project_id>/datasets/<dataset_id>/healthcheck
 - GET /projects/<project_id>/secrets/<label>/healthcheck
 - GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck
@@ -41,8 +41,8 @@ from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.models.trigger_repository import TriggerRepository
-from app.project_trigger_repositories_api import _assignment as _trigger_link
-from app.projects_api import _dataset_link, _results_link, _secret_link
+from app.project_trigger_repositories_api import _assignment as _trigger_resource
+from app.projects_api import _dataset_resource, _results_resource, _secret_resource
 from app.secrets_api import SecretProvider, _get_secret
 
 HEALTHCHECK_MAX_WORKERS = 8
@@ -141,36 +141,36 @@ def prepare_secret_health(secret: Secret) -> Callable[[], SecretHealthDTO]:
     return lambda: health
 
 
-def prepare_dataset_link_health(link: ProjectDataset) -> Callable[[], ProjectDatasetHealthDTO]:
-    dataset = prepare_dataset_health(link.dataset)
-    project_id, enabled, revoked, active = link.project_id, link.enabled, link.revoked, link.active
+def prepare_dataset_resource_health(resource: ProjectDataset) -> Callable[[], ProjectDatasetHealthDTO]:
+    dataset = prepare_dataset_health(resource.dataset)
+    project_id, enabled, revoked, active = resource.project_id, resource.enabled, resource.revoked, resource.active
     return lambda: ProjectDatasetHealthDTO(
         project_id=project_id, enabled=enabled, revoked=revoked, active=active, dataset=dataset()
     )
 
 
-def prepare_secret_link_health(link: ProjectSecret) -> Callable[[], ProjectSecretHealthDTO]:
-    secret = prepare_secret_health(link.secret)
-    project_id, enabled, revoked, active = link.project_id, link.enabled, link.revoked, link.active
+def prepare_secret_resource_health(resource: ProjectSecret) -> Callable[[], ProjectSecretHealthDTO]:
+    secret = prepare_secret_health(resource.secret)
+    project_id, enabled, revoked, active = resource.project_id, resource.enabled, resource.revoked, resource.active
     return lambda: ProjectSecretHealthDTO(
         project_id=project_id, enabled=enabled, revoked=revoked, active=active, secret=secret()
     )
 
 
-def prepare_trigger_link_health(link: ProjectTriggerRepository) -> Callable[[], ProjectTriggerRepositoryHealthDTO]:
-    repository = prepare_repository_health(link.trigger_repository)
-    project_id, enabled, revoked, active = link.project_id, link.enabled, link.revoked, link.active
-    pr_count = PullRequestTrigger.query.filter_by(project_trigger_repository_id=link.id).count()
+def prepare_trigger_resource_health(resource: ProjectTriggerRepository) -> Callable[[], ProjectTriggerRepositoryHealthDTO]:
+    repository = prepare_repository_health(resource.trigger_repository)
+    project_id, enabled, revoked, active = resource.project_id, resource.enabled, resource.revoked, resource.active
+    pr_count = PullRequestTrigger.query.filter_by(project_trigger_repository_id=resource.id).count()
     return lambda: ProjectTriggerRepositoryHealthDTO(
         project_id=project_id, pr_count=pr_count, enabled=enabled, revoked=revoked, active=active,
         trigger_repository=repository(),
     )
 
 
-def prepare_results_link_health(link: ProjectResultsRepository) -> Callable[[], ProjectResultsRepositoryHealthDTO]:
-    repository = prepare_repository_health(link.results_repository)
-    project_id, enabled, revoked, active = link.project_id, link.enabled, link.revoked, link.active
-    owned_by_federated_node, target_dir = link.owned_by_federated_node, link.target_dir
+def prepare_results_resource_health(resource: ProjectResultsRepository) -> Callable[[], ProjectResultsRepositoryHealthDTO]:
+    repository = prepare_repository_health(resource.results_repository)
+    project_id, enabled, revoked, active = resource.project_id, resource.enabled, resource.revoked, resource.active
+    owned_by_federated_node, target_dir = resource.owned_by_federated_node, resource.target_dir
     return lambda: ProjectResultsRepositoryHealthDTO(
         project_id=project_id, owned_by_federated_node=owned_by_federated_node, target_dir=target_dir,
         enabled=enabled, revoked=revoked, active=active, results_repository=repository(),
@@ -264,40 +264,40 @@ def results_repository_healthcheck(repository_id: int):
 @auth(scope='can_admin_dataset')
 def project_healthcheck(project_id: int):
     """
-    GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository link can be
+    GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository resource can be
     reached with its token, and reports its pull request count and the project's results
     repository. A failed check is reported in the body, still with a 200.
     """
     project = Project.get_by_id(project_id)
 
-    trigger_links = list(project.trigger_repository_assignments)
-    results_link = project.get_results_repository()
-    prepared = [prepare_trigger_link_health(link) for link in trigger_links]
-    if results_link:
-        prepared.append(prepare_results_link_health(results_link))
+    trigger_resources = list(project.trigger_repository_assignments)
+    results_resource = project.get_results_repository()
+    prepared = [prepare_trigger_resource_health(resource) for resource in trigger_resources]
+    if results_resource:
+        prepared.append(prepare_results_resource_health(results_resource))
     results = _run_all(prepared)
 
     repositories = [
         RepositoryHealthDTO(
-            id=link.trigger_repository.id,
-            uri=link.trigger_repository.uri,
-            provider=link.trigger_repository.provider,
-            pr_count=link.pr_count,
-            status=link.trigger_repository.status,
-            health_check=link.trigger_repository.health_check,
-        ) for link in results[:len(trigger_links)]
+            id=resource.trigger_repository.id,
+            uri=resource.trigger_repository.uri,
+            provider=resource.trigger_repository.provider,
+            pr_count=resource.pr_count,
+            status=resource.trigger_repository.status,
+            health_check=resource.trigger_repository.health_check,
+        ) for resource in results[:len(trigger_resources)]
     ]
 
     results_health = None
-    if results_link:
-        link = results[-1]
+    if results_resource:
+        resource = results[-1]
         results_health = ResultsRepositoryHealthDTO(
-            id=link.results_repository.id,
-            uri=link.results_repository.uri,
-            owned_by_federated_node=link.owned_by_federated_node,
-            target_dir=link.target_dir,
-            status=link.results_repository.status,
-            health_check=link.results_repository.health_check,
+            id=resource.results_repository.id,
+            uri=resource.results_repository.uri,
+            owned_by_federated_node=resource.owned_by_federated_node,
+            target_dir=resource.target_dir,
+            status=resource.results_repository.status,
+            health_check=resource.results_repository.health_check,
         )
 
     healthy = repositories and _is_ok(repositories) and (results_health is None or _is_ok([results_health]))
@@ -318,9 +318,9 @@ def project_healthcheck(project_id: int):
 def project_dataset_healthcheck(project_id: int, dataset_id: int):
     """
     GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's
-    check and the project's link state. 404 if the project has no link to it.
+    check and the project's resource state. 404 if the project has no resource for it.
     """
-    return prepare_dataset_link_health(_dataset_link(project_id, dataset_id))().dump(), HTTPStatus.OK
+    return prepare_dataset_resource_health(_dataset_resource(project_id, dataset_id))().dump(), HTTPStatus.OK
 
 
 @bp.route('/projects/<int:project_id>/secrets/<label>/healthcheck', methods=['GET'])
@@ -329,9 +329,9 @@ def project_dataset_healthcheck(project_id: int, dataset_id: int):
 def project_secret_healthcheck(project_id: int, label: str):
     """
     GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check
-    and the project's link state. 404 if the project has no link to it.
+    and the project's resource state. 404 if the project has no resource for it.
     """
-    return prepare_secret_link_health(_secret_link(project_id, label))().dump(), HTTPStatus.OK
+    return prepare_secret_resource_health(_secret_resource(project_id, label))().dump(), HTTPStatus.OK
 
 
 @bp.route('/projects/<int:project_id>/repositories/triggers/<int:repository_id>/healthcheck', methods=['GET'])
@@ -340,10 +340,10 @@ def project_secret_healthcheck(project_id: int, label: str):
 def project_trigger_repository_healthcheck(project_id: int, repository_id: int):
     """
     GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The
-    global repository's check, the project's link state and its pull request count. 404 if the
-    project has no link to it.
+    global repository's check, the project's resource state and its pull request count. 404 if the
+    project has no resource for it.
     """
-    return prepare_trigger_link_health(_trigger_link(project_id, repository_id))().dump(), HTTPStatus.OK
+    return prepare_trigger_resource_health(_trigger_resource(project_id, repository_id))().dump(), HTTPStatus.OK
 
 
 @bp.route('/projects/<int:project_id>/repositories/results/<int:repository_id>/healthcheck', methods=['GET'])
@@ -352,6 +352,6 @@ def project_trigger_repository_healthcheck(project_id: int, repository_id: int):
 def project_results_repository_healthcheck(project_id: int, repository_id: int):
     """
     GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The
-    global repository's check and the project's link state. 404 if the project has no link to it.
+    global repository's check and the project's resource state. 404 if the project has no resource for it.
     """
-    return prepare_results_link_health(_results_link(project_id, repository_id))().dump(), HTTPStatus.OK
+    return prepare_results_resource_health(_results_resource(project_id, repository_id))().dump(), HTTPStatus.OK

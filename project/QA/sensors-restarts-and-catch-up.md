@@ -15,11 +15,11 @@ Needs: the dev project with sensors running, `fncli`, `kubectl`, the Dagster UI.
 
 1. Run two watched pull requests to completion. Note the counts.
 2. Three times: `fncli stop-sensor --group ingest`, wait two intervals, `fncli start-sensor --group ingest`, wait two intervals.
-3. Note the counts. `fncli link-set trigger --revoked true`, then `--revoked false`. Stop and start the ingest sensor once more. Note the counts.
+3. Note the counts. `fncli resource-set trigger --revoked true`, then `--revoked false`. Stop and start the ingest sensor once more. Note the counts.
 4. Merge one watched pull request.
 
 - **Expected:** counts unchanged after step 2 and after step 3 (the pull requests are stored once; no second trigger, no second task). After step 4 exactly one more pull request, trigger and task.
-- **Rule:** posting the same pull requests again changes nothing; one task per trigger ([Pull requests stored once per repository, fanned out to project links, with cursors]; [Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger]).
+- **Rule:** posting the same pull requests again changes nothing; one task per trigger ([Pull requests stored once per repository, fanned out to project resources, with cursors]; [Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger]).
 - **Automated by:** Manual only (removed from the end-to-end failure suite). `webserver/tests/test_pull_requests_and_tasks.py` shows the store is idempotent; it cannot restart a sensor.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -31,7 +31,7 @@ Needs: the dev project with sensors running, `fncli`, `kubectl`, the Dagster UI.
 3. `fncli start-sensor --group all`. Watch `fncli project-show` for several intervals.
 
 - **Expected:** step 2: nothing changes (no sensor is running). After step 3 the pull request is stored, gets one trigger (`UNKNOWN`, then `YIELDED`) and one task, and the task is launched, runs and its result is delivered. No task stays `PENDING`. Counts end exactly one higher in pull requests and tasks.
-- **Rule:** polling from a cursor loses nothing while the sensors are down ([Pull requests stored once per repository, fanned out to project links, with cursors]; [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]).
+- **Rule:** polling from a cursor loses nothing while the sensors are down ([Pull requests stored once per repository, fanned out to project resources, with cursors]; [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]).
 - **Automated by:** Manual only (removed from the end-to-end failure suite).
 - [ ] Pass
 - [ ] Fail — notes:
@@ -43,7 +43,7 @@ Needs: the dev project with sensors running, `fncli`, `kubectl`, the Dagster UI.
 3. `fncli start-sensor --group ingest`. Wait.
 
 - **Expected:** the three pull requests are stored and get one trigger each (stored count up by three, pull requests up by three), then three tasks (one per pull request). Look at the order in `fncli project-show`: triggers follow the merge order (the cursor is the pair merge time and number).
-- **Rule:** the global cursor is the latest stored `merged_at`; a link's cursor orders by `(merged_at, number)` ([Pull requests stored once per repository, fanned out to project links, with cursors]).
+- **Rule:** the global cursor is the latest stored `merged_at`; a project resource's cursor orders by `(merged_at, number)` ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **Automated by:** Partly automated: `dagster/app/tests/test_ingest_job.py` (oldest first) and `webserver/tests/test_pull_requests_and_tasks.py` (cursor tests). A real sensor catching up is not tested.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -148,7 +148,7 @@ Check, and record the outcome as a finding if the result never appears.
 
 <!-- link definitions -->
 [Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger]: ../decisions/0001-polymorphic-triggers.md
-[Pull requests stored once per repository, fanned out to project links, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
+[Pull requests stored once per repository, fanned out to project resources, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md
 [Task status is written by the run-status sensors and the reconcile sensor]: ../decisions/0003-task-status-written-by-run-status-sensors.md
 [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]: ../decisions/0014-dagster-pipeline-ops-sensors-and-retries.md

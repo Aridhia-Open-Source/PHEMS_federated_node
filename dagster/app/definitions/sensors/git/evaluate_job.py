@@ -33,7 +33,7 @@ def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: Pars
     """
     Write the outcome on the pull request: READY sends the spec file to the backend, which
     keeps it, parses it and either creates the task (marking the PR YIELDED) or rejects the
-    PR. REJECTED is stored with its state_cause. A 409 (the PR is no longer UNKNOWN, or its link
+    PR. REJECTED is stored with its state_cause. A 409 (the PR is no longer UNKNOWN, or its resource
     is inactive) skips the PR. Other backend failures raise.
     """
     project_id, repo_id = pr.project_id, pr.trigger_repository_id
@@ -46,7 +46,7 @@ def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: Pars
                     # The backend rejected the PR itself, with the cause
                     log.error(f"PR #{pr.number} spec rejected by the backend: {e.response.text}")
                 case HTTPStatus.CONFLICT:
-                    # The PR is no longer UNKNOWN, or its link is no longer active: it makes no task now
+                    # The PR is no longer UNKNOWN, or its resource is no longer active: it makes no task now
                     log.warning(f"PR #{pr.number} skipped, the backend refused a task for it: {e.response.text}")
                 case _:
                     raise

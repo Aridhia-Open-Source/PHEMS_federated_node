@@ -1,6 +1,6 @@
 """
 Commands for the end-to-end suites (tests/e2e/README.md): look at the test project's state, and change the
-state the webserver's rules act on (project enabled and revoked, a link's enabled and revoked, a global resource's enabled and revoked),
+state the webserver's rules act on (project enabled and revoked, a project resource's enabled and revoked, a global resource's enabled and revoked),
 plus a second project on the same global resources. Every write prints the HTTP status and body; `--expect STATUS` asserts
 the status, which is how the suites check the 409 rules. Without it a status of 400 or more is a failure.
 """
@@ -44,7 +44,7 @@ def find_project(api: FncliBackendAPI, name: str):
     return project
 
 
-def project_links(api: FncliBackendAPI, project_id: int) -> dict:
+def project_resources(api: FncliBackendAPI, project_id: int) -> dict:
     return {
         "trigger": get(api, f"/projects/{project_id}/repositories/triggers"),
         "results": get(api, f"/projects/{project_id}/repositories/results"),
@@ -53,17 +53,17 @@ def project_links(api: FncliBackendAPI, project_id: int) -> dict:
     }
 
 
-def link_key(kind: str, link: dict):
-    """What the routes address a link by: the global resource's id, a secret's label."""
+def resource_key(kind: str, resource: dict):
+    """What the routes address a project resource by: the global resource's id, a secret's label."""
     return {
-        "trigger": lambda: link["trigger_repository"]["id"],
-        "results": lambda: link["results_repository"]["id"],
-        "dataset": lambda: link["dataset"]["id"],
-        "secret": lambda: link["secret"]["label"],
+        "trigger": lambda: resource["trigger_repository"]["id"],
+        "results": lambda: resource["results_repository"]["id"],
+        "dataset": lambda: resource["dataset"]["id"],
+        "secret": lambda: resource["secret"]["label"],
     }[kind]()
 
 
-def link_path(kind: str, project_id: int, key) -> str:
+def resource_path(kind: str, project_id: int, key) -> str:
     return {
         "trigger": f"/projects/{project_id}/repositories/triggers/{key}",
         "results": f"/projects/{project_id}/repositories/results/{key}",
@@ -81,10 +81,10 @@ def global_path(kind: str, key) -> str:
     }[kind]
 
 
-def first_link(api: FncliBackendAPI, project_id: int, kind: str) -> dict:
-    found = project_links(api, project_id)[kind]
+def first_resource(api: FncliBackendAPI, project_id: int, kind: str) -> dict:
+    found = project_resources(api, project_id)[kind]
     if not found:
-        raise click.ClickException(f"The project has no {kind} link")
+        raise click.ClickException(f"The project has no {kind} resource")
     return found[0]
 
 
@@ -100,23 +100,23 @@ def report(response, expect: int | None) -> int:
 
 
 def snapshot(api: FncliBackendAPI, name: str) -> dict:
-    """Everything about the project the QA plan asserts on: its links, their pull requests, tasks and results."""
+    """Everything about the project the QA plan asserts on: its resources, their pull requests, tasks and results."""
     project = find_project(api, name)
     pid = project.id
-    found = project_links(api, pid)
-    trigger_links = []
-    for link in found["trigger"]:
-        repo_id = link["trigger_repository"]["id"]
+    found = project_resources(api, pid)
+    trigger_resources = []
+    for resource in found["trigger"]:
+        repo_id = resource["trigger_repository"]["id"]
         prs = get(api, f"/projects/{pid}/repositories/triggers/{repo_id}/pull_requests", per_page=100)
-        # Stored once per repository, so also for a link that gets no trigger (project revoked or disabled)
+        # Stored once per repository, so also for a resource that gets no trigger (project revoked or disabled)
         stored = get(api, f"/global/repositories/triggers/{repo_id}/pull_requests", per_page=1)
-        trigger_links.append(
+        trigger_resources.append(
             {
-                "repository": link["trigger_repository"].get("uri"),
+                "repository": resource["trigger_repository"].get("uri"),
                 "repository_id": repo_id,
-                "enabled": link["enabled"], "revoked": link["revoked"], "active": link["active"],
-                "global_enabled": link["trigger_repository"].get("enabled"),
-                "pr_count": link.get("pr_count"),
+                "enabled": resource["enabled"], "revoked": resource["revoked"], "active": resource["active"],
+                "global_enabled": resource["trigger_repository"].get("enabled"),
+                "pr_count": resource.get("pr_count"),
                 "stored_pr_count": stored["total"],
                 "pull_requests": [
                     {k: pr.get(k) for k in ("number", "state", "state_cause", "task_id")} for pr in prs["items"]
@@ -125,22 +125,22 @@ def snapshot(api: FncliBackendAPI, name: str) -> dict:
         )
     return {
         "project": get(api, f"/projects/{pid}"),
-        "trigger_links": trigger_links,
-        "results_links": [
-            {"repository": link["results_repository"].get("uri"), "target_dir": link["target_dir"],
-             "enabled": link["enabled"], "revoked": link["revoked"], "active": link["active"],
-             "global_enabled": link["results_repository"].get("enabled")}
-            for link in found["results"]
+        "trigger_resources": trigger_resources,
+        "results_resources": [
+            {"repository": resource["results_repository"].get("uri"), "target_dir": resource["target_dir"],
+             "enabled": resource["enabled"], "revoked": resource["revoked"], "active": resource["active"],
+             "global_enabled": resource["results_repository"].get("enabled")}
+            for resource in found["results"]
         ],
-        "dataset_links": [
-            {"dataset": link["dataset"].get("name"), "enabled": link["enabled"], "revoked": link["revoked"],
-             "active": link["active"]}
-            for link in found["dataset"]
+        "dataset_resources": [
+            {"dataset": resource["dataset"].get("name"), "enabled": resource["enabled"], "revoked": resource["revoked"],
+             "active": resource["active"]}
+            for resource in found["dataset"]
         ],
-        "secret_links": [
-            {"secret": link["secret"].get("label"), "enabled": link["enabled"], "revoked": link["revoked"],
-             "active": link["active"]}
-            for link in found["secret"]
+        "secret_resources": [
+            {"secret": resource["secret"].get("label"), "enabled": resource["enabled"], "revoked": resource["revoked"],
+             "active": resource["active"]}
+            for resource in found["secret"]
         ],
         "tasks": [
             {k: t.get(k) for k in ("id", "status", "name", "state_cause")}
@@ -167,12 +167,12 @@ def set_project(
     if not data:
         raise click.UsageError("Give --enabled, --revoked and/or --backfill")
     project = find_project(api, name)
-    # Revoking is admin only, as for a link
+    # Revoking is admin only, as for a project resource
     writer = admin_api if "revoked" in data else api
     return report(call(writer, "PATCH", f"/projects/{project.id}", json=data), expect)
 
 
-def set_link(
+def set_resource(
     api: FncliBackendAPI, name: str, kind: str, enabled: str | None, revoked: str | None, expect: int | None,
     target_dir: str | None = None, admin_api: FncliBackendAPI | None = None,
 ) -> int:
@@ -183,22 +183,22 @@ def set_link(
         data["revoked"] = revoked == "true"
     if target_dir is not None:
         if kind != "results":
-            raise click.UsageError("--target-dir is only for the results link")
+            raise click.UsageError("--target-dir is only for the results resource")
         data["target_dir"] = target_dir
     if not data:
         raise click.UsageError("Give --enabled, --revoked and/or --target-dir")
     project = find_project(api, name)
-    key = link_key(kind, first_link(api, project.id, kind))
+    key = resource_key(kind, first_resource(api, project.id, kind))
     # Revoking is admin only: the system user the rest of fncli logs in as is refused with a 403
     writer = admin_api if "revoked" in data else api
-    return report(call(writer, "PATCH", link_path(kind, project.id, key), json=data), expect)
+    return report(call(writer, "PATCH", resource_path(kind, project.id, key), json=data), expect)
 
 
 def set_global(
     api: FncliBackendAPI, name: str, kind: str, enabled: str | None, expect: int | None,
     revoked: str | None = None, admin_api: FncliBackendAPI | None = None,
 ) -> int:
-    """Turn the global resource behind the project's link on or off, or revoke it from every project."""
+    """Turn the global resource behind the project's resource on or off, or revoke it from every project."""
     data = {}
     if enabled is not None:
         data["enabled"] = enabled == "true"
@@ -209,7 +209,7 @@ def set_global(
     if not data:
         raise click.UsageError("Give --enabled and/or --revoked")
     project = find_project(api, name)
-    key = link_key(kind, first_link(api, project.id, kind))
+    key = resource_key(kind, first_resource(api, project.id, kind))
     writer = admin_api if "revoked" in data else api
     return report(call(writer, "PATCH", global_path(kind, key), json=data), expect)
 
@@ -220,23 +220,23 @@ def set_secret(api: FncliBackendAPI, label: str, enabled: str, expect: int | Non
 
 
 def setup_second_project(api: FncliBackendAPI, config: ProjectConfig, name: str) -> int:
-    """A second project linked to the SAME global resources: created disabled, linked, then enabled."""
+    """A second project assigned the SAME global resources: created disabled, assigned, then enabled."""
     first = find_project(api, config.project_name)
-    found = project_links(api, first.id)
+    found = project_resources(api, first.id)
     created = call(api, "POST", "/projects", json={"name": name})
     if created.status_code >= 400:
         raise click.ClickException(f"Could not create project {name}: HTTP {created.status_code} {created.text[:200]}")
     pid = body_of(created)["id"]
-    steps = [("PUT", link_path("secret", pid, link["secret"]["label"]), {}) for link in found["secret"]]
-    steps += [("PUT", link_path("dataset", pid, link["dataset"]["id"]), {}) for link in found["dataset"]]
+    steps = [("PUT", resource_path("secret", pid, resource["secret"]["label"]), {}) for resource in found["secret"]]
+    steps += [("PUT", resource_path("dataset", pid, resource["dataset"]["id"]), {}) for resource in found["dataset"]]
     steps += [
-        ("PUT", link_path("trigger", pid, link["trigger_repository"]["id"]),
-         {"watch_dir": link["watch_dir"], "base_branch": link["base_branch"]})
-        for link in found["trigger"]
+        ("PUT", resource_path("trigger", pid, resource["trigger_repository"]["id"]),
+         {"watch_dir": resource["watch_dir"], "base_branch": resource["base_branch"]})
+        for resource in found["trigger"]
     ]
     steps += [
-        ("PUT", link_path("results", pid, link["results_repository"]["id"]), {"target_dir": link["target_dir"]})
-        for link in found["results"]
+        ("PUT", resource_path("results", pid, resource["results_repository"]["id"]), {"target_dir": resource["target_dir"]})
+        for resource in found["results"]
     ]
     steps.append(("PATCH", f"/projects/{pid}", {"enabled": True}))
     for method, path, data in steps:
@@ -271,7 +271,7 @@ def expect_option(command):
 @click.command("project-show")
 @project_option
 def project_show_command(project):
-    """Print the project's links, pull requests, tasks and results as JSON. Read-only."""
+    """Print the project's resources, pull requests, tasks and results as JSON. Read-only."""
     logging.disable(logging.INFO)  # fncli logs to stdout: keep it clean so the output pipes into jq
     config = ProjectConfig()
     click.echo(json.dumps(snapshot(build_backend_api(config), project or config.project_name), indent=2))
@@ -295,18 +295,18 @@ def project_set_command(enabled, revoked, backfill, project, expect):
     ))
 
 
-@click.command("link-set")
+@click.command("resource-set")
 @click.argument("kind", type=click.Choice(KINDS))
 @click.option("--enabled", type=BOOL, default=None)
 @click.option("--revoked", type=BOOL, default=None, help="Admin only (logs in as the first Keycloak user). Takes effect immediately.")
-@click.option("--target-dir", default=None, help="The results link's target directory. Tasks created before the change then fail.")
+@click.option("--target-dir", default=None, help="The results resource's target directory. Tasks created before the change then fail.")
 @project_option
 @expect_option
-def link_set_command(kind, enabled, revoked, target_dir, project, expect):
-    """Set the enabled and/or revoked flag, or the target directory of a results link, of the project's link of that KIND."""
+def resource_set_command(kind, enabled, revoked, target_dir, project, expect):
+    """Set the enabled and/or revoked flag, or the target directory of a results resource, of the project's resource of that KIND."""
     config = ProjectConfig()
     admin_api = build_admin_backend_api(config) if revoked is not None else None
-    finish(set_link(
+    finish(set_resource(
         build_backend_api(config), project or config.project_name, kind, enabled, revoked, expect, target_dir, admin_api
     ))
 
@@ -321,7 +321,7 @@ def link_set_command(kind, enabled, revoked, target_dir, project, expect):
 @project_option
 @expect_option
 def global_set_command(kind, enabled, revoked, project, expect):
-    """Turn the global resource behind the project's link of that KIND on or off, or revoke or restore it."""
+    """Turn the global resource behind the project's resource of that KIND on or off, or revoke or restore it."""
     config = ProjectConfig()
     admin_api = build_admin_backend_api(config) if revoked is not None else None
     finish(set_global(
@@ -348,7 +348,7 @@ def secret_set_command(entity, enabled, expect):
 @click.command("second-project-setup")
 @click.argument("name")
 def second_project_setup_command(name):
-    """Create a second project linked to the SAME global resources as the test project, enabled."""
+    """Create a second project assigned the SAME global resources as the test project, enabled."""
     config = ProjectConfig()
     finish(setup_second_project(build_backend_api(config), config, name))
 
@@ -357,7 +357,7 @@ def second_project_setup_command(name):
 @click.argument("name")
 @expect_option
 def second_project_teardown_command(name, expect):
-    """Delete a project. The global resources it linked stay."""
+    """Delete a project. The global resources it was assigned stay."""
     config = ProjectConfig()
     finish(teardown_second_project(build_backend_api(config), name, expect))
 
@@ -365,7 +365,7 @@ def second_project_teardown_command(name, expect):
 COMMANDS = [
     project_show_command,
     project_set_command,
-    link_set_command,
+    resource_set_command,
     global_set_command,
     secret_set_command,
     second_project_setup_command,

@@ -7,7 +7,7 @@ the repository gets a trigger for each one it should evaluate (ADR 0011).
   already stored under another number for the same base branch is skipped with a warning.
 - `fan_out` creates the triggers of newly stored pull requests for the assignments that accept triggers
   (active, and their project enabled).
-- `skip_gap` moves the assignments' cursor to now when they become active again (a link enabled
+- `skip_gap` moves the assignments' cursor to now when they become active again (a project resource enabled
   or un-revoked; its project, repository or provider switched back on),
   so what was merged while they were inactive is stored but gets no trigger.
 - `backfill` is the other choice when a project is enabled: the cursor stays and the triggers
@@ -118,7 +118,7 @@ def ingest_pull_requests(
 
 
 def active_assignments(trigger_repository_id: int) -> list[ProjectTriggerRepository]:
-    """The repository's links that accept a trigger now, see `ProjectTriggerRepository.accepts_triggers`."""
+    """The repository's project resources that accept a trigger now, see `ProjectTriggerRepository.accepts_triggers`."""
     assignments = ProjectTriggerRepository.query.filter_by(
         trigger_repository_id=trigger_repository_id
     ).order_by(ProjectTriggerRepository.id)
@@ -184,8 +184,8 @@ def backfill(assignments: list[ProjectTriggerRepository]) -> int:
 
 def skip_gap(assignments: list[ProjectTriggerRepository]) -> None:
     """
-    Moves the cursor of the assignments to now (a naive UTC time like the column), for a link
-    enabled or un-revoked, or its project, global repository or provider switched back on: the pull requests
+    Moves the cursor of the assignments to now (a naive UTC time like the column), for a project
+    resource enabled or un-revoked, or its project, global repository or provider switched back on: the pull requests
     merged while it was inactive are still stored by the sensor's catch-up, but sort before the
     cursor and get no trigger. Leaves the commit to the caller.
     """

@@ -36,7 +36,7 @@ fncli start-sensor --group all
 fncli open-pr --kind watched --merge --watch --timeout 300
 
 # Every minute or so:
-fncli project-show | jq '{prs: .trigger_links[0].pull_requests | map({number,state,task_id}), tasks: .tasks | map({id,status}), results: .results | map({number,step,state})}'
+fncli project-show | jq '{prs: .trigger_resources[0].pull_requests | map({number,state,task_id}), tasks: .tasks | map({id,status}), results: .results | map({number,step,state})}'
 ```
 
 Wait for, in order: the PR `YIELDED` with a `task_id`, the task `SUCCESS`, then a result with `step` `OPENED`. Then:
@@ -89,7 +89,7 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
   - Expect a Task and a run.
 - `fncli open-pr --kind unwatched --merge`
   - Gitea: the same, with a file outside the watched paths.
-  - Expect no trigger for it: the PR is not listed for the link (`--watch` times out, as it waits for the PR to show up).
+  - Expect no trigger for it: the PR is not listed for the project resource (`--watch` times out, as it waits for the PR to show up).
 - `fncli open-pr --kind invalid --merge`
   - Gitea: the same, with a file that fails validation.
   - Expect it to be rejected.
@@ -133,7 +133,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 - `fncli verify-repo`
   - Prints a block per PR, one line per check (`ok` or `FAIL`), and a summary. Exits 1 if any check fails.
   - `link` lines give the trigger PR in Gitea, the Dagster run and the results PR, as URLs that open from the host. They are not checks.
-  - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, for every PR of the project's link to the repository.
+  - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, for every PR of the project's trigger repository.
   - A PR the sensor rejected has no task, so it passes with a note.
   - A PR still `UNKNOWN` fails: the evaluate sensor hasn't run on it.
   - For a `YIELDED` PR, Backend: `GET /projects/{project_id}/tasks/{id}`, for the task's status, run id, attempt and times.
@@ -165,6 +165,6 @@ Optional, to tear down one side only:
 - `setup-project`: the healthcheck is `ok`.
 - Ingest tick: "Saved N new pull requests to database", one poll per trigger repository however many projects are assigned to it.
 - Watched PR: `YIELDED` with a Task, then the run succeeds.
-- Unwatched PR: no trigger (the PR list for the link has only the watched and the invalid PR).
+- Unwatched PR: no trigger (the PR list for the project resource has only the watched and the invalid PR).
 - Invalid PR: `REJECTED`, with the validation error.
 - `teardown-project -y`: nothing is left behind.

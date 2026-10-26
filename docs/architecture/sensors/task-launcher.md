@@ -19,7 +19,7 @@ Launches a run of `k8s_pipes_job` for each PENDING task of an enabled project, w
 | `GET /tasks` | `status=PENDING&project_enabled=true`, all pages of 100: the PENDING tasks of all enabled projects, by id, one list per tick whatever the number of projects. A revoked project is still enabled, so its tasks are listed. Each task carries its `project_id`, which the launch call uses. |
 | `POST /projects/{id}/tasks/{task}/launch` | One per task. The decision: `outcome` (`launch` or `fail`) and `cause`. On `fail` the webserver has moved the task to `FAILED` itself. On `launch` it writes nothing and returns the task (spec included) and its dataset with the secret reference, which the run config is built from. A task no longer `PENDING` is a 409: skipped. |
 
-It considers the PENDING tasks of enabled projects; the webserver filters them. Through the webserver's decision it covers everything a task uses: the project, the TriggerRepository (the link, the GlobalResource, its GitProvider), the Dataset (the ProjectDataset and the GlobalResource) and the ResultsRepository (the same three levels). It does not call the git provider.
+It considers the PENDING tasks of enabled projects; the webserver filters them. Through the webserver's decision it covers everything a task uses: the project, the TriggerRepository (the project resource, the GlobalResource, its GitProvider), the Dataset (the ProjectDataset and the GlobalResource) and the ResultsRepository (the same three levels). It does not call the git provider.
 
 ## 4. Flow chart
 
@@ -72,10 +72,10 @@ The webserver's rules run in this order ([0021](../../../project/decisions/0021-
 | Project disabled | Not listed. Its PENDING tasks wait and launch once it is enabled. |
 | Project revoked | Listed. Task FAILED, `revoked: project <name> (revoked)`. |
 | TriggerRepository, its GitProvider or the ProjectTriggerRepository revoked | Task FAILED, `revoked: trigger repository ...`. Only for a task a pull request created. |
-| Dataset, or the ProjectDataset (a deleted link counts), revoked | Task FAILED, `revoked: dataset ...`. |
+| Dataset, or the ProjectDataset (a deleted project resource counts), revoked | Task FAILED, `revoked: dataset ...`. |
 | ResultsRepository, its GitProvider or the ProjectResultsRepository revoked or deleted | Task FAILED, `revoked: results repository ...`: its results could not be delivered. |
 | Configuration changed since the task was created | Task FAILED, `task configuration changed since the task was created: ...`. A revoked cause wins over this one. |
 | ProjectDataset or Dataset disabled | Not revoked, but not active: task FAILED, `Dataset <name> is not active in project <project>`. |
 | Dataset secret disabled | Task FAILED, `The secret of dataset <name> is disabled`. |
 
-Disabled (not revoked) triggers and results links do not stop a launch. A disabled results link is handled later, when the results are delivered.
+Disabled (not revoked) triggers and results resources do not stop a launch. A disabled results resource is handled later, when the results are delivered.

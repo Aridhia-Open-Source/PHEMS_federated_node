@@ -123,7 +123,7 @@ def test_patch_to_a_taken_name_or_uri_is_409(client, admin_headers, git_provider
     assert client.patch(f"{PROV}/{other.id}", json={"name": other.name, "uri": other.uri}, headers=admin_headers).status_code == 200
 
 
-def test_patch_enabled_applies_at_once(client, admin_headers, project, git_provider, linked_trigger_repo):
+def test_patch_enabled_applies_at_once(client, admin_headers, project, git_provider, assigned_trigger_repo):
     url = f"{PROV}/{git_provider.id}"
     assert client.patch(url, json={"name": "renamed"}, headers=admin_headers).status_code == 200
     assert client.patch(url, json={"api_uri": git_provider.api_uri}, headers=admin_headers).status_code == 200
@@ -152,38 +152,38 @@ def test_delete_is_409_while_a_repository_is_on_it(client, admin_headers, reques
 # ---------------------------------------------------------------- a disabled provider
 
 def test_disabled_provider_makes_its_repositories_inactive(
-        client, admin_headers, system_headers, project, git_provider, linked_trigger_repo, linked_results_repo, global_trigger_repo,
+        client, admin_headers, system_headers, project, git_provider, assigned_trigger_repo, assigned_results_repo, global_trigger_repo,
         make_provider, make_trigger_repo):
     project.enabled = True
     T = global_trigger_repo.id
     elsewhere = make_trigger_repo(uri="git.example.com/org/elsewhere")  # a repository on another provider
-    elsewhere_link = f"/projects/{project.id}/repositories/triggers/{elsewhere.id}"
-    assert client.put(elsewhere_link, json={"watch_dir": "e"}, headers=admin_headers).status_code == 201
-    trigger_links = f"/projects/{project.id}/repositories/triggers"
-    results_links = f"/projects/{project.id}/repositories/results"
+    elsewhere_resource = f"/projects/{project.id}/repositories/triggers/{elsewhere.id}"
+    assert client.put(elsewhere_resource, json={"watch_dir": "e"}, headers=admin_headers).status_code == 201
+    trigger_resources = f"/projects/{project.id}/repositories/triggers"
+    results_resources = f"/projects/{project.id}/repositories/results"
     active = lambda url: [x["active"] for x in client.get(url, headers=admin_headers).json]  # noqa: E731
     active_ids = lambda url: [  # noqa: E731
         x["trigger_repository"]["id"] for x in client.get(f"{url}?active=true", headers=admin_headers).json
     ]
-    assert active(trigger_links) == [True, True] and active(results_links) == [True]
+    assert active(trigger_resources) == [True, True] and active(results_resources) == [True]
     assert [r["id"] for r in client.get(f"{TRIG}?pollable=true", headers=admin_headers).json] == [T, elsewhere.id]
 
     disabled = client.patch(f"{PROV}/{git_provider.id}", json={"enabled": False}, headers=admin_headers)
     assert disabled.status_code == 200, disabled.json
 
-    assert active(trigger_links) == [False, True] and active(results_links) == [False]
-    assert active_ids(trigger_links) == [elsewhere.id]
+    assert active(trigger_resources) == [False, True] and active(results_resources) == [False]
+    assert active_ids(trigger_resources) == [elsewhere.id]
     assert [r["id"] for r in client.get(f"{TRIG}?pollable=true", headers=admin_headers).json] == [elsewhere.id]
     # the repositories themselves are still enabled, and say which provider is not
     repo = client.get(f"{TRIG}/{T}", headers=admin_headers).json
     assert repo["enabled"] is True and repo["provider"]["enabled"] is False
 
-    # no pull requests are taken for it, and none of its links can be used
+    # no pull requests are taken for it, and none of its resources can be used
     refused = client.post(f"{TRIG}/{T}/pull_requests", json={"pull_requests": []}, headers=system_headers)
     assert_error(refused, 400)
 
     client.patch(f"{PROV}/{git_provider.id}", json={"enabled": True}, headers=admin_headers)
-    assert active(trigger_links) == [True, True] and active(results_links) == [True]
+    assert active(trigger_resources) == [True, True] and active(results_resources) == [True]
 
 
 @pytest.mark.parametrize("off, on", [
@@ -191,10 +191,10 @@ def test_disabled_provider_makes_its_repositories_inactive(
     ({"revoked": True}, {"revoked": False}),
 ])
 def test_switching_a_provider_back_on_skips_the_gap(
-        client, admin_headers, system_headers, project, git_provider, linked_trigger_repo, global_trigger_repo, off, on):
+        client, admin_headers, system_headers, project, git_provider, assigned_trigger_repo, global_trigger_repo, off, on):
     """Pull requests merged before the provider was switched back on (or restored) are stored but get no trigger; later ones do."""
     T = global_trigger_repo.id
-    # Start the link's cursor far back, so the first pull request is in its scope but for the re-enable
+    # Start the resource's cursor far back, so the first pull request is in its scope but for the re-enable
     assignment = ProjectTriggerRepository.query.filter_by(project_id=project.id, trigger_repository_id=T).one()
     assignment.initial_cursor = datetime(2000, 1, 1)
     db.session.commit()
@@ -251,34 +251,34 @@ def test_patch_revoked_is_admin_only_shows_in_the_dtos_and_leaves_enabled_alone(
 
 
 def test_a_revoked_provider_makes_its_repositories_inactive_unpollable_and_refuses_pull_requests(
-        client, admin_headers, system_headers, project, git_provider, linked_trigger_repo, linked_results_repo, global_trigger_repo,
+        client, admin_headers, system_headers, project, git_provider, assigned_trigger_repo, assigned_results_repo, global_trigger_repo,
         make_trigger_repo):
     T = global_trigger_repo.id
     elsewhere = make_trigger_repo(uri="git.example.com/org/elsewhere")  # a repository on another provider
     assert client.put(
         f"/projects/{project.id}/repositories/triggers/{elsewhere.id}", json={"watch_dir": "e"}, headers=admin_headers
     ).status_code == 201
-    trigger_links = f"/projects/{project.id}/repositories/triggers"
-    results_links = f"/projects/{project.id}/repositories/results"
+    trigger_resources = f"/projects/{project.id}/repositories/triggers"
+    results_resources = f"/projects/{project.id}/repositories/results"
     active = lambda url: [x["active"] for x in client.get(url, headers=admin_headers).json]  # noqa: E731
     pollable = lambda: [r["id"] for r in client.get(f"{TRIG}?pollable=true", headers=admin_headers).json]  # noqa: E731
-    assert active(trigger_links) == [True, True] and active(results_links) == [True]
+    assert active(trigger_resources) == [True, True] and active(results_resources) == [True]
     assert pollable() == [T, elsewhere.id]
 
     revoked = client.patch(f"{PROV}/{git_provider.id}", json={"revoked": True}, headers=admin_headers)
     assert revoked.status_code == 200, revoked.json
 
-    assert active(trigger_links) == [False, True] and active(results_links) == [False]
+    assert active(trigger_resources) == [False, True] and active(results_resources) == [False]
     assert pollable() == [elsewhere.id]
     # nothing is disabled or revoked below the provider, which is the one that says so
     repo = client.get(f"{TRIG}/{T}", headers=admin_headers).json
     assert (repo["enabled"], repo["revoked"], repo["provider"]["revoked"]) == (True, False, True)
-    link = client.get(f"{trigger_links}/{T}", headers=admin_headers).json
-    assert (link["enabled"], link["revoked"], link["active"]) == (True, False, False)
+    resource = client.get(f"{trigger_resources}/{T}", headers=admin_headers).json
+    assert (resource["enabled"], resource["revoked"], resource["active"]) == (True, False, False)
     assert_error(client.post(f"{TRIG}/{T}/pull_requests", json={"pull_requests": []}, headers=system_headers), 400)
 
     client.patch(f"{PROV}/{git_provider.id}", json={"revoked": False}, headers=admin_headers)
-    assert active(trigger_links) == [True, True] and active(results_links) == [True]
+    assert active(trigger_resources) == [True, True] and active(results_resources) == [True]
     assert pollable() == [T, elsewhere.id]
 
 
