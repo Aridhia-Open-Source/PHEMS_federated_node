@@ -33,7 +33,10 @@ make experiments run-local uc1     # optional: image straight against the DB, no
 make experiments run uc1           # trigger PR -> task -> results PR in uc1-results-repo
 ```
 
-These call `fncli experiment setup|build|run-local|run uc1`. `setup` and `run` can be rerun after a failure.
+These call `fncli experiment setup|build|run-local|run uc1` (also `teardown NAME` and `down`,
+see Clean up). `setup`, `run` and `teardown` can be rerun after a failure. If `make experiments`
+says "No such command", reinstall fncli from this checkout:
+`pipx install --force --editable './dagster[cli]'`.
 
 `run` and `run-local` pass the project's `DEV_ENV` (JSON, from `project.env`) to the task.
 For UC1 that is `UC1_DEV=1`, a quick run with fewer cohorts. `FULL=1 make experiments run
