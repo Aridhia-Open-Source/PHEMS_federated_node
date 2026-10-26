@@ -110,7 +110,7 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 | You change | What happens |
 |---|---|
 | `webserver/app/`, `dagster/app/` | Files are synced and the process restarts. For Dagster, `dagster-reload` then reloads the code location once the new code server is serving |
-| `dagster/fncli/`, `dagster/app/tests/`, docs under `dagster/` | Nothing: they are not in the image the cluster runs |
+| `dagster/fncli/`, `dagster/app/tests/`, docs under `dagster/` | Nothing: the code server and run pods don't use them |
 | `requirements.txt`, `setup.py`, `alembic.ini`, migrations | The image is rebuilt |
 | The chart (`k8s/federated-node`) | Run `make upgrade` (helm upgrade, then restarts the app deployments) |
 

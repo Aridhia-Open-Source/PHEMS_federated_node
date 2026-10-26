@@ -76,8 +76,10 @@ docker_build_with_restart(
 # ==============================================================================
 # DAGSTER USER CODE DEPLOYMENT
 # ==============================================================================
-# What the Dagster image is built from. Everything else under dagster/ (fncli, tests, docs,
-# lint and CI files) is not in the image the cluster runs, so changing it rebuilds nothing.
+# What the code server and the run pods use from the Dagster image. Everything else under
+# dagster/ (fncli, tests, docs, lint and CI files) is not used by either, so changing it
+# rebuilds nothing. (A full `docker build dagster` still copies fncli and conftest.py, per
+# dagster/.dockerignore.)
 DAGSTER_IMAGE_FILES = [
   'app',
   'requirements.txt',
@@ -117,7 +119,7 @@ local_resource(
   cmd='docker build dagster -t {img} && docker push {img}'.format(
     img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
   ),
-  # Only what goes into the image. The docs, fncli, CI and lint files next to it don't.
+  # Only what the code server and run pods use. The docs, fncli, CI and lint files next to it don't.
   deps=['dagster/' + f for f in DAGSTER_IMAGE_FILES] + ['dagster/Dockerfile', 'dagster/.dockerignore'],
   ignore=['dagster/**/__pycache__', 'dagster/**/*.pyc', 'dagster/**/.pytest_cache', 'dagster/app/tests'],
   labels=['dev'],
