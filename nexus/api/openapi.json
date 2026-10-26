@@ -42,7 +42,19 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/NodeHealthDTO"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeHealthDTO"
+                }
               }
             }
           }
@@ -129,7 +141,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PageDTO_ProjectDTO_"
+                }
               }
             }
           }
@@ -157,7 +171,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectCreatedDTO"
+                }
               }
             }
           },
@@ -187,7 +203,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PageDTO_ProjectDTO_"
+                }
               }
             }
           }
@@ -215,7 +233,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectCreatedDTO"
+                }
               }
             }
           },
@@ -331,7 +351,7 @@
           "projects"
         ],
         "summary": "Delete Project",
-        "description": "DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes\nevery link under it: datasets, secrets, results repository and trigger repositories. Its tasks\nand triggers stay. Secrets, datasets and results repositories belong to no project: they, and\ntheir stored values, are left alone.",
+        "description": "DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes\nevery project resource under it: datasets, secrets, results repository and trigger repositories. Its tasks\nand triggers stay. Secrets, datasets and results repositories belong to no project: they, and\ntheir stored values, are left alone.",
         "operationId": "delete_project_projects__project_id__delete",
         "parameters": [
           {
@@ -367,7 +387,7 @@
           "projects"
         ],
         "summary": "List Project Datasets",
-        "description": "GET /projects/<project_id>/datasets endpoint. The project's dataset links, inactive\nones included with their flags.",
+        "description": "GET /projects/<project_id>/datasets endpoint. The project's dataset resources, inactive\nones included with their flags.",
         "operationId": "list_project_datasets_projects__project_id__datasets_get",
         "parameters": [
           {
@@ -464,7 +484,7 @@
           "projects"
         ],
         "summary": "Put Project Dataset",
-        "description": "PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Links a global dataset to the\nproject, 201, and replaces the project's settings if it is linked already, 200. The first one linked becomes the project's default.\nBody: {\"enabled\": true}, optional.",
+        "description": "PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Assigns a global dataset to the\nproject, 201, and replaces the project's settings if it is assigned already, 200. The first one assigned becomes the project's default.\nBody: {\"enabled\": true}, optional.",
         "operationId": "put_project_dataset_projects__project_id__datasets__dataset_id__put",
         "parameters": [
           {
@@ -525,7 +545,7 @@
           "projects"
         ],
         "summary": "Patch Project Dataset",
-        "description": "PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the link on or\noff (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.",
+        "description": "PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the project resource on or\noff (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.",
         "operationId": "patch_project_dataset_projects__project_id__datasets__dataset_id__patch",
         "parameters": [
           {
@@ -586,7 +606,7 @@
           "projects"
         ],
         "summary": "Delete Project Dataset",
-        "description": "DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unlinks the dataset, not the\ndataset itself: a soft delete that also revokes the link. If it was the project's default,\nthe project has none afterwards.",
+        "description": "DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unassigns the dataset, not the\ndataset itself: a soft delete that also revokes the project resource. If it was the project's default,\nthe project has none afterwards.",
         "operationId": "delete_project_dataset_projects__project_id__datasets__dataset_id__delete",
         "parameters": [
           {
@@ -631,7 +651,7 @@
           "projects"
         ],
         "summary": "List Project Secrets",
-        "description": "GET /projects/<project_id>/secrets endpoint. The project's secret links, inactive ones\nincluded with their flags. References only, never the values.",
+        "description": "GET /projects/<project_id>/secrets endpoint. The project's secret resources, inactive ones\nincluded with their flags. References only, never the values.",
         "operationId": "list_project_secrets_projects__project_id__secrets_get",
         "parameters": [
           {
@@ -728,7 +748,7 @@
           "projects"
         ],
         "summary": "Put Project Secret",
-        "description": "PUT /projects/<project_id>/secrets/{label} endpoint. Links a global secret to the project,\n201, and replaces the project's settings if it is linked already, 200.\nBody: {\"enabled\": true}, optional.",
+        "description": "PUT /projects/<project_id>/secrets/{label} endpoint. Assigns a global secret to the project,\n201, and replaces the project's settings if it is assigned already, 200.\nBody: {\"enabled\": true}, optional.",
         "operationId": "put_project_secret_projects__project_id__secrets__label__put",
         "parameters": [
           {
@@ -789,7 +809,7 @@
           "projects"
         ],
         "summary": "Patch Project Secret",
-        "description": "PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the link on or off (enabled),\nor revokes and re-grants it (revoked), which is admin only and takes effect at once.",
+        "description": "PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the project resource on or off (enabled),\nor revokes and re-grants it (revoked), which is admin only and takes effect at once.",
         "operationId": "patch_project_secret_projects__project_id__secrets__label__patch",
         "parameters": [
           {
@@ -850,7 +870,7 @@
           "projects"
         ],
         "summary": "Delete Project Secret",
-        "description": "DELETE /projects/<project_id>/secrets/{label} endpoint. Unlinks the secret, not the secret\nitself: a soft delete that also revokes the link.",
+        "description": "DELETE /projects/<project_id>/secrets/{label} endpoint. Unassigns the secret, not the secret\nitself: a soft delete that also revokes the project resource.",
         "operationId": "delete_project_secret_projects__project_id__secrets__label__delete",
         "parameters": [
           {
@@ -895,7 +915,7 @@
           "projects"
         ],
         "summary": "List Project Results Repositories",
-        "description": "GET /projects/<project_id>/repositories/results endpoint. The project's results repository\nlink, an inactive one included with its flags, so a project always lists exactly one.",
+        "description": "GET /projects/<project_id>/repositories/results endpoint. The project's results repository\nresource, an inactive one included with its flags, so a project always lists exactly one.",
         "operationId": "list_project_results_repositories_projects__project_id__repositories_results_get",
         "parameters": [
           {
@@ -992,7 +1012,7 @@
           "projects"
         ],
         "summary": "Put Project Results Repository",
-        "description": "PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Links a global\nresults repository to the project, which has one, 201, and replaces the project's settings\nif it is linked already, 200. Linking needs the project disabled. A change of target_dir\nis caught by the configuration snapshot of the tasks created before, which then fail\ninstead of delivering there.\nBody: {\"target_dir\": \"results\", \"owned_by_federated_node\": true, \"enabled\": true}, the last\ntwo are optional.",
+        "description": "PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global\nresults repository to the project, which has one, 201, and replaces the project's settings\nif it is assigned already, 200. Assigning needs the project disabled. A change of target_dir\nis caught by the configuration snapshot of the tasks created before, which then fail\ninstead of delivering there.\nBody: {\"target_dir\": \"results\", \"owned_by_federated_node\": true, \"enabled\": true}, the last\ntwo are optional.",
         "operationId": "put_project_results_repository_projects__project_id__repositories_results__repository_id__put",
         "parameters": [
           {
@@ -1053,7 +1073,7 @@
           "projects"
         ],
         "summary": "Patch Project Results Repository",
-        "description": "PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where\nthe project's results go (target_dir, owned_by_federated_node), at any time (the tasks created\nbefore fail instead of delivering to the new place), or turns the link on or\noff (enabled), or revokes and re-grants it\n(revoked), which is admin only and takes effect at once.",
+        "description": "PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where\nthe project's results go (target_dir, owned_by_federated_node), at any time (the tasks created\nbefore fail instead of delivering to the new place), or turns the project resource on or\noff (enabled), or revokes and re-grants it\n(revoked), which is admin only and takes effect at once.",
         "operationId": "patch_project_results_repository_projects__project_id__repositories_results__repository_id__patch",
         "parameters": [
           {
@@ -1114,7 +1134,7 @@
           "projects"
         ],
         "summary": "Delete Project Results Repository",
-        "description": "DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unlinks the\nrepository, not the repository itself: a soft delete that also revokes the link. A task of the\nproject still in flight gets a REVOKED result.",
+        "description": "DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unassigns the\nrepository, not the repository itself: a soft delete that also revokes the project resource. A task of the\nproject still in flight gets a REVOKED result.",
         "operationId": "delete_project_results_repository_projects__project_id__repositories_results__repository_id__delete",
         "parameters": [
           {
@@ -1188,7 +1208,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PageDTO_DatasetDTO_"
+                }
               }
             }
           },
@@ -1281,7 +1303,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PageDTO_DatasetDTO_"
+                }
               }
             }
           },
@@ -1386,7 +1410,7 @@
           "datasets"
         ],
         "summary": "Delete Dataset",
-        "description": "DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is linked to,\n    unless ?force=true, which also revokes and deletes their links. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and\n    other datasets may share it. Admin only.",
+        "description": "DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,\n    unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and\n    other datasets may share it. Admin only.",
         "operationId": "delete_dataset_global_datasets__dataset_id__delete",
         "parameters": [
           {
@@ -1518,7 +1542,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPageDTO"
+                }
               }
             }
           },
@@ -1568,7 +1594,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCreatedDTO"
+                }
               }
             }
           },
@@ -1625,7 +1653,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPageDTO"
+                }
               }
             }
           },
@@ -1675,7 +1705,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCreatedDTO"
+                }
               }
             }
           },
@@ -2019,7 +2051,7 @@
           "tasks"
         ],
         "summary": "Get Task Config",
-        "description": "GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created\nunder (its results repository and target_dir, its dataset) is still the current one. If not, the task\nmust not launch or publish, and changes lists what differs. A task without a stored snapshot is current.\nconfig_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the link may be deleted by then.\nrevoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a\ntask must not launch either, and its results are never delivered.\noutcome is the decision for a PENDING task, \"launch\" or \"fail\", and cause says why when it fails: see\nhelpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.",
+        "description": "GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created\nunder (its results repository and target_dir, its dataset) is still the current one. If not, the task\nmust not launch or publish, and changes lists what differs. A task without a stored snapshot is current.\nconfig_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the project resource may be deleted by then.\nrevoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a\ntask must not launch either, and its results are never delivered.\noutcome is the decision for a PENDING task, \"launch\" or \"fail\", and cause says why when it fails: see\nhelpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.",
         "operationId": "get_task_config_projects__project_id__tasks__task_id__config_get",
         "parameters": [
           {
@@ -2046,7 +2078,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TaskConfigDTO"
+                }
               }
             }
           },
@@ -2096,7 +2130,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TaskLaunchDTO"
+                }
               }
             }
           },
@@ -2146,7 +2182,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PullRequestResultDTO"
+                  },
+                  "title": "Response Get Task Results Projects  Project Id  Tasks  Task Id  Results Get"
+                }
               }
             }
           },
@@ -2319,7 +2361,7 @@
           "results"
         ],
         "summary": "Get Results",
-        "description": "GET /projects/<project_id>/results endpoint. Lists the project's results\nQuery params:\n    - step: only the pull request results at this step, repeated for several,\n      e.g. ?step=PUSHED&step=OPENED (optional)\n    - state: only the pull request results in this state, e.g. ?state=FAILED (optional)\n    - active_link: ?active_link=true keeps only the results whose link to the results repository is active\n      (enabled, not revoked, on an enabled global repository and provider) (optional)",
+        "description": "GET /projects/<project_id>/results endpoint. Lists the project's results\nQuery params:\n    - step: only the pull request results at this step, repeated for several,\n      e.g. ?step=PUSHED&step=OPENED (optional)\n    - state: only the pull request results in this state, e.g. ?state=FAILED (optional)\n    - active_resource: ?active_resource=true keeps only the results whose project resource for the results repository is active\n      (enabled, not revoked, on an enabled global repository and provider) (optional)",
         "operationId": "get_results_projects__project_id__results_get",
         "parameters": [
           {
@@ -2360,7 +2402,7 @@
             }
           },
           {
-            "name": "active_link",
+            "name": "active_resource",
             "in": "query",
             "required": false,
             "schema": {
@@ -2372,7 +2414,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Active Link"
+              "title": "Active Resource"
             }
           }
         ],
@@ -2381,7 +2423,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PullRequestResultDTO"
+                  },
+                  "title": "Response Get Results Projects  Project Id  Results Get"
+                }
               }
             }
           },
@@ -2402,7 +2450,7 @@
           "results"
         ],
         "summary": "Post Result",
-        "description": "POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results\nrepository, by pull request. The repository is the global one's id, which the\nproject has to be linked to (a deleted link counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned,\nafter the revoked check below if it is not final yet (step UNKNOWN or PUSHED): when something the task uses is\nrevoked by now, it is moved to step REVOKED and state FAILED, with the same error.\nOtherwise 409 unless the task is SUCCESS. When anything the task uses is revoked or deleted (its project, trigger, dataset\nor results repository, see helpers/task_config.revoked_resources) the result is created as final,\nstep REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the link is inactive for another\nreason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and\nstate FAILED, with the error \"results link switched off\": the delivery retry sensor delivers it once the link\nis active. A task whose configuration changed since it was created (see helpers/task_config) is not delivered:\nits result is created as final, step STALE and state FAILED, with the changes as its error. The checks run in\nthat order: revoked, STALE, switched off.",
+        "description": "POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results\nrepository, by pull request. The repository is the global one's id, which has to\nbe assigned to the project (a deleted project resource counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned,\nafter the revoked check below if it is not final yet (step UNKNOWN or PUSHED): when something the task uses is\nrevoked by now, it is moved to step REVOKED and state FAILED, with the same error.\nOtherwise 409 unless the task is SUCCESS. When anything the task uses is revoked or deleted (its project, trigger, dataset\nor results repository, see helpers/task_config.revoked_resources) the result is created as final,\nstep REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the project resource is inactive for another\nreason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and\nstate FAILED, with the error \"results resource switched off\": the delivery retry sensor delivers it once the project resource\nis active. A task whose configuration changed since it was created (see helpers/task_config) is not delivered:\nits result is created as final, step STALE and state FAILED, with the changes as its error. The checks run in\nthat order: revoked, STALE, switched off.",
         "operationId": "post_result_projects__project_id__results_post",
         "parameters": [
           {
@@ -2431,7 +2479,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PullRequestResultDTO"
+                }
               }
             }
           },
@@ -2481,7 +2531,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PullRequestResultDTO"
+                }
               }
             }
           },
@@ -2540,7 +2592,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PullRequestResultDTO"
+                }
               }
             }
           },
@@ -2570,7 +2624,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserDTO"
+                  },
+                  "type": "array",
+                  "title": "Response Get Users List Global Users Get"
+                }
               }
             }
           }
@@ -2599,7 +2659,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/NewUserDTO"
+                }
               }
             }
           },
@@ -2629,7 +2691,13 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserDTO"
+                  },
+                  "type": "array",
+                  "title": "Response Get Users List Global Users  Get"
+                }
               }
             }
           }
@@ -2658,7 +2726,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/NewUserDTO"
+                }
               }
             }
           },
@@ -2717,7 +2787,7 @@
           "trigger_repositories"
         ],
         "summary": "Get Repositories",
-        "description": "GET /global/repositories/triggers/ \u2014 list the repositories. With ?pollable=true only the enabled and\nnot revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project\nlinks: that is what Dagster polls.",
+        "description": "GET /global/repositories/triggers/ \u2014 list the repositories. With ?pollable=true only the enabled and\nnot revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project\nresources say: that is what Dagster polls.",
         "operationId": "get_repositories_global_repositories_triggers_get",
         "parameters": [
           {
@@ -2763,7 +2833,7 @@
           "trigger_repositories"
         ],
         "summary": "Post Repository",
-        "description": "POST /global/repositories/triggers/ \u2014 create a new repository, linked to no project yet.",
+        "description": "POST /global/repositories/triggers/ \u2014 create a new repository, assigned to no project yet.",
         "operationId": "post_repository_global_repositories_triggers_post",
         "requestBody": {
           "content": {
@@ -2806,7 +2876,7 @@
           "trigger_repositories"
         ],
         "summary": "Get Repositories",
-        "description": "GET /global/repositories/triggers/ \u2014 list the repositories. With ?pollable=true only the enabled and\nnot revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project\nlinks: that is what Dagster polls.",
+        "description": "GET /global/repositories/triggers/ \u2014 list the repositories. With ?pollable=true only the enabled and\nnot revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project\nresources say: that is what Dagster polls.",
         "operationId": "get_repositories_global_repositories_triggers__get",
         "parameters": [
           {
@@ -2852,7 +2922,7 @@
           "trigger_repositories"
         ],
         "summary": "Post Repository",
-        "description": "POST /global/repositories/triggers/ \u2014 create a new repository, linked to no project yet.",
+        "description": "POST /global/repositories/triggers/ \u2014 create a new repository, assigned to no project yet.",
         "operationId": "post_repository_global_repositories_triggers__post",
         "requestBody": {
           "content": {
@@ -2936,7 +3006,7 @@
           "trigger_repositories"
         ],
         "summary": "Delete Repository",
-        "description": "DELETE /global/repositories/triggers/<id> \u2014 soft delete the repository. A 409 names the projects it is linked to, unless ?force=true, which also revokes and deletes their links.",
+        "description": "DELETE /global/repositories/triggers/<id> \u2014 soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.",
         "operationId": "delete_repository_global_repositories_triggers__repo_id__delete",
         "parameters": [
           {
@@ -3052,7 +3122,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PageDTO_PullRequestDTO_"
+                }
               }
             }
           },
@@ -3102,7 +3174,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PullRequestBatchDTO"
+                }
               }
             }
           },
@@ -3125,7 +3199,7 @@
           "project_trigger_repositories"
         ],
         "summary": "List Project Trigger Repositories",
-        "description": "GET /projects/<project_id>/repositories/triggers \u2014 the project's trigger repository\nlinks, inactive ones included with their flags unless ?active=true, which returns only the\nactive ones.",
+        "description": "GET /projects/<project_id>/repositories/triggers \u2014 the project's trigger repository\nresources, inactive ones included with their flags unless ?active=true, which returns only the\nactive ones.",
         "operationId": "list_project_trigger_repositories_projects__project_id__repositories_triggers_get",
         "parameters": [
           {
@@ -3182,7 +3256,7 @@
           "project_trigger_repositories"
         ],
         "summary": "Put Project Trigger Repository",
-        "description": "PUT /projects/<project_id>/repositories/triggers/<repo_id> \u2014 links a global trigger\nrepository to the project, 201, or replaces the project's settings if it is linked already,\n200: a change of\nwatch_dir or base_branch applies at once. A new watcher does not touch work in\nflight. Fields left out take their defaults. The cursor is set when\nthe link is created, after the latest pull request stored, and stays where it is.\nBody: {\"watch_dir\": \"triggers\", \"base_branch\": \"main\", \"enabled\": true}; watch_dir is\nrequired, the rest optional.",
+        "description": "PUT /projects/<project_id>/repositories/triggers/<repo_id> \u2014 assigns a global trigger\nrepository to the project, 201, or replaces the project's settings if it is assigned already,\n200: a change of\nwatch_dir or base_branch applies at once. A new watcher does not touch work in\nflight. Fields left out take their defaults. The cursor is set when\nthe project resource is created, after the latest pull request stored, and stays where it is.\nBody: {\"watch_dir\": \"triggers\", \"base_branch\": \"main\", \"enabled\": true}; watch_dir is\nrequired, the rest optional.",
         "operationId": "put_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__put",
         "parameters": [
           {
@@ -3293,7 +3367,7 @@
           "project_trigger_repositories"
         ],
         "summary": "Patch Project Trigger Repository",
-        "description": "PATCH /projects/<project_id>/repositories/triggers/<repo_id> \u2014 changes what the\nproject watches (watch_dir, base_branch), at any time, or turns the link on or off\n(enabled), or revokes and re-grants it\n(revoked), which is admin only and takes effect at once.",
+        "description": "PATCH /projects/<project_id>/repositories/triggers/<repo_id> \u2014 changes what the\nproject watches (watch_dir, base_branch), at any time, or turns the project resource on or off\n(enabled), or revokes and re-grants it\n(revoked), which is admin only and takes effect at once.",
         "operationId": "patch_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__patch",
         "parameters": [
           {
@@ -3354,7 +3428,7 @@
           "project_trigger_repositories"
         ],
         "summary": "Delete Project Trigger Repository",
-        "description": "DELETE /projects/<project_id>/repositories/triggers/<repo_id> \u2014 unlinks the\nrepository, not the repository itself: a soft delete that also revokes the link.",
+        "description": "DELETE /projects/<project_id>/repositories/triggers/<repo_id> \u2014 unassigns the\nrepository, not the repository itself: a soft delete that also revokes the project resource.",
         "operationId": "delete_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__delete",
         "parameters": [
           {
@@ -3442,7 +3516,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PageDTO_PullRequestTriggerDTO_"
+                }
               }
             }
           },
@@ -3596,7 +3672,7 @@
           "project_trigger_repositories"
         ],
         "summary": "Post Task",
-        "description": "POST /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number>/task\n\u2014 validate the pull request's spec and, in one transaction, mark it YIELDED and create its\ntask. The project comes from the assignment.\nBody: {\"spec_raw\": \"...\"}, the pull request's spec file as read. It is kept on the pull\nrequest before it is parsed, so a rejected pull request keeps it too.\nIdempotent: if the pull request already has a task it is returned with a 200. Only an\nUNKNOWN trigger of an active link of an enabled, not revoked project may create a task, otherwise 409 (REJECTED is final).",
+        "description": "POST /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number>/task\n\u2014 validate the pull request's spec and, in one transaction, mark it YIELDED and create its\ntask. The project comes from the assignment.\nBody: {\"spec_raw\": \"...\"}, the pull request's spec file as read. It is kept on the pull\nrequest before it is parsed, so a rejected pull request keeps it too.\nIdempotent: if the pull request already has a task it is returned with a 200. Only an\nUNKNOWN trigger of an active project resource of an enabled, not revoked project may create a task, otherwise 409 (REJECTED is final).",
         "operationId": "post_task_projects__project_id__repositories_triggers__repo_id__pull_requests__number__task_post",
         "parameters": [
           {
@@ -3895,7 +3971,7 @@
           "secrets"
         ],
         "summary": "Delete Secret",
-        "description": "DELETE /global/secrets/<label> \u2014 soft delete the reference and revoke and delete its project\nlinks, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused\nwith a 409 naming the enabled datasets and repositories that still use it: they have to be\ndisabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay\npointing at it, and can be repointed with their secret_label.",
+        "description": "DELETE /global/secrets/<label> \u2014 soft delete the reference and revoke and delete its project\nresources, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused\nwith a 409 naming the enabled datasets and repositories that still use it: they have to be\ndisabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay\npointing at it, and can be repointed with their secret_label.",
         "operationId": "delete_secret_global_secrets__label__delete",
         "parameters": [
           {
@@ -4225,7 +4301,7 @@
           "results_repositories"
         ],
         "summary": "Post Repository",
-        "description": "POST /global/repositories/results/ \u2014 create a new repository, linked to no project yet. project_id\nand target_dir are not accepted, results repositories are global: link one with\nPUT /projects/<id>/repositories/results/<repository id>",
+        "description": "POST /global/repositories/results/ \u2014 create a new repository, assigned to no project yet. project_id\nand target_dir are not accepted, results repositories are global: assign one with\nPUT /projects/<id>/repositories/results/<repository id>",
         "operationId": "post_repository_global_repositories_results_post",
         "requestBody": {
           "content": {
@@ -4291,7 +4367,7 @@
           "results_repositories"
         ],
         "summary": "Post Repository",
-        "description": "POST /global/repositories/results/ \u2014 create a new repository, linked to no project yet. project_id\nand target_dir are not accepted, results repositories are global: link one with\nPUT /projects/<id>/repositories/results/<repository id>",
+        "description": "POST /global/repositories/results/ \u2014 create a new repository, assigned to no project yet. project_id\nand target_dir are not accepted, results repositories are global: assign one with\nPUT /projects/<id>/repositories/results/<repository id>",
         "operationId": "post_repository_global_repositories_results__post",
         "requestBody": {
           "content": {
@@ -4374,7 +4450,7 @@
           "results_repositories"
         ],
         "summary": "Delete Repository",
-        "description": "DELETE /global/repositories/%s/<id> \u2014 soft delete the repository. A 409 names the projects it is linked to, unless ?force=true, which also revokes and deletes their links.",
+        "description": "DELETE /global/repositories/%s/<id> \u2014 soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.",
         "operationId": "delete_repository_global_repositories_results__repo_id__delete",
         "parameters": [
           {
@@ -4874,7 +4950,7 @@
           "healthcheck"
         ],
         "summary": "Project Healthcheck",
-        "description": "GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository link can be\nreached with its token, and reports its pull request count and the project's results\nrepository. A failed check is reported in the body, still with a 200.",
+        "description": "GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository resource can be\nreached with its token, and reports its pull request count and the project's results\nrepository. A failed check is reported in the body, still with a 200.",
         "operationId": "project_healthcheck_projects__project_id__healthcheck_get",
         "parameters": [
           {
@@ -4917,7 +4993,7 @@
           "healthcheck"
         ],
         "summary": "Project Dataset Healthcheck",
-        "description": "GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's\ncheck and the project's link state. 404 if the project has no link to it.",
+        "description": "GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's\ncheck and the project's resource state. 404 if the project has no resource for it.",
         "operationId": "project_dataset_healthcheck_projects__project_id__datasets__dataset_id__healthcheck_get",
         "parameters": [
           {
@@ -4969,7 +5045,7 @@
           "healthcheck"
         ],
         "summary": "Project Secret Healthcheck",
-        "description": "GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check\nand the project's link state. 404 if the project has no link to it.",
+        "description": "GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check\nand the project's resource state. 404 if the project has no resource for it.",
         "operationId": "project_secret_healthcheck_projects__project_id__secrets__label__healthcheck_get",
         "parameters": [
           {
@@ -5021,7 +5097,7 @@
           "healthcheck"
         ],
         "summary": "Project Trigger Repository Healthcheck",
-        "description": "GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The\nglobal repository's check, the project's link state and its pull request count. 404 if the\nproject has no link to it.",
+        "description": "GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The\nglobal repository's check, the project's resource state and its pull request count. 404 if the\nproject has no resource for it.",
         "operationId": "project_trigger_repository_healthcheck_projects__project_id__repositories_triggers__repository_id__healthcheck_get",
         "parameters": [
           {
@@ -5073,7 +5149,7 @@
           "healthcheck"
         ],
         "summary": "Project Results Repository Healthcheck",
-        "description": "GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The\nglobal repository's check and the project's link state. 404 if the project has no link to it.",
+        "description": "GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The\nglobal repository's check and the project's resource state. 404 if the project has no resource for it.",
         "operationId": "project_results_repository_healthcheck_projects__project_id__repositories_results__repository_id__healthcheck_get",
         "parameters": [
           {
@@ -5166,7 +5242,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPageDTO"
+                }
               }
             }
           },
@@ -5230,7 +5308,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPageDTO"
+                }
               }
             }
           },
@@ -5799,6 +5879,212 @@
         ],
         "title": "HealthCheckDTO"
       },
+      "NewUserDTO": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "tempPassword": {
+            "type": "string",
+            "title": "Temppassword"
+          },
+          "info": {
+            "type": "string",
+            "title": "Info"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "username",
+          "tempPassword",
+          "info"
+        ],
+        "title": "NewUserDTO",
+        "description": "The response of creating a user: the temporary password is shown once."
+      },
+      "NodeHealthDTO": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "keycloak": {
+            "type": "boolean",
+            "title": "Keycloak"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "keycloak"
+        ],
+        "title": "NodeHealthDTO",
+        "description": "GET /health_check: whether the node's Keycloak answers. \"ok\" or \"non operational\"."
+      },
+      "PageDTO_DatasetDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetDTO"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "per_page": {
+            "type": "integer",
+            "title": "Per Page"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "per_page",
+          "total",
+          "pages"
+        ],
+        "title": "PageDTO[DatasetDTO]"
+      },
+      "PageDTO_ProjectDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectDTO"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "per_page": {
+            "type": "integer",
+            "title": "Per Page"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "per_page",
+          "total",
+          "pages"
+        ],
+        "title": "PageDTO[ProjectDTO]"
+      },
+      "PageDTO_PullRequestDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PullRequestDTO"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "per_page": {
+            "type": "integer",
+            "title": "Per Page"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "per_page",
+          "total",
+          "pages"
+        ],
+        "title": "PageDTO[PullRequestDTO]"
+      },
+      "PageDTO_PullRequestTriggerDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PullRequestTriggerDTO"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "per_page": {
+            "type": "integer",
+            "title": "Per Page"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "page",
+          "per_page",
+          "total",
+          "pages"
+        ],
+        "title": "PageDTO[PullRequestTriggerDTO]"
+      },
+      "ProjectCreatedDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "ProjectCreatedDTO",
+        "description": "The response of creating a project: its id."
+      },
       "ProjectDTO": {
         "properties": {
           "id": {
@@ -5892,7 +6178,7 @@
           "active"
         ],
         "title": "ProjectDatasetDTO",
-        "description": "A project's link to a global dataset, the dataset nested. Addressed by the dataset's id."
+        "description": "A project's resource for a global dataset, the dataset nested. Addressed by the dataset's id."
       },
       "ProjectDatasetHealthDTO": {
         "properties": {
@@ -6047,7 +6333,7 @@
           "active"
         ],
         "title": "ProjectResultsRepositoryDTO",
-        "description": "A project's link to a global results repository, the repository nested. Addressed by the repository's id."
+        "description": "A project's resource for a global results repository, the repository nested. Addressed by the repository's id."
       },
       "ProjectResultsRepositoryHealthDTO": {
         "properties": {
@@ -6122,7 +6408,7 @@
           "active"
         ],
         "title": "ProjectSecretDTO",
-        "description": "A project's link to a global secret, the reference nested. Addressed by the secret's label. Never carries values."
+        "description": "A project's resource for a global secret, the reference nested. Addressed by the secret's label. Never carries values."
       },
       "ProjectSecretHealthDTO": {
         "properties": {
@@ -6219,7 +6505,7 @@
           "active"
         ],
         "title": "ProjectTriggerRepositoryDTO",
-        "description": "A project's link to a global trigger repository, the repository nested. Addressed by the repository's id."
+        "description": "A project's resource for a global trigger repository, the repository nested. Addressed by the repository's id."
       },
       "ProjectTriggerRepositoryHealthDTO": {
         "properties": {
@@ -6257,6 +6543,229 @@
           "trigger_repository"
         ],
         "title": "ProjectTriggerRepositoryHealthDTO"
+      },
+      "PullRequestBatchDTO": {
+        "properties": {
+          "created": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Created"
+          },
+          "existing": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Existing"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "existing"
+        ],
+        "title": "PullRequestBatchDTO",
+        "description": "The response of storing a batch of pull requests: the numbers stored, and those already there."
+      },
+      "PullRequestDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "trigger_repository_id": {
+            "type": "integer",
+            "title": "Trigger Repository Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "raised_by": {
+            "type": "string",
+            "title": "Raised By"
+          },
+          "merged_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Merged At"
+          },
+          "merge_commit_sha": {
+            "type": "string",
+            "title": "Merge Commit Sha"
+          },
+          "base_branch": {
+            "type": "string",
+            "title": "Base Branch"
+          },
+          "files_truncated": {
+            "type": "boolean",
+            "title": "Files Truncated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "trigger_repository_id",
+          "number",
+          "title",
+          "raised_by",
+          "merged_at",
+          "merge_commit_sha",
+          "base_branch",
+          "files_truncated"
+        ],
+        "title": "PullRequestDTO",
+        "description": "The provider's facts of a pull request, stored once per repository."
+      },
+      "PullRequestResultDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "task_id": {
+            "type": "integer",
+            "title": "Task Id"
+          },
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "results_repository_id": {
+            "type": "integer",
+            "title": "Results Repository Id"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "merged_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged At"
+          },
+          "merge_commit_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merge Commit Sha"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "task_id",
+          "project_id",
+          "results_repository_id",
+          "attempts",
+          "error",
+          "created_at",
+          "updated_at",
+          "step",
+          "state",
+          "branch",
+          "commit_sha",
+          "number",
+          "url",
+          "merged_at",
+          "merge_commit_sha"
+        ],
+        "title": "PullRequestResultDTO"
       },
       "PullRequestTriggerDTO": {
         "properties": {
@@ -6746,6 +7255,121 @@
         ],
         "title": "SensorDTO"
       },
+      "TaskConfigDTO": {
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cause"
+          },
+          "current": {
+            "type": "boolean",
+            "title": "Current"
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "config_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Hash"
+          },
+          "config_snapshot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Snapshot"
+          },
+          "revoked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Revoked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcome",
+          "cause",
+          "current",
+          "changes",
+          "config_hash",
+          "config_snapshot",
+          "revoked"
+        ],
+        "title": "TaskConfigDTO",
+        "description": "Whether the configuration a task was created under still holds, see helpers/task_config.decide_launch."
+      },
+      "TaskCreatedDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "api_request_id": {
+            "type": "integer",
+            "title": "Api Request Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "api_request_id",
+          "status",
+          "created_at"
+        ],
+        "title": "TaskCreatedDTO",
+        "description": "The response of requesting a task: the task, the API request that yielded it and when it was created."
+      },
       "TaskDTO": {
         "properties": {
           "id": {
@@ -6881,6 +7505,84 @@
           "completed_at"
         ],
         "title": "TaskDTO"
+      },
+      "TaskLaunchDTO": {
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cause"
+          },
+          "task": {
+            "$ref": "#/components/schemas/TaskDTO"
+          },
+          "dataset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DatasetDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcome",
+          "cause",
+          "task",
+          "dataset"
+        ],
+        "title": "TaskLaunchDTO",
+        "description": "What the launcher is told for a PENDING task: outcome \"launch\" with the task and its dataset (null for a\ntask without one), or \"fail\" with the cause, the failed task and no dataset. See tasks_api.launch_task."
+      },
+      "TaskPageDTO": {
+        "properties": {
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskDTO"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "per_page": {
+            "type": "integer",
+            "title": "Per Page"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tasks",
+          "total",
+          "page",
+          "per_page",
+          "pages"
+        ],
+        "title": "TaskPageDTO",
+        "description": "The response shape of the task lists, a page of tasks."
       },
       "TaskSpecDTO": {
         "properties": {
@@ -7075,6 +7777,48 @@
         ],
         "title": "TriggerRepositoryRefDTO",
         "description": "A trigger repository named by where it is, without its secret or cursor."
+      },
+      "UserDTO": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "firstName": {
+            "type": "string",
+            "title": "Firstname"
+          },
+          "lastName": {
+            "type": "string",
+            "title": "Lastname"
+          },
+          "role": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Role"
+          },
+          "needs_to_reset_password": {
+            "type": "boolean",
+            "title": "Needs To Reset Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "email",
+          "firstName",
+          "lastName",
+          "role",
+          "needs_to_reset_password"
+        ],
+        "title": "UserDTO",
+        "description": "A simplified Keycloak user, as listed. firstName and lastName are Keycloak's names."
       },
       "ValidationError": {
         "properties": {

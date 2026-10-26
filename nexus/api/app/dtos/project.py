@@ -15,6 +15,11 @@ class ProjectDTO(DTO):
     updated_at: WireDatetime
 
 
+class ProjectCreatedDTO(DTO):
+    """The response of creating a project: its id."""
+    id: int
+
+
 class HealthCheckDTO(DTO):
     message: str
     status_code: int | None

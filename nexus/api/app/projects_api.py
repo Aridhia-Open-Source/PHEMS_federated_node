@@ -26,11 +26,11 @@ from fastapi import APIRouter, Body, Depends, Response
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
-from app.dtos.base import page_of
+from app.dtos.base import PageDTO, page_of
 from app.dtos.dataset import ProjectDatasetDTO
 from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.secret import ProjectSecretDTO
-from app.dtos.project import ProjectDTO, ProjectRequest
+from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
 from app.helpers.project_state import require_disabled
 from app.helpers.pull_request_fanout import backfill, skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
@@ -48,8 +48,8 @@ from app.models.secret import Secret
 router = APIRouter(prefix='/projects', tags=["projects"], dependencies=[Depends(require_scope('can_admin_dataset'))])
 
 
-@router.get('/')
-@router.get('')
+@router.get('/', response_model=PageDTO[ProjectDTO])
+@router.get('', response_model=PageDTO[ProjectDTO])
 def list_projects(filters: QueryFilters = Depends()):
     """
     GET /projects endpoint.
@@ -68,8 +68,8 @@ def project_by_id(project_id: int):
     return ProjectDTO.from_model(project)
 
 
-@router.post('/', status_code=HTTPStatus.CREATED)
-@router.post('', status_code=HTTPStatus.CREATED)
+@router.post('/', status_code=HTTPStatus.CREATED, response_model=ProjectCreatedDTO)
+@router.post('', status_code=HTTPStatus.CREATED, response_model=ProjectCreatedDTO)
 def create_project(req: ProjectRequest):
     """
     POST /projects endpoint.

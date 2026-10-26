@@ -9,6 +9,7 @@ import requests
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
+from .dtos.healthcheck import NodeHealthDTO
 from .helpers.exceptions import AuthenticationError, InvalidRequest
 from .helpers.keycloak import URLS, Keycloak
 
@@ -33,7 +34,9 @@ def ready_check() -> dict:
     return {"status": "ready"}
 
 
-@router.get("/health_check")
+@router.get(
+    "/health_check", response_model=NodeHealthDTO, responses={HTTPStatus.BAD_GATEWAY: {"model": NodeHealthDTO}}
+)
 def health_check():
     """
     GET /health_check endpoint
