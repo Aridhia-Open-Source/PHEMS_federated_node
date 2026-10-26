@@ -69,6 +69,8 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     # gitea, or github for an existing GitHub repo. Not GIT_PROVIDER, which .dev.env sets for
     # other tools.
     git_provider: str = Field(default="gitea", alias="TEST_GIT_PROVIDER")
+    # The backend git provider's display name. Its host is already in its uri and api_uri.
+    provider_name: str = Field(default="", alias="GIT_PROVIDER_NAME", validate_default=False)
     # GitHub only: fncli cannot mint a token there, so both repos use this one.
     github_token: str = Field(default="", alias="GH_TOKEN", validate_default=False)
     token_scope: ClassVar[str]
@@ -76,6 +78,10 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     @property
     def is_github(self) -> bool:
         return self.git_provider == "github"
+
+    @property
+    def backend_provider_name(self) -> str:
+        return self.provider_name or ("github" if self.is_github else "gitea-local")
 
     @property
     def repo_path(self) -> str:

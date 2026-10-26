@@ -41,7 +41,7 @@ def init_backend_provider(config: RepoConfig, backend_api: FncliBackendAPI) -> G
     """The backend's git provider for the host the repo is on, shared by both repos and every project."""
     return backend_api.get_or_create_git_provider(
         uri=config.provider_uri,
-        name=f"{config.git_provider}-{config.provider_uri.split('://')[1]}",
+        name=config.backend_provider_name,
         type=config.git_provider,
         api_uri=config.provider_api_uri,
     )

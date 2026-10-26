@@ -82,6 +82,7 @@ def repo_fields(repo: str, provider: str) -> dict:
         "repo_uri": f"{base.scheme}://{host}/{admin}/{repo}",
         "gitea_api_uri": base._replace(netloc=host).geturl(),
         "token_name": repo,  # Gitea tells tokens apart by name
+        "provider_name": f"gitea-{provider}",  # the two providers are one Gitea under two hosts
     }
 
 
