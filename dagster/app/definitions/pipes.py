@@ -18,6 +18,15 @@ logger = logging.getLogger(__name__)
 # 30s default to exit before SIGKILL.
 TERMINATION_GRACE_PERIOD_SECONDS = 300
 
+# ODBC driver per dataset type, as the legacy node's connection_string helper (and the task
+# images, e.g. ghcr.io/aridhia-open-source/r-base) name them.
+ODBC_DRIVERS = {
+    "mssql": "ODBC Driver 18 for SQL Server",
+    "postgres": "PostgreSQL ANSI",
+    "mysql": "MySQL ODBC 9.3 ANSI Driver",
+    "mariadb": "MariaDB ODBC 3.2 Driver",
+}
+
 
 @dg.op(
     config_schema={
@@ -213,10 +222,12 @@ class K8sPipe:
         ]
 
     def _get_conn_str(self, username, password):
-        return (
-            f"server={self.dataset['host']};database={self.dataset['name']};"
-            f"port={self.dataset['port']};uid={username};pwd={password};"
-        )
+        """A full ODBC connection string for the dataset's type, as the legacy node built it."""
+        host, port, name = self.dataset['host'], self.dataset['port'], self.dataset['name']
+        if self.dataset['type'] == "oracle":
+            return f"driver={{Oracle ODBC Driver}};Uid={username};PSW={password};DBQ={host}:{port}/{name};"
+        driver = ODBC_DRIVERS[self.dataset['type']]
+        return f"driver={{{driver}}};Uid={username};Pwd={password};Server={host},{port};Database={name};"
 
     def _get_dataset_creds(self):
         username = self._get_dataset_secret("USERNAME")
