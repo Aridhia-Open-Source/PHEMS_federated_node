@@ -16,8 +16,8 @@ Finds merged pull requests in each trigger repository and stores them once, for 
 
 | Who | Call | Filter or note |
 |---|---|---|
-| sensor | `GET /global/repositories/triggers` | `pollable=true`: the TriggerRepository is enabled and not revoked, its GitProvider is enabled and not revoked, its secret is enabled. Project links are ignored. Each item carries `pr_cursor`. |
-| sensor | git provider: pull requests merged after `pr_cursor` | One check per repository, with the repository's own secret. No base branch filter: each pull request carries its base branch and the backend matches it per link. |
+| sensor | `GET /global/repositories/triggers` | `pollable=true`: the TriggerRepository is enabled and not revoked, its GitProvider is enabled and not revoked, its secret is enabled. Project resources are ignored. Each item carries `pr_cursor`. |
+| sensor | git provider: pull requests merged after `pr_cursor` | One check per repository, with the repository's own secret. No base branch filter: each pull request carries its base branch and the backend matches it per project resource. |
 | job | `GET /global/repositories/triggers/{id}` | A fresh `pr_cursor`. |
 | job | git provider: merged pull requests, each pull request, its changed files | A repeated file path is dropped. |
 
@@ -64,7 +64,7 @@ flowchart TD
     F -->|"refused or error"| I(["Run fails"])
 ```
 
-What the backend does with each POST: it stores each pull request once (a stored number is left as it is), then creates one UNKNOWN trigger per ProjectTriggerRepository that accepts triggers and matches the pull request. A link matches when the pull request is merged into its `base_branch`, is after the link's cursor, and adds a `.json` file under its `watch_dir`. Other links get no trigger (logged by the backend).
+What the backend does with each POST: it stores each pull request once (a stored number is left as it is), then creates one UNKNOWN trigger per ProjectTriggerRepository that accepts triggers and matches the pull request. A project resource matches when the pull request is merged into its `base_branch`, is after the project resource's cursor, and adds a `.json` file under its `watch_dir`. Other project resources get no trigger (logged by the backend).
 
 ## 5. What it produces
 
@@ -94,7 +94,7 @@ The sensor patches nothing. Triggers are created by the backend inside the POST.
 | TriggerRepository disabled or revoked | Not in the pollable list: not polled. No error. |
 | GitProvider disabled or revoked | Same. |
 | Secret disabled | Same (the backend filter checks it). |
-| ProjectTriggerRepository disabled or revoked | The poll goes on. The backend creates no trigger for that link. |
-| Project disabled or revoked | The poll goes on (one poll serves every project). The backend creates no trigger for its links. |
+| ProjectTriggerRepository disabled or revoked | The poll goes on. The backend creates no trigger for that project resource. |
+| Project disabled or revoked | The poll goes on (one poll serves every project). The backend creates no trigger for its project resources. |
 
-The pull requests are still stored while a link or project is switched off. When a link is enabled or un-revoked, or its project, repository or provider is switched back on, the backend moves the link's cursor to now: what was merged meanwhile gets no trigger. Enabling a disabled project with `backfill: true` creates those triggers instead.
+The pull requests are still stored while a project resource or project is switched off. When a project resource is enabled or un-revoked, or its project, repository or provider is switched back on, the backend moves the project resource's cursor to now: what was merged meanwhile gets no trigger. Enabling a disabled project with `backfill: true` creates those triggers instead.

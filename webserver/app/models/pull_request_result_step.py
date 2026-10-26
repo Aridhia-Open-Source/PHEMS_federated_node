@@ -14,8 +14,8 @@ class PullRequestResultStep(str, Enum):
     - OPENED: the pull request from that branch is opened.
     - MERGED: the pull request is merged, as the sync sensor finds on the provider.
     - CLOSED: the pull request is closed without merging, as the sync sensor finds on the provider.
-    - REVOKED: the project's link to the results repository was revoked, so the results are never delivered. Final:
-      un-revoking the link does not deliver them.
+    - REVOKED: the project's resource for the results repository was revoked, so the results are never delivered. Final:
+      un-revoking the project resource does not deliver them.
     - STALE: the task's configuration changed after it was created, so nothing is delivered. Final.
     """
 

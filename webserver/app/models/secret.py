@@ -32,7 +32,7 @@ class Secret(SoftDeleteMixin, db.Model, BaseModel):
     key = sa.Column(sa.String(253), nullable=False)
     # Where the store keeps it, for stores that have such a notion. Set by the backend.
     namespace = sa.Column(sa.String(253), nullable=True)
-    # Turned on or off for the whole node, whatever the projects' links say
+    # Turned on or off for the whole node, whatever the project resources say
     enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
 
     created_at = sqla_column.created_at()

@@ -12,7 +12,7 @@ from flask import Blueprint, request
 from app.dtos.result import dump_result
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.task_config import config_changes, results_link, revoked_resources
+from app.helpers.task_config import config_changes, results_resource, revoked_resources
 from app.helpers.wrappers import audit, auth, system_only
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
@@ -56,7 +56,7 @@ def get_results(project_id: int):
         - step: only the pull request results at this step, repeated for several,
           e.g. ?step=PUSHED&step=OPENED (optional)
         - state: only the pull request results in this state, e.g. ?state=FAILED (optional)
-        - active_link: ?active_link=true keeps only the results whose link to the results repository is active
+        - active_resource: ?active_resource=true keeps only the results whose project resource for the results repository is active
           (enabled, not revoked, on an enabled global repository and provider) (optional)
     """
     Project.get_by_id(project_id)
@@ -77,7 +77,7 @@ def get_results(project_id: int):
         query = query.filter(PullRequestResult.state == state)
     query = query.join(Task, Result.task_id == Task.id).filter(Task.project_id == project_id)
     results = query.order_by(Result.id).all()
-    if request.args.get('active_link') == 'true':
+    if request.args.get('active_resource') == 'true':
         results = [r for r in results if r.assignment.active]
     return [dump_result(r) for r in results], HTTPStatus.OK
 
@@ -101,15 +101,15 @@ def get_result(project_id: int, result_id: int):
 def post_result(project_id: int):
     """
     POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results
-    repository, by pull request. The repository is the global one's id, which the
-    project has to be linked to (a deleted link counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned,
+    repository, by pull request. The repository is the global one's id, which has to
+    be assigned to the project (a deleted project resource counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned,
     after the revoked check below if it is not final yet (step UNKNOWN or PUSHED): when something the task uses is
     revoked by now, it is moved to step REVOKED and state FAILED, with the same error.
     Otherwise 409 unless the task is SUCCESS. When anything the task uses is revoked or deleted (its project, trigger, dataset
     or results repository, see helpers/task_config.revoked_resources) the result is created as final,
-    step REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the link is inactive for another
+    step REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the project resource is inactive for another
     reason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and
-    state FAILED, with the error "results link switched off": the delivery retry sensor delivers it once the link
+    state FAILED, with the error "results resource switched off": the delivery retry sensor delivers it once the project resource
     is active. A task whose configuration changed since it was created (see helpers/task_config) is not delivered:
     its result is created as final, step STALE and state FAILED, with the changes as its error. The checks run in
     that order: revoked, STALE, switched off.
@@ -124,12 +124,12 @@ def post_result(project_id: int):
     if task.project_id != project_id:
         raise DBRecordNotFoundError(f"Task {task.id} does not exist in project {project_id}")
     does_user_own_task(task)
-    # The delivery is tracked against the project's own link to the repository. A deleted link is
+    # The delivery is tracked against the project's own resource for the repository. A deleted project resource is
     # read too: it is revoked, so its delivery gets the final REVOKED result here, the only gate.
-    assignment = results_link(project_id, body['results_repository_id'])
+    assignment = results_resource(project_id, body['results_repository_id'])
     if assignment is None:
         raise InvalidRequest(
-            f"Results repository {body['results_repository_id']} is not linked to project {project_id}"
+            f"Results repository {body['results_repository_id']} is not assigned to project {project_id}"
         )
 
     result = Result.query.filter_by(task_id=task.id, results_repository_id=assignment.id).first()
@@ -169,7 +169,7 @@ def post_result(project_id: int):
         result = PullRequestResult(
             task_id=task.id, results_repository_id=assignment.id,
             step=PullRequestResultStep.UNKNOWN.value, state=ResultState.FAILED.value,
-            error="results link switched off",
+            error="results resource switched off",
         )
         result.add()
         return dump_result(result), HTTPStatus.CREATED

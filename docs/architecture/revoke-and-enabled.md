@@ -1,9 +1,9 @@
 # Revoke and enabled
 
-Two flags control what a project, a GlobalResource or a ProjectResource may do. Entities: [entities.md](entities.md). Flows: [flows.md](flows.md). Decisions: [0006](../../project/decisions/0006-global-resources-and-project-links.md), [0008](../../project/decisions/0008-enabled-revoked-and-soft-delete.md), [0009](../../project/decisions/0009-task-pinned-to-its-configuration.md), [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (`skip_gap` and backfill), [0005](../../project/decisions/0005-state-transition-tables.md) (which moves are a 409).
+Two flags control what a project, a GlobalResource or a ProjectResource may do. Entities: [entities.md](entities.md). Flows: [flows.md](flows.md). Decisions: [0006](../../project/decisions/0006-global-resources-and-project-resources.md), [0008](../../project/decisions/0008-enabled-revoked-and-soft-delete.md), [0009](../../project/decisions/0009-task-pinned-to-its-configuration.md), [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (`skip_gap` and backfill), [0005](../../project/decisions/0005-state-transition-tables.md) (which moves are a 409).
 
 - A **GlobalResource** is a `Dataset`, `TriggerRepository`, `ResultsRepository` or `GitProvider`. A `Secret` is only used by GlobalResources.
-- A **ProjectResource** is a project's link to a GlobalResource: `ProjectDataset`, `ProjectTriggerRepository`, `ProjectResultsRepository`. (`ProjectSecret` exists but nothing reads it.)
+- A **ProjectResource** is a project's own row for a GlobalResource: `ProjectDataset`, `ProjectTriggerRepository`, `ProjectResultsRepository`. (`ProjectSecret` exists but nothing reads it.)
 
 ## The two flags
 
@@ -127,7 +127,7 @@ Disabling a Secret also disables the Datasets, TriggerRepositories and ResultsRe
 
 ## Known limits
 
-- A result recorded before a revoke keeps its step and state until `POST /projects/<pid>/results` is called for it again, which each delivery attempt does first. A non-final `FAILED` result is retried, so after a project, Dataset or TriggerRepository revoke its next attempt sets it `REVOKED`. After a revoke on the results side the retry is paused (only active links are retried), and resumes on un-revoke.
+- A result recorded before a revoke keeps its step and state until `POST /projects/<pid>/results` is called for it again, which each delivery attempt does first. A non-final `FAILED` result is retried, so after a project, Dataset or TriggerRepository revoke its next attempt sets it `REVOKED`. After a revoke on the results side the retry is paused (only active project resources are retried), and resumes on un-revoke.
 - A running task is not stopped. A delivery already past that call is not stopped either, so a push in progress may still complete.
 - A leaked git token must also be revoked at the git host.
 - A project that is both revoked and disabled keeps its waiting tasks waiting, because the launcher only reads enabled projects. They fail once it is enabled.

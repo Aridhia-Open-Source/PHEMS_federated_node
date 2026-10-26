@@ -18,7 +18,7 @@ Records what the git provider says about the pull requests that carry delivered 
 |---|---|---|
 | sensor and job | `GET /projects` | All projects. |
 | sensor and job | `GET /projects/{id}/results` | `step=PUSHED` and `step=OPENED`, any state. `PUSHED` may have a pull request its result missed; `OPENED` may be merged or closed since. |
-| job | `GET /projects/{id}/repositories/results/{repo}` | The project's link to the repository the result was delivered to, which may not be the project's current one. Read once per repository. A deleted link is a 404. |
+| job | `GET /projects/{id}/repositories/results/{repo}` | The project's resource for the repository the result was delivered to, which may not be the project's current one. Read once per repository. A deleted project resource is a 404. |
 | job | git provider | `PUSHED`: the default branch, then the pull request of the result's branch. `OPENED`: the pull request by number. With the ResultsRepository's secret. |
 
 It considers every project, the ProjectResultsRepository of each result (active or not) and the GlobalResource ResultsRepository through it.
@@ -44,8 +44,8 @@ flowchart TD
     A(["Run starts"]) --> B["Read the PUSHED and OPENED results of every project"]
     B --> C{"Next result?"}
     C -->|"none left"| Y([Done])
-    C -->|yes| D["GET the project's link to its results repository"]
-    D -->|404| E["Log: link deleted, skip"]
+    C -->|yes| D["GET the project's resource for its results repository"]
+    D -->|404| E["Log: project resource deleted, skip"]
     E --> C
     D --> F["Build the git client from the repository's secret"]
     F --> G{"Result step"}
@@ -94,6 +94,6 @@ The sensor reads the same list as the job, only to decide whether to launch.
 | State | Effect |
 |---|---|
 | Project disabled or revoked | No effect: all projects are read. |
-| ProjectResultsRepository disabled or revoked, ResultsRepository or GitProvider disabled or revoked | The result is still synced. There is no `active_link` filter: a pull request that exists is recorded whatever the link says. |
+| ProjectResultsRepository disabled or revoked, ResultsRepository or GitProvider disabled or revoked | The result is still synced. There is no `active_resource` filter: a pull request that exists is recorded whatever the project resource says. |
 | ProjectResultsRepository deleted | A 404: logged, the result is skipped. |
 | Secret disabled | The git client cannot be built (`PermissionError`). The run fails at that result, so results after it are not synced until the secret is enabled. |

@@ -1,7 +1,7 @@
 """
-results repository endpoints, global: a project is linked to one under
+results repository endpoints, global: a project is assigned one under
 /projects/<id>/repositories/results (see projects_api.py). Create, edit and delete are admin
-only. Deleting one is a soft delete, refused with a 409 naming the projects it is linked to unless ?force=true. A secret_label naming a disabled secret is a 400 on POST and PATCH.
+only. Deleting one is a soft delete, refused with a 409 naming the projects it is assigned to unless ?force=true. A secret_label naming a disabled secret is a 400 on POST and PATCH.
 - GET /global/repositories/results
 - GET /global/repositories/results/<id>
 - POST /global/repositories/results
@@ -55,7 +55,7 @@ def get_repository(repo_id):
 @auth(scope='can_do_admin')
 def delete_repository(repo_id):
     """
-    DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is linked to, unless ?force=true, which also revokes and deletes their links.
+    DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
     """
     repo = ResultsRepository.get_by_id(repo_id)
     delete_global(repo, repo.project_assignments)
@@ -67,13 +67,13 @@ def delete_repository(repo_id):
 @auth(scope='can_do_admin')
 def post_repository():
     """
-    POST /global/repositories/results/ — create a new repository, linked to no project yet.
+    POST /global/repositories/results/ — create a new repository, assigned to no project yet.
     """
     body = request.json or {}
     if "project_id" in body or "target_dir" in body:
         raise InvalidRequest(
             "project_id and target_dir are not accepted, results repositories are global. "
-            "Link one with PUT /projects/<id>/repositories/results/<repository id>"
+            "Assign one with PUT /projects/<id>/repositories/results/<repository id>"
         )
     req = RepositoryRequest.parse(body)
 

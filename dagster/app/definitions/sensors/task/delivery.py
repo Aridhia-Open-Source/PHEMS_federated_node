@@ -68,7 +68,7 @@ class ResultsDeliveryRetrySensor(LaunchingSensor):
     Relaunches deliver_results_job for each result whose delivery failed and is not final, until it
     has DAGSTER_DELIVERY_MAX_ATTEMPTS failed attempts: after that it stays FAILED until relaunched by
     hand (reset `attempts` with a PATCH, or re-run deliver_results_job). The
-    job resumes from the step the result reached. Only results whose link to the results repository
+    job resumes from the step the result reached. Only results whose project results repository
     is active are retried. The run key names the result and has no state, see run_key: a failing
     delivery is retried at most once per retry interval.
     A delivery with a run still queued or started is skipped, whichever sensor launched it.
@@ -87,7 +87,7 @@ class ResultsDeliveryRetrySensor(LaunchingSensor):
         return [
             result
             for project in self.backend_api.get_projects()
-            for result in self.backend_api.get_results_by_state(project.id, ResultState.FAILED.value, active_link=True)
+            for result in self.backend_api.get_results_by_state(project.id, ResultState.FAILED.value, active_resource=True)
             if result.step not in FINAL and result.attempts < DELIVERY_MAX_ATTEMPTS
         ]
 

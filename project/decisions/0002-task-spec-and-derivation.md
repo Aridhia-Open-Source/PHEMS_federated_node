@@ -11,7 +11,7 @@ The API request body is TES-like (image and env on the first executor), the pull
 - A `Task` is created from a spec and its trigger. What it runs is stored in its own table, `task_specs` (`image`, optional `dataset_id`, `env`), referenced by `tasks.task_spec_id`; `name` and `params` stay on the task.
 - Dagster sends the spec file as read to the backend, which parses and validates it: a 400 there means the backend has already marked the trigger `REJECTED`.
 - The launcher builds the run config from `task.spec` and the dataset, if the spec has one (`build_run_config`). The spec is written to `spec.json` on delivery ([0013](0013-results-delivered-as-branch-and-pull-request.md)).
-- The dataset a spec names must be one the project has an active link to; with none named, the project's default dataset is used ([0006](0006-global-resources-and-project-links.md)).
+- The dataset a spec names must be one assigned to the project and active; with none named, the project's default dataset is used ([0006](0006-global-resources-and-project-resources.md)).
 
 ## Consequences
 

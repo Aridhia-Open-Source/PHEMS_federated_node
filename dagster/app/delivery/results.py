@@ -28,7 +28,7 @@ METADATA_NAME = "metadata.json"
 SPEC_NAME = "spec.json"
 MAX_ERROR_LENGTH = 1000
 REVOKED_ERROR = "results repository access revoked"
-SWITCHED_OFF_ERROR = "results link switched off"
+SWITCHED_OFF_ERROR = "results resource switched off"
 # Past these the pull request is opened, so there is nothing left to deliver.
 PAST_PUSHED = {PullRequestResultStep.OPENED, PullRequestResultStep.MERGED, PullRequestResultStep.CLOSED}
 # REVOKED and STALE are final too, but nothing was delivered.
@@ -58,21 +58,21 @@ class ResultsDelivery:
         IN_PROGRESS: a branch already on the remote is not pushed again, and its pull request
         is looked up before one is opened.
         Where to deliver (the results repository's id and the target_dir) comes from the task's pinned
-        configuration, not from the project's results link, which may be deleted by now. The backend's
+        configuration, not from the project's results resource, which may be deleted by now. The backend's
         POST /results is the only gate: no result is created when it refuses with a 409 (the task is not
         SUCCESS) and a 404 (the project, task or results repository is gone) is final: both are logged and
         skipped, never raised, so nothing retries them.
         A result the backend created at the final step STALE (the task's configuration changed since the task
         was created) is left alone, with a warning.
-        A revoked or deleted link gives a result at the final step REVOKED, nothing is delivered and nothing is raised.
-        A link that is not active for another reason fails the result with an error and
-        raises nothing: its error is "results link switched off", and the retry sensor delivers it once the link is active again.
+        A revoked or deleted project resource gives a result at the final step REVOKED, nothing is delivered and nothing is raised.
+        A project resource that is not active for another reason fails the result with an error and
+        raises nothing: its error is "results resource switched off", and the retry sensor delivers it once the resource is active again.
         Any failure is recorded on the result as an error with one more attempt, its step
         left where it was and its state FAILED, and raised, so the Dagster run fails visibly.
         """
         try:
             task = self.backend_api.get_task(project_id, task_id)
-            # Where to deliver is what the task was created under: its link may be deleted by now
+            # Where to deliver is what the task was created under: its project resource may be deleted by now
             results = self.backend_api.get_task_config(task.project_id, task.id)["config_snapshot"]["results"]
             result = self.backend_api.create_result(task.project_id, task.id, results["repository_id"])
         except requests.HTTPError as e:
@@ -88,8 +88,8 @@ class ResultsDelivery:
             self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")
             return
         if result.state == ResultState.FAILED and result.error == SWITCHED_OFF_ERROR and result.attempts == 0:
-            # Just recorded by the backend, which found the link switched off. The retry sensor
-            # delivers it once the link is active again, with its attempts at 1 by then.
+            # Just recorded by the backend, which found the resource switched off. The retry sensor
+            # delivers it once the resource is active again, with its attempts at 1 by then.
             self.log.warning(f"Results of task {task.id} not delivered: {SWITCHED_OFF_ERROR}")
             self.backend_api.patch_result(task.project_id, result.id, {"attempts": result.attempts + 1})
             return
