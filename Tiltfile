@@ -162,9 +162,11 @@ local_resource(
   labels=['infrastructure'],
 )
 
+# The experiments chart's database, in its own namespace and release rather than the node's
+# (up via experiments/experiments.sh up). It keeps retrying until that release is up.
 local_resource(
   'db-datasets-port-forward',
-  serve_cmd=port_forward_cmd('db-datasets', NAMESPACE, '5433:5432'),
+  serve_cmd=port_forward_cmd('db-datasets', 'experiments', '5433:5432'),
   labels=['infrastructure'],
 )
 

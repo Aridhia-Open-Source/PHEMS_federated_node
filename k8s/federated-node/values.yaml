@@ -120,35 +120,6 @@ db:
     # backend:
     # keycloak:
     # dagster:
-    # datasets:
-    #   superuser:
-    #   uc1:
-
-# A second, in-cluster Postgres holding dataset data - a development fixture. Real
-# datasets are registered through the /global/datasets API. `create` covers deploying the
-# server and creating the roles in `dbs`, so `dbs` without it is rejected.
-datasetDb:
-  create: false
-  # Defaults to the in-cluster Service created alongside it.
-  host: db-datasets
-  port: 5432
-  superuser: postgres
-  secret:
-    name: db-datasets-superuser
-    key: password
-  dbs: {}
-    # uc1:
-    #   name: uc1_omop
-    #   user: uc1_omop_user
-    #   secret:
-    #     name: db-datasets-uc1
-    #     key: password
-    # uc2:
-    #   name: uc2_omop
-    #   user: uc2_omop_user
-    #   secret:
-    #     name: db-datasets-uc2
-    #     key: password
 
 taskReview: false
 

@@ -51,7 +51,7 @@ Run these from the repo root.
    cp k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
    ```
 
-2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` and `datasetDb.host` in `dev.values.yaml` (`db.<namespace>.svc`), and `DOCKER_TAG` must match the tag in the values file. The file explains every other variable.
+2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`), and `DOCKER_TAG` must match the tag in the values file. The file explains every other variable.
 
 3. Fetch the chart's subcharts. `charts/` is gitignored, so a fresh checkout has none and Helm refuses to render.
 
@@ -268,10 +268,10 @@ dagster:
 
 Things that are easy to get wrong:
 
-- **Do not copy values from `dev.values.yaml`.** `local_development`, `create_db_deployment`, `datasetDb`, `gitea`, the `localhost:5001` images and `fnDagster.sensors.minIntervalSeconds: 5` are for development only.
+- **Do not copy values from `dev.values.yaml`.** `local_development`, `create_db_deployment`, `gitea`, the `localhost:5001` images and `fnDagster.sensors.minIntervalSeconds: 5` are for development only.
 - **`fnDagster.db` is removed** and the chart fails if you set it. Dagster's database name and user come from `dagster.postgresql.postgresqlDatabase` and `postgresqlUsername`.
 - **`namespaces` lives under `global`** (`global.namespaces.keycloak`, `.tasks`, `.quarantine`). A top-level `namespaces` fails the render.
-- **Datasets** are not configured here. Register them through the API (`/global/datasets`). `datasetDb` is a development fixture and is rejected without `create: true`.
+- **Datasets** are not configured here. Register them through the API (`/global/datasets`). For a development dataset database, see [experiments/README.md](experiments/README.md).
 - Optional: `taskReview: true` makes tasks wait for approval before they run, and `smoketests: true` lets `helm test` create and delete real rows.
 
 Every value, with comments, is in [k8s/federated-node/values.yaml](k8s/federated-node/values.yaml), and the chart's own README is [k8s/federated-node/README.md](k8s/federated-node/README.md).

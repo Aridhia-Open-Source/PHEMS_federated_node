@@ -92,7 +92,7 @@ def test_dataset_config_defaults_to_the_dummy_dataset():
     config = DatasetConfig()
 
     assert (config.dataset_host, config.dataset_port, config.dataset_type) == (
-        "db-datasets.fn.svc", 5432, "postgres",
+        "db-datasets.experiments.svc", 5432, "postgres",
     )
     assert (config.dataset_read_schema, config.dataset_write_schema) == ("cdm", "results")
     assert (config.dataset_username, config.dataset_password) == ("dummy", "dummy")

@@ -238,23 +238,3 @@ spec:
       "port" (include "dbPort" .)
       "roles" $checkRoles) }}
 {{- end }}
-{{- /* The dataset server is the chart's own, so it follows datasetDb.create alone. */}}
-{{- if .Values.datasetDb.create }}
-{{- $roles := list -}}
-{{- range $key, $cfg := .Values.datasetDb.dbs -}}
-{{- $roles = append $roles (dict "user" $cfg.user "dbname" $cfg.name "secret" $cfg.secret) -}}
-{{- end }}
-{{- if $roles }}
----
-{{ include "fn.dbInitJob" (dict
-      "ctx" .
-      "jobName" "db-datasets-init"
-      "namespace" .Release.Namespace
-      "inCluster" .Values.datasetDb.create
-      "host" .Values.datasetDb.host
-      "port" (.Values.datasetDb.port | default 5432)
-      "superuser" .Values.datasetDb.superuser
-      "superuserSecret" .Values.datasetDb.secret
-      "roles" $roles) }}
-{{- end }}
-{{- end }}
