@@ -13,9 +13,9 @@ from the federated-node chart. The node only sees the dataset that fncli registe
 | Path | Committed | What |
 |---|---|---|
 | `chart/` | yes | the datasets Postgres, plus a database, role and generated password per project |
-| `projects/NAME/project.env` | yes | image, database, and the node project and Gitea repos fncli sets up |
+| `projects/NAME/project.env` | yes | image, database, and the node project and Gitea repos fncli sets up; wins over `.dev.env` and the shell |
 | `projects/NAME/values.yaml` | yes | the project's `dbs.NAME` entry for the chart |
-| `projects/NAME/seed.sh` | yes | prints the SQL that seeds the database |
+| `projects/NAME/seed.sh` | yes | prints the SQL that seeds the database; must be safe to rerun |
 | `sources/NAME/` | no | the image's build context (often its own git repo) |
 | `results/NAME/` | no | output of `run-local` |
 
@@ -27,14 +27,13 @@ Needs the dev cluster up with Tilt (port-forwards for backend 5000, Gitea 4000 a
 `sources/uc1`. Dev mode (`UC1_DEV`) needs its R changes for that, which are not merged there yet.
 
 ```bash
-make experiments up               # release + uc1-omop database
-make experiments seed uc1          # dummy OMOP data + fncli setup-project (project "uc1")
+make experiments setup uc1         # release + uc1-omop database, dummy OMOP data, project "uc1" in the node
 make experiments build uc1         # localhost:5001/uc1-fn:latest (slow: renv restore)
 make experiments run-local uc1     # optional: image straight against the DB, no node
 make experiments run uc1           # trigger PR -> task -> results PR in uc1-results-repo
 ```
 
-Or call `experiments/experiments.sh` directly with the same arguments.
+These call `fncli experiment setup|build|run-local|run uc1`. `setup` and `run` can be rerun after a failure.
 
 `run` and `run-local` pass the project's `DEV_ENV` (JSON, from `project.env`) to the task.
 For UC1 that is `UC1_DEV=1`, a quick run with fewer cohorts. `FULL=1 make experiments run
@@ -46,13 +45,13 @@ uc1` runs the whole study.
    (`server=;database=;port=;uid=;pwd=;`), `CDM_SCHEMA`, `WRITE_SCHEMA`, and writes results
    to `ARTIFACT_PATH`.
 2. Copy `projects/uc1` to `projects/NAME`, then change the names and the seed.
-3. Run `make experiments up`, then `make experiments seed NAME`, `build NAME` and
-   `run NAME`. `up` is an upgrade, so this works on a running cluster.
+3. Run `make experiments setup NAME`, then `build NAME` and `run NAME`. `setup` upgrades the
+   release, so this works on a running cluster.
 
 ## Clean up
 
-- `fncli teardown-project`, with the project's env, removes what `seed` registered in the node.
+- `fncli teardown-project`, with the project's env, removes what `setup` registered in the node.
 - `make experiments down` uninstalls the release. The secrets and database files stay, so a
-  later `up` gets the same data back.
+  later `setup` gets the same data back.
 - Start from empty: `kubectl delete ns experiments`, then delete
   `~/.fn/data/experiments` (Postgres owns it, so you need root or the kind node).
