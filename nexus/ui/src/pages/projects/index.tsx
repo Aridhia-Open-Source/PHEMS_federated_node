@@ -1,8 +1,9 @@
 // Projects list and the project detail shell. The detail tabs are separate page folders
 // (project-resources, project-health, project-triggers, project-tasks, project-results); each gets projectId.
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, call, type Schemas } from "../../api/client";
+import { api, call, pageQuery, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
@@ -14,7 +15,7 @@ import ProjectTriggers from "../project-triggers";
 import ProjectTasks from "../project-tasks";
 import ProjectResults from "../project-results";
 
-type Project = Schemas["ProjectObject"];
+type Project = Schemas["ProjectDTO"];
 const KEY = ["projects"];
 
 const createFields: Field[] = [
@@ -43,7 +44,11 @@ function useSetEnabled(id?: number) {
 
 function ProjectList() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: KEY, queryFn: () => call(api.GET("/projects")) });
+  const [page, setPage] = useState(1);
+  const { data } = useQuery({
+    queryKey: [...KEY, "list", page],
+    queryFn: () => call(api.GET("/projects", { params: { query: pageQuery(page) } })),
+  });
   const setEnabled = useSetEnabled();
   const remove = useMutation({
     mutationFn: (project_id: number) => call(api.DELETE("/projects/{project_id}", { params: { path: { project_id } } })),
@@ -55,15 +60,16 @@ function ProjectList() {
       <Link to="new" className="button">New project</Link>
       <ResourceTable<Project>
         data={data}
-        rowKey={(p) => p.id!}
+        onPage={setPage}
+        rowKey={(p) => p.id}
         columns={[
           { header: "Name", cell: (p) => <Link to={String(p.id)}>{p.name}</Link> },
           { header: "Description", cell: (p) => p.description },
           { header: "Enabled", cell: (p) => (
-            <EnabledToggle enabled={!!p.enabled} onChange={(enabled) => setEnabled.mutate({ project_id: p.id!, enabled })} />
+            <EnabledToggle enabled={p.enabled} onChange={(enabled) => setEnabled.mutate({ project_id: p.id, enabled })} />
           ) },
           { header: "Created", cell: (p) => p.created_at },
-          { header: "", cell: (p) => <DeleteButton what={p.name!} onConfirm={() => remove.mutate(p.id!)} /> },
+          { header: "", cell: (p) => <DeleteButton what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
         ]}
       />
     </section>
@@ -75,7 +81,7 @@ function ProjectCreate() {
   const nav = useNavigate();
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      call(api.POST("/projects", { body: body as Schemas["ProjectPostBody"] })),
+      call(api.POST("/projects", { body: body as Schemas["ProjectRequest"] })),
     onSuccess: (p) => {
       qc.invalidateQueries({ queryKey: KEY });
       nav(`../${p.id}`);
@@ -102,7 +108,7 @@ function ProjectDetail() {
     <section>
       <p><Link to="..">← Projects</Link></p>
       <h1>Project {data.name}</h1>
-      <EnabledToggle enabled={!!data.enabled} busy={setEnabled.isPending}
+      <EnabledToggle enabled={data.enabled} busy={setEnabled.isPending}
         onChange={(enabled) => setEnabled.mutate({ project_id: id, enabled })} />
       <nav className="tabs">
         <NavLink to="" end>Overview</NavLink>

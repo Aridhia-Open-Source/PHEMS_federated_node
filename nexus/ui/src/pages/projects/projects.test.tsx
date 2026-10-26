@@ -3,36 +3,60 @@
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { type Schemas } from "../../api/client";
 import Projects from ".";
 import TriggerRepos from "../trigger-repos";
 
 type Opts = { params?: { path?: Record<string, unknown> } };
+type S = Schemas;
 
-const trigger = {
-  project_id: 1, watch_dir: "specs", base_branch: "main", pr_count: 1, enabled: true, revoked: false, active: true,
-  trigger_repository: { id: 5, repo_path: "org/trig", enabled: true, provider: { id: 1, name: "gh" }, secret: { label: "s" } },
+// Fixtures are typed with the generated DTOs, so they break when the API's shapes change
+const secret: S["SecretDTO"] = {
+  id: 1, label: "s", description: null, provider: "K8S", key: "fn-secret-s", namespace: null, enabled: true,
+  created_at: "2026-01-01 00:00:00", updated_at: "2026-01-01 00:00:00",
 };
+const provider: S["GitProviderRefDTO"] = {
+  id: 1, name: "gh", type: "github", uri: "https://github.com", api_uri: "https://api.github.com", enabled: true, revoked: false,
+};
+const repository: S["TriggerRepositoryDTO"] = {
+  id: 5, uri: "https://github.com/org/trig", repo_path: "org/trig", provider, secret, enabled: true, revoked: false,
+  pr_cursor: "2026-01-01T00:00:00",
+};
+const trigger: S["ProjectTriggerRepositoryDTO"] = {
+  project_id: 1, trigger_repository: repository, watch_dir: "specs", base_branch: "main", dataset_id: null,
+  pr_cursor: "2026-01-01T00:00:00", pr_count: 1, enabled: true, revoked: false, active: true,
+};
+const project: S["ProjectDTO"] = {
+  id: 1, name: "p1", description: null, enabled: true, revoked: false, default_dataset_id: null,
+  created_at: "2026-01-01 00:00:00", updated_at: "2026-01-01 00:00:00",
+};
+const pullRequest: S["PullRequestTriggerDTO"] = {
+  project_id: 1, trigger_repository_id: 5, number: 7, title: "PR seven", raised_by: "u", merge_commit_sha: "abc",
+  merged_at: "2026-01-01T10:00:00", state: "YIELDED", state_cause: null, task_id: 9, spec_files: ["specs/a.json"],
+};
+const task = (id: number, name: string, status: string): S["TaskDTO"] => ({
+  id, name, status, attempt: 1, spec: { image: "img", dataset_id: null, env: {} },
+  created_at: "2026-01-01 00:00:00", updated_at: "2026-01-01 00:00:00", requested_by: "u", project_id: 1,
+  trigger_id: id, executor_run_id: null, exit_code: null, state_cause: null, config_hash: null,
+  started_at: null, completed_at: null,
+});
+const page = { page: 1, per_page: 25, pages: 1 };
+
 const fixtures: Record<string, (o: Opts) => unknown> = {
-  "/projects": () => [{ id: 1, name: "p1", enabled: true }],
-  "/projects/{project_id}": () => ({ id: 1, name: "p1", enabled: true }),
+  "/projects": () => ({ items: [project], total: 1, ...page }) satisfies S["PageDTO_ProjectDTO_"],
+  "/projects/{project_id}": () => project,
   "/projects/{project_id}/repositories/triggers": () => [trigger],
-  "/projects/{project_id}/repositories/triggers/{repository_id}": () => trigger,
-  "/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests": () => ({
-    items: [{ number: 7, title: "PR seven", task_id: 9, state: "YIELDED" }], page: 1, per_page: 20, total: 1,
-  }),
-  "/projects/{project_id}/tasks": () => ({
-    tasks: [
-      { id: 9, name: "from-pr", status: "SUCCESS", attempt: 1 },
-      { id: 10, name: "by-hand", status: "PENDING", attempt: 1 },
-    ],
-    total: 2, page: 1, per_page: 10, pages: 1,
-  }),
+  "/projects/{project_id}/repositories/triggers/{repo_id}": () => trigger,
+  "/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests": () =>
+    ({ items: [pullRequest], total: 1, ...page }) satisfies S["PageDTO_PullRequestTriggerDTO_"],
+  "/projects/{project_id}/tasks": () =>
+    ({ tasks: [task(9, "from-pr", "SUCCESS"), task(10, "by-hand", "PENDING")], total: 2, ...page }) satisfies S["TaskPageDTO"],
   // A task made by hand has no pull request trigger: 404
   "/projects/{project_id}/tasks/{task_id}/trigger": (o) =>
     o.params?.path?.task_id === 9
-      ? { number: 7, trigger_repository_id: 5, trigger_repository: { id: 5, repo_path: "org/trig" } }
+      ? ({ ...pullRequest, trigger_repository: { id: 5, repo_path: "org/trig", uri: repository.uri } }) satisfies S["TaskTriggerDTO"]
       : undefined,
-  "/global/repositories/triggers/{id}": () => trigger.trigger_repository,
+  "/global/repositories/triggers/{repo_id}": () => repository,
   "/global/providers": () => [],
   "/global/secrets": () => [],
 };

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, call, type Page, type Schemas } from "../../api/client";
+import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
@@ -10,7 +10,7 @@ import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
 import { DatasetUsedBy } from "../../shared/UsedBy";
 
-type Dataset = Schemas["DatasetObject"];
+type Dataset = Schemas["DatasetDTO"];
 const KEY = ["datasets"];
 
 export default function DatasetsPage() {
@@ -27,11 +27,7 @@ function useSetEnabled() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
-      call(api.PATCH("/global/datasets/{id}", {
-        params: { path: { id } },
-        // The spec types the PATCH body as the full POST body, but any subset of fields is valid
-        body: { enabled } as Schemas["DatasetPostBody"],
-      })),
+      call(api.PATCH("/global/datasets/{dataset_id}", { params: { path: { dataset_id: id } }, body: { enabled } })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
       qc.invalidateQueries({ queryKey: ["projects"] }); // "Used by" shows the projects' resources
@@ -43,8 +39,8 @@ function useRemove(onDone?: () => void) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, force }: { id: number; force: boolean }) =>
-      call(api.DELETE("/global/datasets/{id}", {
-        params: { path: { id }, query: force ? { force: true } : {} },
+      call(api.DELETE("/global/datasets/{dataset_id}", {
+        params: { path: { dataset_id: id }, query: force ? { force: true } : {} },
       })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
@@ -57,8 +53,7 @@ function DatasetList() {
   const [page, setPage] = useState(1);
   const { data } = useQuery({
     queryKey: [...KEY, "list", page],
-    queryFn: async () =>
-      (await call(api.GET("/global/datasets", { params: { query: { page } } }))) as Page<Dataset>,
+    queryFn: () => call(api.GET("/global/datasets", { params: { query: { page } } })),
   });
   const setEnabled = useSetEnabled();
   const remove = useRemove();
@@ -69,17 +64,17 @@ function DatasetList() {
       <ResourceTable<Dataset>
         data={data}
         onPage={setPage}
-        rowKey={(d) => d.id!}
+        rowKey={(d) => d.id}
         columns={[
           { header: "Name", cell: (d) => <Link to={String(d.id)}>{d.name}</Link> },
           { header: "Host", cell: (d) => (d.port ? `${d.host}:${d.port}` : d.host) },
           { header: "Type", cell: (d) => d.type },
-          { header: "Secret", cell: (d) => d.secret?.label },
+          { header: "Secret", cell: (d) => d.secret.label },
           { header: "Enabled", cell: (d) => (
-            <EnabledToggle enabled={!!d.enabled} onChange={(enabled) => setEnabled.mutate({ id: d.id!, enabled })} />
+            <EnabledToggle enabled={d.enabled} onChange={(enabled) => setEnabled.mutate({ id: d.id, enabled })} />
           ) },
           { header: "", cell: (d) => (
-            <DeleteButton what={d.name!} allowForce onConfirm={(force) => remove.mutate({ id: d.id!, force })} />
+            <DeleteButton what={d.name} allowForce onConfirm={(force) => remove.mutate({ id: d.id, force })} />
           ) },
         ]}
       />
@@ -99,7 +94,7 @@ function DatasetCreate() {
       name: "secret_label",
       label: "credentials secret",
       type: "select",
-      options: (secrets.data ?? []).map((s) => s.label!),
+      options: (secrets.data ?? []).map((s) => s.label),
       required: true,
       help: "A secret with the keys USERNAME and PASSWORD",
     },
@@ -113,7 +108,7 @@ function DatasetCreate() {
   ];
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      call(api.POST("/global/datasets", { body: body as Schemas["DatasetPostBody"] })),
+      call(api.POST("/global/datasets", { body })),
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: KEY });
       nav(`../${d.id}`);
@@ -134,11 +129,11 @@ function DatasetDetail() {
   const nav = useNavigate();
   const { data } = useQuery({
     queryKey: [...KEY, id],
-    queryFn: () => call(api.GET("/global/datasets/{id}", { params: { path: { id } } })),
+    queryFn: () => call(api.GET("/global/datasets/{dataset_id}", { params: { path: { dataset_id: id } } })),
   });
   const health = useQuery({
     queryKey: [...KEY, id, "health"],
-    queryFn: () => call(api.GET("/global/datasets/{id}/healthcheck", { params: { path: { id } } })),
+    queryFn: () => call(api.GET("/global/datasets/{dataset_id}/healthcheck", { params: { path: { dataset_id: id } } })),
     enabled: false,
   });
   const setEnabled = useSetEnabled();
@@ -149,8 +144,8 @@ function DatasetDetail() {
       <p><Link to="..">← Datasets</Link></p>
       <h1>Dataset {data.name}</h1>
       <p>
-        <EnabledToggle enabled={!!data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />{" "}
-        <DeleteButton what={data.name!} allowForce onConfirm={(force) => remove.mutate({ id, force })} />
+        <EnabledToggle enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />{" "}
+        <DeleteButton what={data.name} allowForce onConfirm={(force) => remove.mutate({ id, force })} />
       </p>
       <Json value={data} />
       <h2>Healthcheck</h2>

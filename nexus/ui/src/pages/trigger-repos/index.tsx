@@ -1,6 +1,5 @@
-// Trigger repositories: list, create, enable toggle, revoke, delete (force), detail with
+// Trigger repositories: list, create, enable toggle, revoke/restore, delete (force), detail with
 // healthcheck, edit and the projects using it. Pull requests live under a project's Triggers tab.
-import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { api, call, type Schemas } from "../../api/client";
@@ -9,14 +8,14 @@ import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
-import { showToast } from "../../shared/toast";
+import { RevokeButton } from "../../shared/RevokeButton";
 import { TriggerUsedBy } from "../../shared/UsedBy";
 
-type Repo = Schemas["TriggerRepositoryObject"];
+type Repo = Schemas["TriggerRepositoryDTO"];
 const KEY = ["trigger-repos"];
 
 // The form's select works on strings: providers are shown as "<id>: <name>" and the id is parsed back.
-const providerOption = (p: { id?: number; name?: string }) => `${p.id}: ${p.name}`;
+const providerOption = (p: { id: number; name: string }) => `${p.id}: ${p.name}`;
 const providerId = (v: unknown) => parseInt(String(v), 10);
 
 function useProviders() {
@@ -41,7 +40,7 @@ function useSetEnabled() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
-      call(api.PATCH("/global/repositories/triggers/{id}", { params: { path: { id } }, body: { enabled } })),
+      call(api.PATCH("/global/repositories/triggers/{repo_id}", { params: { path: { repo_id: id } }, body: { enabled } })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
       qc.invalidateQueries({ queryKey: ["projects"] }); // "Used by" shows the projects' resources
@@ -49,14 +48,14 @@ function useSetEnabled() {
   });
 }
 
-function useRevoke() {
+function useSetRevoked() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => call(api.POST("/global/repositories/triggers/{id}/revoke", { params: { path: { id } } })),
-    onSuccess: (resources) => {
-      showToast(`Revoked ${resources.length} project resource(s)`, "info");
+    mutationFn: ({ id, revoked }: { id: number; revoked: boolean }) =>
+      call(api.PATCH("/global/repositories/triggers/{repo_id}", { params: { path: { repo_id: id } }, body: { revoked } })),
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
-      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["projects"] }); // "Used by" shows the projects' resources
     },
   });
 }
@@ -65,7 +64,7 @@ function useRemove(onDone?: () => void) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, force }: { id: number; force: boolean }) =>
-      call(api.DELETE("/global/repositories/triggers/{id}", { params: { path: { id }, query: { force } } })),
+      call(api.DELETE("/global/repositories/triggers/{repo_id}", { params: { path: { repo_id: id }, query: { force } } })),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEY });
       onDone?.();
@@ -73,22 +72,10 @@ function useRemove(onDone?: () => void) {
   });
 }
 
-function RevokeButton({ id, onRevoke }: { id: number; onRevoke: () => void }) {
-  const [open, setOpen] = useState(false);
-  if (!open) return <button onClick={() => setOpen(true)}>Revoke project resources</button>;
-  return (
-    <span className="confirm" role="dialog">
-      Revoke every project resource of #{id}?
-      <button className="danger" onClick={() => { setOpen(false); onRevoke(); }}>Yes</button>
-      <button onClick={() => setOpen(false)}>No</button>
-    </span>
-  );
-}
-
 function RepoList() {
   const { data } = useQuery({ queryKey: KEY, queryFn: () => call(api.GET("/global/repositories/triggers")) });
   const setEnabled = useSetEnabled();
-  const revoke = useRevoke();
+  const revoke = useSetRevoked();
   const remove = useRemove();
   return (
     <section>
@@ -96,21 +83,23 @@ function RepoList() {
       <Link to="new" className="button">New trigger repository</Link>
       <ResourceTable<Repo>
         data={data}
-        rowKey={(r) => r.id!}
+        rowKey={(r) => r.id}
         columns={[
           { header: "Id", cell: (r) => <Link to={String(r.id)}>{r.id}</Link> },
           { header: "Repository", cell: (r) => <Link to={String(r.id)}>{r.repo_path}</Link> },
-          { header: "Provider", cell: (r) => r.provider?.name },
-          { header: "Secret", cell: (r) => r.secret?.label },
+          { header: "Provider", cell: (r) => r.provider.name },
+          { header: "Secret", cell: (r) => r.secret.label },
           { header: "Cursor", cell: (r) => r.pr_cursor },
+          { header: "Revoked", cell: (r) => (r.revoked ? "yes" : "") },
           { header: "Enabled", cell: (r) => (
-            <EnabledToggle enabled={!!r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id!, enabled })} />
+            <EnabledToggle enabled={r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id, enabled })} />
           ) },
           { header: "", cell: (r) => (
             <>
-              <RevokeButton id={r.id!} onRevoke={() => revoke.mutate(r.id!)} />{" "}
-              <DeleteButton what={r.repo_path ?? String(r.id)} allowForce
-                onConfirm={(force) => remove.mutate({ id: r.id!, force })} />
+              <RevokeButton revoked={r.revoked} what={r.repo_path}
+                onChange={(revoked) => revoke.mutate({ id: r.id, revoked })} />{" "}
+              <DeleteButton what={r.repo_path} allowForce
+                onConfirm={(force) => remove.mutate({ id: r.id, force })} />
             </>
           ) },
         ]}
@@ -129,13 +118,13 @@ function RepoCreate() {
       options: providers.data?.map(providerOption) ?? [] },
     { name: "repo_path", required: true, help: "owner/name on the provider" },
     { name: "secret_label", label: "secret", type: "select", required: true,
-      options: secrets.data?.map((s: Schemas["SecretObject"]) => s.label!) ?? [] },
+      options: secrets.data?.map((s: Schemas["SecretDTO"]) => s.label) ?? [] },
     { name: "enabled", type: "checkbox" },
   ];
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       call(api.POST("/global/repositories/triggers", {
-        body: { ...body, provider_id: providerId(body.provider_id) } as Schemas["GitRepositoryPostBody"],
+        body: { ...body, provider_id: providerId(body.provider_id) } as Schemas["RepositoryRequest"],
       })),
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: KEY });
@@ -160,29 +149,29 @@ function RepoDetail() {
   const secrets = useSecretLabels();
   const { data } = useQuery({
     queryKey: [...KEY, id],
-    queryFn: () => call(api.GET("/global/repositories/triggers/{id}", { params: { path: { id } } })),
+    queryFn: () => call(api.GET("/global/repositories/triggers/{repo_id}", { params: { path: { repo_id: id } } })),
   });
   const health = useQuery({
     queryKey: [...KEY, id, "health"],
-    queryFn: () => call(api.GET("/global/repositories/triggers/{id}/healthcheck", { params: { path: { id } } })),
+    queryFn: () => call(api.GET("/global/repositories/triggers/{repository_id}/healthcheck", { params: { path: { repository_id: id } } })),
     enabled: false,
   });
   const update = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      call(api.PATCH("/global/repositories/triggers/{id}", {
-        params: { path: { id } },
-        body: { ...body, provider_id: providerId(body.provider_id) } as Schemas["GitRepositoryPatchBody"],
+      call(api.PATCH("/global/repositories/triggers/{repo_id}", {
+        params: { path: { repo_id: id } },
+        body: { ...body, provider_id: providerId(body.provider_id) },
       })),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
-  const revoke = useRevoke();
+  const revoke = useSetRevoked();
   const remove = useRemove(() => nav(".."));
   if (!data) return <p>Loading…</p>;
   const editFields: Field[] = [
     { name: "provider_id", label: "provider", type: "select", required: true,
       options: providers.data?.map(providerOption) ?? [] },
     { name: "secret_label", label: "secret", type: "select", required: true,
-      options: secrets.data?.map((s: Schemas["SecretObject"]) => s.label!) ?? [] },
+      options: secrets.data?.map((s: Schemas["SecretDTO"]) => s.label) ?? [] },
     { name: "enabled", type: "checkbox" },
   ];
   return (
@@ -190,8 +179,9 @@ function RepoDetail() {
       <p><Link to="..">← Trigger repositories</Link></p>
       <h1>Trigger repository {data.repo_path}</h1>
       <p>
-        <RevokeButton id={id} onRevoke={() => revoke.mutate(id)} />{" "}
-        <DeleteButton what={data.repo_path ?? String(id)} allowForce
+        <RevokeButton revoked={data.revoked} what={data.repo_path}
+          onChange={(revoked) => revoke.mutate({ id, revoked })} />{" "}
+        <DeleteButton what={data.repo_path} allowForce
           onConfirm={(force) => remove.mutate({ id, force })} />
       </p>
       <Json value={data} />
@@ -200,7 +190,7 @@ function RepoDetail() {
         <DtoForm key={JSON.stringify(data)} fields={editFields} submitLabel="Update" busy={update.isPending}
           initial={{
             provider_id: data.provider ? providerOption(data.provider) : "",
-            secret_label: data.secret?.label,
+            secret_label: data.secret.label,
             enabled: data.enabled,
           }}
           onSubmit={(b) => update.mutate(b)} />

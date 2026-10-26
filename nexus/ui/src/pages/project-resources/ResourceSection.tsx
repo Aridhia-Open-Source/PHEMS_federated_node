@@ -4,11 +4,11 @@ import { ResourceTable, type Column } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
+import type { Flags } from "../../shared/projectResources";
 
-type ResourceFlags = { enabled?: boolean; revoked?: boolean; active?: boolean };
 export type Option = { value: string; label: string };
 
-type Props<T extends ResourceFlags> = {
+type Props<T extends Flags> = {
   title: string;
   resources: T[] | undefined;
   rowKey: (r: T) => string | number;
@@ -26,7 +26,7 @@ type Props<T extends ResourceFlags> = {
   help?: string;
 };
 
-export function ResourceSection<T extends ResourceFlags>(p: Props<T>) {
+export function ResourceSection<T extends Flags>(p: Props<T>) {
   const [picked, setPicked] = useState("");
   const [missing, setMissing] = useState(false);
   return (
@@ -38,7 +38,7 @@ export function ResourceSection<T extends ResourceFlags>(p: Props<T>) {
         columns={[
           ...p.columns,
           { header: "Enabled", cell: (r) => (
-            <EnabledToggle enabled={!!r.enabled} onChange={(enabled) => p.onToggle(r, enabled)} />
+            <EnabledToggle enabled={r.enabled} onChange={(enabled) => p.onToggle(r, enabled)} />
           ) },
           { header: "Status", cell: (r) => (r.revoked ? "revoked" : r.active ? "active" : "inactive") },
           { header: "", cell: (r) => (r.revoked ? null : (

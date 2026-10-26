@@ -1,32 +1,14 @@
 // Tasks tab (read-only): the project's tasks, paged, and one task with its trigger, config,
-// results and logs. The spec's task types don't match what the webserver sends (see Task
-// below), so the task responses are cast to a local type.
+// results and logs.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Route, Routes, useParams } from "react-router-dom";
-import { api, call, quietApi, type Page } from "../../api/client";
+import { api, call, pageQuery, quietApi, type Page, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
 import { pullRequestPath, taskPath } from "../../shared/projectResources";
 
-// The webserver's TaskDTO. The list is { tasks, total, page, per_page, pages }, not the
-// spec's { items, ..., total_pages }, and status is a string, not the spec's object.
-type Task = {
-  id: number;
-  name: string;
-  status: string | null;
-  attempt: number;
-  trigger_id: number;
-  state_cause: string | null;
-  exit_code: number | null;
-  executor_run_id: string | null;
-  requested_by: string;
-  created_at: string;
-  updated_at: string;
-  started_at: string | null;
-  completed_at: string | null;
-};
-type TaskPageWire = { tasks?: Task[]; items?: Task[]; total: number; page: number; per_page: number };
+type Task = Schemas["TaskDTO"];
 
 export default function ProjectTasks({ projectId }: { projectId: number }) {
   return (
@@ -50,8 +32,8 @@ function TaskTrigger({ projectId, taskId }: { projectId: number; taskId: number 
   if (isPending) return <>…</>;
   if (!data) return <>–</>;
   return (
-    <Link to={pullRequestPath(projectId, data.trigger_repository_id!, data.number!)}>
-      {data.trigger_repository?.repo_path} #{data.number}
+    <Link to={pullRequestPath(projectId, data.trigger_repository_id, data.number)}>
+      {data.trigger_repository.repo_path} #{data.number}
     </Link>
   );
 }
@@ -60,11 +42,12 @@ function TaskList({ projectId }: { projectId: number }) {
   const [page, setPage] = useState(1);
   const { data } = useQuery({
     queryKey: ["projects", projectId, "tasks", "list", page],
+    // The task list calls its array `tasks`, the other pages `items`
     queryFn: async (): Promise<Page<Task>> => {
-      const raw = (await call(
-        api.GET("/projects/{project_id}/tasks", { params: { path: { project_id: projectId }, query: { page } } }),
-      )) as unknown as TaskPageWire;
-      return { items: (raw.tasks ?? raw.items)!, page: raw.page, per_page: raw.per_page, total: raw.total };
+      const { tasks, ...rest } = await call(
+        api.GET("/projects/{project_id}/tasks", { params: { path: { project_id: projectId }, query: pageQuery(page) } }),
+      );
+      return { items: tasks, ...rest };
     },
   });
   return (
@@ -94,8 +77,7 @@ function TaskDetail({ projectId }: { projectId: number }) {
   const path = { project_id: projectId, task_id: taskId };
   const { data } = useQuery({
     queryKey: ["projects", projectId, "tasks", taskId],
-    queryFn: async () =>
-      (await call(api.GET("/projects/{project_id}/tasks/{task_id}", { params: { path } }))) as unknown as Task,
+    queryFn: () => call(api.GET("/projects/{project_id}/tasks/{task_id}", { params: { path } })),
   });
   const config = useQuery({
     queryKey: ["projects", projectId, "tasks", taskId, "config"],
@@ -105,14 +87,13 @@ function TaskDetail({ projectId }: { projectId: number }) {
     queryKey: ["projects", projectId, "tasks", taskId, "results"],
     queryFn: () => call(api.GET("/projects/{project_id}/tasks/{task_id}/results", { params: { path } })),
   });
-  // On request only: the endpoint can answer 501 (not implemented)
+  // On request only: the endpoint answers 501 (not implemented) and has no response schema
   const logs = useQuery({
     queryKey: ["projects", projectId, "tasks", taskId, "logs"],
     queryFn: () => call(api.GET("/projects/{project_id}/tasks/{task_id}/logs", { params: { path } })),
     enabled: false,
   });
   if (!data) return <p>Loading…</p>;
-  const lines = logs.data?.logs;
   return (
     <section>
       <p><Link to={`/projects/${projectId}/tasks`}>← Tasks</Link></p>
@@ -125,7 +106,7 @@ function TaskDetail({ projectId }: { projectId: number }) {
       {results.data !== undefined ? <Json value={results.data} /> : <p>Loading…</p>}
       <h3>Logs</h3>
       <button onClick={() => logs.refetch()} disabled={logs.isFetching}>Load logs</button>
-      {lines !== undefined && <pre className="json">{Array.isArray(lines) ? lines.join("\n") : lines}</pre>}
+      {logs.data !== undefined && <Json value={logs.data} />}
     </section>
   );
 }

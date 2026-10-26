@@ -4,7 +4,7 @@
 import { api, call } from "../api/client";
 
 export type Kind = "triggers" | "results" | "datasets" | "secrets";
-export type Flags = { enabled?: boolean; revoked?: boolean; active?: boolean };
+export type Flags = { enabled: boolean; revoked: boolean; active: boolean };
 
 export const resourceKey = (projectId: number, kind: Kind) => ["projects", projectId, "resources", kind] as const;
 
@@ -51,11 +51,11 @@ export const secretResources = (project_id: number) => ({
   queryFn: () => call(api.GET("/projects/{project_id}/secrets", { params: { path: { project_id } } })),
 });
 
-export const triggerResource = (project_id: number, repository_id: number) => ({
-  queryKey: [...resourceKey(project_id, "triggers"), repository_id],
+export const triggerResource = (project_id: number, repo_id: number) => ({
+  queryKey: [...resourceKey(project_id, "triggers"), repo_id],
   queryFn: () =>
-    call(api.GET("/projects/{project_id}/repositories/triggers/{repository_id}", {
-      params: { path: { project_id, repository_id } },
+    call(api.GET("/projects/{project_id}/repositories/triggers/{repo_id}", {
+      params: { path: { project_id, repo_id } },
     })),
 });
 export const resultsResource = (project_id: number, repository_id: number) => ({

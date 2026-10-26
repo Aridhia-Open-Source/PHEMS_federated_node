@@ -7,29 +7,29 @@ import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
 import { resourcePath, type Kind } from "../../shared/projectResources";
 
-type Health = Schemas["ProjectHealthObject"];
+type Health = Schemas["ProjectHealthDTO"];
 type Row = {
   kind: string;
   // The kind's route segment and the global repository's id: the project resource's page
   route: Kind;
-  id?: number;
-  uri?: string;
-  status?: string;
-  message?: string;
+  id: number;
+  uri: string;
+  status: string;
+  message: string;
   http?: number | null;
   latency?: number | null;
 };
 
 function rows(h: Health): Row[] {
-  const triggers = (h.trigger_repositories ?? []).map((t) => ({
+  const triggers = h.trigger_repositories.map((t) => ({
     kind: "Trigger repository",
     route: "triggers" as const,
     id: t.id,
     uri: t.uri,
     status: t.status,
-    message: t.health_check?.message,
-    http: t.health_check?.status_code,
-    latency: t.health_check?.latency_ms,
+    message: t.health_check.message,
+    http: t.health_check.status_code,
+    latency: t.health_check.latency_ms,
   }));
   const r = h.results_repository;
   const results = r
@@ -39,9 +39,9 @@ function rows(h: Health): Row[] {
         id: r.id,
         uri: r.uri,
         status: r.status,
-        message: r.health_check?.message,
-        http: r.health_check?.status_code,
-        latency: r.health_check?.latency_ms,
+        message: r.health_check.message,
+        http: r.health_check.status_code,
+        latency: r.health_check.latency_ms,
       }]
     : [];
   return [...triggers, ...results];
@@ -65,7 +65,7 @@ export default function ProjectHealth({ projectId }: { projectId: number }) {
             empty="No project resources"
             columns={[
               { header: "Resource", cell: (r) => r.kind },
-              { header: "Repository", cell: (r) => <Link to={resourcePath(projectId, r.route, r.id!)}>{r.uri}</Link> },
+              { header: "Repository", cell: (r) => <Link to={resourcePath(projectId, r.route, r.id)}>{r.uri}</Link> },
               { header: "Status", cell: (r) => r.status },
               { header: "Message", cell: (r) => r.message },
               { header: "HTTP", cell: (r) => r.http ?? "" },
