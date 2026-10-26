@@ -50,8 +50,9 @@ uc1` runs the whole study.
 
 ## Clean up
 
-- `fncli teardown-project`, with the project's env, removes what `setup` registered in the node.
-- `make experiments down` uninstalls the release. The secrets and database files stay, so a
-  later `setup` gets the same data back.
+- `make experiments teardown NAME` removes what `setup` registered in the node for NAME. The
+  release and its database stay.
+- `make experiments down` tears down every experiment's node project, then uninstalls the
+  release. The secrets and database files stay, so a later `setup` gets the same data back.
 - Start from empty: `kubectl delete ns experiments`, then delete
   `~/.fn/data/experiments` (Postgres owns it, so you need root or the kind node).
