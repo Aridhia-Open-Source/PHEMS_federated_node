@@ -76,7 +76,7 @@ docker_build_with_restart(
 NEXUS_ENABLED = os.getenv('NEXUS_API_ENABLED', 'false') == 'true'
 if NEXUS_ENABLED:
   docker_build_with_restart(
-    '{}/nexus-api'.format(DOCKER_REGISTRY),
+    '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
     'nexus/api',
     entrypoint=[
       'uvicorn', '--factory', 'app:create_app', '--reload',
@@ -142,14 +142,14 @@ local_resource(
 # NEXUS ADMIN UI
 # ==============================================================================
 # Vite dev server with hot reload of nexus/ui/src, at http://localhost:5173/nexus-ui/.
-# It proxies /nexus-ui/api to nexus on 5002 when NEXUS_API_ENABLED, else to the Flask backend on 5000
+# It proxies /nexus-ui/api to nexus on 5004 when NEXUS_API_ENABLED, else to the Flask backend on 5000
 # (5001 is the image registry).
 local_resource(
   'nexus-ui',
   cmd='cd nexus/ui && npm ci',
   deps=['nexus/ui/package.json', 'nexus/ui/package-lock.json'],
   serve_cmd='cd nexus/ui && npm run dev -- --strictPort',
-  serve_env={'VITE_BACKEND_URL': 'http://localhost:5002' if NEXUS_ENABLED else 'http://localhost:5000'},
+  serve_env={'VITE_BACKEND_URL': 'http://localhost:5004' if NEXUS_ENABLED else 'http://localhost:5000'},
   links=['http://localhost:5173/nexus-ui/'],
   labels=['dev'],
 )
@@ -172,7 +172,7 @@ local_resource(
 k8s_resource('backend', port_forwards=['5000:5000'])
 if NEXUS_ENABLED:
   # 5001 is the local image registry
-  k8s_resource('nexus-api', port_forwards=['5002:5000'])
+  k8s_resource('nexus-api', port_forwards=['5004:5000'])
 
 # kubectl port-forward exits when one of its connections breaks, and Tilt does not start
 # a serve_cmd again once it has exited. Loop, so a dead forward comes back after a second.
@@ -202,9 +202,12 @@ local_resource(
   labels=['infrastructure'],
 )
 
+# The experiments chart's database, in its own namespace. Waits quietly until
+# `make experiments up` has created it.
 local_resource(
   'db-datasets-port-forward',
-  serve_cmd=port_forward_cmd('db-datasets', NAMESPACE, '5433:5432'),
+  serve_cmd='while true; do kubectl get svc db-datasets -n experiments >/dev/null 2>&1 && ' +
+            'kubectl port-forward svc/db-datasets -n experiments 5433:5432; sleep 5; done',
   labels=['infrastructure'],
 )
 

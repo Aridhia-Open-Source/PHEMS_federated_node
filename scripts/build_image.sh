@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="${1:?Usage: build_image.sh <dir> [tag]}"
+DIR="${1:?Usage: build_image.sh <dir> [tag] [image name]}"
 TAG="${2:-latest}"
 REGISTRY="localhost:5001"
 
@@ -11,7 +11,7 @@ if [[ ! -d "$DIR" ]]; then
 fi
 
 BASENAME="$(basename "$DIR")"
-IMAGE_NAME="${BASENAME}-fn"
+IMAGE_NAME="${3:-${BASENAME}-fn}"
 IMAGE_REF="$REGISTRY/$IMAGE_NAME"
 
 cd "$DIR"
