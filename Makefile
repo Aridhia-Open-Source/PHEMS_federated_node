@@ -102,10 +102,10 @@ tilt-open:
 	tilt open
 
 # Real experiments against the node, see experiments/README.md
-# make experiments up | down | seed uc1 | build uc1 | run uc1 | run-local uc1
+# make experiments setup uc1 | build uc1 | run uc1 | run-local uc1 | teardown uc1 | down
 .PHONY: experiments
 experiments:
-	@./experiments/experiments.sh $(filter-out $@,$(MAKECMDGOALS))
+	@fncli experiment $(filter-out $@,$(MAKECMDGOALS))
 
 nuke:
 	./scripts/nuke.sh

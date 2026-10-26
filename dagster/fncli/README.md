@@ -196,7 +196,7 @@ all documented in `.dev.env.example`: the existing ones, plus `TEST_RESULTS_REPO
 `TEST_RESULTS_REPO_URI`, `TEST_RESULTS_TARGET_DIR`, `GITEA_RESULTS_TOKEN_NAME` (must differ
 from `GITEA_TOKEN_NAME`), `DEFAULT_PROJECT_DATASET` and `TEST_PR_IMAGE`.
 
-The dataset defaults to a dummy stand-in. These env vars point it at a real database (all optional, defaults in brackets): `CLUSTER_DATASET_HOST` (`db-datasets.experiments.svc`), `DATASET_PORT` (`5432`), `DATASET_TYPE` (`postgres`), `DATASET_SCHEMA` (`cdm`, the read schema), `DATASET_SCHEMA_WRITE` (`results`), `DATASET_USERNAME` and `DATASET_PASSWORD` (`dummy`, stored in the dataset's secret). `experiments/experiments.sh seed` sets them for a real experiment.
+The dataset defaults to a dummy stand-in. These env vars point it at a real database (all optional, defaults in brackets): `CLUSTER_DATASET_HOST` (`db-datasets.experiments.svc`), `DATASET_PORT` (`5432`), `DATASET_TYPE` (`postgres`), `DATASET_SCHEMA` (`cdm`, the read schema), `DATASET_SCHEMA_WRITE` (`results`), `DATASET_USERNAME` and `DATASET_PASSWORD` (`dummy`, stored in the dataset's secret). `fncli experiment setup NAME` sets them for a real experiment.
 
 ## State and rules (for the end-to-end suites)
 
@@ -233,7 +233,18 @@ On GitHub (`TEST_GIT_PROVIDER=github`, see `.demo-github.env.example`) the repo 
 
 ## Real experiments
 
-`experiments/experiments.sh seed NAME` loads an experiment's dummy data, then runs `fncli setup-project` with the experiment's own project, repos, tokens and `DATASET_*` values from `experiments/projects/NAME/project.env`. See [experiments/README.md](../../experiments/README.md).
+`fncli experiment` runs a real experiment against the dev node. Its names are in `experiments/projects/NAME/project.env`, which wins over `.dev.env` and the shell. Run it from inside the repo.
+
+```bash
+fncli experiment setup NAME      # release + database + seed + setup-project; safe to rerun
+fncli experiment build NAME      # docker build + push of the image
+fncli experiment run NAME        # start-sensor, then open-pr --merge --watch; FULL=1 leaves out DEV_ENV
+fncli experiment run-local NAME  # the image in docker against the database, no node
+fncli experiment teardown NAME   # remove NAME's node project, global resources and Gitea repos
+fncli experiment down            # teardown every experiment, then uninstall the release (secrets and database files stay)
+```
+
+`setup` runs, in order: `helm upgrade --install` of the `experiments` release, the project's `seed.sh` over `kubectl exec` (which recreates its schemas), then `setup-project` with `CLUSTER_DATASET_HOST=db-datasets.experiments.svc`, `DATASET_PORT=5432` and the generated database password. `make experiments setup NAME` calls it. See [experiments/README.md](../../experiments/README.md).
 
 ## Maintenance
 
