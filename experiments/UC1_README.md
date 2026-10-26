@@ -8,7 +8,9 @@ mechanics are in [README.md](README.md).
 ## Today: by hand
 
 Needs the dev cluster up with Tilt (or the port-forwards for backend 5000, Gitea 4000 and
-Dagster 3000), `fncli` on PATH, and `.dev.env` at the repo root.
+Dagster 3000), `fncli` on PATH, and `.dev.env` at the repo root. Run everything from the repo
+root. If `make experiments` says "No such command", reinstall fncli from this checkout:
+`pipx install --force --editable './dagster[cli]'`.
 
 ```bash
 git clone https://github.com/PHDS-centralized-services/MVP-Code experiments/sources/uc1
@@ -29,6 +31,18 @@ failure from a node one.
 
 A full run takes about 8 minutes, nearly all of it in the R cohort building. The data is
 small (832 patients); the time goes on the many small queries the R packages run.
+
+### Tear down and redeploy
+
+```bash
+make experiments teardown uc1   # remove project "uc1", its global resources and Gitea repos
+make experiments down           # or: teardown every experiment, then uninstall the release
+make experiments setup uc1      # back again (the database files survive `down`)
+make experiments run uc1        # `build uc1` first only if the source changed
+```
+
+To start from empty data, after `down`: `kubectl delete ns experiments` and
+`sudo rm -rf ~/.fn/data/experiments`.
 
 ### Dev mode
 
