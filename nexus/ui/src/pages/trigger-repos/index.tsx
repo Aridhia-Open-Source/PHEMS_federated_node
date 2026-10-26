@@ -1,18 +1,18 @@
 // Trigger repositories: list, create, enable toggle, revoke, delete (force), detail with
-// healthcheck, edit and the stored pull requests (read-only, paged).
+// healthcheck, edit and the projects using it. Pull requests live under a project's Triggers tab.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, call, type Page, type Schemas } from "../../api/client";
+import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
 import { showToast } from "../../shared/toast";
+import { TriggerUsedBy } from "../../shared/UsedBy";
 
 type Repo = Schemas["TriggerRepositoryObject"];
-type PullRequest = Schemas["PullRequestFacts"];
 const KEY = ["trigger-repos"];
 
 // The form's select works on strings: providers are shown as "<id>: <name>" and the id is parsed back.
@@ -50,8 +50,8 @@ function useRevoke() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => call(api.POST("/global/repositories/triggers/{id}/revoke", { params: { path: { id } } })),
-    onSuccess: (links) => {
-      showToast(`Revoked ${links.length} project link(s)`, "info");
+    onSuccess: (resources) => {
+      showToast(`Revoked ${resources.length} project resource(s)`, "info");
       qc.invalidateQueries({ queryKey: KEY });
     },
   });
@@ -71,10 +71,10 @@ function useRemove(onDone?: () => void) {
 
 function RevokeButton({ id, onRevoke }: { id: number; onRevoke: () => void }) {
   const [open, setOpen] = useState(false);
-  if (!open) return <button onClick={() => setOpen(true)}>Revoke links</button>;
+  if (!open) return <button onClick={() => setOpen(true)}>Revoke project resources</button>;
   return (
     <span className="confirm" role="dialog">
-      Revoke every project's link to #{id}?
+      Revoke every project resource of #{id}?
       <button className="danger" onClick={() => { setOpen(false); onRevoke(); }}>Yes</button>
       <button onClick={() => setOpen(false)}>No</button>
     </span>
@@ -152,7 +152,6 @@ function RepoDetail() {
   const id = Number(useParams().id);
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [page, setPage] = useState(1);
   const providers = useProviders();
   const secrets = useSecretLabels();
   const { data } = useQuery({
@@ -163,12 +162,6 @@ function RepoDetail() {
     queryKey: [...KEY, id, "health"],
     queryFn: () => call(api.GET("/global/repositories/triggers/{id}/healthcheck", { params: { path: { id } } })),
     enabled: false,
-  });
-  const prs = useQuery({
-    queryKey: [...KEY, id, "pull_requests", page],
-    queryFn: () => call(api.GET("/global/repositories/triggers/{id}/pull_requests", {
-      params: { path: { id }, query: { page } },
-    })),
   });
   const update = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -211,22 +204,7 @@ function RepoDetail() {
       <h2>Healthcheck</h2>
       <button onClick={() => health.refetch()}>Run healthcheck</button>
       {health.data !== undefined && <Json value={health.data} />}
-      <h2>Pull requests</h2>
-      <ResourceTable<PullRequest>
-        data={prs.data as Page<PullRequest> | undefined}
-        onPage={setPage}
-        rowKey={(p) => p.id!}
-        empty="No pull requests stored"
-        columns={[
-          { header: "Number", cell: (p) => p.number },
-          { header: "Title", cell: (p) => p.title },
-          { header: "Raised by", cell: (p) => p.raised_by },
-          { header: "Merged at", cell: (p) => p.merged_at },
-          { header: "Base branch", cell: (p) => p.base_branch },
-          { header: "Commit", cell: (p) => p.merge_commit_sha?.slice(0, 8) },
-          { header: "Truncated", cell: (p) => (p.files_truncated ? "yes" : "") },
-        ]}
-      />
+      <TriggerUsedBy id={id} />
     </section>
   );
 }

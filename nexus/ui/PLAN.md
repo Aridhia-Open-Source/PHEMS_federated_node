@@ -58,21 +58,27 @@ These are the most-used setup paths. See `dagster/fncli/cmds/demo.py` and `MANAG
 
 **Project detail, `/projects/:id`:**
 5. **Create and enable:** create a project (it starts disabled), then enable or disable it (`PATCH /projects/{id}`).
-6. **Links:**
+6. **Resources** (a project's own row for a global resource):
    - a trigger repo: `PUT /projects/{id}/repositories/triggers/{rid}` with watch_dir and base_branch
    - a results repo: `PUT .../repositories/results/{rid}` with target_dir
    - datasets: `PUT /projects/{id}/datasets/{did}`
    - secrets: `PUT /projects/{id}/secrets/{label}`
+   - each one has a detail page (`resources/<kind>/<id>`): settings, state and toggle, its healthcheck, a link to the global resource; trigger repos also list their pull requests.
 7. **Healthcheck panel:** `GET /projects/{id}/healthcheck`.
 
 **Project activity (read-only):** these are the records the Dagster sensors change.
 
-8. **Pull requests and tasks:** `GET /projects/{id}/repositories/triggers/{rid}/pull_requests` and `/projects/{id}/tasks/{tid}`.
-9. **Results:** `GET /projects/{id}/results`.
+8. **Triggers tab:** the project's trigger repositories -> their pull requests (`GET /projects/{id}/repositories/triggers/{rid}/pull_requests`) -> one pull request, with a link to its task.
+9. **Tasks tab:** `GET /projects/{id}/tasks` (paged) -> one task (`/projects/{id}/tasks/{tid}` plus `/config`, `/results`, `/logs`, `/trigger`).
+10. **Results:** `GET /projects/{id}/results`.
+
+**Project tabs:** `Overview | Resources | Healthcheck | Triggers | Tasks | Results`.
+
+**Used by:** each global resource page (secrets, providers, trigger/results repositories, datasets) lists the project resources that use it (providers: the repositories on them), linking to the project resource's page.
 
 **Later:** users, and the Dagster sensors view (`/dagster/sensors`).
 
 ## Verification
 - `tsc` and `npm run build` are clean, and the Vitest tests pass.
 - `helm template` renders with `nexus.ui.enabled=true`.
-- The user does a manual pass locally, against Tilt or a cluster: secret → provider → trigger repo → results repo → dataset → project → links → enable → healthcheck.
+- The user does a manual pass locally, against Tilt or a cluster: secret → provider → trigger repo → results repo → dataset → project → resources → enable → healthcheck.

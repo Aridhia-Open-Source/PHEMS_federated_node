@@ -7,6 +7,7 @@ import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
+import { SecretUsedBy } from "../../shared/UsedBy";
 
 type Secret = Schemas["SecretObject"];
 const KEY = ["secrets"];
@@ -119,6 +120,7 @@ function SecretDetail() {
       <h2>Healthcheck</h2>
       <button onClick={() => health.refetch()}>Run healthcheck</button>
       {health.data !== undefined && <Json value={health.data} />}
+      <SecretUsedBy label={label} />
     </section>
   );
 }

@@ -1,5 +1,5 @@
 // Projects list and the project detail shell. The detail tabs are separate page folders
-// (project-links, project-health, project-activity, project-results); each gets projectId.
+// (project-resources, project-health, project-triggers, project-tasks, project-results); each gets projectId.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { api, call, type Schemas } from "../../api/client";
@@ -8,9 +8,10 @@ import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
-import ProjectLinks from "../project-links";
+import ProjectResources from "../project-resources";
 import ProjectHealth from "../project-health";
-import ProjectActivity from "../project-activity";
+import ProjectTriggers from "../project-triggers";
+import ProjectTasks from "../project-tasks";
 import ProjectResults from "../project-results";
 
 type Project = Schemas["ProjectObject"];
@@ -83,7 +84,7 @@ function ProjectCreate() {
   return (
     <section>
       <h1>New project</h1>
-      <p>Projects start disabled. Link repositories, datasets and secrets, then enable it.</p>
+      <p>Projects start disabled. Assign repositories, datasets and secrets, then enable it.</p>
       <DtoForm fields={createFields} submitLabel="Create" busy={create.isPending} onSubmit={(b) => create.mutate(b)} />
     </section>
   );
@@ -105,16 +106,18 @@ function ProjectDetail() {
         onChange={(enabled) => setEnabled.mutate({ project_id: id, enabled })} />
       <nav className="tabs">
         <NavLink to="" end>Overview</NavLink>
-        <NavLink to="links">Links</NavLink>
+        <NavLink to="resources">Resources</NavLink>
         <NavLink to="health">Healthcheck</NavLink>
-        <NavLink to="activity">Pull requests and tasks</NavLink>
+        <NavLink to="triggers">Triggers</NavLink>
+        <NavLink to="tasks">Tasks</NavLink>
         <NavLink to="results">Results</NavLink>
       </nav>
       <Routes>
         <Route index element={<Json value={data} />} />
-        <Route path="links/*" element={<ProjectLinks projectId={id} />} />
+        <Route path="resources/*" element={<ProjectResources projectId={id} />} />
         <Route path="health/*" element={<ProjectHealth projectId={id} />} />
-        <Route path="activity/*" element={<ProjectActivity projectId={id} />} />
+        <Route path="triggers/*" element={<ProjectTriggers projectId={id} />} />
+        <Route path="tasks/*" element={<ProjectTasks projectId={id} />} />
         <Route path="results/*" element={<ProjectResults projectId={id} />} />
       </Routes>
     </section>

@@ -8,6 +8,7 @@ import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
+import { ResultsUsedBy } from "../../shared/UsedBy";
 
 type Repo = Schemas["ResultsRepositoryObject"];
 type Provider = Schemas["GitProviderObject"];
@@ -54,8 +55,8 @@ function useRepoActions(afterDelete?: () => void) {
   const revoke = useMutation({
     mutationFn: (id: number) =>
       call(api.POST("/global/repositories/results/{id}/revoke", { params: { path: { id } } })),
-    onSuccess: (ids) => {
-      showToast(`Revoked ${ids.length} project link(s)`, "info");
+    onSuccess: (resources) => {
+      showToast(`Revoked ${resources.length} project resource(s)`, "info");
       refresh();
     },
   });
@@ -93,7 +94,7 @@ function RepoList() {
             <EnabledToggle enabled={!!r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id!, enabled })} />
           ) },
           { header: "", cell: (r) => (
-            <button onClick={() => revoke.mutate(r.id!)}>Revoke links</button>
+            <button onClick={() => revoke.mutate(r.id!)}>Revoke project resources</button>
           ) },
           { header: " ", cell: (r) => (
             <DeleteButton what={r.repo_path!} allowForce onConfirm={(force) => remove.mutate({ id: r.id!, force })} />
@@ -172,7 +173,7 @@ function RepoDetail() {
       <Json value={data} />
       <p>
         <EnabledToggle enabled={!!data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />{" "}
-        <button onClick={() => revoke.mutate(id)}>Revoke links</button>{" "}
+        <button onClick={() => revoke.mutate(id)}>Revoke project resources</button>{" "}
         <DeleteButton what={data.repo_path!} allowForce
           onConfirm={(force) => remove.mutate({ id, force })} />
       </p>
@@ -187,6 +188,7 @@ function RepoDetail() {
       <h2>Healthcheck</h2>
       <button onClick={() => health.refetch()}>Run healthcheck</button>
       {health.data !== undefined && <Json value={health.data} />}
+      <ResultsUsedBy id={id} />
     </section>
   );
 }

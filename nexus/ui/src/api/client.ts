@@ -45,6 +45,11 @@ const errors: Middleware = {
 export const api = createClient<paths>({ baseUrl: API_BASE });
 api.use(auth, errors);
 
+// Same as `api` without the error toasts, for calls where a 4xx is an expected answer
+// (a task created by hand has no pull request trigger: 404).
+export const quietApi = createClient<paths>({ baseUrl: API_BASE });
+quietApi.use(auth);
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);

@@ -136,8 +136,39 @@ function ProviderDetail() {
       <h2>Healthcheck</h2>
       <button onClick={() => health.refetch()} disabled={health.isFetching}>Run healthcheck</button>
       {health.data !== undefined && <Json value={health.data} />}
+      <ProviderUsedBy id={id} />
       <h2>Delete</h2>
       <DeleteButton what={data.name!} onConfirm={() => remove.mutate()} />
+    </section>
+  );
+}
+
+// The global repositories on this provider
+type UsedByRow = { kind: string; to: string; repo: Schemas["TriggerRepositoryObject"] | Schemas["ResultsRepositoryObject"] };
+
+function ProviderUsedBy({ id }: { id: number }) {
+  const triggers = useQuery({ queryKey: ["trigger-repos"], queryFn: () => call(api.GET("/global/repositories/triggers")) });
+  const results = useQuery({ queryKey: ["results-repos"], queryFn: () => call(api.GET("/global/repositories/results")) });
+  const rows: UsedByRow[] | undefined =
+    triggers.data && results.data
+      ? [
+          ...triggers.data.map((repo) => ({ kind: "Trigger repository", to: `/global/repositories/triggers/${repo.id}`, repo })),
+          ...results.data.map((repo) => ({ kind: "Results repository", to: `/global/repositories/results/${repo.id}`, repo })),
+        ].filter((r) => r.repo.provider?.id === id)
+      : undefined;
+  return (
+    <section>
+      <h2>Used by</h2>
+      <ResourceTable<UsedByRow>
+        data={rows}
+        rowKey={(r) => r.to}
+        empty="No repository uses this provider"
+        columns={[
+          { header: "Kind", cell: (r) => r.kind },
+          { header: "Repository", cell: (r) => <Link to={r.to}>{r.repo.repo_path}</Link> },
+          { header: "Enabled", cell: (r) => (r.repo.enabled ? "yes" : "no") },
+        ]}
+      />
     </section>
   );
 }

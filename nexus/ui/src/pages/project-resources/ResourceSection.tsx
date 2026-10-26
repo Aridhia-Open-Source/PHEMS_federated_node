@@ -1,18 +1,18 @@
-// One link sub-section: table of current links, add form (pick from the global list), unlink.
+// One resource sub-section: table of the project's resources, assign form (pick from the global list), unassign.
 import { useState } from "react";
 import { ResourceTable, type Column } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 
-type LinkFlags = { enabled?: boolean; revoked?: boolean; active?: boolean };
+type ResourceFlags = { enabled?: boolean; revoked?: boolean; active?: boolean };
 export type Option = { value: string; label: string };
 
-type Props<T extends LinkFlags> = {
+type Props<T extends ResourceFlags> = {
   title: string;
-  links: T[] | undefined;
-  rowKey: (l: T) => string | number;
-  name: (l: T) => string;
+  resources: T[] | undefined;
+  rowKey: (r: T) => string | number;
+  name: (r: T) => string;
   columns: Column<T>[];
   // The global list to pick from
   options: Option[] | undefined;
@@ -21,32 +21,32 @@ type Props<T extends LinkFlags> = {
   initial?: Record<string, unknown>;
   onAdd: (picked: string, body: Record<string, unknown>) => void;
   busy: boolean;
-  onToggle: (l: T, enabled: boolean) => void;
-  onUnlink: (l: T) => void;
+  onToggle: (r: T, enabled: boolean) => void;
+  onUnassign: (r: T) => void;
   help?: string;
 };
 
-export function LinkSection<T extends LinkFlags>(p: Props<T>) {
+export function ResourceSection<T extends ResourceFlags>(p: Props<T>) {
   const [picked, setPicked] = useState("");
   const [missing, setMissing] = useState(false);
   return (
     <section>
       <h2>{p.title}</h2>
       <ResourceTable<T>
-        data={p.links}
+        data={p.resources}
         rowKey={p.rowKey}
         columns={[
           ...p.columns,
-          { header: "Enabled", cell: (l) => (
-            <EnabledToggle enabled={!!l.enabled} onChange={(enabled) => p.onToggle(l, enabled)} />
+          { header: "Enabled", cell: (r) => (
+            <EnabledToggle enabled={!!r.enabled} onChange={(enabled) => p.onToggle(r, enabled)} />
           ) },
-          { header: "Status", cell: (l) => (l.revoked ? "revoked" : l.active ? "active" : "inactive") },
-          { header: "", cell: (l) => (l.revoked ? null : (
-            <DeleteButton label="Unlink" what={p.name(l)} onConfirm={() => p.onUnlink(l)} />
+          { header: "Status", cell: (r) => (r.revoked ? "revoked" : r.active ? "active" : "inactive") },
+          { header: "", cell: (r) => (r.revoked ? null : (
+            <DeleteButton label="Unassign" what={p.name(r)} onConfirm={() => p.onUnassign(r)} />
           )) },
         ]}
       />
-      <h3>Add {p.title.toLowerCase()}</h3>
+      <h3>Assign {p.title.toLowerCase()}</h3>
       {p.help && <p><small>{p.help}</small></p>}
       <div className="form">
         <label>
@@ -60,7 +60,7 @@ export function LinkSection<T extends LinkFlags>(p: Props<T>) {
         <DtoForm
           fields={p.fields}
           initial={p.initial}
-          submitLabel="Link"
+          submitLabel="Assign"
           busy={p.busy}
           onSubmit={(body) => {
             if (!picked) return setMissing(true);

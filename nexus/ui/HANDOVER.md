@@ -10,7 +10,16 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 - Shared components in `src/shared/`: `ResourceTable` (array or page), `DtoForm` (fields list), `DeleteButton` (optional force checkbox), `EnabledToggle`, `Json`, `toast`.
 - Example pages: `src/pages/secrets` (list, create, set values, enable toggle, delete, healthcheck) and `src/pages/projects` (list, create, delete, enable toggle, detail shell with tabs).
 - Routing/nav: `src/routes.tsx` registers every page; stubs exist for all fan-out pages.
-- All planned pages built (Sonnet fan-out): providers, trigger-repos (with PR view), results-repos, datasets, project-links, project-health, project-activity (PRs + task detail), project-results. Type-checked, not yet clicked through in a browser.
+- All planned pages built (Sonnet fan-out): providers, trigger-repos, results-repos, datasets, project-resources, project-health, project-results. Type-checked, not yet clicked through in a browser.
+- Project "links" are now called **project resources** (a project's own row for a global resource). Buttons say Assign/Unassign, query keys are `["projects", id, "resources", kind]`.
+- Project page tabs: `Overview | Resources | Healthcheck | Triggers | Tasks | Results` (`src/pages/projects/index.tsx`).
+  - `resources/*` (`project-resources`): the four lists with Assign/Unassign, plus a detail page per project resource at `resources/<kind>/<id>`, kind = `triggers | results | datasets | secrets` (secrets are keyed by label). The detail shows settings, state with the enable toggle, a healthcheck button, a link to the global resource, and (triggers) the pull requests.
+  - `triggers/*` (`project-triggers`, was `project-activity`): trigger repositories -> `:repoId` pull requests (paged) -> `:repoId/pull_requests/:number` (facts + link to its task). `PullRequestList` is shared with the trigger resource page.
+  - `tasks/*` (`project-tasks`): paged table (id, name, status, trigger repo / PR, attempt, started, completed) -> `:taskId` (task, config, results, logs on a button).
+- Global resource pages (secrets, providers, trigger repos, results repos, datasets) have a **Used by** section (`src/shared/UsedBy.tsx`): `GET /projects`, then each project's resources of the kind (`useQueries`, same keys as the Resources tab), filtered to the global resource; each row links to that project resource's page. Providers list the global trigger/results repositories on them instead. The global trigger repository page no longer lists pull requests.
+- `src/shared/projectResources.ts`: kinds, absolute paths (`resourcePath`, `pullRequestPath`, `taskPath`, ...) and the query options for project resources. Use them for links so route segment, query key and link can't drift.
+- `quietApi` (`src/api/client.ts`) is `api` without error toasts, for calls where a 4xx is an answer (`GET .../tasks/{id}/trigger` is 404 for a task made by hand).
+- 3 smoke tests in `src/pages/projects/projects.test.tsx` (api client mocked): Tasks tab, trigger resource page, Used by.
 - `gen:api` uses `--default-non-nullable false`, so fields with a spec default (e.g. `enabled` on PATCH bodies) stay optional.
 - `tsc`, `vite build` and `vitest` clean at the last push.
 - `Dockerfile` (node build, then `nginx-unprivileged` on 8080) with `nginx/default.conf.template`: serves `/nexus-ui/`, proxies `/nexus-ui/api/` to `$BACKEND_URL`.
@@ -22,8 +31,8 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 - Nothing running.
 
 ## Next
-- Manual pass against Tilt or a cluster: secret → provider → trigger repo → results repo → dataset → project → links → enable → healthcheck. Fix what breaks.
-- Small cleanups the agents flagged: DtoForm selects hold strings, so repo pages encode provider as "id: name" and parse it back (a `{value,label}` option type in DtoForm would remove that); project-links global pickers don't hide already-linked items.
+- Manual pass against Tilt or a cluster: secret → provider → trigger repo → results repo → dataset → project → resources → enable → healthcheck. Fix what breaks.
+- Small cleanups the agents flagged: DtoForm selects hold strings, so repo pages encode provider as "id: name" and parse it back (a `{value,label}` option type in DtoForm would remove that); project-resources global pickers don't hide already-assigned items.
 - CI workflow to build and push the nexus-ui image.
 - Later: users, Dagster sensors view (`/dagster/sensors`).
 
@@ -58,7 +67,7 @@ Read this file, then `git show origin/nexus/api:nexus/api/CONTRACT.md`, then `PL
 8. Report API mismatches (spec vs what you needed) in your final message.
 
 ## Fan-out pages (one agent per folder)
-All eight planned pages are DONE (providers, trigger-repos, results-repos, datasets, project-links, project-health, project-activity, project-results). Don't re-spawn them.
+All eight planned pages are DONE (providers, trigger-repos, results-repos, datasets, project-resources, project-health, project-triggers, project-results; project-tasks was added later). Don't re-spawn them.
 
 Remaining (the plan's "Later"):
 | Folder | Page | Endpoints |
@@ -81,7 +90,12 @@ After the wave the lead runs `npx tsc --noEmit && npm run build && npm test`, co
 - `GET /projects/{id}/tasks/{task_id}` is typed as `TaskById[]`; Flask returns one object. `TaskById.status` is `{running, terminated, waiting}`, unlike the status enum elsewhere.
 - Page schemas (`PullRequestFactsPage`, `PullRequestTriggerPage`, `DatasetList`) have all-optional fields; pages cast to `Page<T>`. Mark `items/total/page/per_page` required.
 - `GET /projects/{id}/results` is a plain array (not paged).
-- Project link DELETE is a soft revoke (rows stay as revoked); linking a results repo needs the project disabled (409 otherwise).
+- Project resource DELETE is a soft revoke (rows stay as revoked); assigning a results repo needs the project disabled (409 otherwise).
+- `GET /projects/{id}/tasks` answers `{tasks, total, page, per_page, pages}`, not the spec's `{items, ..., total_pages}`; `TaskById` is out of date too: the real task has `name` (not `title`), `status` as a string, `attempt`, `trigger_id`, `state_cause`, and GET-one returns one object. The Tasks tab casts to a local `Task` type and accepts `tasks` or `items`.
+- The task list carries no trigger repository or pull request number. The Tasks tab asks `GET .../tasks/{id}/trigger` per row (404 = made by hand). A `trigger` summary on the task (repository id, PR number) would remove the N+1.
+- `GET .../tasks/{id}/logs` answers 501 today (not implemented); the UI loads it on a button.
+- Nothing lists the project resources that use a global resource, so "Used by" fetches every project's resources. A `GET /global/.../{id}/projects` would replace that.
+- The spec still says `active_link` (query param of the results API); the UI doesn't pass it. Regenerate `schema.d.ts` when the spec is renamed to `active_resource`.
 - `CONTRACT.md` was absent on `origin/nexus/api` at start (2026-10-24). The UI was built against `webserver/app/static/openapi.json`. Switch to `nexus/api/openapi.json` when it lands (edit `gen:api`).
 - ~~Port 5001 clash~~: settled, nexus is on 5002 (vite default updated).
 - Keep: list responses for secrets/projects as plain arrays (or tell us when they become pages), `/login` as multipart form, `{"error", "details"}` error bodies.
