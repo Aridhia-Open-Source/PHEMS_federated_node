@@ -162,11 +162,12 @@ local_resource(
   labels=['infrastructure'],
 )
 
-# The experiments chart's database, in its own namespace and release rather than the node's
-# (up via experiments/experiments.sh up). It keeps retrying until that release is up.
+# The experiments chart's database, in its own namespace and release rather than the node's.
+# Waits quietly until `make experiments up` has created it.
 local_resource(
   'db-datasets-port-forward',
-  serve_cmd=port_forward_cmd('db-datasets', 'experiments', '5433:5432'),
+  serve_cmd='while true; do kubectl get svc db-datasets -n experiments >/dev/null 2>&1 && ' +
+            'kubectl port-forward svc/db-datasets -n experiments 5433:5432; sleep 5; done',
   labels=['infrastructure'],
 )
 
