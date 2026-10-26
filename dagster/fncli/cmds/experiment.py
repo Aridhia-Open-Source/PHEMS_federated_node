@@ -1,7 +1,7 @@
 """
 `fncli experiment` runs real experiments against the dev node, see experiments/README.md.
 Each experiment's names are in experiments/projects/NAME/project.env (no secrets), which wins
-over .dev.env and the shell. `setup` and `run` can be repeated after a failure.
+over .dev.env and the shell. `setup`, `run` and `teardown` can be repeated after a failure.
 """
 
 import json
@@ -16,7 +16,7 @@ from dotenv import find_dotenv, load_dotenv
 from pydantic import Field
 
 from app.config import EnvConfig
-from fncli.cmds.actions import open_pr_command, setup_project_command
+from fncli.cmds.actions import open_pr_command, setup_project_command, teardown_project_command
 from fncli.cmds.sensor import start_sensor_command
 from fncli.k8s import get_k8s_secret
 
@@ -219,9 +219,44 @@ def run_local_command(name):
         port_forward.terminate()
 
 
+def project_names() -> list[str]:
+    """Every experiment: the folders under experiments/projects with a project.env."""
+    return sorted(path.parent.name for path in (experiments_dir() / "projects").glob("*/project.env"))
+
+
+def teardown_project(ctx, name: str):
+    """Remove NAME's node project with its global resources and Gitea repos."""
+    config = load_project(name)
+    logger.info(f"=== Tearing down node project {config.project_name} ===")
+    ctx.invoke(teardown_project_command)
+
+
+@experiment_group.command("teardown")
+@name_argument
+@click.confirmation_option(
+    "-y", "--yes", prompt="Delete the project, its secrets and both Gitea repos with all their pull requests?"
+)
+@click.pass_context
+def teardown_command(ctx, name):
+    """
+    Remove what `setup` registered in the node for NAME: its project, global resources and
+    Gitea repos. The experiments release and NAME's database stay. Safe to rerun.
+    """
+    teardown_project(ctx, name)
+
+
 @experiment_group.command("down")
-def down_command():
-    """Uninstall the experiments release. The secrets and database files stay."""
+@click.confirmation_option(
+    "-y", "--yes", prompt="Tear down every experiment's node project and uninstall the experiments release?"
+)
+@click.pass_context
+def down_command(ctx):
+    """
+    Tear down every experiment's node project, then uninstall the experiments release. The
+    secrets and database files stay, so a later `setup` gets the same data back.
+    """
+    for name in project_names():
+        teardown_project(ctx, name)
     run(["helm", "uninstall", RELEASE, "--namespace", NAMESPACE])
 
 
