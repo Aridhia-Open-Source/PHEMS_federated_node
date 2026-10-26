@@ -8,6 +8,7 @@ import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
+import { DatasetUsedBy } from "../../shared/UsedBy";
 
 type Dataset = Schemas["DatasetObject"];
 const KEY = ["datasets"];
@@ -31,7 +32,10 @@ function useSetEnabled() {
         // The spec types the PATCH body as the full POST body, but any subset of fields is valid
         body: { enabled } as Schemas["DatasetPostBody"],
       })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["projects"] }); // "Used by" shows the projects' resources
+    },
   });
 }
 
@@ -152,6 +156,7 @@ function DatasetDetail() {
       <h2>Healthcheck</h2>
       <button onClick={() => health.refetch()}>Run healthcheck</button>
       {health.data !== undefined && <Json value={health.data} />}
+      <DatasetUsedBy id={id} />
     </section>
   );
 }

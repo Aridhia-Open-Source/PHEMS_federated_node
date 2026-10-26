@@ -7,6 +7,7 @@ import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
+import { SecretUsedBy } from "../../shared/UsedBy";
 
 type Secret = Schemas["SecretObject"];
 const KEY = ["secrets"];
@@ -38,7 +39,10 @@ function useSetEnabled() {
   return useMutation({
     mutationFn: ({ label, enabled }: { label: string; enabled: boolean }) =>
       call(api.PATCH("/global/secrets/{label}", { params: { path: { label } }, body: { enabled } })),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: KEY });
+      qc.invalidateQueries({ queryKey: ["projects"] }); // "Used by" shows the projects' resources
+    },
   });
 }
 
@@ -119,6 +123,7 @@ function SecretDetail() {
       <h2>Healthcheck</h2>
       <button onClick={() => health.refetch()}>Run healthcheck</button>
       {health.data !== undefined && <Json value={health.data} />}
+      <SecretUsedBy label={label} />
     </section>
   );
 }
