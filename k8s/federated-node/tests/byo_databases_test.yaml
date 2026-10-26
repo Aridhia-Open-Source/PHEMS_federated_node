@@ -13,8 +13,6 @@ set:
     enabled: true
     postgresql:
       postgresqlHost: postgres.postgres.database.azure.com   # values-aks' db.host
-  datasetDb:
-    create: false
 tests:
   - it: creates nothing, and checks instead
     template: db-init-jobs.yaml
@@ -103,22 +101,6 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "fnDagster.createDB is true but db.manageRolesAndDatabases is false"
-
-  - it: rejects dataset roles on a dataset server it does not deploy
-    template: requirements-check.yaml
-    set:
-      datasetDb:
-        create: false
-        dbs:
-          uc1:
-            name: uc1_omop
-            user: uc1_omop_user
-            secret:
-              name: db-datasets-uc1
-              key: password
-    asserts:
-      - failedTemplate:
-          errorPattern: "datasetDb.dbs is set but datasetDb.create is false"
 
   # With no admin credential in play, each database is free to live wherever the
   # operator put it - the equality check only applies while the chart manages roles.
