@@ -202,8 +202,8 @@ local_resource(
   labels=['infrastructure'],
 )
 
-# The experiments chart's database, in its own namespace. Waits quietly until
-# `make experiments up` has created it.
+# The experiments chart's database, in its own namespace and release rather than the node's.
+# Waits quietly until `make experiments up` has created it.
 local_resource(
   'db-datasets-port-forward',
   serve_cmd='while true; do kubectl get svc db-datasets -n experiments >/dev/null 2>&1 && ' +

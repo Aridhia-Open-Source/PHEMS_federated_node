@@ -30,7 +30,6 @@ storage:
   capacity: 1Gi
   local:
     dbpath: /data/db                   # postgres data
-    datasetDbpath: /data/datasets      # dataset postgres data (datasetDb below)
     artifacts: /data/dagster/artifacts # dagster artifacts volume
 
 # Locally built images; devTag must match DOCKER_TAG in .dev.env. On a real cluster
