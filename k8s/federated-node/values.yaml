@@ -21,7 +21,8 @@ backend:
       name: backend-db
       key: password
 
-# nexus: the FastAPI port of the backend (nexus/api), deployed next to it on the same database.
+# nexus: the FastAPI port of the backend (nexus/api), deployed next to it on the same database,
+# and its admin UI (nexus/ui). image/tag/port are the API's.
 nexus:
   image: ghcr.io/aridhia-open-source/nexus_api
   tag:
@@ -31,6 +32,20 @@ nexus:
     replicas: 1
     # Served on the backend's host under this prefix, stripped before it reaches nexus
     pathPrefix: /nexus
+  ui:
+    enabled: false
+    image: ghcr.io/aridhia-open-source/federated_node_nexus_ui
+    tag:
+    replicas: 1
+    # Where the UI's nginx proxies /nexus-ui/api. Empty: the Flask backend (backendUri)
+    backendUri:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 128Mi
 
 keycloak:
   image: ghcr.io/aridhia-open-source/federated_keycloak

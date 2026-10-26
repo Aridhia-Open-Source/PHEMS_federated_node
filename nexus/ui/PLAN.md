@@ -1,0 +1,78 @@
+# nexus/ui: React admin frontend
+
+## Context
+- **What it is:** a functional admin UI (not polished) for calling the federated node's API. Admins set up global resources and the projects that use them.
+- **Backend:** it targets **nexus**, the FastAPI port of `webserver/` being built on branch `nexus/api` (`nexus/api/PLAN.md`).
+- **Any backend works:** nexus keeps the webserver's wire contract (the same paths, `{"error"}` bodies and pagination keys), so the UI also works against today's Flask webserver.
+
+## Rules
+- **Stack:** Vite, React, TypeScript, openapi-typescript plus openapi-fetch for a typed client, TanStack Query and React Router. No component library unless it saves real time. Plain CSS is fine.
+- **Audience:** admin users only for the first cut. Logins for non-admin project users come later.
+- **Out of scope:** anything under the webserver's `models/extras/` (audit, registries, whitelisted images, DAR).
+- **Base and branch:** base is `dagster-develop`. Work on `nexus/ui`. Don't merge or open a PR unless asked.
+
+## Working arrangement
+- **Handover:** `nexus/ui/HANDOVER.md`, with sections for done / in progress / next / gotchas / how to resume / **Needs from nexus**.
+  - Update it after every milestone (one page done, a build green) and before you stop. Commit it and push it.
+  - A fresh session reads `HANDOVER.md`, then nexus's contract, then this file.
+- **Contract with nexus:** `nexus/api/CONTRACT.md` on `origin/nexus/api` (`git fetch origin nexus/api && git show origin/nexus/api:nexus/api/CONTRACT.md`).
+  - Read it when you start, and again before each wave.
+  - Anything the UI needs from the API goes under "Needs from nexus" in your handover.
+- **Agents:** one strong agent (Opus) does the skeleton, auth, the API client, shared components and two example pages. Sonnet agents then build the remaining pages in parallel, one page folder each.
+- **Tests:** `tsc` and `npm run build` must be clean. Add a few component tests (Vitest) for the shared pieces only. **Never run the repo's e2e tests.**
+
+## API types
+- **First:** generate from `webserver/app/static/openapi.json`, which is hand-written and may be a bit wrong.
+- **Then:** switch to `nexus/api/openapi.json` once `CONTRACT.md` says it has landed (copy it in or fetch it from the nexus branch).
+- **How:** `npm run gen:api` regenerates `src/api/schema.d.ts`.
+
+## Skeleton (Opus)
+- **Project:** `nexus/ui/` with Vite and TypeScript.
+  - In dev, a Vite proxy sends `/api/*` to the backend (`VITE_BACKEND_URL`, default `http://localhost:5001` for nexus).
+  - In the cluster, nginx does the same proxying, so the backend needs no CORS.
+- **Auth:**
+  - The login page posts a form (`username`, `password`) to `/login` and gets `{"token"}` back.
+  - Keep the token in memory plus `sessionStorage`. The client sends `Authorization: Bearer <token>`.
+  - A 401 goes back to login, and a 403 shows "not allowed".
+- **Errors:** show the `{"error"}` body, plus `details` when present, in a toast.
+- **Shared components:**
+  - a paged resource table (`items/total/page/per_page`)
+  - a form built from DTO fields
+  - a delete confirmation with an optional `?force=true`
+  - an enabled/disabled toggle
+- **Example pages:** Secrets (list, create, edit, delete under `/global/secrets`) and the Projects list.
+- **Write-up:** a "how to add a page" checklist in `HANDOVER.md`.
+- **Helm:**
+  - `nexus/ui/Dockerfile`: a Node build stage, then nginx serving `dist/` and proxying `/api` to the nexus service.
+  - `k8s/federated-node/templates/nexus-ui-{deployment,service,http-route}.yaml` behind `nexus.ui.enabled`, modelled on `backend-*.yaml`.
+- **Tilt:** an entry running the Vite dev server, with live update of `src/` and a port-forward (for example 5173).
+
+## Pages (Sonnet fan-out, in the fncli demo's order)
+These are the most-used setup paths. See `dagster/fncli/cmds/demo.py` and `MANAGEMENT.md`.
+
+**Global resources:**
+1. **Git providers:** `/global/providers` (list, create, delete).
+2. **Trigger repositories:** `/global/repositories/triggers` (list, create, enable/revoke, delete with force), plus a read-only pull requests view (`/{id}/pull_requests`).
+3. **Results repositories:** `/global/repositories/results` (the same as trigger repositories).
+4. **Datasets:** `/global/datasets` (paged list, create, view, delete with force).
+
+**Project detail, `/projects/:id`:**
+5. **Create and enable:** create a project (it starts disabled), then enable or disable it (`PATCH /projects/{id}`).
+6. **Links:**
+   - a trigger repo: `PUT /projects/{id}/repositories/triggers/{rid}` with watch_dir and base_branch
+   - a results repo: `PUT .../repositories/results/{rid}` with target_dir
+   - datasets: `PUT /projects/{id}/datasets/{did}`
+   - secrets: `PUT /projects/{id}/secrets/{label}`
+7. **Healthcheck panel:** `GET /projects/{id}/healthcheck`.
+
+**Project activity (read-only):** these are the records the Dagster sensors change.
+
+8. **Pull requests and tasks:** `GET /projects/{id}/repositories/triggers/{rid}/pull_requests` and `/projects/{id}/tasks/{tid}`.
+9. **Results:** `GET /projects/{id}/results`.
+
+**Later:** users, and the Dagster sensors view (`/dagster/sensors`).
+
+## Verification
+- `tsc` and `npm run build` are clean, and the Vitest tests pass.
+- `helm template` renders with `nexus.ui.enabled=true`.
+- The user does a manual pass locally, against Tilt or a cluster: secret → provider → trigger repo → results repo → dataset → project → links → enable → healthcheck.
