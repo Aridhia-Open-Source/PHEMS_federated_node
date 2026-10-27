@@ -995,6 +995,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/global/repositories/triggers/{repo_id}/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Token
+         * @description POST /global/repositories/triggers/<id>/token — a short-lived read token for the repository, minted from the
+         *     credential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the
+         *     repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
+         *     its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
+         *     project or resource still gets a token. Dagster asks at the moment of use.
+         *     Body: {"project_id": int | null}
+         *     Responds with token and expires_at (UTC).
+         */
+        post: operations["post_token_global_repositories_triggers__repo_id__token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/repositories/triggers": {
         parameters: {
             query?: never;
@@ -1401,6 +1427,32 @@ export interface paths {
          *     project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
          */
         patch: operations["patch_repository_global_repositories_results__repo_id__patch"];
+        trace?: never;
+    };
+    "/global/repositories/results/{repo_id}/token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Token
+         * @description POST /global/repositories/results/<id>/token — a short-lived write token for the repository, minted from the
+         *     credential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the
+         *     repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
+         *     its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
+         *     project or resource still gets a token. Dagster asks at the moment of use.
+         *     Body: {"project_id": int | null}
+         *     Responds with token and expires_at (UTC).
+         */
+        post: operations["post_token_global_repositories_results__repo_id__token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/dagster/sensors": {
@@ -1903,6 +1955,24 @@ export interface components {
          * @enum {string}
          */
         GitProviderType: "github" | "gitea";
+        /**
+         * GitTokenDTO
+         * @description A short-lived access token for a repository, and its expiry (UTC). Kept only in the secret's cache.
+         */
+        GitTokenDTO: {
+            /** Token */
+            token: string;
+            /** Expires At */
+            expires_at: string;
+        };
+        /**
+         * GitTokenRequest
+         * @description A request for a repository's git token: the project it is for, if any.
+         */
+        GitTokenRequest: {
+            /** Project Id */
+            project_id?: number | null;
+        };
         /** GlobalHealthDTO */
         GlobalHealthDTO: {
             /** Status */
@@ -4817,6 +4887,41 @@ export interface operations {
             };
         };
     };
+    post_token_global_repositories_triggers__repo_id__token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GitTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitTokenDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_project_trigger_repositories_projects__project_id__repositories_triggers_get: {
         parameters: {
             query?: {
@@ -5733,6 +5838,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_token_global_repositories_results__repo_id__token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["GitTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitTokenDTO"];
                 };
             };
             /** @description Validation Error */

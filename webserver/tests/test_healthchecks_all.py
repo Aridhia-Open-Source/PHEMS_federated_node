@@ -4,12 +4,14 @@ from unittest.mock import MagicMock
 
 import pytest
 import requests
+import responses
 from kubernetes.client.exceptions import ApiException
 
 from app.helpers.base_model import db
 from app.models.dataset import Dataset
 from app.models.git_provider import ConnectionCheck, ConnectionStatus
 from app.models.git_repository import GitRepositoryMixin
+from tests.test_git_tokens import GITEA_KEYS, GITHUB_KEYS, GITHUB_TOKEN_URL, github_answer, use_secret
 
 _REAL_DATASET_PREPARE = Dataset.prepare_connection_check
 _REAL_REPO_PREPARE = GitRepositoryMixin.prepare_connection_check
@@ -114,8 +116,15 @@ def test_disabled_resource_is_still_checked_and_flagged(
 
 @pytest.mark.parametrize("fixture, data, missing", [
     ("global_secret", {"SOMETHING": "YQ=="}, []),  # a secret nobody uses needs no particular key
-    ("global_trigger_repo", {"USERNAME": "YQ==", "PASSWORD": "Yg=="}, ["TOKEN"]),  # repositories need TOKEN
+    ("global_trigger_repo", {"USERNAME": "YQ==", "PASSWORD": "Yg=="}, ["TOKEN"]),  # repositories need a git credential
     ("global_dataset", {"TOKEN": "YQ=="}, ["PASSWORD", "USERNAME"]),  # datasets need USERNAME and PASSWORD
+    # Any complete git credential will do: a TOKEN, GitHub App keys or Gitea OAuth2 keys, with the token cache beside them
+    ("global_trigger_repo", {"TOKEN": "YQ=="}, []),
+    ("global_trigger_repo", dict.fromkeys(GITHUB_KEYS, "YQ=="), []),
+    ("global_results_repo", dict.fromkeys(GITEA_KEYS, "YQ==") | {"CACHED_TOKEN_1_write": "YQ=="}, []),
+    # An incomplete one names what the nearest lacks
+    ("global_trigger_repo", {"APP_ID": "YQ==", "INSTALLATION_ID": "YQ=="}, ["PRIVATE_KEY"]),
+    ("global_results_repo", {"CLIENT_ID": "YQ==", "CLIENT_SECRET": "YQ=="}, ["REFRESH_TOKEN"]),
 ])
 def test_secret_missing_keys_depend_on_its_users(
     client, admin_headers, k8s_client, mock_connection_checks, request, fixture, data, missing
@@ -153,10 +162,11 @@ def test_repository_and_dataset_check_report_secret_missing(
     repo_url = f"/global/repositories/triggers/{global_trigger_repo.id}/healthcheck"
     dataset_url = f"/global/datasets/{global_dataset.id}/healthcheck"
 
-    for data in ({"USERNAME": "YQ==", "PASSWORD": "Yg=="}, None):  # no TOKEN / no data at all
+    for data in ({"USERNAME": "YQ==", "PASSWORD": "Yg=="}, None):  # no git credential / no data at all
         set_secret_data(k8s_client, data)
         r = get(client, admin_headers, repo_url)
         assert r.status_code == 200 and r.json["status"] == "secret_missing"
+        assert "no git credential" in r.json["health_check"]["message"]
     set_secret_data(k8s_client, {"TOKEN": "YQ=="})
     r = get(client, admin_headers, dataset_url)
     assert r.json["status"] == "secret_missing" and "USERNAME" in r.json["health_check"]["message"]
@@ -190,6 +200,50 @@ def test_repository_http_status_and_exceptions_map_to_status(
         assert r.status_code == 200 and r.json["status"] == "unreachable"
         assert r.json["health_check"]["message"] == type(exc).__name__
         assert r.json["health_check"]["status_code"] is None and isinstance(r.json["health_check"]["latency_ms"], int)
+
+
+@pytest.mark.parametrize("fixture, keys, permission, repo_path", [
+    ("global_trigger_repo", GITHUB_KEYS, "read", "triggers"),
+    ("global_results_repo", GITHUB_KEYS, "write", "results-global"),
+])
+def test_repository_check_uses_a_token_minted_from_the_secret(
+    client, admin_headers, k8s_client, mock_connection_checks, mocker, request, fixture, keys, permission, repo_path
+):
+    """Through the same minting the token routes use, for the repository's own permission (the cache is keyed by it)."""
+    mocker.patch.object(GitRepositoryMixin, "prepare_connection_check", _REAL_REPO_PREPARE)
+    repo = request.getfixturevalue(fixture)
+    use_secret(k8s_client, **keys)
+    get_mock = mocker.patch("app.models.git_provider.requests.get", return_value=fake_response(200, {}))
+    kind = "triggers" if fixture == "global_trigger_repo" else "results"
+
+    with responses.RequestsMock() as rsps:
+        rsps.add(responses.POST, GITHUB_TOKEN_URL, json=github_answer("ghs_minted"), status=201)
+        r = get(client, admin_headers, f"/global/repositories/{kind}/{repo.id}/healthcheck")
+        minted_for = rsps.calls[0].request.body
+
+    assert r.status_code == 200 and r.json["status"] == "ok"
+    assert get_mock.call_args.args[0] == f"https://api.github.com/repos/org/{repo_path}"
+    assert get_mock.call_args.kwargs["headers"] == {"Authorization": "Bearer ghs_minted"}
+    assert f'"contents": "{permission}"' in minted_for.decode()
+    assert "ghs_minted" not in r.get_data(as_text=True)
+
+
+def test_repository_check_reports_a_token_that_cannot_be_minted_not_500(
+    client, admin_headers, k8s_client, mock_connection_checks, mocker, global_trigger_repo
+):
+    mocker.patch.object(GitRepositoryMixin, "prepare_connection_check", _REAL_REPO_PREPARE)
+    use_secret(k8s_client, **GITHUB_KEYS)
+    url = f"/global/repositories/triggers/{global_trigger_repo.id}/healthcheck"
+
+    with responses.RequestsMock() as rsps:
+        rsps.add(responses.POST, GITHUB_TOKEN_URL, json={"message": "Bad credentials"}, status=401)
+        r = get(client, admin_headers, url)
+    assert r.status_code == 200 and r.json["status"] == "error" and "Bad credentials" in r.json["health_check"]["message"]
+
+    with responses.RequestsMock() as rsps:
+        rsps.add(responses.POST, GITHUB_TOKEN_URL, body=requests.ConnectionError("down"))
+        r = get(client, admin_headers, url)
+    assert r.status_code == 200 and r.json["status"] == "unreachable" and r.json["health_check"]["message"] == "ConnectionError"
 
 
 def test_dataset_connection_failures_are_reported_not_500(

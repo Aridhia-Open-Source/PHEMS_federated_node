@@ -1,9 +1,10 @@
 import logging
 from http import HTTPStatus
+from typing import Literal
 
 from app.utils import BackendSession
 from app.models import (
-    ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
+    GitToken, ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
     ResultsRepository, Task,
     TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision
 )
@@ -226,6 +227,23 @@ class BackendAPI:
         self.logger.info(f"Fetching results repository {repository_id} of project {project_id}")
         response = self.session.get(f"/projects/{project_id}/repositories/results/{repository_id}")
         return ProjectResultsRepository(**response.json())
+
+    def get_repository_token(
+        self, kind: Literal["trigger", "results"], repository_id: int, project_id: int | None = None
+    ) -> GitToken:
+        """
+        Get a short-lived git token for a global trigger or results repository, from the backend, which is the only
+        reader of the repository's secret. project_id names the project the token is for, None for work on the
+        repository as a whole. 403 if the repository, its provider or its secret is disabled or revoked, or that
+        project or its assignment is revoked (a disabled project still gets one), 404 if the repository is unknown.
+        Never stored: ask again when the token is needed.
+        """
+        self.logger.info(f"Fetching a token for {kind} repository {repository_id}")
+        segment = "triggers" if kind == "trigger" else "results"
+        response = self.session.post(
+            f"/global/repositories/{segment}/{repository_id}/token", json={"project_id": project_id}
+        )
+        return GitToken(**response.json())
 
     def get_task_results(self, project_id: int, task_id: int) -> list[PullRequestResult]:
         """Get the deliveries of a task's results"""
