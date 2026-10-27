@@ -123,6 +123,42 @@ db:
 
 taskReview: false
 
+# Task pods run partner images that hold a dataset's credentials, so the tasks namespace
+# (global.namespaces.tasks) denies all ingress, and all egress except what is listed here.
+# Only enforced by a CNI that enforces NetworkPolicy. See templates/task-network-policy.yaml.
+taskNetworkPolicy:
+  # Where DNS lookups may go (UDP and TCP 53). The default is the cluster DNS of most
+  # distributions; change it for another one (a NodeLocal DNSCache is an ipBlock).
+  dns:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  # Where tasks may reach their dataset's database. Empty by default: a task that needs a
+  # database then times out on connect. One NetworkPolicy egress rule per database, each
+  # with both `to` and `ports`; a policy matches addresses, pods and namespaces, never DNS names.
+  # An external database, by address:
+  #   - to:
+  #       - ipBlock:
+  #           cidr: 10.20.30.0/28
+  #     ports:
+  #       - protocol: TCP
+  #         port: 1433
+  # An in-cluster one, by namespace and pod label:
+  #   - to:
+  #       - namespaceSelector:
+  #           matchLabels:
+  #             kubernetes.io/metadata.name: experiments
+  #         podSelector:
+  #           matchLabels:
+  #             app: experiments-postgres
+  #     ports:
+  #       - protocol: TCP
+  #         port: 5432
+  datasetEgress: []
+
 # firstUserSecret:
   # name:
   # passKey:
