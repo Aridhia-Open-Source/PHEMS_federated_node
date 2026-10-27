@@ -1,10 +1,13 @@
 """Provider-neutral git and zip helpers for pushing files to a repository."""
 
 import base64
+import logging
 import os
 import subprocess
 import zipfile
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 COMMITTER_NAME = "phems-bot"
 COMMITTER_EMAIL = "phems-federated-node@users.noreply.github.com"
@@ -51,11 +54,18 @@ def git(args: list[str], cwd: str | Path | None = None, env: dict[str, str] | No
 
 
 def zip_dir(src: Path, dest_zip: Path) -> None:
-    """Zip a directory into a file."""
+    """
+    Zip a directory into a file. A symbolic link is left out, not followed: it may point out of the
+    directory. So is a file whose name has a backslash, which Windows unzip tools read as a path.
+    """
     with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED) as zf:
         for file in sorted(src.rglob("*")):
-            if file.is_file():
-                zf.write(file, file.relative_to(src))
+            if file.is_file() and not file.is_symlink():
+                name = file.relative_to(src)
+                if "\\" in str(name):
+                    logger.warning(f"Left {name} out of the results: its name has a backslash")
+                    continue
+                zf.write(file, name)
 
 
 def clone(url: str, dest: Path, env: dict[str, str]) -> None:

@@ -2,7 +2,7 @@ import dagster as dg
 
 from app.backend import BackendAPI
 from app.definitions.run_config import build_run_config
-from app.definitions.sensors.base import BaseSensor
+from app.definitions.sensors.base import BaseSensor, artifacts_volume_tags
 from app.models import Task, TaskStatus
 
 
@@ -61,6 +61,7 @@ class TaskLauncherSensor(BaseSensor):
                 "task_id": str(decision.task.id),
                 "attempt": str(decision.task.attempt),
                 "project_id": str(task.project_id),
+                **artifacts_volume_tags(),
             },
             run_config=build_run_config(decision.task.spec, decision.dataset),
         )

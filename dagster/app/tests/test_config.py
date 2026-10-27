@@ -3,6 +3,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.config import (
+    ArtifactsVolumeConfig,
     BackendConfig,
     PipesSecurityContextConfig,
     ResultsDeliveryConfig,
@@ -14,7 +15,7 @@ from app.config import (
 def clean_env(monkeypatch):
     for key in (
         "BACKEND_API_URI", "DAGSTER_KC_USER", "DAGSTER_KC_PASSWORD",
-        "DAGSTER_ARTIFACT_MOUNT_PATH", "GH_RESULTS_DIR", "GH_TOKEN",
+        "DAGSTER_ARTIFACT_MOUNT_PATH", "DAGSTER_ARTIFACTS_PVC_NAME", "GH_RESULTS_DIR", "GH_TOKEN",
         "GH_API_URI", "GH_DELIVERY_REPO", "GH_DELIVERY_BASE_BRANCH",
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
         "DAGSTER_PIPES_RUN_AS_GROUP", "DAGSTER_PIPES_SUPPLEMENTAL_GROUPS",
@@ -120,6 +121,33 @@ class TestPipesSecurityContext:
         monkeypatch.setenv("DAGSTER_PIPES_SUPPLEMENTAL_GROUPS", "")
 
         assert "supplementalGroups" not in PipesSecurityContextConfig().to_pod_security_context()
+
+
+    def test_the_container_is_locked_down_whatever_the_pod_identity(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_PIPES_RUN_AS_USER", "1001")
+
+        assert PipesSecurityContextConfig().to_container_security_context() == {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["ALL"]},
+            "seccompProfile": {"type": "RuntimeDefault"},
+            "runAsNonRoot": True,
+        }
+
+
+class TestArtifactsVolumeConfig:
+    def test_values_come_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACTS_PVC_NAME", "claim")
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+
+        config = ArtifactsVolumeConfig()
+
+        assert (config.pvc_name, config.mount_path) == ("claim", "/artifacts")
+
+    def test_a_missing_value_is_rejected(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+
+        with pytest.raises(ValueError):
+            ArtifactsVolumeConfig()
 
 
 class TestResultsDeliveryConfig:
