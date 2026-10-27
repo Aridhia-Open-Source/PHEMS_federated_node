@@ -25,6 +25,11 @@ RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
 DAGSTER_LOCATION = os.getenv('DAGSTER_USER_DEPLOYMENT', 'dagster-fn')
 DAGSTER_DEPLOYMENT = RELEASE_NAME + '-' + DAGSTER_LOCATION
 
+# What is reachable on localhost while Tilt is up. A section that sets up a port-forward adds
+# one line next to it: DEV_URLS.append(('Name', 'http://localhost:PORT')). The dagster-reload
+# resource at the end of this file prints the list and gives each entry a link in the Tilt UI.
+DEV_URLS = []
+
 # Allow Tilt to control what K8s cluster to deploy to
 allow_k8s_contexts('kind-fn')
 
@@ -71,6 +76,18 @@ docker_build_with_restart(
 # ==============================================================================
 # DAGSTER USER CODE DEPLOYMENT
 # ==============================================================================
+# What the code server and the run pods use from the Dagster image. Everything else under
+# dagster/ (fncli, tests, docs, lint and CI files) is not used by either, so changing it
+# rebuilds nothing. (A full `docker build dagster` still copies fncli and conftest.py, per
+# dagster/.dockerignore.)
+DAGSTER_IMAGE_FILES = [
+  'app',
+  'requirements.txt',
+  'pyproject.toml',
+  'dagster.yaml',
+  'workspace.yaml',
+]
+
 # The image has no ENTRYPOINT or CMD: the chart passes the whole gRPC command as the
 # container args (templates/dagster-code-server.yaml). With an empty entrypoint Tilt's
 # command is just the restart wrapper, and Kubernetes appends those args to it, so the
@@ -80,13 +97,7 @@ docker_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
   'dagster',
   entrypoint=[],
-  only=[
-    'app',
-    'requirements.txt',
-    'pyproject.toml',
-    'dagster.yaml',
-    'workspace.yaml',
-  ],
+  only=DAGSTER_IMAGE_FILES,
   # Test edits and pytest runs don't rebuild or restart the code server
   ignore=['app/tests', '**/.pytest_cache', '**/__pycache__'],
   live_update=[
@@ -108,12 +119,9 @@ local_resource(
   cmd='docker build dagster -t {img} && docker push {img}'.format(
     img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
   ),
-  deps=['dagster'],
-  ignore=[
-    'dagster/**/__pycache__', 'dagster/**/*.pyc', 'dagster/**/.pytest_cache',
-    # Tests, fncli and local venvs aren't in the run image's code path
-    'dagster/app/tests', 'dagster/fncli', 'dagster/conftest.py', 'dagster/.venv',
-  ],
+  # Only what the code server and run pods use. The docs, fncli, CI and lint files next to it don't.
+  deps=['dagster/' + f for f in DAGSTER_IMAGE_FILES] + ['dagster/Dockerfile', 'dagster/.dockerignore'],
+  ignore=['dagster/**/__pycache__', 'dagster/**/*.pyc', 'dagster/**/.pytest_cache', 'dagster/app/tests'],
   labels=['dev'],
 )
 
@@ -121,18 +129,9 @@ local_resource(
 # STATUS HELPERS
 # ==============================================================================
 
-# Watch for dagster code changes, restart the pod, then reload the code location
-# via the Dagster GraphQL API so the UI updates immediately.
-local_resource(
-  'dagster-reload',
-  serve_cmd='bash tilt/scripts/dagster_reload.sh {location}'.format(
-    location=DAGSTER_LOCATION,
-  ),
-  labels=['dev'],
-)
-
 # Expose the backend locally
 k8s_resource('backend', port_forwards=['5000:5000'])
+DEV_URLS.append(('Backend API docs', 'http://localhost:5000/docs'))
 
 # kubectl port-forward exits when one of its connections breaks, and Tilt does not start
 # a serve_cmd again once it has exited. Loop, so a dead forward comes back after a second.
@@ -149,6 +148,7 @@ local_resource(
   serve_cmd=port_forward_cmd('fn-dev-dagster-webserver', NAMESPACE, '3000:80'),
   labels=['infrastructure'],
 )
+DEV_URLS.append(('Dagster', 'http://localhost:3000'))
 
 local_resource(
   'db-internal-port-forward',
@@ -161,6 +161,7 @@ local_resource(
   serve_cmd=port_forward_cmd('gitea', NAMESPACE, '4000:4000'),
   labels=['infrastructure'],
 )
+DEV_URLS.append(('Gitea', 'http://localhost:4000'))
 
 # The experiments chart's database, in its own namespace and release rather than the node's.
 # Waits quietly until `fncli experiment up` has created it.
@@ -176,6 +177,7 @@ local_resource(
   serve_cmd=port_forward_cmd('keycloak', 'keycloak', '8080:80'),
   labels=['infrastructure'],
 )
+DEV_URLS.append(('Keycloak', 'http://localhost:8080'))
 
 local_resource(
   'deployment-check',
@@ -189,4 +191,24 @@ local_resource(
   cmd='helm status {rel} -n {ns} >/dev/null 2>&1 && echo "OK: helm release {rel} deployed" || echo "MISSING: run make deploy"'.format(rel=RELEASE_NAME, ns=NAMESPACE),
   trigger_mode=TRIGGER_MODE_MANUAL,
   labels=['infrastructure'],
+)
+
+# ==============================================================================
+# CODE LOCATION RELOAD AND DEV URLS -- keep this section last
+# ==============================================================================
+# Keeps the Dagster webserver's code location loaded while Tilt rebuilds or restarts the
+# code server (tilt/scripts/dagster_reload.sh), and prints DEV_URLS each time it (re)loads.
+# The list is read here, so a section that appends to DEV_URLS must be above this block.
+DEV_URLS.append(('Tilt', 'http://localhost:10350'))
+
+local_resource(
+  'dagster-reload',
+  serve_cmd='bash tilt/scripts/dagster_reload.sh {location}'.format(
+    location=DAGSTER_LOCATION,
+  ),
+  serve_env={'DEV_URLS': '\n'.join(['- {}: {}'.format(name, url) for name, url in DEV_URLS])},
+  # Start once the code server is deployed and the Dagster UI is forwarded
+  resource_deps=[DAGSTER_DEPLOYMENT, 'dagster-ui-port-forward'],
+  links=[link(url, name) for name, url in DEV_URLS],
+  labels=['dev'],
 )
