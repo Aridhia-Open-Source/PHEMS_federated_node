@@ -122,7 +122,7 @@ class TestValidation:
         with pytest.raises(InvalidRequest, match="must match"):
             self.build(env={key: "v"})
 
-    @pytest.mark.parametrize("key", ["CDM_SCHEMA", "WRITE_SCHEMA"])
+    @pytest.mark.parametrize("key", ["CDM_SCHEMA", "WRITE_SCHEMA", "DB_USERNAME", "DB_PASSWORD"])
     def test_reserved_env_keys(self, key):
         with pytest.raises(InvalidRequest, match="reserved"):
             self.build(env={key: "v"})
