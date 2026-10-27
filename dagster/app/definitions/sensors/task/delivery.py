@@ -6,7 +6,7 @@ from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 from app.backend import BackendAPI
 from app.config import DEFAULT_SENSOR_STATUS, DELIVERY_MAX_ATTEMPTS, MIN_SENSOR_INTERVAL_SECONDS, ResultsDeliveryConfig
 from app.definitions.jobs import k8s_pipes_job
-from app.definitions.sensors.base import LaunchingSensor, run_key
+from app.definitions.sensors.base import LaunchingSensor, artifacts_volume_tags, run_key
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.delivery.results import FINAL, ResultsDelivery
 from app.models import PullRequestResult, ResultState
@@ -56,7 +56,7 @@ def task_results_delivery_sensor(context: RunStatusSensorContext):
     task_id = tags["task_id"]
     return dg.RunRequest(
         run_key=f"deliver/{task_id}/{tags['attempt']}",
-        tags={"trigger": "delivery", "delivery_task_id": task_id},
+        tags={"trigger": "delivery", "delivery_task_id": task_id, **artifacts_volume_tags(context.dagster_run.run_id)},
         run_config={"ops": {"deliver_results": {"config": {
             "project_id": int(tags["project_id"]), "task_id": int(task_id), "run_id": context.dagster_run.run_id
         }}}},
@@ -105,7 +105,7 @@ class ResultsDeliveryRetrySensor(LaunchingSensor):
     def run_request(self, item: PullRequestResult) -> dg.RunRequest:
         return dg.RunRequest(
             run_key=run_key("deliver-retry", item.id),
-            tags=self.tags(item),
+            tags={**self.tags(item), **artifacts_volume_tags(self.run_ids[item.id])},
             run_config={"ops": {deliver_results.name: {"config": {
                 "project_id": item.project_id, "task_id": item.task_id, "run_id": self.run_ids[item.id]
             }}}},

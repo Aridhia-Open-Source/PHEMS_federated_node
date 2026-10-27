@@ -55,6 +55,18 @@ uc1` runs the whole study.
 3. Run `make experiments up` (it upgrades the release with the new database, so this works
    on a running cluster), then `build NAME`, `seed NAME`, `setup NAME` and `run NAME`.
 
+## Check task isolation
+
+`projects/attacker` is a hostile task image, not an experiment. It tries to read other runs'
+folders, plant symlinks and `../` paths in its output, reach the backend, Gitea and the
+Kubernetes API, read a service account token or another task's Secret, and keep privileges. Each
+attempt prints `BLOCKED` or `LEAKED`; `PLANTED` lines are judged by what delivery does with them.
+Run it like UC1 (`up`, `build attacker`, `seed attacker`, `setup attacker`, `run attacker`), then
+read `attack-report.txt` in the delivered `results.zip` in `attacker-results-repo`, and check the zip
+holds no symlink or file from outside the run's folder. To plant a Secret to try for, create one
+named `task-decoy` in the tasks namespace. `DEV_ENV` can set `OTHER_RUN_ID` (a run's folder
+name to try to read) and `SLEEP_SECONDS` (to hang the task and see the pod's deadline end it).
+
 ## Clean up
 
 - `make experiments teardown NAME` removes what `setup` registered in the node for NAME. The

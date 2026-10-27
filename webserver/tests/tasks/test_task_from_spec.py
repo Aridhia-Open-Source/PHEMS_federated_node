@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.dtos.task import NewTaskDTO
+from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.base_model import db
 from app.helpers.const import SPEC_RAW_MAX_BYTES, TASK_NAME_MAX_LENGTH
@@ -58,10 +58,21 @@ class TestNewTaskDTOFromSpec:
         task = NewTaskDTO.from_spec(TaskSpecRequest(**SPEC), api_request)
         assert task.name == "TestTask"
         assert task.params == {"p": 1}
-        assert task.spec == {"image": "img:1", "dataset_id": dataset.id, "env": {"K": "v"}}
+        assert task.spec == {"image": "img:1", "dataset_id": dataset.id, "env": {"K": "v"}, "resources": {}}
         assert task.project_id == api_request.project_id
         assert task.requested_by == "api-user"
         assert task.trigger_id == api_request.id
+
+    def test_resources_are_stored_and_returned_with_the_task_spec(self, api_request):
+        resources = {"limits": {"cpu": "500m", "memory": "256Mi"}, "requests": {"cpu": "100m", "memory": "64Mi"}}
+        new_task = NewTaskDTO.from_spec(TaskSpecRequest(**SPEC, resources=resources), api_request)
+        assert new_task.spec["resources"] == resources
+
+        task = Task(**new_task.model_dump())
+        task.add()
+        db.session.expire_all()
+        assert Task.get_by_id(task.id).spec.resources == resources
+        assert TaskDTO.from_model(Task.get_by_id(task.id)).dump()["spec"]["resources"] == resources
 
     def test_pr_task_derived_from_spec(self, pull_request):
         task = NewTaskDTO.from_spec(TaskSpecRequest(image="img:1"), pull_request)
@@ -149,7 +160,7 @@ class TestPostTasks:
         assert response.status_code == 200
         assert response.json["spec"] == {
             "image": task_body["executors"][0]["image"], "dataset_id": dataset.id,
-            "env": task_body["executors"][0]["env"],
+            "env": task_body["executors"][0]["env"], "resources": task_body["resources"],
         }
         assert "spec_raw" not in response.json
 

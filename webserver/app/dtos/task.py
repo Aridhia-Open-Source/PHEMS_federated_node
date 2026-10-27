@@ -10,6 +10,7 @@ class TaskSpecDTO(DTO):
     image: str
     dataset_id: int | None
     env: dict
+    resources: dict
 
 
 class TaskDTO(DTO):
@@ -62,5 +63,10 @@ class NewTaskDTO(DTO):
             params=spec.params,
             config_snapshot=snapshot,
             config_hash=snapshot_hash(snapshot),
-            spec={"image": spec.image, "dataset_id": dataset.id if dataset else None, "env": spec.env},
+            spec={
+                "image": spec.image,
+                "dataset_id": dataset.id if dataset else None,
+                "env": spec.env,
+                "resources": spec.resources,
+            },
         )

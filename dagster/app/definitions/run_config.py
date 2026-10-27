@@ -24,9 +24,10 @@ class PipesDatasetConfig(BaseModel):
 
 
 class K8sPipesOpConfig(BaseModel):
-    """The config of k8s_pipes_op: the task's image and env, and the dataset it runs against."""
+    """The config of k8s_pipes_op: the task's image, env and CPU and memory, and the dataset it runs against."""
 
     env: dict
+    resources: dict
     docker_image: str
     dataset: PipesDatasetConfig | None = None
 
@@ -38,6 +39,7 @@ def build_run_config(spec: TaskSpec, dataset: Dataset | None) -> dict:
     """
     op_config = K8sPipesOpConfig(
         env=spec.env,
+        resources=spec.resources,
         docker_image=spec.image,
         dataset=PipesDatasetConfig.model_validate(dataset.model_dump()) if dataset else None,
     )

@@ -119,6 +119,10 @@ echo "=== Clearing local PV data ===============================================
 # POSTGRES_PASSWORD when initdb creates the data directory, so data that outlives its
 # password breaks the next install. If this step fails, the passwords are still there.
 #
+# Everything under /data except experiments/, which belongs to the experiments chart
+# (its own release and namespace, see experiments/README.md) and outlives this one:
+# wiping it leaves that release's database pod crash-looping on a missing PV directory.
+#
 # Deleted from inside the node rather than from the host, because these files belong to
 # the uids the containers ran as (postgres is 70) and the host user cannot always
 # remove them - which is what used to make this step need sudo.
@@ -127,7 +131,7 @@ if kubectl get nodes >/dev/null 2>&1; then
   kubectl delete pod fn-data-wipe --ignore-not-found >/dev/null 2>&1
   kubectl run fn-data-wipe --rm -i --restart=Never --image=busybox:1.36 --quiet \
     --overrides='{"spec":{"containers":[{"name":"fn-data-wipe","image":"busybox:1.36",
-      "command":["sh","-c","rm -rf /host/* /host/.[!.]* 2>/dev/null; echo remaining entries: $(ls -A /host | wc -l)"],
+      "command":["sh","-c","find /host -mindepth 1 -maxdepth 1 ! -name experiments -exec rm -rf {} + 2>/dev/null; echo remaining entries: $(ls -A /host | wc -l)"],
       "securityContext":{"runAsUser":0},
       "volumeMounts":[{"name":"host","mountPath":"/host"}]}],
       "volumes":[{"name":"host","hostPath":{"path":"/data"}}]}}'

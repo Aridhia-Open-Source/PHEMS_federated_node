@@ -13,7 +13,7 @@ from app.helpers.exceptions import InvalidRequest
 class TaskSpecRequest(BaseModel):
     """
     The one normalised description of a task, whichever way it was requested. Only the
-    image, the dataset and the env are kept, as a TaskSpec.
+    image, the dataset, the env and the resources are kept, as a TaskSpec.
     """
     model_config = ConfigDict(extra="forbid")
 
