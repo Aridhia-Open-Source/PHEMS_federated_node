@@ -74,8 +74,8 @@ fnDagster:
   sensors:
     minIntervalSeconds: 5
     retryIntervalSeconds: 10
-  # Pipes pods can write results as any uid without help. Only pin identity if you
-  # need to; fsGroup does nothing except on storage.local.
+  # Task pods run as uid/gid 1001 by default (artifacts.securityContext in values.yaml),
+  # and write results as any uid without help. fsGroup does nothing except on storage.local.
   # artifacts:
   #   securityContext:
   #     fsGroup: 1001

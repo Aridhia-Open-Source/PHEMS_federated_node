@@ -628,6 +628,18 @@
                     "type": "string",
                     "default": "artifacts-pvc"
                 },
+                "taskPod": {
+                    "type": "object",
+                    "description": "Limits on every task pod",
+                    "properties": {
+                        "activeDeadlineSeconds": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 21600,
+                            "description": "Seconds a task pod may run before Kubernetes kills it. Keep dagster.dagsterDaemon.runMonitoring.maxRuntimeSeconds above it"
+                        }
+                    }
+                },
                 "artifacts": {
                     "type": "object",
                     "description": "Permissions on the artifacts volume that analytical (pipes) pods write results to",
