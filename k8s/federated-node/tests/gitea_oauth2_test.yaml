@@ -1,0 +1,37 @@
+suite: gitea oauth2 provider settings
+templates:
+  - templates/gitea-deployment.yaml
+values:
+  - values/values-local.yaml
+set:
+  gitea:
+    enabled: true
+tests:
+  - it: pins the settings the minted git tokens rely on, as env the image writes into app.ini
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__oauth2__ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__oauth2__ACCESS_TOKEN_EXPIRATION_TIME
+            value: "3600"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__oauth2__INVALIDATE_REFRESH_TOKENS
+            value: "false"
+  - it: takes the settings from the values
+    set:
+      gitea:
+        oauth2:
+          accessTokenExpirationTime: 600
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__oauth2__ACCESS_TOKEN_EXPIRATION_TIME
+            value: "600"

@@ -1,13 +1,14 @@
 from collections.abc import Callable
 from functools import partial
 
+import requests
 import sqlalchemy as sa
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
 
-from app.helpers.const import DEFAULT_NAMESPACE
+from app.helpers.exceptions import GitProviderError, InvalidRequest
+from app.helpers.git_tokens import mint_token
 from app.helpers.git_uri import normalise_repo_path
-from app.helpers.kubernetes import KubernetesClient
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, request_check
 from app.models.git_provider_type import GitProviderType
 
@@ -19,15 +20,12 @@ class GitRepositoryMixin:
     secret relationship itself.
     """
 
-    # The keys the repository's secret holds
-    SECRET_KEYS = ("TOKEN",)
-
     provider_id = sa.Column(
         sa.Integer, sa.ForeignKey('git_providers.id', ondelete='RESTRICT'), nullable=False
     )
     # Where the repository is on the provider (owner/name)
     repo_path = sa.Column(sa.String(512), nullable=False)
-    # The secret holding the git token (under the key TOKEN). Set explicitly rather than
+    # The secret holding the git credential (see helpers/git_tokens.py). Set explicitly rather than
     # derived from the repository, so repositories can share one credential.
     secret_id = sa.Column(
         sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False
@@ -50,12 +48,10 @@ class GitRepositoryMixin:
 
     def get_token(self) -> str:
         """
-        The git token, read from the cluster secret this repository names.
+        A token with the repository's TOKEN_PERMISSION, minted (or cached) from the credential in the cluster
+        secret this repository names. The same token the token routes hand out.
         """
-        secret = KubernetesClient().read_namespaced_secret(self.secret.key, DEFAULT_NAMESPACE)
-        if secret.data is None:
-            raise KeyError("TOKEN")
-        return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
+        return mint_token(self.secret, self, self.TOKEN_PERMISSION)[0]
 
     def check_connection(self) -> ConnectionCheck:
         return self.prepare_connection_check()()
@@ -66,15 +62,15 @@ class GitRepositoryMixin:
         through the provider's api_uri (not the uri, which is the address people use), authenticating as a
         bearer token. Nothing returned includes the token.
 
-        Reads the token (the database and the cluster) now, and returns the network call
-        to make later, which touches neither so it can run in a thread.
+        Gets the token (the database, the cluster and, for a token not cached, the provider) now, and returns the
+        network call to make later, which touches none of them so it can run in a thread. A token that cannot be
+        got is reported as the check's result, not raised.
         """
         try:
             token = self.get_token()
-        except KeyError:
-            check = ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} has no TOKEN"
-            )
+        except InvalidRequest as e:
+            # The secret holds no complete credential
+            check = ConnectionCheck(ConnectionStatus.SECRET_MISSING, e.description)
             return lambda: check
         except ApiException as e:
             if e.status != 404:
@@ -82,6 +78,12 @@ class GitRepositoryMixin:
             check = ConnectionCheck(
                 ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} not found"
             )
+            return lambda: check
+        except GitProviderError as e:
+            check = ConnectionCheck(ConnectionStatus.ERROR, e.description)
+            return lambda: check
+        except requests.RequestException as e:
+            check = ConnectionCheck(ConnectionStatus.UNREACHABLE, type(e).__name__)
             return lambda: check
 
         url = f"{self.provider.api_uri.rstrip('/')}/{GitProviderType(self.provider.type).repo_api_path(self.repo_path)}"

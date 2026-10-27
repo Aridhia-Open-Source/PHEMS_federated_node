@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import dagster as dg
 import pytest
 
@@ -7,7 +9,9 @@ from app.definitions.resources import (
     RESOURCES,
     backend_api,
     backend_config,
+    git_apis,
 )
+from app.definitions.sensors.git.base import GitAPIFactory
 
 
 @pytest.fixture
@@ -36,6 +40,15 @@ class TestApiResources:
         assert isinstance(api, BackendAPI)
         assert api.session.base_url == "http://backend.fn.svc:5000"
         assert api.session.adapter.username == "dagster"
+
+    def test_git_apis_are_built_on_the_backend_api(self):
+        backend = MagicMock()
+        context = dg.build_init_resource_context(resources={"backend_api": backend})
+
+        factory = git_apis(context)
+
+        assert isinstance(factory, GitAPIFactory)
+        assert factory.backend_api is backend
 
 
 class TestRegistry:

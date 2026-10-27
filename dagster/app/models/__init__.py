@@ -2,6 +2,7 @@
 
 from app.models.dataset import Catalogue, Dataset, Dictionary, ProjectDataset
 from app.models.git_provider import GitProvider
+from app.models.git_token import GitToken
 from app.models.launch_decision import LaunchDecision
 from app.models.project import Project
 from app.models.pull_request import ChangedFile, NewPullRequest, PullRequest
@@ -25,6 +26,7 @@ __all__ = [
     "Dataset",
     "Dictionary",
     "GitProvider",
+    "GitToken",
     "LaunchDecision",
     "NewPullRequest",
     "Project",
