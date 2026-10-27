@@ -22,9 +22,7 @@ metadata:
   name: {{ .Release.Name }}-quarantine-role-binding
   namespace: {{ include "quarantine_namespace" . }}
 subjects:
-  - kind: ServiceAccount
-    namespace: {{ .Release.Namespace }}
-    name: secret-backend-handler
+{{- include "backendSubjects" . | nindent 2 }}
 roleRef:
   kind: Role
   name: {{ .Release.Name }}-quarantine-role

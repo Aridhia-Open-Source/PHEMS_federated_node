@@ -1,23 +1,25 @@
 {{/*
-Read access to the dataset credentials Secret, which the pipes op resolves into the
-task pod's CONNECTION_STRING (_get_k8s_dataset_secret in dagster/app/definitions/pipes.py).
+Read access to the project secrets: the dataset credentials the pipes op copies into the
+task's own Secret (_get_dataset_secret in dagster/app/definitions/pipes.py), and the git
+tokens the sensors and delivery read.
 
 Both service accounts need it, and the run launcher's is the one that actually does the
 read: the op executes in the per-run pod, which the subchart's k8sRunLauncher runs under
 its own service account ({{ .Release.Name }}-dagster), not under the code server's. With
 only the code server bound, every dataset-backed task fails with
-  secrets "<host>-<dataset>-creds" is forbidden: User
+  secrets "<key>" is forbidden: User
   "system:serviceaccount:<ns>:<release>-dagster" cannot get resource "secrets"
 
-Namespaced: the secrets live in the release namespace, and the task pod itself holds no
-token, so nothing needs to read secrets anywhere else.
+Namespaced to the secrets namespace, which holds nothing else: the release namespace's
+database and Keycloak secrets are out of reach, and so is quarantine, where a disabled
+secret's value sits. The task pod itself holds no token.
 */}}
 {{- $subjects := list (include "dagsterCodeServerServiceAccount" .) (((.Values.dagster.serviceAccount).name) | default (printf "%s-dagster" .Release.Name)) }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ .Release.Name }}-dagster-user-role
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "secrets_namespace" . }}
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
@@ -27,7 +29,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-dagster-user-role-binding
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "secrets_namespace" . }}
 subjects:
 {{- range $subjects }}
   - kind: ServiceAccount
@@ -41,7 +43,9 @@ roleRef:
 ---
 {{/*
 Pipes task pods run in the tasks namespace, so the run pod has to create, watch, log and
-delete pods there (PipesK8sClient.run - it creates a bare pod, not a Job).
+delete pods there (PipesK8sClient.run - it creates a bare pod, not a Job), and create and
+delete the Secret that hands the pod its dataset credentials (K8sPipe in pipes.py). That is
+all it may do with Secrets here: it cannot read one back.
 */}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -58,6 +62,9 @@ rules:
 - apiGroups: [""]
   resources: ["events"]
   verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

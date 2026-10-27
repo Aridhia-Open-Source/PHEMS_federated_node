@@ -8,7 +8,7 @@ from dagster import OpExecutionContext as OpExecCtx
 from dagster._core.pipes.client import PipesClientCompletedInvocation
 
 from app.config import PipesSecurityContextConfig
-from app.secrets import SecretProvider
+from app.secrets import SecretProvider, TaskSecret
 from app.models import SecretProviderType
 
 logging.basicConfig(level=logging.INFO)
@@ -102,6 +102,17 @@ class K8sPipe:
         return env
 
     def __call__(self):
+        # The pod reads its dataset credentials from a Secret of its own, which lives as long as the run.
+        if not self.dataset:
+            return self._launch()
+        with TaskSecret(self.task_secret_name, self.task_namespace, self._get_dataset_creds()):
+            return self._launch()
+
+    @property
+    def task_secret_name(self) -> str:
+        return f"task-{self.context.run.tags['task_id']}"
+
+    def _launch(self):
         self.log(f"Pipes op starting - {self.image}")
         self.log(f"ARIFACT_PATH: {self.artifact_path}")
         self._prepare_artifact_dir()
@@ -216,10 +227,16 @@ class K8sPipe:
     def _pod_env(self):
         env = _dict_to_pod_env(self.env)
         if self.dataset:
-            creds = self._get_dataset_creds()
-            connstr = self._get_conn_str(**creds)
-            env.append({"name": "CONNECTION_STRING", "value": connstr})
+            # The kubelet expands $(NAME) from the variables defined above it in the list.
+            env += [
+                self._secret_env("DB_USERNAME", "USERNAME"),
+                self._secret_env("DB_PASSWORD", "PASSWORD"),
+                {"name": "CONNECTION_STRING", "value": self._get_conn_str("$(DB_USERNAME)", "$(DB_PASSWORD)")},
+            ]
         return env
+
+    def _secret_env(self, name: str, key: str):
+        return {"name": name, "valueFrom": {"secretKeyRef": {"name": self.task_secret_name, "key": key}}}
 
     def _pod_volume_mounts(self):
         # Only this run's folder, not the volume: a task must not reach other runs' results
@@ -240,9 +257,7 @@ class K8sPipe:
         return f"driver={{{driver}}};Uid={username};Pwd={password};Server={host},{port};Database={name};"
 
     def _get_dataset_creds(self):
-        username = self._get_dataset_secret("USERNAME")
-        password = self._get_dataset_secret("PASSWORD")
-        return {'username': username, 'password': password}
+        return {key: self._get_dataset_secret(key) for key in ("USERNAME", "PASSWORD")}
 
     def _get_dataset_secret(self, key: str) -> str:
         provider = SecretProvider(SecretProviderType(self.dataset['secret']['provider']))

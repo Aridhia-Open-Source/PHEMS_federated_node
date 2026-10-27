@@ -101,6 +101,9 @@ global:
     tasks: tasks
     # Where the backend keeps the value of a disabled secret, moved out of its own namespace
     quarantine: fn-quarantine
+    # Where the backend keeps project secrets (dataset credentials, git tokens). Dagster reads
+    # them here and nowhere else in the node; the release namespace holds none.
+    secrets: fn-secrets
 
 token:
   # 8 hours. Was 2592000 (30 days), the same order as the rotation period -- which meant sessions
