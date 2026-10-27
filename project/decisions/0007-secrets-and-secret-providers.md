@@ -6,7 +6,7 @@ Dataset credentials and git tokens must not live in the database or in a single 
 
 ## Decision
 
-- `secrets` holds a **reference**, not a value: `label` (unique across the node, addressable in the API), `description`, `provider` (enum, currently `K8S`), `key` (the generated, immutable name in the store, `fn-secret-<label>`, unique) and `namespace`. The value lives only in the store.
+- `secrets` holds a **reference**, not a value: `label` (unique across the node, addressable in the API), `description`, `provider` (enum, currently `K8S`), `key` (the generated, immutable name in the store, `fn-secret-<label>`, unique) and `namespace` (for `K8S`, the secrets namespace, `global.namespaces.secrets`). The value lives only in the store.
 - `POST /global/secrets` takes `values` and sends them to the store; they are never returned. Secrets are global and addressed by label; repositories and datasets name theirs with `secret_label`. A project can have a secret assigned (`project_secrets`), but no rule reads that project resource.
 - Dataset credentials (`secret_id`) and the trigger and results repositories point at secrets. Git tokens are read under the key `TOKEN`.
 - Dagster reads a value through `SecretProvider(provider).get(key, namespace, value_key)`; `K8sSecretProvider` reads the Kubernetes secret. A secret that is disabled is never read. A new store is a new entry in `SecretProvider.PROVIDERS` and the matching backend writer.

@@ -1,23 +1,31 @@
+{{- /*
+  What the backend may do with Secrets, namespace by namespace:
+  - the secrets namespace: store project secrets (secrets-namespace.yaml)
+  - quarantine: hold the value of a disabled secret (quarantine-namespace.yaml)
+  - the tasks namespace, here: registry pull secrets. Their names come from the registry, so
+    no resourceNames.
+  It never lists secrets, and holds nothing in any other namespace.
+*/}}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: {{ .Release.Name }}-backend-role
+  name: {{ .Release.Name }}-backend-registry-role
+  namespace: {{ include "tasks_namespace" . }}
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
-  verbs: ["get", "list", "create", "patch", "delete"]
+  verbs: ["get", "create", "patch", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: {{ .Release.Name }}-backend-role-binding
+  name: {{ .Release.Name }}-backend-registry-role-binding
+  namespace: {{ include "tasks_namespace" . }}
 subjects:
-  - kind: ServiceAccount
-    namespace: {{ .Release.Namespace }}
-    name: secret-backend-handler
+{{- include "backendSubjects" . | nindent 2 }}
 roleRef:
-  kind: ClusterRole
-  name: {{ .Release.Name }}-backend-role
+  kind: Role
+  name: {{ .Release.Name }}-backend-registry-role
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: v1

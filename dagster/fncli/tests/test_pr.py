@@ -39,6 +39,13 @@ def test_watched_file_carries_the_extra_env_from_test_pr_env(monkeypatch):
     assert spec_of(content)["env"] == {"UC1_DEV": "1"}
 
 
+def test_watched_file_carries_the_resources_from_test_pr_resources(monkeypatch):
+    monkeypatch.setenv("TEST_PR_RESOURCES", '{"limits": {"cpu": "500m", "memory": "256Mi"}}')
+    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
+
+    assert spec_of(content)["resources"] == {"limits": {"cpu": "500m", "memory": "256Mi"}}
+
+
 def test_invalid_file_is_watched_but_has_a_field_the_spec_forbids(config):
     path, content = file_for(config, "pr-1", "invalid")
 

@@ -30,6 +30,9 @@ The necessary values are:
 |-|-|-|
 |token|life|Duration in seconds for tokens|
 |-|-|-|
+|taskNetworkPolicy|datasetEgress|Where task pods may reach their dataset database, as NetworkPolicy egress rules (`to` and `ports`), by address or by namespace and pod label. Empty by default: task pods then reach DNS only, and a task that needs a database times out on connect. Needs a CNI that enforces NetworkPolicy|
+|taskNetworkPolicy|dns|Where task pods may send DNS lookups (UDP and TCP 53), as NetworkPolicy peers. Defaults to kube-dns in `kube-system`|
+|-|-|-|
 |integrations|domains|The list of third party host that can reach the Federated Node. Otherwise these will be blocked by CSP policies. This will not affect direct user API usage.|
 |host|The URL where the FN will be hosted at|
 |tls|secretName|Secret name where the SSL certificate is. Defaults to `tls` if the `tls` section is set|
@@ -52,6 +55,29 @@ login at all; instead each role's password becomes a secret you supply (`backend
 `keycloak.db.secret` and `global.postgresqlSecretName`). Install once and the chart will print the
 exact DDL and `kubectl` commands for your own database and role names, and a `db-check` hook verifies
 the credentials before anything else is installed.
+
+### Secrets namespace
+Project secrets (dataset credentials, git tokens) are stored in their own namespace,
+`global.namespaces.secrets` (default `fn-secrets`), which the chart creates. The release namespace holds
+none of them. Dagster's service accounts can read only that namespace, and the backend only that one,
+the quarantine and the tasks namespaces. A task gets its dataset credentials from a Secret of its own
+(`task-<task_id>`) in the tasks namespace, which is deleted when the task ends.
+
+**Upgrading** a node that has secrets from before this change: their rows still name the release
+namespace, which Dagster and the backend can no longer read, so tasks and repository checks that use
+them fail with `forbidden`. Write each one again with all its values, which stores it in the secrets
+namespace and updates its row:
+
+```sh
+curl -X PATCH "$FN_URL/global/secrets/<label>" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"values": {"USERNAME": "...", "PASSWORD": "..."}}'
+```
+
+Enable any disabled secret **before** upgrading: until its row is written again, a secret from before
+this change cannot be enabled, rotated or deleted, and its health check errors. Re-write them after.
+
+On a dev cluster, run `fncli experiment setup` (or tear down and deploy) instead. Then delete the old
+copy: `kubectl delete secret fn-secret-<label> -n <release namespace>`.
 
 ## Gateway API CRD update
 ```sh

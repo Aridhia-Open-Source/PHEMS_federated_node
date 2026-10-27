@@ -75,6 +75,9 @@ global:
     tasks: tasks
     # Where the backend keeps the value of a disabled secret, moved out of its own namespace
     quarantine: fn-quarantine
+    # Where the backend keeps project secrets (dataset credentials, git tokens). Dagster reads
+    # them here and nowhere else in the node; the release namespace holds none.
+    secrets: fn-secrets
 
 token:
   # 8 hours. Was 2592000 (30 days), the same order as the rotation period -- which meant sessions
@@ -122,6 +125,42 @@ db:
     # dagster:
 
 taskReview: false
+
+# Task pods run partner images that hold a dataset's credentials, so the tasks namespace
+# (global.namespaces.tasks) denies all ingress, and all egress except what is listed here.
+# Only enforced by a CNI that enforces NetworkPolicy. See templates/task-network-policy.yaml.
+taskNetworkPolicy:
+  # Where DNS lookups may go (UDP and TCP 53). The default is the cluster DNS of most
+  # distributions; change it for another one (a NodeLocal DNSCache is an ipBlock).
+  dns:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  # Where tasks may reach their dataset's database. Empty by default: a task that needs a
+  # database then times out on connect. One NetworkPolicy egress rule per database, each
+  # with both `to` and `ports`; a policy matches addresses, pods and namespaces, never DNS names.
+  # An external database, by address:
+  #   - to:
+  #       - ipBlock:
+  #           cidr: 10.20.30.0/28
+  #     ports:
+  #       - protocol: TCP
+  #         port: 1433
+  # An in-cluster one, by namespace and pod label:
+  #   - to:
+  #       - namespaceSelector:
+  #           matchLabels:
+  #             kubernetes.io/metadata.name: experiments
+  #         podSelector:
+  #           matchLabels:
+  #             app: experiments-postgres
+  #     ports:
+  #       - protocol: TCP
+  #         port: 5432
+  datasetEgress: []
 
 # firstUserSecret:
   # name:
@@ -231,6 +270,10 @@ fnDagster:
   tag:
   artifactMountPath: /mnt/dagster/artifacts
   artifactsPvcName: artifacts-pvc
+  taskPod:
+    # Seconds a task pod may run before Kubernetes kills it, so a hung task fails instead of staying
+    # RUNNING. Keep dagster.dagsterDaemon.runMonitoring.maxRuntimeSeconds above it.
+    activeDeadlineSeconds: 21600
   # Task results are delivered to the project's results repository as a zip. Over this size
   # (bytes of the zip) the delivery fails.
   results:
@@ -274,14 +317,15 @@ fnDagster:
     dirMode: "0777"
     # If set, replaces ALL computed mount options for this volume.
     mountOptions: []
-    # Optional pod securityContext for pipes task pods. Not needed for a non-root
-    # image to write its results - the run pod pre-creates <mount>/<run_id> 0777 -
-    # only for pinning pod identity. fsGroup does nothing except on storage.local,
-    # and runAsUser overrides the image's own USER.
-    securityContext: {}
+    # Pod securityContext for pipes task pods. Task containers must run non-root
+    # (runAsNonRoot), and a partner image with no USER of its own would not start, so
+    # the pod runs as this uid and gid, overriding the image's USER. It can write its
+    # results with no help: the run pod pre-creates <mount>/<run_id> 0777, and that
+    # folder is all the task pod mounts. fsGroup does nothing except on storage.local.
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
       # fsGroup: 1001
-      # runAsUser: 1001
-      # runAsGroup: 1001
       # supplementalGroups: [1001]
   # No db block here: Dagster's database name and user come from
   # dagster.postgresql.*, its host from db.host, and its password secret from
@@ -347,14 +391,18 @@ dagster:
         envSecrets:
           - name: dagster-keycloak-creds
 
-        # Add volumes and volume mounts for artifacts-pvc
-        volumes:
-          - name: artifacts-pvc
-            persistentVolumeClaim:
-              claimName: artifacts-pvc
-        volumeMounts:
-          - name: artifacts-pvc
-            mountPath: /mnt/dagster/artifacts
+        # No volumes or volumeMounts on purpose: they would reach every run, and a run tag
+        # only adds to them. The sensors tag the runs that need the artifacts volume
+        # (artifacts_volume_tags), from fnDagster.artifactsPvcName and artifactMountPath: a task's run
+        # gets the whole volume, a delivery run only its task run's folder, read-only.
+
+  dagsterDaemon:
+    runMonitoring:
+      # Fails a run still RUNNING after this long, which bounds every run, not only a task's.
+      # Helm cannot template a subchart value, so keep it above fnDagster.taskPod.activeDeadlineSeconds
+      # plus the task pod's 300 s grace period: the pod's deadline is what ends a hung task, this only
+      # backstops a run pod that hangs.
+      maxRuntimeSeconds: 25200
 
   # No wait-for-db init containers: the subchart's own checkDbReadyInitContainer
   # already runs pg_isready for the daemon and webserver, and the db-init hooks

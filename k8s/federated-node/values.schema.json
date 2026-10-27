@@ -52,6 +52,10 @@
                 "quarantine": {
                     "type": "string",
                     "default": "fn-quarantine"
+                },
+                "secrets": {
+                    "type": "string",
+                    "default": "fn-secrets"
                 }
             }
         },
@@ -275,6 +279,23 @@
         },
         "taskReview": {
             "$ref": "#/definitions/taskReview"
+        },
+        "taskNetworkPolicy": {
+            "type": "object",
+            "description": "Network access of task pods. The tasks namespace denies all ingress, and all egress except DNS and datasetEgress",
+            "properties": {
+                "dns": {
+                    "type": "array",
+                    "description": "NetworkPolicy peers task pods may send DNS lookups to (UDP and TCP 53). Defaults to kube-dns in kube-system"
+                },
+                "datasetEgress": {
+                    "type": "array",
+                    "description": "NetworkPolicy egress rules for the dataset databases task pods may reach. Every rule needs both `to` and `ports`. Empty by default: a task that needs a database times out on connect",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
         },
         "firstUserSecret": {
             "type": "object",
@@ -627,6 +648,18 @@
                 "artifactsPvcName": {
                     "type": "string",
                     "default": "artifacts-pvc"
+                },
+                "taskPod": {
+                    "type": "object",
+                    "description": "Limits on every task pod",
+                    "properties": {
+                        "activeDeadlineSeconds": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 21600,
+                            "description": "Seconds a task pod may run before Kubernetes kills it. Keep dagster.dagsterDaemon.runMonitoring.maxRuntimeSeconds above it"
+                        }
+                    }
                 },
                 "artifacts": {
                     "type": "object",

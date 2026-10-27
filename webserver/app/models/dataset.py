@@ -14,7 +14,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.pool import NullPool
 
 from app.helpers.base_model import BaseModel, db
-from app.helpers.const import DEFAULT_NAMESPACE, PUBLIC_URL, build_sql_uri
+from app.helpers.const import PUBLIC_URL, build_sql_uri
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.keycloak import Keycloak
 from app.helpers.soft_delete import SoftDeleteMixin
@@ -300,4 +300,4 @@ class Dataset(SoftDeleteMixin, db.Model, BaseModel):
 
     def _get_secret(self, name) -> V1Secret:
         v1 = KubernetesClient()
-        return typing.cast(V1Secret, v1.read_namespaced_secret(name, DEFAULT_NAMESPACE))
+        return typing.cast(V1Secret, v1.read_namespaced_secret(name, self.secret.namespace))

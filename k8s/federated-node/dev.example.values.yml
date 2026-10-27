@@ -14,6 +14,21 @@
 local_development: true      # http instead of https, in-cluster test URLs
 create_db_deployment: true   # run Postgres in the cluster instead of a managed one
 
+# Task pods reach only DNS and the dataset database (templates/task-network-policy.yaml).
+# This allows the dev dataset database, experiments/chart.
+taskNetworkPolicy:
+  datasetEgress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: experiments
+          podSelector:
+            matchLabels:
+              app: experiments-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+
 # Optional, all off by default:
 # taskReview: true           # tasks need approval before they run
 # smoketests: true           # `helm test` creates and deletes real db/keycloak rows
@@ -74,8 +89,8 @@ fnDagster:
   sensors:
     minIntervalSeconds: 5
     retryIntervalSeconds: 10
-  # Pipes pods can write results as any uid without help. Only pin identity if you
-  # need to; fsGroup does nothing except on storage.local.
+  # Task pods run as uid/gid 1001 by default (artifacts.securityContext in values.yaml),
+  # and write results as any uid without help. fsGroup does nothing except on storage.local.
   # artifacts:
   #   securityContext:
   #     fsGroup: 1001

@@ -177,7 +177,7 @@ class ResultsDelivery:
                 return branch, commit_sha, base_branch
 
             artifacts = Path(self.config.artifact_mount_path) / run_id
-            if not artifacts.is_dir():
+            if artifacts.is_symlink() or not artifacts.is_dir():
                 raise FileNotFoundError(f"No artifacts at {artifacts}")
 
             zip_path = Path(work) / ZIP_NAME
@@ -188,8 +188,11 @@ class ResultsDelivery:
                     f"{ZIP_NAME} is {zip_size} bytes, over the {self.config.max_zip_bytes} byte limit"
                 )
 
-            git_push.checkout_new_branch(clone_dir, branch)
             out_dir = clone_dir / layout
+            # target_dir is checked at the API, and a link inside the results repository could still lead out
+            if not out_dir.resolve().is_relative_to(clone_dir.resolve()):
+                raise ValueError(f"Output path {layout} is outside the clone")
+            git_push.checkout_new_branch(clone_dir, branch)
             out_dir.mkdir(parents=True, exist_ok=True)
             zip_path.replace(out_dir / ZIP_NAME)
             (out_dir / SPEC_NAME).write_text(json.dumps(task.spec.model_dump(), indent=2) + "\n")
