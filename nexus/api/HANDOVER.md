@@ -73,7 +73,7 @@ Never run e2e tests. Run only the test files for what you changed, foreground, w
 cd nexus/api
 export PGHOST=localhost PGPORT=5432 NEXUS_DB_USER=<backend db user> NEXUS_DB_PASSWORD=<pw> NEXUS_DB_NAME=<db>
 export KEYCLOAK_URL=http://localhost:8080 KEYCLOAK_REALM=FederatedNode KEYCLOAK_CLIENT=global \
-  KEYCLOAK_SECRET=<global client secret> DEFAULT_NAMESPACE=<ns> TASK_NAMESPACE=<tasks ns> PUBLIC_URL=localhost:5004
+  KEYCLOAK_SECRET=<global client secret> SECRETS_NAMESPACE=<secrets ns> TASK_NAMESPACE=<tasks ns> PUBLIC_URL=localhost:5004
 /tmp/nexus-venv/bin/uvicorn --factory app:create_app --reload --port 5004
 ```
 Same env vars as the backend pod (`kubectl get cm backend-configmap keycloak-config -o yaml`). Docs at
