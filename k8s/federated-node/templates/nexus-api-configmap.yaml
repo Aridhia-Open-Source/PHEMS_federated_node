@@ -30,6 +30,10 @@ data:
   DAGSTER_WEBSERVER_URI: {{ include "dagsterWebserverUri" . | quote }}
 {{- end }}
   PUBLIC_URL: {{ .Values.host }}
+  TASK_COMPUTE_MAX_CPU: {{ .Values.taskCompute.max.cpu | quote }}
+  TASK_COMPUTE_MAX_MEMORY: {{ .Values.taskCompute.max.memory | quote }}
+  TASK_COMPUTE_DEFAULT_LIMIT_CPU: {{ .Values.taskCompute.default.limits.cpu | quote }}
+  TASK_COMPUTE_DEFAULT_LIMIT_MEMORY: {{ .Values.taskCompute.default.limits.memory | quote }}
 {{- if .Values.taskReview }}
   TASK_REVIEW: enabled
 {{- end }}

@@ -218,6 +218,9 @@ Start from the example below, then add the storage block for your platform. It r
 # The public hostname. Needs a DNS record pointing at Traefik, and a certificate.
 host: fn.your-institution.example.com
 
+# Names this node (hospital) in the results it delivers (run.json, node.id). Required.
+nodeId: your-institution
+
 # One external Postgres server shared by every component.
 db:
   host: &dbHost postgres.your-institution.example.com

@@ -7866,6 +7866,21 @@
             "type": "integer",
             "title": "Project Id"
           },
+          "project_name": {
+            "type": "string",
+            "title": "Project Name"
+          },
+          "dataset_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Name"
+          },
           "trigger_id": {
             "type": "integer",
             "title": "Trigger Id"
@@ -7948,6 +7963,8 @@
           "updated_at",
           "requested_by",
           "project_id",
+          "project_name",
+          "dataset_name",
           "trigger_id",
           "executor_run_id",
           "exit_code",
@@ -8020,13 +8037,42 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Env"
+          },
+          "compute": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Compute"
+          },
+          "tags": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Tags"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
+          },
+          "metadata": {
+            "title": "Metadata"
           }
         },
         "type": "object",
         "required": [
           "image",
           "dataset_id",
-          "env"
+          "env",
+          "compute",
+          "tags",
+          "config",
+          "metadata"
         ],
         "title": "TaskSpecDTO"
       },
@@ -8103,6 +8149,10 @@
           },
           "trigger_repository": {
             "$ref": "#/components/schemas/TriggerRepositoryRefDTO"
+          },
+          "spec_raw": {
+            "type": "string",
+            "title": "Spec Raw"
           }
         },
         "type": "object",
@@ -8118,10 +8168,11 @@
           "state_cause",
           "task_id",
           "spec_files",
-          "trigger_repository"
+          "trigger_repository",
+          "spec_raw"
         ],
         "title": "TaskTriggerDTO",
-        "description": "The pull request that yielded a task, with the repository it was merged in nested."
+        "description": "The pull request that yielded a task, with the repository it was merged in nested and its spec file as stored."
       },
       "TriggerRepositoryDTO": {
         "properties": {

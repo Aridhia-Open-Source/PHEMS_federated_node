@@ -22,7 +22,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 1. After the previous case, open the results repository in Gitea and the results pull request.
 2. Open the branch and the files in it. Download `results.zip` and look inside.
 
-- **Expected:** the branch is `<target_dir>/<trigger repository name>/<pull request number>/<task id>-<first 7 characters of the merge sha>`. Under `<target_dir>/<trigger repository name>/<pull request number>/<task id>/` are `results.zip`, `spec.json` (the task's spec) and `metadata.json` (branch, merge commit sha, task id, run id, trigger repository uri, pull request number, delivery time, zip size). The zip holds the run's artifacts. The pull request goes from the branch into the results repository's default branch.
+- **Expected:** the branch is `<target_dir>/<trigger repository name>/<pull request number>/<task id>-<first 7 characters of the merge sha>`. Under `<target_dir>/<trigger repository name>/<pull request number>/<task id>/` are `results.zip`, `spec.json` (the pull request's spec file, byte for byte) and `run.json` (`node.id`; `project.id` and `name`; `trigger.repository_uri`, `pr_number` and `merge_commit_sha`; `task.id`, `name`, `executor_id` and `dataset`; `results.zip_size_bytes`, `file_count` and `delivered_at`). The zip holds the run's artifacts. The pull request goes from the branch into the results repository's default branch.
 - **Rule:** the delivery layout ([Results delivered as a pushed branch plus a results pull request]).
 - **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` checks the layout against a mocked git host; the end-to-end suite checks only the steps and that a pull request was opened. Neither opens the zip.
 - [ ] Pass
@@ -30,7 +30,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 
 ## The task's status and times mirror its Dagster run
 
-1. In the Dagster UI open the `k8s_pipes_job` run for the task (tags `trigger=task`, `task_id`, `attempt`).
+1. In the Dagster UI open the `k8s_pipes_job` run for the task (tags `fn/trigger=task`, `fn/task_id`, `fn/attempt`).
 2. `GET /projects/<pid>/tasks/<id>`.
 
 - **Expected:** the task's `executor_run_id` is the run's id; its status is the run's status (`SUCCESS`); `started_at` and `completed_at` are set and match the run's times. The exit code is not recorded (the run does not expose it).

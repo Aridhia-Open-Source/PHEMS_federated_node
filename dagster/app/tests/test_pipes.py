@@ -1,8 +1,10 @@
 import base64
 import os
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+from kubernetes.client import ApiException
 
 from app.definitions import pipes
 from app.secrets import K8sSecretProvider
@@ -53,7 +55,7 @@ def pipes_env(monkeypatch):
 def make_pipe(client=None, ext_env=None, **config):
     context = MagicMock()
     context.run_id = "run-1"
-    context.run.tags = {"task_id": "7"}
+    context.dagster_run.tags = {"fn/task_id": "9"}
     context.op_config = {"docker_image": "ghcr.io/org/experiment:latest", **config}
     return K8sPipe(client=client or MagicMock(), context=context, ext_env=ext_env)
 
@@ -123,16 +125,9 @@ class TestBasePodSpec:
             "runAsNonRoot": True,
         }
 
-    def test_no_resources_unless_the_spec_has_some(self, pipes_env):
+    def test_the_container_has_no_resources_of_its_own(self, pipes_env):
+        """The spec has none to pass."""
         assert "resources" not in make_pipe()._build_base_pod_spec()["containers"][0]
-        assert "resources" not in make_pipe(resources={})._build_base_pod_spec()["containers"][0]
-
-    def test_spec_resources_are_the_containers(self, pipes_env):
-        resources = {"limits": {"cpu": "1", "memory": "2Gi"}, "requests": {"cpu": "100m", "memory": "512Mi"}}
-
-        container = make_pipe(resources=resources)._build_base_pod_spec()["containers"][0]
-
-        assert container["resources"] == resources
 
     def test_container_is_named_for_the_run(self, pipes_env):
         spec = make_pipe()._build_base_pod_spec()
@@ -337,6 +332,133 @@ class TestArtifactDir:
 
         assert os.path.isdir(pipe.artifact_path)
         pipe.context.log.warning.assert_not_called()
+
+
+TASK_CONFIG = {"threshold": 0.5, "labels": ["a", None], "nested": {"on": True}}
+
+
+@pytest.fixture
+def core_api():
+    """The Kubernetes API the pipe talks to, and the in-cluster config loader it calls first."""
+    with patch.object(pipes, "load_incluster_config"), patch.object(pipes, "CoreV1Api") as api_class:
+        yield api_class.return_value
+
+
+class TestTaskConfigPod:
+    def test_a_task_without_config_gets_no_volume_mount_or_env_var(self, pipes_env):
+        spec = make_pipe()._build_base_pod_spec()
+
+        assert [volume["name"] for volume in spec["volumes"]] == ["artifacts-pvc"]
+        assert [mount["name"] for mount in spec["containers"][0]["volumeMounts"]] == ["artifacts-pvc"]
+        assert "CONFIG_PATH" not in [env["name"] for env in spec["containers"][0]["env"]]
+
+    def test_the_config_is_one_read_only_file_from_the_tasks_configmap(self, pipes_env):
+        spec = make_pipe(config=TASK_CONFIG)._build_base_pod_spec()
+
+        assert spec["volumes"][1] == {"name": "task-config", "configMap": {"name": "task-9-config"}}
+        assert spec["containers"][0]["volumeMounts"][1] == {
+            "name": "task-config", "mountPath": "/etc/task/config.json", "subPath": "config.json", "readOnly": True,
+        }
+        assert {"name": "CONFIG_PATH", "value": "/etc/task/config.json"} in spec["containers"][0]["env"]
+
+    def test_the_config_path_cannot_be_set_by_the_specs_env(self, pipes_env):
+        pipe = make_pipe(config=TASK_CONFIG, env={"CONFIG_PATH": "/elsewhere"})
+
+        assert pipe.env["CONFIG_PATH"] == "/etc/task/config.json"
+
+    def test_an_empty_config_is_still_a_config(self, pipes_env):
+        spec = make_pipe(config={})._build_base_pod_spec()
+
+        assert spec["volumes"][1]["configMap"] == {"name": "task-9-config"}
+
+    def test_a_task_without_config_needs_no_task_id_tag(self, pipes_env):
+        context = MagicMock()
+        context.run_id = "run-1"
+        context.dagster_run.tags = {}
+        context.op_config = {"docker_image": "img"}
+
+        assert K8sPipe(client=MagicMock(), context=context).config_map_name is None
+
+
+class TestTaskConfigMap:
+    def test_a_task_without_config_makes_no_kubernetes_calls(self, pipes_env, tmp_path, core_api):
+        pipe = make_pipe()
+        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
+
+        pipe()
+
+        pipes.load_incluster_config.assert_not_called()
+        pipes.CoreV1Api.assert_not_called()
+        core_api.create_namespaced_config_map.assert_not_called()
+        core_api.delete_namespaced_config_map.assert_not_called()
+
+    def test_the_configmap_exists_in_the_tasks_namespace_while_the_pod_runs_and_is_deleted_after(
+        self, pipes_env, tmp_path, core_api
+    ):
+        events = []
+        core_api.create_namespaced_config_map.side_effect = lambda *args: events.append(("create", *args))
+        core_api.delete_namespaced_config_map.side_effect = lambda *args: events.append(("delete", *args))
+        client = MagicMock()
+        client.run.side_effect = lambda **_: events.append(("run",))
+        pipe = make_pipe(client=client, config=TASK_CONFIG)
+        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
+
+        pipe()
+
+        assert [event[0] for event in events] == ["create", "run", "delete"]
+        _, namespace, body = events[0]
+        assert namespace == "tasks"
+        assert body.metadata.name == "task-9-config"
+        assert json.loads(body.data["config.json"]) == TASK_CONFIG
+        assert list(body.data) == ["config.json"]
+        assert events[2] == ("delete", "task-9-config", "tasks")
+
+    def test_the_configmap_is_deleted_when_the_run_fails(self, pipes_env, tmp_path, core_api):
+        client = MagicMock()
+        client.run.side_effect = RuntimeError("pod failed")
+        pipe = make_pipe(client=client, config=TASK_CONFIG)
+        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
+
+        with pytest.raises(RuntimeError, match="pod failed"):
+            pipe()
+
+        core_api.delete_namespaced_config_map.assert_called_once_with("task-9-config", "tasks")
+
+    def test_the_configmap_is_not_created_when_the_pod_spec_cannot_be_built(self, pipes_env, tmp_path, core_api):
+        pipe = make_pipe(config=TASK_CONFIG)
+        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
+
+        with patch.object(pipe, "_build_base_pod_spec", side_effect=RuntimeError("no secret")):
+            with pytest.raises(RuntimeError, match="no secret"):
+                pipe()
+
+        core_api.create_namespaced_config_map.assert_not_called()
+
+    def test_a_configmap_left_by_a_killed_run_is_replaced(self, pipes_env, tmp_path, core_api):
+        core_api.create_namespaced_config_map.side_effect = [ApiException(status=409), None]
+        client = MagicMock()
+        pipe = make_pipe(client=client, config=TASK_CONFIG)
+        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
+
+        pipe()
+
+        assert core_api.create_namespaced_config_map.call_count == 2
+        assert [call.args for call in core_api.delete_namespaced_config_map.call_args_list] == [
+            ("task-9-config", "tasks"), ("task-9-config", "tasks"),
+        ]
+        client.run.assert_called_once()
+
+    def test_any_other_error_creating_it_fails_the_run_before_the_pod_starts(self, pipes_env, tmp_path, core_api):
+        core_api.create_namespaced_config_map.side_effect = ApiException(status=403)
+        client = MagicMock()
+        pipe = make_pipe(client=client, config=TASK_CONFIG)
+        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
+
+        with pytest.raises(ApiException):
+            pipe()
+
+        client.run.assert_not_called()
+        core_api.delete_namespaced_config_map.assert_not_called()
 
 
 class TestCall:

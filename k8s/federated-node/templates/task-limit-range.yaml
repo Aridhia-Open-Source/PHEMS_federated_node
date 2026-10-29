@@ -1,0 +1,22 @@
+{{- /*
+  The CPU and memory of task pods, in the namespace Dagster runs them in: a container that asks for nothing gets the
+  default requests and limits, and none can ask for more than max. The backend checks a spec file's compute against the
+  same values (taskCompute in values.yaml), so a pull request over them is rejected rather than failing at launch.
+*/}}
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: task-compute
+  namespace: {{ include "tasks_namespace" . }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: {{ .Values.taskCompute.default.limits.cpu | quote }}
+        memory: {{ .Values.taskCompute.default.limits.memory | quote }}
+      defaultRequest:
+        cpu: {{ .Values.taskCompute.default.requests.cpu | quote }}
+        memory: {{ .Values.taskCompute.default.requests.memory | quote }}
+      max:
+        cpu: {{ .Values.taskCompute.max.cpu | quote }}
+        memory: {{ .Values.taskCompute.max.memory | quote }}

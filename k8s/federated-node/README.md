@@ -37,6 +37,7 @@ The necessary values are:
 |-|-|-|
 |integrations|domains|The list of third party host that can reach the Federated Node. Otherwise these will be blocked by CSP policies. This will not affect direct user API usage.|
 |host|The URL where the FN will be hosted at|
+|nodeId|Required. Names this node (hospital) in the results it delivers (`run.json`, `node.id`)|
 |tls|secretName|Secret name where the SSL certificate is. Defaults to `tls` if the `tls` section is set|
 
 ### Existing secrets

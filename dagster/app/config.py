@@ -43,6 +43,7 @@ DELIVERY_MAX_ATTEMPTS = SensorStatusConfig().delivery_max_attempts
 class ResultsDeliveryConfig(EnvConfig):
     artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
     max_zip_bytes: int = Field(default=10485760, alias="RESULTS_MAX_ZIP_BYTES")
+    node_id: str = Field(default="", alias="NODE_ID")
 
 
 class ArtifactsVolumeConfig(EnvConfig):

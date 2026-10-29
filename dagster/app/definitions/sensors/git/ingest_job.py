@@ -51,6 +51,6 @@ def ingest_pull_requests(context: OpExecCtx):
 def ingest_pull_requests_job():
     """
     Ingest the new merged pull requests of one global trigger repository (run config: repo_id).
-    Its tags are trigger=ingest and repo_id, never trigger=task: the run-status sensors act on that.
+    Its tags are fn/trigger=ingest and fn/repo_id, never fn/trigger=task: the run-status sensors act on that.
     """
     ingest_pull_requests()  # pylint: disable=no-value-for-parameter  # Dagster injects context

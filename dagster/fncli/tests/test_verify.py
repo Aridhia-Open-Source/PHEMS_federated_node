@@ -53,7 +53,7 @@ def task_of(**fields):
 def run_of(**fields):
     run = {
         "runId": "abc", "status": "SUCCESS", "jobName": "k8s_pipes_job",
-        "tags": [{"key": "attempt", "value": "1"}],
+        "tags": [{"key": "fn/attempt", "value": "1"}],
     }
     return run | fields
 
@@ -108,7 +108,7 @@ def test_a_pr_that_was_not_yielded_fails_and_stops(state):
 def test_a_task_without_a_run_fails():
     report = verify(pr_of(), task_of(), run=None)
 
-    assert failures(report) == ["Task 9 has a Dagster run: runs tagged task_id=9"]
+    assert failures(report) == ["Task 9 has a Dagster run: runs tagged fn/task_id=9"]
 
 
 @pytest.mark.parametrize("task_fields, run_fields, failed", [

@@ -46,6 +46,11 @@ Pipes task pods run in the tasks namespace, so the run pod has to create, watch,
 delete pods there (PipesK8sClient.run - it creates a bare pod, not a Job), and create and
 delete the Secret that hands the pod its dataset credentials (K8sPipe in pipes.py). That is
 all it may do with Secrets here: it cannot read one back.
+
+delete pods there (PipesK8sClient.run - it creates a bare pod, not a Job).
+
+It also creates and deletes the ConfigMap that holds a task's config file for as long as
+the run lasts (K8sPipe._task_config_map in dagster/app/definitions/pipes.py).
 */}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -65,6 +70,9 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["create", "delete"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create", "get", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

@@ -32,7 +32,7 @@ class PullRequestIngestSensor(LaunchingSensor, GitSensor):
         return item.uri
 
     def tags(self, item: TriggerRepository) -> dict[str, str]:
-        return {"trigger": "ingest", "repo_id": str(item.id)}
+        return {"fn/trigger": "ingest", "fn/repo_id": str(item.id)}
 
     def ready(self, item: TriggerRepository) -> bool:
         """The provider's merged PRs since the repository's cursor. Asks the backend for a token for the repository."""

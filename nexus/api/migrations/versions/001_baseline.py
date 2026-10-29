@@ -165,7 +165,10 @@ def upgrade() -> None:
         sa.Column('image', sa.String(length=256), nullable=False),
         sa.Column('dataset_id', sa.Integer(), nullable=True),
         sa.Column('env', sa.JSON(), server_default='{}', nullable=False),
-        sa.Column('resources', sa.JSON(), server_default='{}', nullable=False),
+        sa.Column('compute', sa.JSON(), server_default='{}', nullable=False),
+        sa.Column('tags', sa.JSON(), server_default='{}', nullable=False),
+        sa.Column('config', sa.JSON(), nullable=True),
+        sa.Column('metadata', sa.JSON(), nullable=True),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='RESTRICT'),
         sa.PrimaryKeyConstraint('id')
     )

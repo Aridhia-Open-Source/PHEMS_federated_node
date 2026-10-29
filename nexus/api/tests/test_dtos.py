@@ -83,22 +83,42 @@ class TestDictionaryDTO:
 
 
 class TestTaskDTO:
-    def test_fields(self):
+    def test_fields(self, project):
         task = Task(
-            name="task", requested_by="user", project_id=1, trigger_id=1,
-            spec={"image": "alpine:latest", "dataset_id": None, "env": {"K": "v"}, "resources": {"limits": {"cpu": "1"}}}
+            name="task", requested_by="user", project_id=project.id, trigger_id=1,
+            spec={
+                "image": "alpine:latest", "dataset_id": None, "env": {"K": "v"},
+                "compute": {"limits": {"cpu": "1"}}, "tags": {"team": "a"}, "config": {"epochs": 3},
+                "metadata": {"ticket": "ABC-1"},
+            }
         )
         task.id = 1
+        task.project = project
         dumped = TaskDTO.from_model(task).dump()
         assert set(dumped) == {
             "id", "name", "spec", "attempt", "status", "created_at", "updated_at",
-            "requested_by", "project_id", "trigger_id",
+            "requested_by", "project_id", "project_name", "dataset_name", "trigger_id",
             "executor_run_id", "exit_code", "started_at", "completed_at", "state_cause", "config_hash",
         }
         assert dumped["status"] == "PENDING"
         assert dumped["attempt"] == 1
         assert dumped["spec"] == {
-            "image": "alpine:latest", "dataset_id": None, "env": {"K": "v"}, "resources": {"limits": {"cpu": "1"}}
+            "image": "alpine:latest", "dataset_id": None, "env": {"K": "v"},
+            "compute": {"limits": {"cpu": "1"}}, "tags": {"team": "a"}, "config": {"epochs": 3},
+            "metadata": {"ticket": "ABC-1"},
         }
+        assert (dumped["project_name"], dumped["dataset_name"]) == (project.name, None)
         assert dumped["trigger_id"] == 1
         assert WIRE_DATETIME.match(dumped["created_at"])
+
+    def test_a_spec_without_tags_config_or_metadata(self, project):
+        task = Task(
+            name="task", requested_by="user", project_id=project.id, trigger_id=1,
+            spec={"image": "alpine:latest", "dataset_id": None, "env": {}}
+        )
+        task.id = 1
+        task.project = project
+        assert TaskDTO.from_model(task).dump()["spec"] == {
+            "image": "alpine:latest", "dataset_id": None, "env": {}, "compute": {}, "tags": {}, "config": None,
+            "metadata": None,
+        }

@@ -206,8 +206,8 @@ These have not been run against a cluster. When one is run and the result record
 
 - The failure suite (`pytest dagster --e2e failure`), including the group where a results resource is switched off and the result is delivered once the project resource is switched back on. Two assumptions in it are unchecked: a task can be created and launched while its results resource is switched off, and the watched task uses the project's default dataset.
 - The success and failure suites with the launch endpoint and the reconcile sensor in place.
-- `dagster/app/tests/test_enum_drift.py`, from a full checkout: it skips when `nexus/api/` is not beside `dagster/`.
-- The reconcile sensor catching up: stop the sensors, let a task run to the end, then start them. The reconcile sensor should bring the task to its final status. It finds the run by its `trigger`, `task_id` and `attempt` tags. It was tested against a fake instance and one real instance, never a live Dagster with real runs; check that its ticks show in the Dagster UI.
+- `dagster/app/tests/test_enum_drift.py`, from a full checkout: it skips when `webserver/` is not beside `dagster/`.
+- The reconcile sensor catching up: stop the sensors, let a task run to the end, then start them. The reconcile sensor should bring the task to its final status. It finds the run by its `fn/trigger`, `fn/task_id` and `fn/attempt` tags. It was tested against a fake instance and one real instance, never a live Dagster with real runs; check that its ticks show in the Dagster UI.
 
 Treat the failure suite as written but not proven on a cluster until a run is recorded.
 

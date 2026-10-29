@@ -24,6 +24,7 @@ certs:
 smoketests: false
 
 host: phems-federatednode.net
+nodeId: test-node
 
 cert-manager:
   enabled: true

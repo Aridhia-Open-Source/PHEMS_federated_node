@@ -52,8 +52,10 @@ class PrConfig(TriggerRepoConfig):
     pr_image: str = Field(default="localhost:5001/pypipes-fn:latest", alias="TEST_PR_IMAGE")
     # Extra env for the task, as JSON, e.g. '{"UC1_DEV": "1"}' (fncli experiment run)
     pr_env: dict[str, str] = Field(default={}, alias="TEST_PR_ENV", validate_default=False)
-    # The task's resources, as JSON, e.g. '{"limits": {"cpu": "500m", "memory": "256Mi"}}'
-    pr_resources: dict = Field(default={}, alias="TEST_PR_RESOURCES", validate_default=False)
+    # The task's run tags, as JSON, e.g. '{"team": "a"}'
+    pr_tags: dict[str, str] = Field(default={}, alias="TEST_PR_TAGS", validate_default=False)
+    # The task's config file content, as a JSON object, e.g. '{"threshold": 0.5}'
+    pr_config: dict = Field(default={}, alias="TEST_PR_CONFIG", validate_default=False)
 
 
 branch_option = click.option(
@@ -70,11 +72,13 @@ def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
     """The path and content of the one new file a PR of that kind carries."""
     if kind == "unwatched":
         return f"docs/{branch}.md", f"# {branch}\n\nNot a spec: outside the watch_dir.\n"
-    spec = {"name": branch, "image": config.pr_image}
+    spec = {"image": config.pr_image}
     if config.pr_env:
         spec["env"] = dict(config.pr_env)
-    if config.pr_resources:
-        spec["resources"] = config.pr_resources
+    if config.pr_tags:
+        spec["tags"] = dict(config.pr_tags)
+    if config.pr_config:
+        spec["config"] = config.pr_config
     if kind == "failing":
         spec["env"] = {**spec.get("env", {}), "PYPIPES_EXIT_CODE": "1"}
     if kind == "invalid":

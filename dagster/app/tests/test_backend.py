@@ -145,12 +145,14 @@ class TestPullRequests:
     def test_get_task_trigger_reads_the_pull_request_and_its_repository(self, api, session):
         session.get.return_value = make_response({
             **SAMPLE_PR, "trigger_repository": {"id": 1, "repo_path": "org/repo", "uri": "github.com/org/repo"},
+            "spec_raw": '{"spec": {"image": "a/b:1"}}',
         })
 
         trigger = api.get_task_trigger(1, 9)
 
         session.get.assert_called_once_with("/projects/1/tasks/9/trigger")
         assert (trigger.number, trigger.trigger_repository.repo_path) == (SAMPLE_PR["number"], "org/repo")
+        assert trigger.spec_raw == '{"spec": {"image": "a/b:1"}}'
 
     def test_get_task_config_reads_whether_the_task_configuration_is_current(self, api, session):
         body = {"current": False, "changes": ["image changed"], "config_hash": "abc"}
@@ -261,7 +263,7 @@ class TestDatasets:
 SAMPLE_PROJECT = {"id": 1, "name": "proj", "enabled": True, "default_dataset_id": 1}
 SAMPLE_TASK = {
     "id": 9, "name": "t", "spec": {"image": "a/b:1", "dataset_id": 1, "env": {}}, "attempt": 1, "trigger_id": 4, "status": "PENDING", "requested_by": "u",
-    "project_id": 1, "executor_run_id": None, "exit_code": None,
+    "project_id": 1, "project_name": "proj", "dataset_name": None, "executor_run_id": None, "exit_code": None,
     "started_at": None, "completed_at": None,
 }
 

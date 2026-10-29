@@ -50,8 +50,6 @@ class ExperimentConfig(ReleaseConfig):
     run_timeout: int = Field(default=0, alias="RUN_TIMEOUT")
     # Extra env for the task, as JSON, e.g. '{"UC1_DEV": "1"}'
     dev_env: dict[str, str] = Field(default={}, alias="DEV_ENV", validate_default=False)
-    # The task's resources, as JSON, e.g. '{"limits": {"cpu": "500m", "memory": "256Mi"}}'
-    resources: dict = Field(default={}, alias="RESOURCES", validate_default=False)
     # `run --local`'s port-forward. 5432 is the node's own Postgres.
     local_port: int = Field(default=5434, alias="EXPERIMENTS_LOCAL_PORT")
 
@@ -206,8 +204,6 @@ def run_command(ctx, name, local):
     if env:
         os.environ["TEST_PR_ENV"] = json.dumps(env)
     os.environ["TEST_PR_IMAGE"] = config.image
-    if config.resources:
-        os.environ["TEST_PR_RESOURCES"] = json.dumps(config.resources)
     ctx.invoke(open_pr_command, kind="watched", merge=True, watch=True, timeout=config.run_timeout)
 
 

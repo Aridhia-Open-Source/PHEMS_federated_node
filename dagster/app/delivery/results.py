@@ -23,7 +23,7 @@ from app.models import (
 )
 
 ZIP_NAME = "results.zip"
-METADATA_NAME = "metadata.json"
+RUN_NAME = "run.json"
 SPEC_NAME = "spec.json"
 MAX_ERROR_LENGTH = 1000
 REVOKED_ERROR = "results repository access revoked"
@@ -36,9 +36,9 @@ FINAL = PAST_PUSHED | {PullRequestResultStep.REVOKED, PullRequestResultStep.STAL
 
 class ResultsDelivery:
     """
-    Zips a task's artifacts and pushes them with the task's spec and a metadata file to a new branch of
-    the project's results repository, opens a pull request from it into the repository's default
-    branch, and records each step on the task's result as soon as it is done.
+    Zips a task's artifacts and pushes them with the pull request's spec file and a run.json to a new
+    branch of the project's results repository, opens a pull request from it into the repository's
+    default branch, and records each step on the task's result as soon as it is done.
     Delivery never touches the task's own status.
     """
 
@@ -180,7 +180,7 @@ class ResultsDelivery:
                 raise FileNotFoundError(f"No artifacts at {artifacts}")
 
             zip_path = Path(work) / ZIP_NAME
-            git_push.zip_dir(artifacts, zip_path)
+            file_count = git_push.zip_dir(artifacts, zip_path)
             zip_size = zip_path.stat().st_size
             if zip_size > self.config.max_zip_bytes:
                 raise ValueError(
@@ -194,16 +194,22 @@ class ResultsDelivery:
             git_push.checkout_new_branch(clone_dir, branch)
             out_dir.mkdir(parents=True, exist_ok=True)
             zip_path.replace(out_dir / ZIP_NAME)
-            (out_dir / SPEC_NAME).write_text(json.dumps(task.spec.model_dump(), indent=2) + "\n")
-            (out_dir / METADATA_NAME).write_text(json.dumps({
-                "branch": branch,
-                "merge_commit_sha": pull_request.merge_commit_sha,
-                "task_id": task.id,
-                "executor_run_id": run_id,
-                "trigger_repository_uri": trigger_repository.uri,
-                "number": pull_request.number,
-                "delivered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "zip_size_bytes": zip_size,
+            # The spec file as it was merged, not re-serialised
+            (out_dir / SPEC_NAME).write_bytes(pull_request.spec_raw.encode())
+            (out_dir / RUN_NAME).write_text(json.dumps({
+                "node": {"id": self.config.node_id},
+                "project": {"id": task.project_id, "name": task.project_name},
+                "trigger": {
+                    "repository_uri": trigger_repository.uri,
+                    "pr_number": pull_request.number,
+                    "merge_commit_sha": pull_request.merge_commit_sha,
+                },
+                "task": {"id": task.id, "name": task.name, "executor_id": run_id, "dataset": task.dataset_name},
+                "results": {
+                    "zip_size_bytes": zip_size,
+                    "file_count": file_count,
+                    "delivered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                },
             }, indent=2) + "\n")
 
             return branch, git_push.commit_and_push(clone_dir, message, env), base_branch

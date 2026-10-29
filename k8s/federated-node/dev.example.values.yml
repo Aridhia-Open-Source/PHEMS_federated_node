@@ -35,6 +35,9 @@ taskNetworkPolicy:
 
 host: phems-federatednode.net
 
+# Required. Names this node in the results it delivers (run.json, node.id).
+nodeId: dev-node
+
 # The one Postgres server. The *-db-init hooks create the databases, roles and
 # passwords. The .svc name embeds the namespace - keep it in step with NAMESPACE.
 db:

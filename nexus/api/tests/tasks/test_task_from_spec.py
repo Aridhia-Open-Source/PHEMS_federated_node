@@ -57,25 +57,68 @@ class TestNewTaskDTOFromSpec:
         task = NewTaskDTO.from_spec(TaskSpecRequest(**SPEC), api_request)
         assert task.name == "TestTask"
         assert task.params == {"p": 1}
-        assert task.spec == {"image": "img:1", "dataset_id": dataset.id, "env": {"K": "v"}, "resources": {}}
+        assert task.spec == {
+            "image": "img:1", "dataset_id": dataset.id, "env": {"K": "v"}, "compute": {}, "tags": {}, "config": None, "metadata": None
+        }
         assert task.project_id == api_request.project_id
         assert task.requested_by == "api-user"
         assert task.trigger_id == api_request.id
 
-    def test_resources_are_stored_and_returned_with_the_task_spec(self, api_request):
-        resources = {"limits": {"cpu": "500m", "memory": "256Mi"}, "requests": {"cpu": "100m", "memory": "64Mi"}}
-        new_task = NewTaskDTO.from_spec(TaskSpecRequest(**SPEC, resources=resources), api_request)
-        assert new_task.spec["resources"] == resources
+    def test_compute_tags_config_and_metadata_are_stored_and_returned_with_the_task_spec(self, api_request):
+        compute = {"requests": {"cpu": "500m"}, "limits": {"cpu": "1", "memory": "2Gi"}}
+        tags, config, metadata = {"team": "a", "run": "1"}, {"epochs": 3, "layers": [1, {"x": None}]}, {"ticket": ["ABC-1"]}
+        spec = TaskSpecRequest(**SPEC, compute=compute, tags=tags, config=config, metadata=metadata)
+        new_task = NewTaskDTO.from_spec(spec, api_request)
+        assert new_task.spec["compute"] == compute
+        assert (new_task.spec["tags"], new_task.spec["config"], new_task.spec["metadata"]) == (tags, config, metadata)
 
         task = Task(**new_task.model_dump())
         task.add()
         db.session.expire_all()
-        assert Task.get_by_id(task.id).spec.resources == resources
-        assert TaskDTO.from_model(Task.get_by_id(task.id)).dump()["spec"]["resources"] == resources
+        stored = Task.get_by_id(task.id).spec
+        assert (stored.compute, stored.tags, stored.config, stored.metadata_) == (compute, tags, config, metadata)
+        dumped = TaskDTO.from_model(Task.get_by_id(task.id)).dump()["spec"]
+        assert (dumped["compute"], dumped["tags"], dumped["config"], dumped["metadata"]) == (
+            compute, tags, config, metadata
+        )
 
-    def test_pr_task_derived_from_spec(self, pull_request):
+    def test_only_the_compute_the_spec_gave_is_stored(self, api_request):
+        new_task = NewTaskDTO.from_spec(TaskSpecRequest(**SPEC, compute={"limits": {"memory": "1Gi"}}), api_request)
+        assert new_task.spec["compute"] == {"limits": {"memory": "1Gi"}}
+
+    def test_a_spec_without_compute_tags_config_or_metadata_stores_none(self, api_request):
+        task = Task(**NewTaskDTO.from_spec(TaskSpecRequest(**SPEC), api_request).model_dump())
+        task.add()
+        db.session.expire_all()
+        spec = Task.get_by_id(task.id).spec
+        assert (spec.compute, spec.tags, spec.config, spec.metadata_) == ({}, {}, None, None)
+
+    def test_the_task_dto_names_its_project_and_the_dataset_it_uses(self, api_request, project, dataset):
+        task = Task(**NewTaskDTO.from_spec(TaskSpecRequest(**SPEC), api_request).model_dump())
+        task.add()
+        dumped = TaskDTO.from_model(Task.get_by_id(task.id)).dump()
+        assert (dumped["project_name"], dumped["dataset_name"]) == (project.name, dataset.name)
+
+    def test_the_task_dto_has_no_dataset_name_without_a_dataset(self, api_request, project):
+        project.default_dataset_id = None
+        task = Task(**NewTaskDTO.from_spec(TaskSpecRequest(**SPEC), api_request).model_dump())
+        task.add()
+        dumped = TaskDTO.from_model(Task.get_by_id(task.id)).dump()
+        assert (dumped["project_name"], dumped["dataset_name"]) == (project.name, None)
+
+    def test_dataset_name_is_the_one_the_spec_resolved_to(self, api_request, project, second_dataset):
+        spec = TaskSpecRequest(**SPEC, dataset=second_dataset.name)
+        task = Task(**NewTaskDTO.from_spec(spec, api_request).model_dump())
+        task.add()
+        assert TaskDTO.from_model(Task.get_by_id(task.id)).dump()["dataset_name"] == second_dataset.name
+
+    def test_pr_task_derived_from_spec(self, pull_request, project):
         task = NewTaskDTO.from_spec(TaskSpecRequest(image="img:1"), pull_request)
-        assert task.name == "PR title"
+        assert task.name == f"{project.name}:PR#7"
+        assert task.params == {}
+        assert (task.spec["compute"], task.spec["tags"], task.spec["config"], task.spec["metadata"]) == (
+            {}, {}, None, None
+        )
         assert task.requested_by == "pr-user"
         assert task.trigger_id == pull_request.id
 
@@ -159,9 +202,18 @@ class TestPostTasks:
         assert response.status_code == 200
         assert response.json()["spec"] == {
             "image": task_body["executors"][0]["image"], "dataset_id": dataset.id,
-            "env": task_body["executors"][0]["env"], "resources": task_body["resources"],
+            "env": task_body["executors"][0]["env"], "compute": {}, "tags": {}, "config": None, "metadata": None,
         }
+        assert (response.json()["project_name"], response.json()["dataset_name"]) == (project.name, dataset.name)
         assert "spec_raw" not in response.json()
+
+    def test_resources_are_validated_and_not_stored(self, client, post_json_admin_header, task_body, project):
+        task_body["resources"] = {"limits": {"cpu": "500m", "memory": "256Mi"}, "requests": {"cpu": "100m"}}
+        created = self.post(client, post_json_admin_header, project, task_body)
+        assert created.status_code == 201, created.json()
+        response = client.get(f"/projects/{project.id}/tasks/{created.json()['id']}", headers=post_json_admin_header)
+        assert "resources" not in response.json()["spec"] and response.json()["spec"]["compute"] == {}
+        assert Task.query.one().spec.compute == {}
 
     def test_a_task_without_a_dataset_is_created(
             self, client, post_json_admin_header, task_body, other_project

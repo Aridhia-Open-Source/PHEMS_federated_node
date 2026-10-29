@@ -36,9 +36,9 @@ def project(id=1, enabled=True):
     return Project(id=id, name=f"proj{id}", enabled=enabled)
 
 
-def task(id=9, project_id=1, attempt=1, dataset_id=7):
+def task(id=9, project_id=1, attempt=1, dataset_id=7, **spec):
     return Task(
-        id=id, name="t", spec={"image": "ghcr.io/o/i:1", "dataset_id": dataset_id, "env": {"K": "v"}},
+        id=id, name="t", spec={"image": "ghcr.io/o/i:1", "dataset_id": dataset_id, "env": {"K": "v"}, **spec},
         attempt=attempt, requested_by="u", project_id=project_id, trigger_id=4, status="PENDING",
     )
 
@@ -73,7 +73,7 @@ def test_launches_a_pending_task_with_one_call():
     assert len(result) == 1 and isinstance(result[0], RunRequest)
     assert result[0].run_key == "task/9/1"
     assert result[0].tags == {
-        "trigger": "task", "task_id": "9", "attempt": "1", "project_id": "1", **artifacts_volume_tags(),
+        "fn/trigger": "task", "fn/task_id": "9", "fn/attempt": "1", "fn/project_id": "1", **artifacts_volume_tags(),
     }
     config = result[0].run_config["ops"]["k8s_pipes_op"]["config"]
     assert config["docker_image"] == "ghcr.io/o/i:1"
@@ -84,6 +84,30 @@ def test_launches_a_pending_task_with_one_call():
     backend_api.get_task_config.assert_not_called()
     backend_api.get_project_dataset.assert_not_called()
     backend_api.patch_task.assert_not_called()
+
+
+def test_the_specs_tags_are_run_tags_under_user_and_cannot_shadow_the_system_ones():
+    spec_tags = {"study": "uc1", "trigger": "user", "fn/task_id": "0", "dagster-k8s/config": "{}"}
+    result = run(make_backend([project()], {1: [task(tags=spec_tags)]}))
+
+    assert result[0].tags == {
+        "user/study": "uc1", "user/trigger": "user", "user/fn/task_id": "0", "user/dagster-k8s/config": "{}",
+        "fn/trigger": "task", "fn/task_id": "9", "fn/attempt": "1", "fn/project_id": "1", **artifacts_volume_tags(),
+    }
+
+
+def test_a_task_without_tags_has_only_the_system_tags_and_the_artifacts_volume_tag():
+    result = run(make_backend([project()], {1: [task()]}))
+
+    assert all(key.startswith("fn/") or key == "dagster-k8s/config" for key in result[0].tags)
+
+
+def test_the_specs_config_is_in_the_run_config_and_a_task_without_one_has_no_config_key():
+    with_config = run(make_backend([project()], {1: [task(config={"threshold": 0.5, "labels": ["a", None]})]}))
+    without = run(make_backend([project()], {1: [task()]}))
+
+    assert with_config[0].run_config["ops"]["k8s_pipes_op"]["config"]["config"] == {"threshold": 0.5, "labels": ["a", None]}
+    assert "config" not in without[0].run_config["ops"]["k8s_pipes_op"]["config"]
 
 
 def test_the_run_is_built_from_what_the_launch_response_carries():
@@ -153,7 +177,7 @@ def test_the_run_key_includes_the_attempt():
     result = run(make_backend([project()], {1: [task(attempt=2)]}))
 
     assert result[0].run_key == "task/9/2"
-    assert result[0].tags["attempt"] == "2"
+    assert result[0].tags["fn/attempt"] == "2"
 
 
 def test_only_enabled_projects_are_acted_on():
@@ -173,7 +197,7 @@ def test_tasks_of_two_projects_are_launched_each_with_its_own_project_id():
 
     result = run(backend_api)
 
-    assert [(r.run_key, r.tags["project_id"]) for r in result] == [("task/3/1", "1"), ("task/4/1", "2")]
+    assert [(r.run_key, r.tags["fn/project_id"]) for r in result] == [("task/3/1", "1"), ("task/4/1", "2")]
     assert [c.args for c in backend_api.launch_task.call_args_list] == [(1, 3), (2, 4)]
     backend_api.get_tasks.assert_called_once_with(status="PENDING", project_enabled=True)
 

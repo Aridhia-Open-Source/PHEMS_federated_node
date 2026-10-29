@@ -21,7 +21,7 @@ flowchart TD
     H -->|"PATCH /projects/{project_id}/tasks/id"| T[Task status mirrors the run]
     G -->|"run SUCCESS"| J[task_results_delivery_sensor]
     J -->|"RunRequest deliver/task/attempt"| K[deliver_results_job]
-    K -->|"zip, spec.json, metadata.json pushed to a branch"| L[result PUSHED]
+    K -->|"zip, spec.json, run.json pushed to a branch"| L[result PUSHED]
     K -->|"PR from branch into default branch"| M[result OPENED]
     M --> N[results_pull_request_sync_sensor]
     L --> N
@@ -89,7 +89,7 @@ sequenceDiagram
     DG->>K8s: k8s_pipes_job starts the task pod
     DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS
     DG->>BE: POST /projects/<id>/results (task, global results repository id)
-    DG->>Git: clone results repository, push branch with results.zip, spec.json, metadata.json
+    DG->>Git: clone results repository, push branch with results.zip, spec.json, run.json
     DG->>BE: PATCH result PUSHED, then OPENED (number, url)
     DG->>Git: open PR from branch
     Dev->>CLI: merge-results-pr

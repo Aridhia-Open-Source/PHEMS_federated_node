@@ -53,11 +53,13 @@ def git(args: list[str], cwd: str | Path | None = None, env: dict[str, str] | No
     return result.stdout.strip()
 
 
-def zip_dir(src: Path, dest_zip: Path) -> None:
+def zip_dir(src: Path, dest_zip: Path) -> int:
     """
-    Zip a directory into a file. A symbolic link is left out, not followed: it may point out of the
-    directory. So is a file whose name has a backslash, which Windows unzip tools read as a path.
+    Zip a directory into a file and return how many files went in. A symbolic link is left out, not
+    followed: it may point out of the directory. So is a file whose name has a backslash, which Windows
+    unzip tools read as a path.
     """
+    file_count = 0
     with zipfile.ZipFile(dest_zip, "w", zipfile.ZIP_DEFLATED) as zf:
         for file in sorted(src.rglob("*")):
             if file.is_file() and not file.is_symlink():
@@ -66,6 +68,8 @@ def zip_dir(src: Path, dest_zip: Path) -> None:
                     logger.warning(f"Left {name} out of the results: its name has a backslash")
                     continue
                 zf.write(file, name)
+                file_count += 1
+    return file_count
 
 
 def clone(url: str, dest: Path, env: dict[str, str]) -> None:

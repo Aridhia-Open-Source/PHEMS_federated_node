@@ -24,6 +24,7 @@ data:
   DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.retryIntervalSeconds | quote }}
   DAGSTER_DELIVERY_MAX_ATTEMPTS: {{ .Values.fnDagster.sensors.deliveryMaxAttempts | quote }}
   NEXUS_API_URL: {{ include "nexusApiUrl" . | quote }}
+  NODE_ID: {{ .Values.nodeId | quote }}
   {{- /*
   Pod securityContext for pipes task pods. Only emitted when set - an unset
   runAsUser must stay absent rather than be sent as null, which the API rejects.

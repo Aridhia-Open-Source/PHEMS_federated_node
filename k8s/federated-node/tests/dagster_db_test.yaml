@@ -118,6 +118,21 @@ tests:
           path: kind
           value: ConfigMap
 
+  - it: passes the node id to dagster, which writes it in the results
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.NODE_ID
+          value: test-node
+
+  - it: refuses to render without a node id
+    template: dagster-env-config.yaml
+    set:
+      nodeId: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "nodeId"
+
   - it: passes the initial sensor status to the code server, STOPPED by default
     template: dagster-env-config.yaml
     asserts:

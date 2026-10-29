@@ -65,7 +65,7 @@ flowchart TD
     F --> G["Clone the results repository with its secret's token"]
     G --> H{"Branch already on the remote?"}
     H -->|yes| K
-    H -->|no| I["Zip the artifacts of run_id, check the size cap, write spec.json and metadata.json, commit, push"]
+    H -->|no| I["Zip the artifacts of run_id, check the size cap, write spec.json and run.json, commit, push"]
     I --> K["PATCH step PUSHED, branch, commit_sha"]
     K --> L["Find the branch's pull request, or open one into the default branch"]
     L --> M["PATCH step OPENED, MERGED or CLOSED, state DELIVERED, number, url, attempts +1, error cleared"]
@@ -87,7 +87,7 @@ flowchart TD
 | Run config | `deliver_results: {project_id, task_id, run_id}`, with the task's `executor_run_id` as `run_id` |
 | Skip | `SkipReason("No failed deliveries to retry.")` |
 
-What the job writes: the result (`POST /projects/{id}/results`, then `PATCH` per step) and a branch `<target_dir>/<trigger repository name>/<pull request number>/<task id>-<first 7 characters of the merge sha>` holding `results.zip`, `spec.json` and `metadata.json`, and a pull request from it into the default branch. The zip is capped by `RESULTS_MAX_ZIP_BYTES` (10 MiB by default). The job never changes the task's status.
+What the job writes: the result (`POST /projects/{id}/results`, then `PATCH` per step) and a branch `<target_dir>/<trigger repository name>/<pull request number>/<task id>-<first 7 characters of the merge sha>` holding `results.zip`, `spec.json` (the pull request's spec file, byte for byte) and `run.json` (node, project, trigger, task and delivery details; `node.id` is the chart's `nodeId`, passed as `NODE_ID`), and a pull request from it into the default branch. The zip is capped by `RESULTS_MAX_ZIP_BYTES` (10 MiB by default). The job never changes the task's status.
 
 ## 6. Retries and failure handling
 

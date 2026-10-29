@@ -165,6 +165,21 @@ taskNetworkPolicy:
   #         port: 5432
   datasetEgress: []
 
+# The CPU and memory of task pods, in the task namespace's LimitRange. A container that asks for nothing gets `default`,
+# and none can ask for more than `max`. A spec file's compute is checked against the same values: nothing over `max`,
+# and a request without a limit of its own can't be over `default.limits`.
+taskCompute:
+  default:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  max:
+    cpu: "4"
+    memory: 16Gi
+
 # firstUserSecret:
   # name:
   # passKey:
@@ -205,6 +220,10 @@ pullPolicy: Always
 
 # If using a reverse proxy, or ssl certificates, this will set the hostname
 host: &host
+
+# Required. Names this node (hospital) in the results it delivers: run.json's node.id. Set it once and
+# keep it, results already delivered carry the old one.
+nodeId: ""
 tls:
   secretName: &tls tls
 

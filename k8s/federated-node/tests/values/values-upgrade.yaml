@@ -34,6 +34,7 @@ certs:
 smoketests: false
 
 host: phems-federatednode.net
+nodeId: test-node
 
 global:
   namespaces:

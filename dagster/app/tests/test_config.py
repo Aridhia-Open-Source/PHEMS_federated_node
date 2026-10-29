@@ -20,7 +20,7 @@ def clean_env(monkeypatch):
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
         "DAGSTER_PIPES_RUN_AS_GROUP", "DAGSTER_PIPES_SUPPLEMENTAL_GROUPS",
         "DAGSTER_SENSORS_INITIAL_STATUS", "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS",
-        "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "DAGSTER_DELIVERY_MAX_ATTEMPTS", "RESULTS_MAX_ZIP_BYTES",
+        "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "DAGSTER_DELIVERY_MAX_ATTEMPTS", "RESULTS_MAX_ZIP_BYTES", "NODE_ID",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -153,11 +153,28 @@ class TestArtifactsVolumeConfig:
 class TestResultsDeliveryConfig:
     def test_the_zip_cap_is_10_mib_by_default(self, monkeypatch):
         monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        monkeypatch.setenv("NODE_ID", "node-1")
 
         assert ResultsDeliveryConfig().max_zip_bytes == 10 * 1024 * 1024
 
     def test_the_zip_cap_comes_from_the_environment(self, monkeypatch):
         monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        monkeypatch.setenv("NODE_ID", "node-1")
         monkeypatch.setenv("RESULTS_MAX_ZIP_BYTES", "2048")
 
         assert ResultsDeliveryConfig().max_zip_bytes == 2048
+
+    def test_the_node_id_comes_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        monkeypatch.setenv("NODE_ID", "node-1")
+
+        assert ResultsDeliveryConfig().node_id == "node-1"
+
+    @pytest.mark.parametrize("node_id", [None, ""])
+    def test_a_missing_or_empty_node_id_is_rejected(self, monkeypatch, node_id):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        if node_id is not None:
+            monkeypatch.setenv("NODE_ID", node_id)
+
+        with pytest.raises(ValidationError):
+            ResultsDeliveryConfig()

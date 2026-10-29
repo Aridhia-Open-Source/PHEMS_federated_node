@@ -1,11 +1,16 @@
+import json
 import os
 import logging
+from contextlib import contextmanager
+from http import HTTPStatus
 from pathlib import Path
 
 from dagster_k8s import PipesK8sClient
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 from dagster._core.pipes.client import PipesClientCompletedInvocation
+from kubernetes.client import ApiException, CoreV1Api, V1ConfigMap, V1ObjectMeta
+from kubernetes.config import load_incluster_config
 
 from app.config import PipesSecurityContextConfig
 from app.secrets import SecretProvider, TaskSecret
@@ -17,6 +22,12 @@ logger = logging.getLogger(__name__)
 # Analytical containers flushing results to the shared volume need longer than the
 # 30s default to exit before SIGKILL.
 TERMINATION_GRACE_PERIOD_SECONDS = 300
+
+# A task's config, when its spec has one, is a single read-only file in the task pod, from a ConfigMap
+# that only lives as long as the run.
+CONFIG_FILE_NAME = "config.json"
+CONFIG_FILE_PATH = f"/etc/task/{CONFIG_FILE_NAME}"
+CONFIG_VOLUME_NAME = "task-config"
 
 # ODBC driver per dataset type, as the legacy node's connection_string helper (and the task
 # images, e.g. ghcr.io/aridhia-open-source/r-base) name them.
@@ -32,7 +43,8 @@ ODBC_DRIVERS = {
     config_schema={
         "docker_image": dg.Field(str),
         "env": dg.Field(dict, default_value={}, is_required=False),
-        "resources": dg.Field(dict, default_value={}, is_required=False),
+        "compute": dg.Field(dict, default_value={}, is_required=False),
+        "config": dg.Field(dict, is_required=False),
         "image_pull_secret": dg.Field(str, is_required=False),
         "dataset": dg.Field(
             dg.Shape(
@@ -70,13 +82,17 @@ class K8sPipe:
         self.active_deadline_seconds = int(os.environ["DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS"])
         self.image = self.config['docker_image']
         self.image_pull_secret = self.config.get('image_pull_secret')
-        self.resources = self.config.get('resources')
+        self.task_config = self.config.get('config')
+        self.config_map_name = (
+            f"task-{context.dagster_run.tags['fn/task_id']}-config" if self.task_config is not None else None
+        )
         self.name = f"pipes-{self.run_id}"
         self.artifact_path = f"{self.mnt_base_path}/{self.run_id}"
         self.security_context = PipesSecurityContextConfig().to_pod_security_context()
         self.container_security_context = PipesSecurityContextConfig().to_container_security_context()
         self.dataset = self._setup_dataset()
         self.env = self._setup_env(ext_env)
+        self.compute = self.config.get('compute')
 
     def _setup_dataset(self):
         dataset = self.config.get('dataset')
@@ -94,6 +110,8 @@ class K8sPipe:
             **(ext_env or {}),
             'ARTIFACT_PATH': self.artifact_path,
         }
+        if self.task_config is not None:
+            env['CONFIG_PATH'] = CONFIG_FILE_PATH
         if self.dataset:
             if self.dataset['read_schema']:
                 env['CDM_SCHEMA'] = self.dataset['read_schema']
@@ -116,14 +134,16 @@ class K8sPipe:
         self.log(f"Pipes op starting - {self.image}")
         self.log(f"ARIFACT_PATH: {self.artifact_path}")
         self._prepare_artifact_dir()
-        result = self.client.run(
-            base_pod_spec=self._build_base_pod_spec(),
-            namespace=self.task_namespace,
-            context=self.context,
-            image=self.image,
-            # The pod is killed at its deadline, and Kubernetes then takes up to the grace period to stop it
-            pod_wait_timeout=self.active_deadline_seconds + TERMINATION_GRACE_PERIOD_SECONDS,
-        )
+        base_pod_spec = self._build_base_pod_spec()
+        with self._task_config_map():
+            result = self.client.run(
+                base_pod_spec=base_pod_spec,
+                namespace=self.task_namespace,
+                context=self.context,
+                image=self.image,
+                # The pod is killed at its deadline, and Kubernetes then takes up to the grace period to stop it
+                pod_wait_timeout=self.active_deadline_seconds + TERMINATION_GRACE_PERIOD_SECONDS,
+            )
 
         self.log("Pipes op completed")
 
@@ -139,6 +159,36 @@ class K8sPipe:
 
     def warn(self, message: str):
         self.context.log.warning(f"[{self.run_id}] - {message}")
+
+    @contextmanager
+    def _task_config_map(self):
+        """
+        Holds the task's config file as a ConfigMap in the task namespace while the body runs, and deletes it
+        when the body ends, however it ends. Does nothing for a task without a config.
+
+        The name is per task, not per attempt. A run pod killed before it could delete the map leaves it behind,
+        so a conflict is the previous attempt's map: it is replaced.
+        """
+        if self.task_config is None:
+            yield
+            return
+        load_incluster_config()
+        core_api = CoreV1Api()
+        body = V1ConfigMap(
+            metadata=V1ObjectMeta(name=self.config_map_name),
+            data={CONFIG_FILE_NAME: json.dumps(self.task_config)},
+        )
+        try:
+            core_api.create_namespaced_config_map(self.task_namespace, body)
+        except ApiException as exc:
+            if exc.status != HTTPStatus.CONFLICT:
+                raise
+            core_api.delete_namespaced_config_map(self.config_map_name, self.task_namespace)
+            core_api.create_namespaced_config_map(self.task_namespace, body)
+        try:
+            yield
+        finally:
+            core_api.delete_namespaced_config_map(self.config_map_name, self.task_namespace)
 
     def _prepare_artifact_dir(self):
         """
@@ -208,8 +258,8 @@ class K8sPipe:
                 }
             ],
         }
-        if self.resources:
-            spec["containers"][0]["resources"] = self.resources
+        if self.compute:
+            spec["containers"][0]["resources"] = self.compute
         if self.image_pull_secret:
             spec["imagePullSecrets"] = [{"name": self.image_pull_secret}]
         if self.security_context:
@@ -217,12 +267,15 @@ class K8sPipe:
         return spec
 
     def _pod_volumes(self):
-        return [
+        volumes = [
             {
                 "name": self.pvc_name,
                 "persistentVolumeClaim": {"claimName": self.pvc_name},
             }
         ]
+        if self.task_config is not None:
+            volumes.append({"name": CONFIG_VOLUME_NAME, "configMap": {"name": self.config_map_name}})
+        return volumes
 
     def _pod_env(self):
         env = _dict_to_pod_env(self.env)
@@ -240,13 +293,18 @@ class K8sPipe:
 
     def _pod_volume_mounts(self):
         # Only this run's folder, not the volume: a task must not reach other runs' results
-        return [
+        mounts = [
             {
                 "name": self.pvc_name,
                 "mountPath": self.artifact_path,
                 "subPath": self.run_id,
             }
         ]
+        if self.task_config is not None:
+            mounts.append(
+                {"name": CONFIG_VOLUME_NAME, "mountPath": CONFIG_FILE_PATH, "subPath": CONFIG_FILE_NAME, "readOnly": True}
+            )
+        return mounts
 
     def _get_conn_str(self, username, password):
         """A full ODBC connection string for the dataset's type, as the legacy node built it."""

@@ -2,7 +2,7 @@ import json
 import re
 import subprocess
 import zipfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import dagster as dg
 import pytest
@@ -29,9 +29,10 @@ from app.tests.conftest import SAMPLE_SECRET
 pytestmark = pytest.mark.usefixtures("artifacts_env")
 
 RUN_ID = "run-1"
+NODE_ID = "node-1"
 TASK = Task(
-    id=7, name="t", spec={"image": "img", "dataset_id": None, "env": {}}, attempt=1, requested_by="u",
-    project_id=1, trigger_id=3, executor_run_id="stale-run",
+    id=7, name="proj:PR#12", spec={"image": "img", "dataset_id": 4, "env": {}}, attempt=1, requested_by="u",
+    project_id=1, project_name="proj", dataset_name="cdm", trigger_id=3, executor_run_id="stale-run",
 )
 GLOBAL_REPOSITORY = ResultsRepository(
     id=2, uri="http://gitea.fn.svc:3000/fn/results", repo_path="fn/results",
@@ -48,10 +49,13 @@ CONFIG = {
         "api_uri": "http://gitea.fn.svc:3000/api/v1", "target_dir": "/results/",
     }, "dataset": None},
 }
+# Not what a serialiser would write: odd spacing, no trailing newline, a non-ASCII character
+SPEC_RAW = '{\n "spec" :  {"image":"img",\n"env":{}},\n  "metadata": {"owner": "café"}}'
 TRIGGER_REPOSITORY = TriggerRepositoryRef(id=2, repo_path="fn/analysis", uri="gitea.fn.svc:3000/fn/analysis")
 PULL_REQUEST = TaskTrigger(
     project_id=1, trigger_repository_id=2, number=12, title="t", raised_by="u", merged_at="2026-01-01T00:00:00Z",
     merge_commit_sha="abc", state="YIELDED", task_id=7, spec_files=["spec.json"], trigger_repository=TRIGGER_REPOSITORY,
+    spec_raw=SPEC_RAW,
 )
 LAYOUT = "results/analysis/12/7"
 BRANCH = "results/analysis/12/7-abc"
@@ -126,7 +130,9 @@ def git_apis(git_api):
 
 
 def deliver(backend_api, remote, artifacts, git_apis=None, max_zip_bytes=10485760):
-    config = ResultsDeliveryConfig(DAGSTER_ARTIFACT_MOUNT_PATH=str(artifacts), RESULTS_MAX_ZIP_BYTES=max_zip_bytes)
+    config = ResultsDeliveryConfig(
+        DAGSTER_ARTIFACT_MOUNT_PATH=str(artifacts), RESULTS_MAX_ZIP_BYTES=max_zip_bytes, NODE_ID=NODE_ID
+    )
     with patch.object(git_push, "clone_url", return_value=str(remote)):
         ResultsDelivery(backend_api, git_apis or MagicMock(), config, MagicMock())(1, 7, RUN_ID)
 
@@ -155,17 +161,30 @@ def test_success_pushes_a_branch_with_the_layout_and_records_pushed_then_opened(
     out = check / LAYOUT
     with zipfile.ZipFile(out / "results.zip") as zf:
         assert sorted(zf.namelist()) == ["out.txt", "sub/b.csv"]
-    assert json.loads((out / "spec.json").read_text()) == {"image": "img", "dataset_id": None, "env": {}, "resources": {}}
+    assert (out / "spec.json").read_bytes() == SPEC_RAW.encode()
     assert git("rev-list", "--count", "main", cwd=remote) == "1"
-    metadata = json.loads((out / "metadata.json").read_text())
-    assert metadata["branch"] == BRANCH
-    assert metadata["merge_commit_sha"] == "abc"
-    assert metadata["task_id"] == 7
-    assert metadata["executor_run_id"] == RUN_ID
-    assert metadata["trigger_repository_uri"] == TRIGGER_REPOSITORY.uri
-    assert metadata["number"] == 12
-    assert metadata["zip_size_bytes"] == (out / "results.zip").stat().st_size
-    assert metadata["delivered_at"]
+    assert json.loads((out / "run.json").read_text()) == {
+        "node": {"id": NODE_ID},
+        "project": {"id": 1, "name": "proj"},
+        "trigger": {"repository_uri": TRIGGER_REPOSITORY.uri, "pr_number": 12, "merge_commit_sha": "abc"},
+        "task": {"id": 7, "name": "proj:PR#12", "executor_id": RUN_ID, "dataset": "cdm"},
+        "results": {
+            "zip_size_bytes": (out / "results.zip").stat().st_size,
+            "file_count": 2,
+            "delivered_at": ANY,
+        },
+    }
+    assert not (out / "metadata.json").exists()
+
+
+def test_the_dataset_is_null_in_run_json_when_the_task_used_none(backend_api, remote, artifacts, tmp_path, git_apis):
+    backend_api.get_task.return_value = TASK.model_copy(update={"dataset_name": None})
+
+    deliver(backend_api, remote, artifacts, git_apis)
+
+    check = tmp_path / "check"
+    git("clone", "--branch", BRANCH, str(remote), str(check), cwd=tmp_path)
+    assert json.loads((check / LAYOUT / "run.json").read_text())["task"]["dataset"] is None
 
 
 def test_pushed_is_recorded_before_the_pull_request_is_opened(backend_api, remote, artifacts, git_api, git_apis):
@@ -425,13 +444,13 @@ def test_the_token_stays_out_of_the_command_line():
 
 
 def test_the_sensor_requests_a_delivery_run_for_a_successful_task_run():
-    run = MagicMock(tags={"trigger": "task", "task_id": "7", "attempt": "2", "project_id": "1"}, run_id=RUN_ID)
+    run = MagicMock(tags={"fn/trigger": "task", "fn/task_id": "7", "fn/attempt": "2", "fn/project_id": "1"}, run_id=RUN_ID)
     context = MagicMock(dagster_run=run)
 
     result = task_results_delivery_sensor._run_status_sensor_fn(context)
 
     assert result.run_key == "deliver/7/2"
-    assert result.tags == {"trigger": "delivery", "delivery_task_id": "7", **artifacts_volume_tags(RUN_ID)}
+    assert result.tags == {"fn/trigger": "delivery", "fn/delivery_task_id": "7", **artifacts_volume_tags(RUN_ID)}
     assert result.run_config == {"ops": {"deliver_results": {"config": {"project_id": 1, "task_id": 7, "run_id": RUN_ID}}}}
 
 
@@ -444,7 +463,7 @@ def test_a_hung_git_command_fails_with_a_timeout():
 
 
 def test_the_sensor_ignores_runs_that_are_not_task_runs():
-    context = MagicMock(dagster_run=MagicMock(tags={"trigger": "delivery", "delivery_task_id": "7"}))
+    context = MagicMock(dagster_run=MagicMock(tags={"fn/trigger": "delivery", "fn/delivery_task_id": "7"}))
 
     assert task_results_delivery_sensor._run_status_sensor_fn(context) is None
 
@@ -486,7 +505,7 @@ def test_the_retry_sensor_relaunches_a_failed_delivery_with_its_task_run():
 
     (request,) = requests_
     assert re.fullmatch(r"deliver-retry/9/\d+", request.run_key)
-    assert request.tags == {"trigger": "delivery", "delivery_task_id": "7", **artifacts_volume_tags("run-7")}
+    assert request.tags == {"fn/trigger": "delivery", "fn/delivery_task_id": "7", **artifacts_volume_tags("run-7")}
     assert request.run_config == {"ops": {"deliver_results": {"config": {
         "project_id": 1, "task_id": 7, "run_id": "run-7"
     }}}}
@@ -539,7 +558,7 @@ def test_a_symbolic_link_in_the_artifacts_is_not_zipped(tmp_path):
     (src / "file-link").symlink_to(secret)
     (src / "dir-link").symlink_to(tmp_path)
 
-    git_push.zip_dir(src, tmp_path / "out.zip")
+    assert git_push.zip_dir(src, tmp_path / "out.zip") == 1
 
     with zipfile.ZipFile(tmp_path / "out.zip") as zf:
         assert zf.namelist() == ["out.txt"]
