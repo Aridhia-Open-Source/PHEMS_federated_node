@@ -68,15 +68,24 @@
         }
     },
     "properties": {
-        "backend": {
+        "nexus": {
             "type": "object",
             "properties": {
-                "replicas": {
-                    "type": "integer",
-                    "default": 1
-                },
-                "tag": {
-                    "$ref": "#/definitions/tag"
+                "api": {
+                    "type": "object",
+                    "properties": {
+                        "port": {
+                            "type": "integer",
+                            "default": 5000
+                        },
+                        "replicas": {
+                            "type": "integer",
+                            "default": 1
+                        },
+                        "tag": {
+                            "$ref": "#/definitions/tag"
+                        }
+                    }
                 }
             }
         },
@@ -103,7 +112,7 @@
                 "tokenCacheSeconds": {
                     "type": "integer",
                     "default": 30,
-                    "description": "Seconds a service-account token may be cached by the backend. 0 disables caching."
+                    "description": "Seconds a service-account token may be cached by nexus-api. 0 disables caching."
                 },
                 "credentialRotation": {
                     "type": "object",
@@ -245,7 +254,7 @@
                                 "null"
                             ]
                         },
-                        "backend": {
+                        "nexus": {
                             "type": [
                                 "string",
                                 "null"
@@ -311,17 +320,7 @@
             }
         },
         "federatedNode": {
-            "type": "object",
-            "properties": {
-                "enable_image_whitelist": {
-                    "type": "boolean",
-                    "default": false
-                },
-                "port": {
-                    "type": "integer",
-                    "default": 5000
-                }
-            }
+            "type": "object"
         },
         "storage": {
             "type": "object",

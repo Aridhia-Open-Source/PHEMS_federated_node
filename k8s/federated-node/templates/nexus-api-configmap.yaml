@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexus-api-configmap
+  namespace: {{ .Release.Namespace }}
+data:
+  NEXUS_ROLE: api
+  PGHOST: {{ .Values.db.host | quote }}
+  PGPORT: {{ .Values.db.port | quote }}
+  NEXUS_DB_NAME: {{ .Values.nexus.api.db.name | quote }}
+  NEXUS_DB_USER: {{ .Values.nexus.api.db.user | quote }}
+  KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
+  DEFAULT_NAMESPACE: {{ .Release.Namespace }}
+  KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
+  {{- /*
+    Where kc-secrets is mounted. nexus-api reads credentials from these files rather than from its
+    environment, so a rotation reaches it without a restart.
+  */}}
+  KC_SECRETS_PATH: {{ include "kcSecretsMountPath" . }}
+  {{- /*
+    Cache service-account tokens briefly. Keycloak() otherwise performs a fresh password grant on
+    every instantiation, and a single request builds several of them -- which would turn the short
+    cutover during a credential rotation into a total outage rather than a few retried calls.
+  */}}
+  KEYCLOAK_TOKEN_CACHE_TTL: {{ .Values.keycloak.tokenCacheSeconds | default 30 | quote }}
+  TASK_NAMESPACE: {{ include "tasks_namespace" . }}
+  QUARANTINE_NAMESPACE: {{ include "quarantine_namespace" . }}
+  SECRETS_NAMESPACE: {{ include "secrets_namespace" . }}
+{{- if .Values.dagster.enabled }}
+  DAGSTER_WEBSERVER_URI: {{ include "dagsterWebserverUri" . | quote }}
+{{- end }}
+  PUBLIC_URL: {{ .Values.host }}
+{{- if .Values.taskReview }}
+  TASK_REVIEW: enabled
+{{- end }}
+{{- if .Values.db.enforceSSL }}
+  DB_SSL: "?sslmode=require"
+{{- end }}

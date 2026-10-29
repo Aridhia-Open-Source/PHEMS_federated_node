@@ -112,7 +112,7 @@ def test_the_project_env_wins_over_the_shell_and_the_rest_of_the_env_is_left_alo
     config = load_project("x")
 
     assert os.environ["TEST_PROJECT_NAME"] == "exp"
-    assert os.environ["BACKEND_URL"] == "http://localhost:5000"
+    assert os.environ["NEXUS_API_URL"] == "http://localhost:5000"
     assert (config.image, config.source_dir, config.project_name) == ("localhost:5001/x-fn:latest", "sources/x", "exp")
     assert (config.database, config.username, config.secret_name) == ("x-db", "x_user", "db-datasets-x")
     assert (config.read_schema, config.write_schema, config.run_timeout) == ("cdm", "results", 60)

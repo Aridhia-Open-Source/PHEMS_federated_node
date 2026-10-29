@@ -76,7 +76,7 @@ tests:
     template: requirements-check.yaml
     asserts:
       - failedTemplate:
-          errorPattern: "backend-db \\(key password\\)"
+          errorPattern: "nexus-db \\(key password\\)"
       - failedTemplate:
           errorPattern: "keycloak-db-secret"
       - failedTemplate:
@@ -86,17 +86,18 @@ tests:
       - failedTemplate:
           errorPattern: "SUPERUSER is required"
       - failedTemplate:
-          errorPattern: "kubectl create secret generic backend-db -n federatednode"
+          errorPattern: "kubectl create secret generic nexus-db -n federatednode"
 
   - it: uses the operator's own database and role names in that DDL
     template: requirements-check.yaml
     set:
-      backend:
-        db:
-          name: fn_backend
-          user: fn_backend_role
+      nexus:
+        api:
+          db:
+            name: fn_nexus_custom
+            user: fn_nexus_custom_role
     asserts:
       - failedTemplate:
-          errorPattern: "CREATE DATABASE fn_backend OWNER fn_backend_role"
+          errorPattern: "CREATE DATABASE fn_nexus_custom OWNER fn_nexus_custom_role"
       - failedTemplate:
-          errorPattern: "GRANT USAGE, CREATE ON SCHEMA public TO fn_backend_role"
+          errorPattern: "GRANT USAGE, CREATE ON SCHEMA public TO fn_nexus_custom_role"

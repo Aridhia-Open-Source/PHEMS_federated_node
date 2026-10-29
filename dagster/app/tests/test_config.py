@@ -13,7 +13,7 @@ from app.config import (
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
     for key in (
-        "BACKEND_API_URI", "DAGSTER_KC_USER", "DAGSTER_KC_PASSWORD",
+        "NEXUS_API_URL", "DAGSTER_KC_USER", "DAGSTER_KC_PASSWORD",
         "DAGSTER_ARTIFACT_MOUNT_PATH", "GH_RESULTS_DIR", "GH_TOKEN",
         "GH_API_URI", "GH_DELIVERY_REPO", "GH_DELIVERY_BASE_BRANCH",
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
@@ -26,13 +26,13 @@ def clean_env(monkeypatch):
 
 class TestEnvConfig:
     def test_values_come_from_the_environment(self, monkeypatch):
-        monkeypatch.setenv("BACKEND_API_URI", "http://backend.fn.svc:5000")
+        monkeypatch.setenv("NEXUS_API_URL", "http://nexus-api.fn.svc:5000")
         monkeypatch.setenv("DAGSTER_KC_USER", "dagster")
         monkeypatch.setenv("DAGSTER_KC_PASSWORD", "secret")
 
         config = BackendConfig()
 
-        assert config.uri == "http://backend.fn.svc:5000"
+        assert config.uri == "http://nexus-api.fn.svc:5000"
         assert config.user == "dagster"
 
     def test_a_missing_value_fails_loudly(self):
@@ -40,7 +40,7 @@ class TestEnvConfig:
             BackendConfig()
 
     def test_an_empty_value_is_treated_as_missing(self, monkeypatch):
-        monkeypatch.setenv("BACKEND_API_URI", "")
+        monkeypatch.setenv("NEXUS_API_URL", "")
         monkeypatch.setenv("DAGSTER_KC_USER", "dagster")
         monkeypatch.setenv("DAGSTER_KC_PASSWORD", "secret")
 

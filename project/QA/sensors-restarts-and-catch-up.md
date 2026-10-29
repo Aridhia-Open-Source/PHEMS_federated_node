@@ -4,7 +4,7 @@
 
 What is supposed to hold:
 
-- The pipeline is polling and level-triggered: ingest reads the git provider from a cursor, evaluate and the launcher read the webserver's state every tick, the reconcile sensor reads each unfinished task's run every tick. Nothing in them is a queue, so downtime should delay work, not lose it.
+- The pipeline is polling and level-triggered: ingest reads the git provider from a cursor, evaluate and the launcher read nexus-api's state every tick, the reconcile sensor reads each unfinished task's run every tick. Nothing in them is a queue, so downtime should delay work, not lose it.
 - A run key that was launched is never launched again, so a restart should not duplicate runs ([Run keys, retries and the results pull request sync]).
 - The start order of the sensors does not matter; the reconcile sensor sets a task whose event was missed to the status of its run ([The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]).
 - One caveat from the same decision: a run-status sensor only sees events from when it starts. That includes `task_results_delivery_sensor`, which launches the first delivery when a task run succeeds. Where a case below touches it, the sources do not say what happens; the case says "check".
@@ -20,7 +20,7 @@ Needs: the dev project with sensors running, `fncli`, `kubectl`, the Dagster UI.
 
 - **Expected:** counts unchanged after step 2 and after step 3 (the pull requests are stored once; no second trigger, no second task). After step 4 exactly one more pull request, trigger and task.
 - **Rule:** posting the same pull requests again changes nothing; one task per trigger ([Pull requests stored once per repository, fanned out to project resources, with cursors]; [Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger]).
-- **Automated by:** Manual only (removed from the end-to-end failure suite). `webserver/tests/test_pull_requests_and_tasks.py` shows the store is idempotent; it cannot restart a sensor.
+- **Automated by:** Manual only (removed from the end-to-end failure suite). `nexus/api/tests/test_pull_requests_and_tasks.py` shows the store is idempotent; it cannot restart a sensor.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -44,7 +44,7 @@ Needs: the dev project with sensors running, `fncli`, `kubectl`, the Dagster UI.
 
 - **Expected:** the three pull requests are stored and get one trigger each (stored count up by three, pull requests up by three), then three tasks (one per pull request). Look at the order in `fncli project-show`: triggers follow the merge order (the cursor is the pair merge time and number).
 - **Rule:** the global cursor is the latest stored `merged_at`; a project resource's cursor orders by `(merged_at, number)` ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_ingest_job.py` (oldest first) and `webserver/tests/test_pull_requests_and_tasks.py` (cursor tests). A real sensor catching up is not tested.
+- **Automated by:** Partly automated: `dagster/app/tests/test_ingest_job.py` (oldest first) and `nexus/api/tests/test_pull_requests_and_tasks.py` (cursor tests). A real sensor catching up is not tested.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -129,7 +129,7 @@ Check, and record the outcome as a finding if the result never appears.
 2. Merge a watched pull request. While the task is `RUNNING`, delete the daemon pod again. Wait.
 
 - **Expected:** step 1: sensors keep their running status and tick again. Step 2: the task finishes and its status is recorded; no duplicate run for the task or the delivery (Dagster Runs page: one run per run key).
-- **Rule:** sensors keep no state of their own; the state is in the webserver and in Dagster ([docs/architecture/sensors/README.md]).
+- **Rule:** sensors keep no state of their own; the state is in nexus-api and in Dagster ([docs/architecture/sensors/README.md]).
 - **Automated by:** Manual only.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -141,7 +141,7 @@ Check, and record the outcome as a finding if the result never appears.
 3. `fncli sensor-status`, `fncli start-sensor --group all` if needed. Follow each item.
 
 - **Expected:** each item resumes from where it was: the running task ends in a final status; the pending task launches once; the opened result can still be merged and recorded; the stored pull request gets one trigger and task. Nothing is duplicated and nothing is stuck. Record any item that does not recover.
-- **Rule:** the state is in the webserver's database and Dagster's run storage, not in the sensors ([docs/architecture/sensors/README.md]).
+- **Rule:** the state is in nexus-api's database and Dagster's run storage, not in the sensors ([docs/architecture/sensors/README.md]).
 - **Automated by:** Manual only.
 - [ ] Pass
 - [ ] Fail — notes:

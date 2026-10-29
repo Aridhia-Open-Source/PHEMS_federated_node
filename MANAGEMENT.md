@@ -261,9 +261,9 @@ If the shell cannot find `fncli`, run `pipx ensurepath` and open a new terminal.
 
 ### What it needs
 
-- The dev cluster running with Tilt up (`make deploy`, then `tilt up`: [DEPLOYMENT.md](DEPLOYMENT.md#run-it-locally)). That gives the port-forwards: backend `localhost:5000`, Dagster `localhost:3000`, Gitea `localhost:4000`.
+- The dev cluster running with Tilt up (`make deploy`, then `tilt up`: [DEPLOYMENT.md](DEPLOYMENT.md#run-it-locally)). That gives the port-forwards: nexus-api `localhost:5000`, Dagster `localhost:3000`, Gitea `localhost:4000`.
 - `kubectl` pointing at the cluster. fncli reads secrets (the Dagster system login, the Gitea admin password, the first user) from the **current context**, so check `kubectl config current-context` is the cluster you mean.
-- A `.dev.env`, which fncli finds by searching up from your current directory. `.dev.env.example` documents every variable; the ones that matter here are `BACKEND_URL`, `KEYCLOAK_NAMESPACE`, `NAMESPACE`, `GITEA_API_URI`, the `TEST_*` names of the project, repositories and watch directory, and `DEFAULT_PROJECT_DATASET`.
+- A `.dev.env`, which fncli finds by searching up from your current directory. `.dev.env.example` documents every variable; the ones that matter here are `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE`, `NAMESPACE`, `GITEA_API_URI`, the `TEST_*` names of the project, repositories and watch directory, and `DEFAULT_PROJECT_DATASET`.
 
 ### The short way
 
@@ -298,7 +298,7 @@ Group commands chain these: `setup-project` (everything, including the Gitea sid
 
 ### Operating the dev cluster with fncli
 
-These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and talk only to the backend and Dagster. They are written for the dev cluster. On another node they may work if you point `BACKEND_URL` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `make deploy` creates, so on a real node revoke through the API instead.
+These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and talk only to nexus-api and Dagster. They are written for the dev cluster. On another node they may work if you point `NEXUS_API_URL` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `make deploy` creates, so on a real node revoke through the API instead.
 
 | Command | What it does |
 |---|---|

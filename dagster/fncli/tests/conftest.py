@@ -3,7 +3,7 @@ import pytest
 ENV = {
     "NAMESPACE": "fn",
     "KEYCLOAK_NAMESPACE": "keycloak",
-    "BACKEND_URL": "http://localhost:5000",
+    "NEXUS_API_URL": "http://localhost:5000",
     "GITEA_API_URI": "http://gitea.fn.svc:3000/api/v1",
     "TEST_PROJECT_NAME": "proj",
     "TEST_TRIGGER_REPO": "trigger",

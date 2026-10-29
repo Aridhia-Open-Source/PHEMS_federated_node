@@ -1,8 +1,5 @@
 {
-  "page": 1,
-  "pages": 1,
-  "per_page": 10,
-  "tasks": [
+  "items": [
     {
       "attempt": 1,
       "completed_at": null,
@@ -26,5 +23,8 @@
       "updated_at": "2026-10-19 21:33:02"
     }
   ],
+  "page": 1,
+  "pages": 1,
+  "size": 10,
   "total": 1
 }
