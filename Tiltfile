@@ -34,7 +34,7 @@ k8s_yaml(local(
   'python3 scripts/tilt_manifests.py {ns} backend {dagster}{nexus}'.format(
     ns=NAMESPACE,
     dagster=DAGSTER_DEPLOYMENT,
-    nexus=' nexus-api' if os.getenv('NEXUS_API_ENABLED', 'false') == 'true' else '',
+    nexus=' nexus-api' if os.getenv('NEXUS_API_ENABLED', 'true') == 'true' else '',
   ),
   quiet=True,
 ))
@@ -73,7 +73,7 @@ docker_build_with_restart(
 # NEXUS API (FastAPI port of the backend, nexus/api)
 # ==============================================================================
 # Only when the chart runs it (nexus.api.enabled). uvicorn --reload picks up synced code itself.
-NEXUS_ENABLED = os.getenv('NEXUS_API_ENABLED', 'false') == 'true'
+NEXUS_ENABLED = os.getenv('NEXUS_API_ENABLED', 'true') == 'true'
 if NEXUS_ENABLED:
   docker_build_with_restart(
     '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
