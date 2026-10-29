@@ -177,6 +177,15 @@ securityContext:
 {{- define "quarantine_namespace" -}}
 {{ ((.Values.global).namespaces).quarantine | default "fn-quarantine" }}
 {{- end -}}
+{{- define "secrets_namespace" -}}
+{{ ((.Values.global).namespaces).secrets | default "fn-secrets" }}
+{{- end -}}
+{{- /* The service accounts that store secrets. Emitted as RoleBinding subjects. */ -}}
+{{- define "nexusApiSubjects" -}}
+- kind: ServiceAccount
+  namespace: {{ .Release.Namespace }}
+  name: nexus-api
+{{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.host }}

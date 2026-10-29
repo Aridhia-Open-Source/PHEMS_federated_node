@@ -25,6 +25,7 @@ data:
   KEYCLOAK_TOKEN_CACHE_TTL: {{ .Values.keycloak.tokenCacheSeconds | default 30 | quote }}
   TASK_NAMESPACE: {{ include "tasks_namespace" . }}
   QUARANTINE_NAMESPACE: {{ include "quarantine_namespace" . }}
+  SECRETS_NAMESPACE: {{ include "secrets_namespace" . }}
 {{- if .Values.dagster.enabled }}
   DAGSTER_WEBSERVER_URI: {{ include "dagsterWebserverUri" . | quote }}
 {{- end }}
