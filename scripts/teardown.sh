@@ -151,19 +151,19 @@ done
 
 # Hook Jobs are untracked too.
 for ns in "$NAMESPACE" keycloak; do
-  kubectl delete job -n "$ns" backend-db-init keycloak-db-init dagster-db-init \
+  kubectl delete job -n "$ns" nexus-db-init keycloak-db-init dagster-db-init \
     --ignore-not-found 2>/dev/null || true
 done
 
 echo
 echo "=== Removing dataset credential secrets ======================================"
-# Written by the webserver through the API when a dataset is registered, so the release
+# Written by nexus-api through the API when a dataset is registered, so the release
 # never owned them and `helm uninstall` leaves them. They then outlive both the dataset
 # rows and the roles the wipe above removed, and the passwords they hold are the ones
 # task pods authenticate with - so a stale one fails a task run rather than the deploy,
 # a long way from the cause.
 #
-# Matched on the labels the webserver sets, and on the -creds name it derives from the
+# Matched on the labels nexus-api sets, and on the -creds name it derives from the
 # dataset host, which is what identifies the ones written before those labels existed.
 # Anything Helm manages is left for Helm to remove.
 for ns in "${teardown_namespaces[@]}"; do

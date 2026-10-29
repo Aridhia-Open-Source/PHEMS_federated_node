@@ -30,8 +30,8 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "backend-image" -}}
-{{ printf "%s:%s" (.Values.backend.image) ((.Values.backend.tag) | default (include "image-tag" . | trim)) }}
+{{- define "nexus-api-image" -}}
+{{ printf "%s:%s" (.Values.nexus.api.image) ((.Values.nexus.api.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}
 {{- define "fn-alpine" -}}
 {{ printf "%s:%s" (.Values.alpine.image) ((.Values.alpine.tag) | default (include "image-tag" . | trim)) }}
@@ -84,12 +84,12 @@ app.kubernetes.io/name: {{ include "federated-node.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{- define "backendDbName" -}}
-  {{ .Values.backend.db.name | quote }}
+{{- define "nexusDbName" -}}
+  {{ .Values.nexus.api.db.name | quote }}
 {{- end -}}
 
-{{- define "backendDbUser" -}}
-  {{ .Values.backend.db.user | quote }}
+{{- define "nexusDbUser" -}}
+  {{ .Values.nexus.api.db.user | quote }}
 {{- end -}}
 
 {{- define "dbKeycloakName" -}}
@@ -181,20 +181,20 @@ securityContext:
 {{- if not .Values.local_development -}}
 https://{{ .Values.host }}
 {{- else -}}
-http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
+{{ include "nexusApiUrl" . }}
 {{- end -}}
 {{- end }}
 
 {{/*
-The in-cluster URL Dagster uses to reach the FN backend API. Defaults to the
+The in-cluster URL Dagster, fncli and the smoke tests use to reach nexus-api. Defaults to the
 release namespace so the chart is not pinned to a namespace called "fn";
-set backend.uri explicitly to override (e.g. an external hostname).
+set nexus.api.url explicitly to override (e.g. an external hostname).
 */}}
-{{- define "backendUri" -}}
-{{- if .Values.backend.uri -}}
-{{ .Values.backend.uri }}
+{{- define "nexusApiUrl" -}}
+{{- if .Values.nexus.api.url -}}
+{{ .Values.nexus.api.url }}
 {{- else -}}
-http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
+http://nexus-api.{{ .Release.Namespace }}.svc:{{ .Values.nexus.api.port }}
 {{- end -}}
 {{- end }}
 

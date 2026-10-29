@@ -4,33 +4,33 @@ What each kind of test in this repository covers, what it does not, and how to r
 
 | Kind | Where | Needs | Proves |
 |---|---|---|---|
-| Webserver tests (route tests, a model-based test) | [webserver/tests/](../webserver/tests/) | A Postgres; Keycloak and Kubernetes are mocked | The webserver's rules and routes, one request at a time |
-| Dagster app tests and fncli tests | [dagster/app/tests/](../dagster/app/tests/), [dagster/fncli/tests/](../dagster/fncli/tests/) | Nothing running; the webserver, git host and Dagster instance are mocked | Each sensor, job and command does what the webserver's answer says |
+| nexus-api tests (route tests, a model-based test) | [nexus/api/tests/](../nexus/api/tests/) | A Postgres; Keycloak and Kubernetes are mocked | nexus-api's rules and routes, one request at a time |
+| Dagster app tests and fncli tests | [dagster/app/tests/](../dagster/app/tests/), [dagster/fncli/tests/](../dagster/fncli/tests/) | Nothing running; nexus-api, git host and Dagster instance are mocked | Each sensor, job and command does what nexus-api's answer says |
 | End-to-end suites | [dagster/fncli/tests/e2e/](../dagster/fncli/tests/e2e/) | The live dev cluster (`kind-fn`) | That the real pieces work together |
 
 A by-hand plan for a deployed node, which takes over where these stop, is in [QA/README.md](QA/README.md).
 
 Read first: the decisions are in [decisions/README.md](decisions/README.md) and win over this file. Checks that have never run on a cluster are listed [below](#checks-that-have-never-run-on-a-cluster).
 
-## Webserver tests
+## nexus-api tests
 
-Black-box tests of the Flask app: an HTTP request through the test client, then assertions on status codes and response bodies only. Each test gets a fresh database. Keycloak and the Kubernetes client are mocked, so the admin and System tokens of the fixtures are not real logins.
+Black-box tests of nexus-api: an HTTP request through the test client, then assertions on status codes and response bodies only. Each test gets a fresh database. Keycloak and the Kubernetes client are mocked, so the admin and System tokens of the fixtures are not real logins.
 
 ### How to run
 
-- The normal route is [webserver/run_tests.sh](../webserver/run_tests.sh). It uses Docker Compose, builds the test image, starts a Postgres and runs pytest (`-x -v`). The first argument `ci` runs the CI variant; the second is the pytest argument (default `.`). It sets the database and Keycloak environment variables itself.
-- For quicker runs of a single file, start a Postgres, set the same variables with `PGHOST` and `PGPORT` pointing at it, and run pytest from `webserver/` in a virtualenv built from `requirements-dev.txt`:
+- The normal route is [nexus/api/run_tests.sh](../nexus/api/run_tests.sh). It uses Docker Compose, builds the test image, starts a Postgres and runs pytest (`-x -v`). The first argument `ci` runs the CI variant; the second is the pytest argument (default `.`). It sets the database and Keycloak environment variables itself.
+- For quicker runs of a single file, start a Postgres, set the same variables with `PGHOST` and `PGPORT` pointing at it, and run pytest from `nexus/api/` in a virtualenv built from `requirements-dev.txt`:
 
   ```bash
   docker run -d --name fn-routes-test-db -e POSTGRES_DB=test_app -e POSTGRES_USER=admin \
     -e POSTGRES_PASSWORD=test_app -p 127.0.0.1:55432:5432 postgres:17-alpine
-  cd webserver
+  cd nexus/api
   python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
   .venv/bin/pytest tests/<file>.py -q -p no:cacheprovider --no-cov -W ignore
   ```
 
   `--no-cov` skips the coverage that `setup.cfg` turns on.
-- Two tests that compare a response with a sample from the Dagster tree skip themselves when `dagster/` is not beside `webserver/` (the CI container mounts only the webserver). `test_live_client_integration.py` skips for the same reason.
+- Two tests that compare a response with a sample from the Dagster tree skip themselves when `dagster/` is not beside `nexus/api/` (the CI container mounts only nexus-api). `test_live_client_integration.py` skips for the same reason.
 
 ### What they cover, by area
 
@@ -51,14 +51,14 @@ Counts are `def test_` lines; a parametrised test counts once.
 | Healthchecks | `test_healthchecks_all.py` (16) | Per-GlobalResource, per-project and global healthchecks; a failed check is a 200 with a status in the body; `secret_missing` |
 | System user | `test_system_user_routes.py` (9) | The Dagster System user writes what Dagster and fncli manage and can never revoke |
 | Helpers | `test_git_uri.py`, `test_kubernetes_*`, `test_containers_*_registries_helper.py`, `keycloak/` | URI parsing, Kubernetes name and secret helpers, registry helpers, the Keycloak helper layer. The registries and Keycloak parts are mostly not part of the beta pipeline ([Authorization detached from DAR, Keycloak and whitelisted images](decisions/0017-authorization-detached-from-dar-and-keycloak.md)) |
-| In-process flow | `test_e2e_flow.py` (1) | One route-level run through the whole API (secret, provider, repositories, dataset, project resources, enable, ingest, task). The name says e2e, but it is the Flask test client with mocks, not a live end-to-end test |
-| Real clients | `test_live_client_integration.py` (9) | The fncli backend client and the Dagster `BackendAPI` against the real Flask app over HTTP, no Kubernetes |
+| In-process flow | `test_e2e_flow.py` (1) | One route-level run through the whole API (secret, provider, repositories, dataset, project resources, enable, ingest, task). The name says e2e, but it is the nexus-api test client with mocks, not a live end-to-end test |
+| Real clients | `test_live_client_integration.py` (9) | The fncli backend client and the Dagster `BackendAPI` against the real nexus-api over HTTP, no Kubernetes |
 
-[webserver/tests/TEST_PLAN.md](../webserver/tests/TEST_PLAN.md) is superseded. It was the plan for the first set of route tests, which were later merged into the files above, and it still names an `IGNORED` state that no longer exists. Keep it only for its fixture list and its traps (assign first, then ingest; assigning a results repository needs the project disabled; the mocked Keycloak lets a non-admin token through every scope except `revoked`).
+[nexus/api/tests/TEST_PLAN.md](../nexus/api/tests/TEST_PLAN.md) is superseded. It was the plan for the first set of route tests, which were later merged into the files above, and it still names an `IGNORED` state that no longer exists. Keep it only for its fixture list and its traps (assign first, then ingest; assigning a results repository needs the project disabled; the mocked Keycloak lets a non-admin token through every scope except `revoked`).
 
 ### The Hypothesis stateful test
 
-`webserver/tests/test_stateful_rules.py` (collected as `TestTriggerResourceRules`) is a model-based test. Hypothesis builds random sequences of actions against the real API, and after every action compares the API's state with a small model of the rules.
+`nexus/api/tests/test_stateful_rules.py` (collected as `TestTriggerResourceRules`) is a model-based test. Hypothesis builds random sequences of actions against the real API, and after every action compares the API's state with a small model of the rules.
 
 - Actions: merge a pull request (matching or not), ingest, ingest into an inactive repository (refused), evaluate one trigger, progress a task, set `enabled` or `revoked` on the project resource, the global trigger repository and the project, enable a project with or without `backfill`, a refused `backfill`.
 - Invariants checked each time: the project's triggers, the stored pull requests, the tasks, the project resource's `active` and all the flags match the model.
@@ -66,20 +66,20 @@ Counts are `def test_` lines; a parametrised test counts once.
 - Run: it needs `hypothesis` (in `requirements-dev.txt`) and the usual test database, and is collected like any other test file. The default is a quick smoke run (about 45 s). `STATEFUL_DEEP=1` runs the deep search (about 7 minutes); run that before relying on the file.
 - It cannot show: anything about more than one project or more than one project resource; Secrets, datasets, results, pinning, GitProvider flags; Dagster, sensors, time or restarts. It is also a model written from the same rules: it finds the code disagreeing with the rules, not a wrong rule.
 
-### What the webserver tests cannot show
+### What nexus-api tests cannot show
 
 - Anything in Dagster, Gitea, GitHub, Kubernetes or Keycloak: all are mocked or absent. Real logins, token lifetimes, roles and scopes are not tested (a non-admin is refused only for `revoked`).
 - Timing and ordering between components (sensor ticks, a run finishing between two ticks, two writers racing).
-- That the Dagster side and the webserver agree on a wire shape, except where a contract sample is compared (see below).
+- That the Dagster side and nexus-api agree on a wire shape, except where a contract sample is compared (see below).
 
 ## Dagster app tests
 
-`dagster/app/tests/`. Dagster, the webserver and the git hosts are mocked; a sensor or job is called with a built context and the calls it makes are asserted.
+`dagster/app/tests/`. Dagster, nexus-api and the git hosts are mocked; a sensor or job is called with a built context and the calls it makes are asserted.
 
 ### How to run
 
 - `cd dagster && ./run_tests.sh [ci] [pytest args]` (Docker Compose, the test image is built from the local Dagster image), or `make tests_dagster` from the repo root (the `ci` variant). `pytest_args` default to `.`; the paths in `dagster/pyproject.toml` are `app/tests` and `fncli/tests`, so the fncli tests run with them. The end-to-end tests are skipped unless `--e2e` is given.
-- `dagster/app/tests/test_enum_drift.py` needs the whole checkout (it parses the webserver source) and skips in the test image. Run it from the repo root: `pytest dagster/app/tests/test_enum_drift.py`.
+- `dagster/app/tests/test_enum_drift.py` needs the whole checkout (it parses nexus-api source) and skips in the test image. Run it from the repo root: `pytest dagster/app/tests/test_enum_drift.py`.
 - The end-to-end README runs pytest from the repo root with `dagster/.venv/bin/python -m pytest dagster ...`.
 
 ### What they cover, by area
@@ -88,29 +88,29 @@ Counts are `def test_` lines; a parametrised test counts once.
 |---|---|---|
 | Ingest | `test_pr_ingest_sensor.py` (13), `test_ingest_job.py` (9) | Polls only pollable repositories; one run per repository with new pull requests; the run key (cursor and slot); batches of at most 100, oldest first; a failing repository does not stop the others; the tick fails only when nothing launched |
 | Evaluate | `test_pr_evaluate_sensor.py` (9), `test_evaluate_job.py` (9), `test_pr_parser.py` (5) | Enabled projects and active project resources only; a spec file that is missing, several, or invalid makes a REJECTED trigger; a 409 is skipped |
-| Launcher | `test_task_launcher.py` (17) | One call per PENDING task; the webserver's `fail` or `launch` is followed; the run key `task/<id>/<attempt>`; an error leaves the task PENDING; disabled project's tasks wait |
+| Launcher | `test_task_launcher.py` (17) | One call per PENDING task; nexus-api's `fail` or `launch` is followed; the run key `task/<id>/<attempt>`; an error leaves the task PENDING; disabled project's tasks wait |
 | Task status | `test_task_run_status_sensor.py` (10), `test_task_reconcile_sensor.py` (16) | The run-status mapping; the reconcile sensor patches from the run's current status, skips a 409, ignores a disabled project, makes no second patch |
 | Delivery | `test_results_delivery.py` (34), `test_github_parity.py` | The branch layout, the `results.zip` size cap, a retry resumes from the step reached, a held `FAILED` result counts an attempt and waits for the retry sensor, the retry sensor stops at the maximum attempts, a 404 or 409 is final, a hung git command times out, the token stays out of the command line |
 | Results pull request sync | `test_results_pull_request_sync.py` (16) | MERGED and CLOSED are recorded; a deleted pull request is skipped; a 409 is skipped; a provider error fails the sync |
 | Sensor plumbing and settings | `test_sensor_base.py` (9), `test_definitions.py` (11), `test_config.py` (18), `test_utils.py` (28), `test_backend.py` (43) | Run keys and slots, in-flight skip, sensors registered STOPPED, settings defaults (interval 30 s, retry slot 60 s, 5 delivery attempts, 10 MiB cap), the HTTP client's token refresh and retry on 401/403/429, backend client calls |
 | Git providers and Secrets | `test_gitea.py` (19), `test_github.py` (15), `test_git_api_factory.py` (5), `test_git_pr_ops.py` (10), `test_git_uri.py`, `test_secrets.py` (9) | Both providers give the same results and errors; the repository's own token is read each time; a disabled Secret is never read |
 | Task pod and run config | `test_pipes.py` (32), `test_run_config.py` | The task pod's settings (no service account token, task namespace, security context, dataset environment, per-run artifact path) |
-| Models and drift | `test_models.py` (25), `test_enum_drift.py` (1) | Wire models parse webserver payloads and keep unknown fields; Dagster's enums carry the webserver's values |
+| Models and drift | `test_models.py` (25), `test_enum_drift.py` (1) | Wire models parse nexus-api payloads and keep unknown fields; Dagster's enums carry nexus-api's values |
 
-### Contract samples between the webserver and Dagster
+### Contract samples between nexus-api and Dagster
 
-`dagster/app/tests/contract/launch_response.json` and `tasks_response.json` are samples of two webserver responses. The Dagster tests (`test_task_launcher.py`) parse them into Dagster's models. The webserver tests (`test_task_launch.py`, `test_all_tasks_list.py`) compare the real response's keys with the sample. When the real response gains or loses a key, the webserver test fails, so the two sides move together. They check the shape (keys), not the values, and only for these two responses.
+`dagster/app/tests/contract/launch_response.json` and `tasks_response.json` are samples of two nexus-api responses. The Dagster tests (`test_task_launcher.py`) parse them into Dagster's models. nexus-api tests (`test_task_launch.py`, `test_all_tasks_list.py`) compare the real response's keys with the sample. When the real response gains or loses a key, nexus-api test fails, so the two sides move together. They check the shape (keys), not the values, and only for these two responses.
 
 ### What the Dagster tests cannot show
 
 - A real Dagster instance with real runs, a real daemon, restarts, or sensor ticks in the Dagster UI. The reconcile sensor was tested against a fake instance and one real instance, never a live Dagster with real runs ([checks that have never run on a cluster](#checks-that-have-never-run-on-a-cluster)).
 - A real git host's behaviour (rate limits, paging, errors); Gitea and GitHub responses are canned.
 - That the task pod runs, that artifacts exist on the volume, that the run image honours its settings.
-- The rules themselves: Dagster holds none ([Responsibility: the webserver owns the record and the rules; Dagster carries out decisions](decisions/0021-webserver-owns-the-record-and-the-rules.md)); these tests only check that it follows the answer.
+- The rules themselves: Dagster holds none ([Responsibility: nexus-api owns the record and the rules; Dagster carries out decisions](decisions/0021-nexus-api-owns-the-record-and-the-rules.md)); these tests only check that it follows the answer.
 
 ## fncli tests
 
-`dagster/fncli/tests/` (run with the Dagster tests; see above). They check the command line tool, with the backend, Gitea, Dagster and Kubernetes mocked.
+`dagster/fncli/tests/` (run with the Dagster tests; see above). They check the command line tool, with nexus-api, Gitea, Dagster and Kubernetes mocked.
 
 | Area | Files | What is covered |
 |---|---|---|
@@ -124,17 +124,17 @@ They cannot show that a command works against the real cluster; that is what the
 
 ## Other checks
 
-- `webserver/integration_tests/` (run with `webserver/run_integration_tests.sh`): the Keycloak initialiser against a real Keycloak over several runs on the same database (first install, migrations run once, operator config survives, secret and password rotation). It is about deployment, not the pipeline. Check before relying on it for a given release.
+- `nexus/api/integration_tests/` (run with `nexus/api/run_integration_tests.sh`): the Keycloak initialiser against a real Keycloak over several runs on the same database (first install, migrations run once, operator config survives, secret and password rotation). It is about deployment, not the pipeline. Check before relying on it for a given release.
 - `scripts/e2e_shared_resources.sh` and `scripts/e2e_check.py`: an older shell run of the shared-GlobalResources flow on the dev cluster. The pytest end-to-end suites below are the maintained version; check before using it.
 
 ## End-to-end tests
 
-`dagster/fncli/tests/e2e/`. They drive the real stack (webserver, Keycloak, Postgres, Dagster and Gitea on the `kind-fn` cluster) through fncli, one fncli command or one expected state per test, in order, on one project. The first failure stops the run and prints the last project snapshot. Details: [dagster/fncli/tests/e2e/README.md](../dagster/fncli/tests/e2e/README.md).
+`dagster/fncli/tests/e2e/`. They drive the real stack (nexus-api, Keycloak, Postgres, Dagster and Gitea on the `kind-fn` cluster) through fncli, one fncli command or one expected state per test, in order, on one project. The first failure stops the run and prints the last project snapshot. Details: [dagster/fncli/tests/e2e/README.md](../dagster/fncli/tests/e2e/README.md).
 
 ### What they need
 
 - The local dev cluster only (`kubectl` context `kind-fn`, Tilt green). Never a shared or production cluster, and never `make teardown` to run them. Work from the worktree that owns the cluster.
-- The backend (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answering on localhost (the Tilt port-forwards).
+- nexus-api (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answering on localhost (the Tilt port-forwards).
 - All sensors already running: `fncli start-sensor --group all`. The suites do not start or stop them.
 - `.dev.env` in the repo root, with the `TEST_*` values from `.dev.env.example`.
 - An admin login: revoking is admin only, so fncli logs in as the first Keycloak user, whose credentials `deploy.sh` stores in the `keycloak-first-user` secret from `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD` in `.dev.env`. (The end-to-end README calls these `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD`; the code reads the secret. Check.) The failure suite checks the login first and fails with the cause.
@@ -183,7 +183,7 @@ The "nothing happens" checks wait five sensor ticks.
 
 ### Not covered by any end-to-end test for now
 
-This list is copied from the end-to-end README and the failure suite's docstring. The scenarios that stop and start sensors were removed and will be looked at again later; the reconcile sensor is expected to make up for sensors being down. The rules are in [revoke-and-enabled.md](../docs/architecture/revoke-and-enabled.md) ("May a waiting task launch?" and "May a finished task's result be delivered?"). Only the webserver and Dagster unit tests cover revoking a result that is already held, and retrying tasks is not covered (on hold until after the beta).
+This list is copied from the end-to-end README and the failure suite's docstring. The scenarios that stop and start sensors were removed and will be looked at again later; the reconcile sensor is expected to make up for sensors being down. The rules are in [revoke-and-enabled.md](../docs/architecture/revoke-and-enabled.md) ("May a waiting task launch?" and "May a finished task's result be delivered?"). Only nexus-api and Dagster unit tests cover revoking a result that is already held, and retrying tasks is not covered (on hold until after the beta).
 
 - `failure`: restarting the ingest sensor does not duplicate pull requests or tasks, also after a trigger resource was revoked and un-revoked.
 - `failure`: a task whose results resource's `target_dir` changes before it launches fails, and its cause names the change (the pinned configuration changed).
@@ -206,14 +206,14 @@ These have not been run against a cluster. When one is run and the result record
 
 - The failure suite (`pytest dagster --e2e failure`), including the group where a results resource is switched off and the result is delivered once the project resource is switched back on. Two assumptions in it are unchecked: a task can be created and launched while its results resource is switched off, and the watched task uses the project's default dataset.
 - The success and failure suites with the launch endpoint and the reconcile sensor in place.
-- `dagster/app/tests/test_enum_drift.py`, from a full checkout: it skips when `webserver/` is not beside `dagster/`.
+- `dagster/app/tests/test_enum_drift.py`, from a full checkout: it skips when `nexus/api/` is not beside `dagster/`.
 - The reconcile sensor catching up: stop the sensors, let a task run to the end, then start them. The reconcile sensor should bring the task to its final status. It finds the run by its `trigger`, `task_id` and `attempt` tags. It was tested against a fake instance and one real instance, never a live Dagster with real runs; check that its ticks show in the Dagster UI.
 
 Treat the failure suite as written but not proven on a cluster until a run is recorded.
 
 ## Which kind of test proves which kind of rule
 
-| Kind of rule | Webserver tests | Dagster / fncli tests | End-to-end | Left for the by-hand plan |
+| Kind of rule | nexus-api tests | Dagster / fncli tests | End-to-end | Left for the by-hand plan |
 |---|---|---|---|---|
 | A route's status codes, validation, admin-only, 404 and 409 | Yes, the main proof | No | Only a few 409s through `--expect` | Real roles and logins |
 | `enabled` and `revoked` at every level, the skipped gap, backfill | Yes (route tests; the stateful test for the project, one project resource and one global repository) | The sensors skip what the list filters leave out | Trigger side only: project, project resource, GlobalResource, Secret | GitProvider, dataset, results side, combinations, timing |
@@ -223,13 +223,13 @@ Treat the failure suite as written but not proven on a cluster until a run is re
 | Secrets and quarantine | Yes (Kubernetes mocked) | A disabled Secret is not read | Disabled trigger Secret only | The real store, the quarantine namespace, rotation |
 | Sensor behaviour (ticks, run keys, retry slots) | No | Yes (mocked instance) | The sensors run, but are never stopped or restarted | Restarts, catch-up, stopped sensors, order of start |
 | Delivery (layout, size cap, resume, retry) | Result records only | Yes (mocked git) | One delivery to Gitea; one held and retried | Failures mid-delivery, large results, GitHub |
-| Wire shapes between the webserver and Dagster | `test_dtos.py` | Wire models parse | Whole stack | Only the two sampled responses are compared |
+| Wire shapes between nexus-api and Dagster | `test_dtos.py` | Wire models parse | Whole stack | Only the two sampled responses are compared |
 | Authentication, roles, normal users | Mocked | Mocked | Admin login only | Out of scope for the beta |
 
 ### How the three fit together
 
-1. The webserver tests prove the rules, because the webserver owns them. Everything else asks the webserver and acts.
-2. The Dagster and fncli tests prove the doers follow the webserver's answer: they mock the answer and check the call that follows. They hold no copy of the rules to test.
+1. nexus-api tests prove the rules, because nexus-api owns them. Everything else asks nexus-api and acts.
+2. The Dagster and fncli tests prove the doers follow nexus-api's answer: they mock the answer and check the call that follows. They hold no copy of the rules to test.
 3. The contract samples and the enum-drift test tie the two sides together at the wire.
-4. The end-to-end suites prove the real pieces are connected: sensors, webserver, Gitea and the task run on one cluster. Each group is a path through rules the unit tests already prove one at a time.
+4. The end-to-end suites prove the real pieces are connected: sensors, nexus-api, Gitea and the task run on one cluster. Each group is a path through rules the unit tests already prove one at a time.
 5. What none of them does well is time: sensors stopped or restarted, a change while a task is pending or running, services going down mid-flow, concurrent merges. Those cases are in [QA/sensors-restarts-and-catch-up.md](QA/sensors-restarts-and-catch-up.md) and [QA/failures-mid-flow-and-limits.md](QA/failures-mid-flow-and-limits.md), and [QA/README.md](QA/README.md) ranks the whole plan by risk.

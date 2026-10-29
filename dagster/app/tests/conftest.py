@@ -137,7 +137,7 @@ def sensor_context():
 
 
 # ---------------------------------------------------------------------------
-# Webserver API mock helpers
+# nexus-api mock helpers
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
@@ -155,7 +155,7 @@ def make_response(body, status_code=200):
 
 
 @pytest.fixture
-def webserver_repos_response(mock_repos):
+def nexus_repos_response(mock_repos):
     return make_response(mock_repos)
 
 

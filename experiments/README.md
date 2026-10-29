@@ -1,7 +1,7 @@
 # Experiments
 
 Run real experiment images against the dev node. Each one has a real Postgres database with
-dummy data, a dataset whose credentials go through the backend's secret, and results
+dummy data, a dataset whose credentials go through nexus-api's secret, and results
 delivered to Gitea.
 
 The databases are their own Helm release in the `experiments` namespace (`chart/`), apart
@@ -21,7 +21,7 @@ from the federated-node chart. The node only sees the dataset that fncli registe
 
 ## Run UC1
 
-Needs the dev cluster up with Tilt (port-forwards for backend 5000, Gitea 4000 and Dagster
+Needs the dev cluster up with Tilt (port-forwards for nexus-api 5000, Gitea 4000 and Dagster
 3000), `fncli` on PATH, and `.dev.env` at the repo root. UC1's source is the private
 `PHDS-centralized-services/MVP-Code` repo, so it is not in this one: clone it into
 `sources/uc1`. Dev mode (`UC1_DEV`) needs its R changes for that, which are not merged there yet.
@@ -58,7 +58,7 @@ uc1` runs the whole study.
 ## Check task isolation
 
 `projects/attacker` is a hostile task image, not an experiment. It tries to read other runs'
-folders, plant symlinks and `../` paths in its output, reach the backend, Gitea and the
+folders, plant symlinks and `../` paths in its output, reach nexus-api, Gitea and the
 Kubernetes API, read a service account token or another task's Secret, and keep privileges. Each
 attempt prints `BLOCKED` or `LEAKED`; `PLANTED` lines are judged by what delivery does with them.
 Run it like UC1 (`up`, `build attacker`, `seed attacker`, `setup attacker`, `run attacker`), then

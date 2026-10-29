@@ -1,0 +1,175 @@
+suite: nexus-api
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+set:
+  dagster:
+    enabled: true
+    postgresql:
+      postgresqlHost: db.default.svc
+  fnDagster:
+    createDB: true
+    gh:
+      delivery_repo: https://github.com/org/repo
+      resultsDir: mgmt/results
+tests:
+  - it: runs the migrations in an init container, from the directory holding alembic.ini
+    template: nexus-api-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: db-migrations
+      - equal:
+          path: spec.template.spec.initContainers[1].workingDir
+          value: /nexus
+      - equal:
+          path: spec.template.spec.initContainers[1].args
+          value: ["-c", "python -m alembic upgrade head"]
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].image
+          pattern: ^ghcr.io/aridhia-open-source/nexus_api:.+
+      - equal:
+          path: spec.template.spec.initContainers[1].env[0].name
+          value: NEXUS_DB_PASSWORD
+      - equal:
+          path: spec.template.spec.initContainers[1].env[0].valueFrom.secretKeyRef.name
+          value: nexus-db
+
+  - it: waits for an in-cluster database before migrating
+    template: nexus-api-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+
+  - it: has no wait-for-db init container with a database it does not own
+    template: nexus-api-deployment.yaml
+    set:
+      create_db_deployment: false
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: db-migrations
+
+  - it: runs as its own service account, with probes and the credentials directory
+    template: nexus-api-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: nexus-api
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /ready_check
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /health_check
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].name
+          value: kc-secrets
+
+  - it: takes its image and tag from nexus.api
+    template: nexus-api-deployment.yaml
+    set:
+      nexus:
+        api:
+          image: localhost:5001/nexus-api-fn
+          tag: dev
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: localhost:5001/nexus-api-fn:dev
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: localhost:5001/nexus-api-fn:dev
+
+  - it: is served at the root of the host, with no prefix rewrite
+    template: nexus-api-http-route.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].matches[0].path.value
+          value: /
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: nexus-api
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 5000
+      - notContains:
+          path: spec.rules[0].filters
+          content:
+            type: URLRewrite
+          any: true
+
+  - it: has a service on its port
+    template: nexus-api-service.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: nexus-api
+      - equal:
+          path: spec.selector.app
+          value: nexus-api
+
+  - it: has its own service account, role and binding
+    template: nexus-api-roles.yaml
+    asserts:
+      - hasDocuments:
+          count: 3
+      - equal:
+          path: subjects[0].name
+          value: nexus-api
+        documentIndex: 1
+      - equal:
+          path: roleRef.name
+          value: federatednode-nexus-api-role
+        documentIndex: 1
+      - equal:
+          path: metadata.name
+          value: nexus-api
+        documentIndex: 2
+
+  - it: lets its service account use the quarantine namespace
+    template: quarantine-namespace.yaml
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: subjects[0].name
+          value: nexus-api
+
+  - it: is configured for its database
+    template: nexus-api-configmap.yaml
+    asserts:
+      - equal:
+          path: data.NEXUS_DB_NAME
+          value: fn_nexus
+      - equal:
+          path: data.NEXUS_DB_USER
+          value: fn_nexus
+      - equal:
+          path: data.PGHOST
+          value: db.default.svc
+
+  - it: tells Dagster where it is
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.NEXUS_API_URL
+          value: http://nexus-api.federatednode.svc:5000
+
+  - it: prefers an explicit nexus.api.url for Dagster
+    template: dagster-env-config.yaml
+    set:
+      nexus:
+        api:
+          url: https://nexus.example.org
+    asserts:
+      - equal:
+          path: data.NEXUS_API_URL
+          value: https://nexus.example.org

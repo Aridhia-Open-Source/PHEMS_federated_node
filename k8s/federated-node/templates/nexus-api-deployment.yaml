@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: nexus-api
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.nexus.api.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: nexus-api
+  template:
+    metadata:
+      annotations:
+        rollme: {{ template "rollMe" . }}
+      labels:
+        app: nexus-api
+    spec:
+      serviceAccountName: nexus-api
+      initContainers:
+        {{- /* nexus-db-init is a pre-install hook, so the database already exists
+               by now - except with an in-cluster Postgres, where the server is part
+               of this release and its hook runs post-install. */}}
+        {{- if .Values.create_db_deployment }}
+        {{- include "pgWaitContainer" (dict "ctx" . "host" (include "dbHost" .) "port" (include "dbPort" .)) | nindent 8 }}
+        {{- end }}
+        - name: db-migrations
+          image: {{ template "nexus-api-image" . }}
+          command: ["/bin/sh"]
+          workingDir: /nexus
+          {{- include "nonRootSC" . | nindent 10 }}
+          args:
+            [
+              '-c',
+              'python -m alembic upgrade head'
+            ]
+          envFrom:
+            - configMapRef:
+                name: nexus-api-configmap
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          env:
+          - name: NEXUS_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.nexus.api.db.secret.name }}
+                key: {{ .Values.nexus.api.db.secret.key }}
+      containers:
+        - image: {{ template "nexus-api-image" . }}
+          name: nexus-api
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          resources:
+            {{- toYaml .Values.federatedNode.resources | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.nexus.api.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready_check
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 30
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /health_check
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 30
+            failureThreshold: 5
+          envFrom:
+            - configMapRef:
+                name: nexus-api-configmap
+            - configMapRef:
+                name: keycloak-config
+          env:
+          - name: NEXUS_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.nexus.api.db.secret.name }}
+                key: {{ .Values.nexus.api.db.secret.key }}
+          volumeMounts:
+            - name: kc-secrets
+              mountPath: {{ include "kcSecretsMountPath" . }}
+              readOnly: true
+      volumes:
+        - name: kc-secrets
+          secret:
+            secretName: kc-secrets

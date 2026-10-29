@@ -153,7 +153,6 @@ def http_get(url: str) -> tuple[int, str]:
 
 def attack_network():
     targets = {
-        "the backend API": ("backend.fn.svc.cluster.local", 5000),
         "Gitea": ("gitea.fn.svc.cluster.local", 4000),
         "the Kubernetes API": ("kubernetes.default.svc.cluster.local", 443),
         "nexus-api": ("nexus-api.fn.svc.cluster.local", 5000),

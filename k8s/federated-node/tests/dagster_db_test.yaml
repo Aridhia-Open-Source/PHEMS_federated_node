@@ -46,7 +46,7 @@ tests:
       - failedTemplate:
           errorPattern: "must equal db.port"
 
-  - it: refuses TLS for the backend but not for Dagster
+  - it: refuses TLS for nexus-api but not for Dagster
     template: requirements-check.yaml
     set:
       db:
@@ -228,14 +228,14 @@ tests:
       - failedTemplate: {}
 
   - it: derives the Dagster webserver address from the release name and namespace
-    template: backend-configmap.yaml
+    template: nexus-api-configmap.yaml
     asserts:
       - equal:
           path: data.DAGSTER_WEBSERVER_URI
           value: http://federatednode-dagster-webserver.federatednode.svc:80
 
   - it: prefers an explicit fnDagster.webserver.uri over the derived Dagster webserver address
-    template: backend-configmap.yaml
+    template: nexus-api-configmap.yaml
     set:
       fnDagster:
         webserver:

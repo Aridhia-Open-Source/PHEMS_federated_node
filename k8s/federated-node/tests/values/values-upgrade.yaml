@@ -2,11 +2,10 @@ pullPolicy: Always
 
 keycloak:
   replicas: 1
-backend:
-  replicas: 1
+nexus:
+  api:
+    replicas: 1
 
-federatedNode:
-  port: 5000
 autoscaling:
   enabled: false
 db:
