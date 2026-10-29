@@ -86,7 +86,7 @@ class TestTaskDTO:
     def test_fields(self):
         task = Task(
             name="task", requested_by="user", project_id=1, trigger_id=1,
-            spec={"image": "alpine:latest", "dataset_id": None, "env": {"K": "v"}}
+            spec={"image": "alpine:latest", "dataset_id": None, "env": {"K": "v"}, "resources": {"limits": {"cpu": "1"}}}
         )
         task.id = 1
         dumped = TaskDTO.from_model(task).dump()
@@ -97,6 +97,8 @@ class TestTaskDTO:
         }
         assert dumped["status"] == "PENDING"
         assert dumped["attempt"] == 1
-        assert dumped["spec"] == {"image": "alpine:latest", "dataset_id": None, "env": {"K": "v"}}
+        assert dumped["spec"] == {
+            "image": "alpine:latest", "dataset_id": None, "env": {"K": "v"}, "resources": {"limits": {"cpu": "1"}}
+        }
         assert dumped["trigger_id"] == 1
         assert WIRE_DATETIME.match(dumped["created_at"])

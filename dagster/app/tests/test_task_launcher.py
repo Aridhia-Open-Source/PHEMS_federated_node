@@ -2,11 +2,15 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from dagster import RunRequest, SkipReason
 
 from app.definitions.run_config import build_run_config
+from app.definitions.sensors.base import artifacts_volume_tags
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
 from app.models import Dataset, LaunchDecision, Project, Task
+
+pytestmark = pytest.mark.usefixtures("artifacts_env")
 
 DATASET = Dataset(
     id=7, secret={"id": 3, "project_id": 1, "label": "cdm-creds", "provider": "K8S", "key": "cdm-creds-abc", "enabled": True}, name="cdm", host="db.host", port=5432,
@@ -69,7 +73,7 @@ def test_launches_a_pending_task_with_one_call():
     assert len(result) == 1 and isinstance(result[0], RunRequest)
     assert result[0].run_key == "task/9/1"
     assert result[0].tags == {
-        "trigger": "task", "task_id": "9", "attempt": "1", "project_id": "1",
+        "trigger": "task", "task_id": "9", "attempt": "1", "project_id": "1", **artifacts_volume_tags(),
     }
     config = result[0].run_config["ops"]["k8s_pipes_op"]["config"]
     assert config["docker_image"] == "ghcr.io/o/i:1"

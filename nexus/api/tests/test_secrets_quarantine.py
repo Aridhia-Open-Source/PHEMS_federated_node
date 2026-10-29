@@ -11,7 +11,7 @@ import pytest
 from kubernetes.client.exceptions import ApiException
 
 from app.helpers.base_model import db
-from app.helpers.const import QUARANTINE_NAMESPACE
+from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import InvalidRequest
 from app.models.secret import Secret
 from app.secrets_api import K8sSecretProvider
@@ -20,7 +20,7 @@ SEC = "/global/secrets"
 DS = "/global/datasets"
 TRIG = "/global/repositories/triggers"
 RES = "/global/repositories/results"
-NS = "default"
+NS = SECRETS_NAMESPACE
 KEY = "fn-secret-test-creds"
 Q = QUARANTINE_NAMESPACE
 VALUE = {"TOKEN": base64.b64encode(b"t").decode()}
@@ -141,6 +141,13 @@ def test_a_failing_move_leaves_the_database_unchanged(
     assert secret_row().enabled is False and not enabled_of(client, admin_headers, DS, global_dataset)
     assert store == {(Q, KEY): VALUE}
     k8s_client["read_namespaced_secret_mock"].side_effect = working_read
+
+
+def test_a_secret_is_stored_in_the_secrets_namespace_and_its_row_says_so(client, admin_headers, store):
+    body = {"label": "new-creds", "provider": "K8S", "values": {"TOKEN": "t"}}
+    assert client.post(SEC, json=body, headers=admin_headers).status_code == 201
+    assert (NS, "fn-secret-new-creds") in store
+    assert Secret.query.filter_by(label="new-creds").one().namespace == NS
 
 
 def test_a_secret_created_disabled_is_stored_in_quarantine(client, admin_headers, store):

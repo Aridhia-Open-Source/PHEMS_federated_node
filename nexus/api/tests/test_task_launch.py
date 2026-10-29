@@ -51,7 +51,10 @@ def test_launch_returns_the_run_inputs_and_changes_nothing(client, admin_headers
     body = response.json()
     assert (body["outcome"], body["cause"]) == ("launch", None)
     assert body["task"]["id"] == full_task.id and body["task"]["status"] == "PENDING"
-    assert body["task"]["spec"] == {"image": full_task.spec.image, "dataset_id": global_dataset.id, "env": full_task.spec.env}
+    assert body["task"]["spec"] == {
+        "image": full_task.spec.image, "dataset_id": global_dataset.id, "env": full_task.spec.env,
+        "resources": full_task.spec.resources,
+    }
     assert body["task"]["attempt"] == full_task.attempt
     # the dataset as the project-dataset GET returns it, secret reference included
     resource = client.get(f"/projects/{project.id}/datasets/{global_dataset.id}", headers=admin_headers).json()
