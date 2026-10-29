@@ -1,5 +1,5 @@
 """
-Random sequences of actions against the webserver, checked against a small model of the rules (Hypothesis stateful testing).
+Random sequences of actions against nexus-api, checked against a small model of the rules (Hypothesis stateful testing).
 The rules are those in docs/architecture/revoke-and-enabled.md (enabled and revoked) and ADRs 0008 and 0011
 (project/decisions/0008-enabled-revoked-and-soft-delete.md, 0011-pull-requests-stored-once-fan-out-and-cursors.md: the cursor, fan-out and backfill).
 It needs `hypothesis` (pinned in requirements-dev.txt) and the usual test database.

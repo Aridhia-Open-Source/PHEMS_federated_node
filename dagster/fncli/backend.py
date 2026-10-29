@@ -15,7 +15,7 @@ class FncliBackendAPI(BackendAPI):
     """The Dagster code location's backend client, plus the setup and teardown calls only the dev CLI makes."""
 
     def _get_all_pages(self, path: str, **filters: str) -> list[dict]:
-        """Every item of a paginated list endpoint, filtered by the webserver's query options"""
+        """Every item of a paginated list endpoint, filtered by nexus-api's query options"""
         items = []
         page = 1
         while True:

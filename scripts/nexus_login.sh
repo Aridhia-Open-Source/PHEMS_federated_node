@@ -2,18 +2,18 @@
 set -euo pipefail
 
 ###############################################################################
-# Backend Login Test - confirms the webserver can authenticate a service user
+# nexus-api Login Test - confirms nexus-api can authenticate a service user
 # via Keycloak (POST /login), independent of any other trigger-repo setup.
 ###############################################################################
 
 source .dev.env
 
-BACKEND_URL="${BACKEND_URL:-http://localhost:5000}"
+NEXUS_API_URL="${NEXUS_API_URL:-http://localhost:5000}"
 KEYCLOAK_SERVICE_PASSWORD="${KEYCLOAK_SERVICE_PASSWORD:-$(kubectl get secret kc-secrets -n "${KEYCLOAK_NAMESPACE:-keycloak}" -o jsonpath='{.data.KEYCLOAK_SERVICE_PASSWORD}' | base64 -d)}"
 
-echo "Logging in to $BACKEND_URL as $KEYCLOAK_SERVICE_USER..."
+echo "Logging in to $NEXUS_API_URL as $KEYCLOAK_SERVICE_USER..."
 
-TOKEN=$(curl -s "$BACKEND_URL/login" \
+TOKEN=$(curl -s "$NEXUS_API_URL/login" \
   --fail-with-body \
   --header "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "username=${KEYCLOAK_SERVICE_USER}" \

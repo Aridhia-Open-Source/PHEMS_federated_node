@@ -1,6 +1,6 @@
 """
 Commands for the end-to-end suites (tests/e2e/README.md): look at the test project's state, and change the
-state the webserver's rules act on (project enabled and revoked, a project resource's enabled and revoked, a global resource's enabled and revoked),
+state nexus-api's rules act on (project enabled and revoked, a project resource's enabled and revoked, a global resource's enabled and revoked),
 plus a second project on the same global resources. Every write prints the HTTP status and body; `--expect STATUS` asserts
 the status, which is how the suites check the 409 rules. Without it a status of 400 or more is a failure.
 """

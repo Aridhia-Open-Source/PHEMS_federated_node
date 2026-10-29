@@ -1,5 +1,5 @@
 """
-Entrypoint for nexus, the FastAPI port of the webserver: uvicorn --factory app:create_app.
+Entrypoint for nexus-api: uvicorn --factory app:create_app.
 Every router is registered here up front; a router module owns its routes and nothing else.
 """
 import logging

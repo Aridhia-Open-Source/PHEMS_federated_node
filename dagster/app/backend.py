@@ -32,7 +32,7 @@ class BackendAPI:
         return data
 
     def get_projects(self, **filters: bool) -> list[Project]:
-        """Get all projects, automatically handling pagination. Filters are the webserver's, e.g. enabled=True."""
+        """Get all projects, automatically handling pagination. Filters are nexus-api's, e.g. enabled=True."""
         self.logger.info("Fetching projects")
         query = {name: str(value).lower() for name, value in filters.items()}
         projects = []
@@ -82,7 +82,7 @@ class BackendAPI:
     def get_pull_requests(self, project_id: int, repository_id: int, **filters: str | int) -> list[PullRequestTrigger]:
         """
         Get all pull requests of a project's trigger repository, automatically handling pagination.
-        Filters are the webserver's, e.g. state=.
+        Filters are nexus-api's, e.g. state=.
         """
         self.logger.info(f"Fetching pull requests for repo {repository_id} matching {filters}")
         all_prs = []

@@ -19,7 +19,7 @@ Base.query = session.query_property()
 
 
 class Database:
-    """What the models and helpers copied from the webserver reach through `db`."""
+    """What the models and helpers reach through `db`."""
     session = session
     Model = Base
 
@@ -40,7 +40,7 @@ class Page:
 
 
 def paginate(query: Query, page: int, per_page: int) -> Page:
-    """Replaces Flask-SQLAlchemy's .paginate(error_out=False), which clamps a page below 1 to 1 and a
+    """Replaces the previous backend's .paginate(error_out=False), which clamps a page below 1 to 1 and a
     per_page below 1 to 20."""
     page = max(page, 1)
     per_page = per_page if per_page >= 1 else 20

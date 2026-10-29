@@ -100,7 +100,7 @@ def shape(value):
     return None
 
 
-@pytest.mark.skipif(not CONTRACT.is_file(), reason="the Dagster source is not next to webserver/")
+@pytest.mark.skipif(not CONTRACT.is_file(), reason="the Dagster source is not in the checkout")
 def test_the_response_has_the_shape_dagsters_task_list_parses(client, admin_headers, make_task):
     """dagster/app/tests/contract/tasks_response.json() is a sample response; Dagster's tests parse it into Task."""
     make_task(status="PENDING")
