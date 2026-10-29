@@ -1,6 +1,6 @@
 # Task pinning
 
-When a task is created it stores a snapshot of the configuration it was built against: the results repository (id, uri, the GitProvider's `api_uri`, the project resource's `target_dir`) and the dataset (name, host, port, type, read and write schema). It holds no credentials, no trigger repository and no `enabled` or `revoked` flags. Before launch, and before a result is created, the webserver rebuilds the snapshot from the current state and compares. A task whose setup changed fails at launch, or its result is `STALE` (final, never delivered). Edits to a GlobalResource or a project resource are always allowed; the cost falls on the work in flight.
+When a task is created it stores a snapshot of the configuration it was built against: the results repository (id, uri, the GitProvider's `api_uri`, the project resource's `target_dir`) and the dataset (name, host, port, type, read and write schema). It holds no credentials, no trigger repository and no `enabled` or `revoked` flags. Before launch, and before a result is created, nexus-api rebuilds the snapshot from the current state and compares. A task whose setup changed fails at launch, or its result is `STALE` (final, never delivered). Edits to a GlobalResource or a project resource are always allowed; the cost falls on the work in flight.
 
 Two of the behaviours below (marked in their titles) were removed from the end-to-end suites; all of this section is only unit-tested. That is why it is ranked high in [the index](README.md).
 
@@ -12,7 +12,7 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 
 - **Expected:** `current` is true, `changes` is empty, and `config_snapshot` holds the results repository (id, uri, `api_uri`, `target_dir`) and the dataset (name, host, port, type, read and write schema), plus a `config_hash`. It contains no token, password or Secret value and no `enabled` or `revoked` flags. The request changes nothing (repeat it).
 - **Rule:** what the snapshot holds and leaves out ([A task is pinned to its configuration]).
-- **Automated by:** Automated: `webserver/tests/test_task_config.py` (`test_build_snapshot_holds_identity_fields_only`, `test_pr_task_is_pinned_at_creation_and_retry_does_not_repin`, `test_asking_for_the_decision_changes_nothing`). They miss a snapshot built from a live node's data.
+- **Automated by:** Automated: `nexus/api/tests/test_task_config.py` (`test_build_snapshot_holds_identity_fields_only`, `test_pr_task_is_pinned_at_creation_and_retry_does_not_repin`, `test_asking_for_the_decision_changes_nothing`). They miss a snapshot built from a live node's data.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -24,8 +24,8 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 4. Restore the `target_dir`.
 
 - **Expected:** step 2 is accepted (an edit is free). Step 3: `current` is false and `changes` names `target_dir`. The task goes `FAILED` with a cause that names the change (the pinned configuration changed). No run, no result. It stays `FAILED` after step 4.
-- **Rule:** a task that is not current is not launched; the webserver fails it with the changes as the cause ([A task is pinned to its configuration]).
-- **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (`test_config_is_current_then_stale_after_target_dir_changes`, `test_changed_wins_over_the_dataset_resource_not_active`), `webserver/tests/test_task_launch.py`. Removed from the end-to-end failure suite. They miss the live launcher.
+- **Rule:** a task that is not current is not launched; nexus-api fails it with the changes as the cause ([A task is pinned to its configuration]).
+- **Automated by:** Partly automated: `nexus/api/tests/test_task_config.py` (`test_config_is_current_then_stale_after_target_dir_changes`, `test_changed_wins_over_the_dataset_resource_not_active`), `nexus/api/tests/test_task_launch.py`. Removed from the end-to-end failure suite. They miss the live launcher.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -36,7 +36,7 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 3. Start the launcher.
 
 - **Expected:** the task launches and runs. The check compares the current state with the snapshot; it has no memory of the change.
-- **Rule:** the webserver rebuilds the snapshot from the current state and compares it ([A task is pinned to its configuration]).
+- **Rule:** nexus-api rebuilds the snapshot from the current state and compares it ([A task is pinned to its configuration]).
 - **Automated by:** Manual only. The unit tests change a value and check the diff, not a change that is reverted.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -49,7 +49,7 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 
 - **Expected:** `changes` lists the dataset field; the task goes `FAILED` with that cause. No run, no result.
 - **Rule:** the dataset's host, port, type and schemas are pinned ([A task is pinned to its configuration]).
-- **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (`test_dataset_change_makes_the_task_stale`, `test_diff_lists_changed_fields_readably`). No end-to-end group.
+- **Automated by:** Partly automated: `nexus/api/tests/test_task_config.py` (`test_dataset_change_makes_the_task_stale`, `test_diff_lists_changed_fields_readably`). No end-to-end group.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -61,7 +61,7 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 
 - **Expected:** the task is `SUCCESS`. The result is step `STALE`, state `FAILED`, with an error listing the change. Nothing is pushed: no branch, no results pull request. Restoring the `target_dir` delivers nothing; `STALE` is final.
 - **Rule:** a `SUCCESS` task whose configuration changed gets a `STALE` result ([A task is pinned to its configuration]; [Polymorphic Result, PullRequestResult, a forward-only step and a separate state]).
-- **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (`test_post_result_is_stale_when_the_target_dir_changed_after_creation`, `test_post_result_of_a_current_task_is_not_stale`), `webserver/tests/test_results_and_delivery.py` (`test_post_result_stale_beats_switched_off_and_is_final`). Removed from the end-to-end failure suite. They miss the live delivery.
+- **Automated by:** Partly automated: `nexus/api/tests/test_task_config.py` (`test_post_result_is_stale_when_the_target_dir_changed_after_creation`, `test_post_result_of_a_current_task_is_not_stale`), `nexus/api/tests/test_results_and_delivery.py` (`test_post_result_stale_beats_switched_off_and_is_final`). Removed from the end-to-end failure suite. They miss the live delivery.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -72,7 +72,7 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 
 - **Expected:** the task finishes `SUCCESS` (a running task is not stopped); the result is `STALE` and `FAILED`, never delivered.
 - **Rule:** as the previous case, for the dataset ([A task is pinned to its configuration]).
-- **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (`test_dataset_change_makes_the_task_stale`). No end-to-end group.
+- **Automated by:** Partly automated: `nexus/api/tests/test_task_config.py` (`test_dataset_change_makes_the_task_stale`). No end-to-end group.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -86,7 +86,7 @@ The results resource can be replaced only while the project is disabled.
 
 - **Expected:** the task goes `FAILED` with a cause that names the changed results repository (its id and uri are pinned). Check the text.
 - **Rule:** the results repository's id and uri are in the snapshot; a project resource swap is a material edit ([A task is pinned to its configuration]).
-- **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (the diff of added, removed and changed fields). Not tested with a real swap.
+- **Automated by:** Partly automated: `nexus/api/tests/test_task_config.py` (the diff of added, removed and changed fields). Not tested with a real swap.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -98,7 +98,7 @@ The results resource can be replaced only while the project is disabled.
 
 - **Expected:** the task launches and runs; `GET .../config` shows `current` true. A credential rotation reaches the running work.
 - **Rule:** credentials, the trigger repository and the flags are outside the snapshot so that rotations reach running work and the flags keep their own rules ([A task is pinned to its configuration]).
-- **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (`test_diff_ignores_version_and_fields_the_stored_snapshot_lacks`, `test_edit_of_target_dir_enabled_and_delete_of_an_enabled_project_with_a_task_in_flight`). No end-to-end group.
+- **Automated by:** Partly automated: `nexus/api/tests/test_task_config.py` (`test_diff_ignores_version_and_fields_the_stored_snapshot_lacks`, `test_edit_of_target_dir_enabled_and_delete_of_an_enabled_project_with_a_task_in_flight`). No end-to-end group.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -119,7 +119,7 @@ The results resource can be replaced only while the project is disabled.
 
 - **Expected:** the pull request stays `YIELDED`; no new task is made for it; nothing re-runs it. To process the change again a new pull request is needed. Retrying a task is on hold until after the beta.
 - **Rule:** there is no stale-task retry; a stale task fails and the pull request has to be re-run another way ([A task is pinned to its configuration]; [State transition tables for triggers, tasks and result steps; 409 on a refused move]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_retry_resets_a_failed_task_only`). See [permissions and out of scope](permissions-and-out-of-scope.md).
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_retry_resets_a_failed_task_only`). See [permissions and out of scope](permissions-and-out-of-scope.md).
 - [ ] Pass
 - [ ] Fail — notes:
 

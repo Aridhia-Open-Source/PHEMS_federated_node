@@ -74,7 +74,7 @@ def test_the_map_covers_exactly_the_statuses_the_sensors_monitor():
 @pytest.fixture
 def backend_api(monkeypatch):
     for key, value in {
-        "BACKEND_API_URI": "http://backend.fn.svc:5000",
+        "NEXUS_API_URL": "http://nexus-api.fn.svc:5000",
         "DAGSTER_KC_USER": "dagster",
         "DAGSTER_KC_PASSWORD": "secret",
     }.items():

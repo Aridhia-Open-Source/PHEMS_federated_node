@@ -16,7 +16,7 @@ Keep every unfinished task at the status of its Dagster run, whatever the run-st
 
 | Source | What |
 |---|---|
-| `GET /tasks` | `status=PENDING,QUEUED,RUNNING&project_enabled=true`, all pages of 100: one list per tick for all enabled projects, by id. The webserver filters; nothing is filtered in Python. Each task carries its `project_id`, which the patch uses. |
+| `GET /tasks` | `status=PENDING,QUEUED,RUNNING&project_enabled=true`, all pages of 100: one list per tick for all enabled projects, by id. nexus-api filters; nothing is filtered in Python. Each task carries its `project_id`, which the patch uses. |
 | The Dagster instance | The newest run of `k8s_pipes_job` tagged `trigger=task`, `task_id` and `attempt` of the task (the tags the [launcher](task-launcher.md) sets, with the run key `task/<task id>/<attempt>`), and its run record for the start and end time. |
 
 A task is matched to its run by task id and attempt, so the run of an earlier attempt is never used for a retried task.
@@ -55,9 +55,9 @@ Left alone:
 ## 6. Retries and failure handling
 
 - Level-triggered: a task that could not be patched is read again on the next tick.
-- Writes are safe to repeat. A finished task leaves the lists, and the webserver's state tables refuse a move back or out of a final status with a 409 ([0005](../../../project/decisions/0005-state-transition-tables.md)). The sensor logs a 409 and skips the task.
+- Writes are safe to repeat. A finished task leaves the lists, and nexus-api's state tables refuse a move back or out of a final status with a 409 ([0005](../../../project/decisions/0005-state-transition-tables.md)). The sensor logs a 409 and skips the task.
 - An error on one task (the backend, the instance) is logged and the others go on.
 
 ## 7. How `enabled` and `revoked` change what it does
 
-It looks at the tasks of enabled projects only; a revoked project is still listed. A task of a disabled project is not touched. It applies no rule of its own: the webserver decides whether a move is accepted.
+It looks at the tasks of enabled projects only; a revoked project is still listed. A task of a disabled project is not touched. It applies no rule of its own: nexus-api decides whether a move is accepted.

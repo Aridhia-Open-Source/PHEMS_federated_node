@@ -11,7 +11,7 @@ from app.tests.conftest import (
 
 
 class TestSecret:
-    def test_parses_a_webserver_payload(self):
+    def test_parses_a_nexus_api_payload(self):
         secret = Secret(**SAMPLE_SECRET)
 
         assert secret.provider is SecretProviderType.K8S
@@ -55,7 +55,7 @@ class TestDataset:
 
 
 class TestProjectTriggerRepository:
-    def test_parses_a_webserver_payload(self):
+    def test_parses_a_nexus_api_payload(self):
         repo = ProjectTriggerRepository(**SAMPLE_REPOSITORY_OBJ)
 
         assert isinstance(repo.trigger_repository, TriggerRepository)
@@ -83,7 +83,7 @@ class TestProjectTriggerRepository:
 
 
 class TestTriggerRepository:
-    def test_parses_a_webserver_payload(self):
+    def test_parses_a_nexus_api_payload(self):
         repo = TriggerRepository(**SAMPLE_TRIGGER_REPOSITORY)
 
         assert isinstance(repo.secret, Secret)
@@ -93,7 +93,7 @@ class TestTriggerRepository:
 
 
 class TestPullRequest:
-    def test_parses_a_webserver_payload(self):
+    def test_parses_a_nexus_api_payload(self):
         pr = PullRequestTrigger(**{**SAMPLE_PR, "id": 77, "created_at": "x"})
 
         assert pr.number == 5 and pr.state.value == "UNKNOWN"
@@ -130,7 +130,7 @@ class TestNewPullRequest:
 
 
 class TestPullRequestFacts:
-    def test_parses_a_webserver_payload(self):
+    def test_parses_a_nexus_api_payload(self):
         facts = PullRequest(
             id=3, trigger_repository_id=1, number=5, title="t", raised_by="u", merged_at="2026-01-01T10:00:00",
             merge_commit_sha="a" * 40, base_branch="main", files_truncated=False,
@@ -153,7 +153,7 @@ class TestRevokedOnTheGlobalSide:
 
 
 class TestUnknownFieldsAreKept:
-    """The webserver may add fields to a response: every wire model keeps what it does not know."""
+    """nexus-api may add fields to a response: every wire model keeps what it does not know."""
 
     def test_a_task(self):
         task = Task(

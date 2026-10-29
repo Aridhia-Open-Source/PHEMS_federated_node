@@ -1,6 +1,6 @@
 # End-to-end suites
 
-The suites run the real stack (webserver, Keycloak, Postgres, Dagster and Gitea on the `kind-fn` cluster) through fncli. They check what the unit tests cannot: that the sensors, the webserver rules and Gitea work together. The Gitea mirror, authentication and normal-user permissions are not covered.
+The suites run the real stack (nexus-api, Keycloak, Postgres, Dagster and Gitea on the `kind-fn` cluster) through fncli. They check what the unit tests cannot: that the sensors, nexus-api rules and Gitea work together. The Gitea mirror, authentication and normal-user permissions are not covered.
 
 | Suite | File | What it covers |
 |---|---|---|
@@ -23,7 +23,7 @@ The failure paths are split by what a group waits for. `failure` holds the group
 ## Preflight
 
 - `kubectl config current-context` is `kind-fn`.
-- The backend (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answer on localhost (port-forwards or Tilt).
+- nexus-api (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answer on localhost (port-forwards or Tilt).
 - `.dev.env` exists in the repo root and defines `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD` (the first Keycloak user, needed to revoke project resources) and the `TEST_*` values documented in `.dev.env.example`.
 - The images in the cluster are built from the branch under test (`make deploy`), including `pypipes-fn`.
 - `jq` is installed when you run the scenarios by hand.
@@ -56,7 +56,7 @@ The scenarios that stop and start sensors were removed from the suites and will 
 
 ## After a failure
 
-Capture `fncli sensor-status` and the last 200 lines of the backend and the Dagster code server (`kubectl get pods -A | grep -E "backend|dagster"`, then `kubectl logs <pod> --tail=200`). `fncli project-show` prints the project's resources, pull requests, tasks and results as JSON.
+Capture `fncli sensor-status` and the last 200 lines of nexus-api and the Dagster code server (`kubectl get pods -A | grep -E "backend|dagster"`, then `kubectl logs <pod> --tail=200`). `fncli project-show` prints the project's resources, pull requests, tasks and results as JSON.
 
 ## Probes outside the suites
 

@@ -11,7 +11,7 @@ release:
   revision: 2
   upgrade: true
 templates:
-  - templates/backend-deployment.yaml
+  - templates/nexus-api-deployment.yaml
   - templates/keycloak-realm-controller.yaml
   - templates/keycloak-statefulset.yaml
   - templates/keycloak-rotation-cronjob.yaml
@@ -42,8 +42,8 @@ kubernetesProvider:
 
 tests:
   ## === The time-bomb guards ===
-  - it: does not inject credentials into the backend as environment variables
-    template: templates/backend-deployment.yaml
+  - it: does not inject credentials into nexus-api as environment variables
+    template: templates/nexus-api-deployment.yaml
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].envFrom
@@ -60,8 +60,8 @@ tests:
             secretRef:
               name: kc-secrets
 
-  - it: mounts credentials into the backend as a directory, never with subPath
-    template: templates/backend-deployment.yaml
+  - it: mounts credentials into nexus-api as a directory, never with subPath
+    template: templates/nexus-api-deployment.yaml
     asserts:
       - contains:
           path: spec.template.spec.containers[0].volumeMounts
@@ -98,10 +98,10 @@ tests:
             secretRef:
               name: kc-secrets
 
-  ## A credential checksum on the backend would restart it on every rotation, defeating the point of
+  ## A credential checksum on nexus-api would restart it on every rotation, defeating the point of
   ## mounting the secret in the first place.
-  - it: does not restart the backend when credentials rotate
-    template: templates/backend-deployment.yaml
+  - it: does not restart nexus-api when credentials rotate
+    template: templates/nexus-api-deployment.yaml
     asserts:
       - notExists:
           path: spec.template.metadata.annotations["fn.aridhia.com/credential-generation"]

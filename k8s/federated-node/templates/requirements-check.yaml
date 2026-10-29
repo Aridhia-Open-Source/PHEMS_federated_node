@@ -74,7 +74,7 @@
 {{- /* Something else owns the password Secrets, so they have to be there already. */ -}}
 {{- if and .Values.db.manageRolesAndDatabases (not .Values.db.createPasswordSecrets) }}
 {{- $needed := list
-      (dict "name" .Values.backend.db.secret.name "key" .Values.backend.db.secret.key "what" "the backend role's password")
+      (dict "name" .Values.nexus.api.db.secret.name "key" .Values.nexus.api.db.secret.key "what" "the nexus-api role's password")
       (dict "name" .Values.keycloak.db.secret.name "key" .Values.keycloak.db.secret.key "what" (printf "the keycloak role's password. It is also needed in namespace %s, which the chart does not copy for you in this mode" (include "kc_namespace" .))) }}
 {{- if .Values.dagster.enabled }}
 {{- $needed = append $needed (dict "name" (include "dagsterDbSecretName" .) "key" (include "dagsterDbSecretKey" .) "what" "the dagster role's password") }}
@@ -99,8 +99,8 @@
        not to create these by hand, which is the opposite instruction here. */ -}}
 {{- if not .Values.db.manageRolesAndDatabases }}
 {{- $roles := list
-      (dict "user" .Values.backend.db.user "dbname" .Values.backend.db.name
-            "name" .Values.backend.db.secret.name "key" .Values.backend.db.secret.key)
+      (dict "user" .Values.nexus.api.db.user "dbname" .Values.nexus.api.db.name
+            "name" .Values.nexus.api.db.secret.name "key" .Values.nexus.api.db.secret.key)
       (dict "user" .Values.keycloak.db.user "dbname" .Values.keycloak.db.name
             "name" .Values.keycloak.db.secret.name "key" .Values.keycloak.db.secret.key) }}
 {{- if .Values.dagster.enabled }}

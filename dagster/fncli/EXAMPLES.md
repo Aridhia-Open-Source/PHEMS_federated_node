@@ -19,10 +19,10 @@ commands to run a whole section at once.
 fncli calls three things. Each line below says which:
 
 - **Backend**: the federated-node backend API, shown as `METHOD /uri`.
-- **Gitea**: the Gitea API, called directly (not through the backend).
+- **Gitea**: the Gitea API, called directly (not through nexus-api).
 - **Dagster**: the Dagster webserver.
 
-fncli logs in first with `POST /login` on the backend, then makes its backend calls.
+fncli logs in first with `POST /login` on nexus-api, then makes its backend calls.
 
 ### Quick happy-path check
 
@@ -49,7 +49,7 @@ fncli verify-project && fncli verify-repo
 
 The same flow is automated from the repo root with `pytest dagster --e2e success -v` (the quick failure paths: `--e2e failure`, the long-running ones: `--e2e failure_long`, all of them: `--e2e`; put it after the path; the project is cleared at the start of each run and kept afterwards; `E2E_TEARDOWN=1` also tears it down at the end).
 
-If something sticks: `fncli sensor-status`, and the backend and Dagster pod logs.
+If something sticks: `fncli sensor-status`, and nexus-api and Dagster pod logs.
 
 ### 1. Set up the dev project
 
@@ -69,7 +69,7 @@ If something sticks: `fncli sensor-status`, and the backend and Dagster pod logs
 Optional, to set up one side only:
 
 - `fncli setup-backend`: backend calls only (project, placeholder secrets, trigger repo, results repo, dataset). No Gitea, so the secrets hold placeholders.
-- `fncli setup-gitea`: Gitea calls only (repos and tokens), plus `PATCH /global/secrets/{label}` on the backend to store the tokens. Takes `--project`.
+- `fncli setup-gitea`: Gitea calls only (repos and tokens), plus `PATCH /global/secrets/{label}` on nexus-api to store the tokens. Takes `--project`.
 
 ### 2. Start the sensors
 
@@ -82,7 +82,7 @@ Optional: `--group ingest|evaluate|launcher|status|delivery` starts just one gro
 
 ### 3. Open pull requests in the trigger repo
 
-Each command opens a PR and merges it, using the Gitea API only. fncli makes no backend call here. The merge is what the ingest sensor later picks up, and the sensor is what calls the backend.
+Each command opens a PR and merges it, using the Gitea API only. fncli makes no backend call here. The merge is what the ingest sensor later picks up, and the sensor is what calls nexus-api.
 
 - `fncli open-pr --kind watched --merge`
   - Gitea: creates a branch, commits a file that matches the trigger's watched paths, opens the PR and merges it.
@@ -128,7 +128,7 @@ Optional, a read-only report on the project:
   - Backend: `GET /projects/{id}/datasets`, `GET /global/datasets/{id}` and `GET /global/secrets/{label}`, for the dataset the healthcheck leaves out.
   - Creates and changes nothing.
 
-Optional, check that every merged PR of the trigger repo ran in Dagster and the backend agrees:
+Optional, check that every merged PR of the trigger repo ran in Dagster and nexus-api agrees:
 
 - `fncli verify-repo`
   - Prints a block per PR, one line per check (`ok` or `FAIL`), and a summary. Exits 1 if any check fails.
@@ -141,7 +141,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
   - Checks the task's status, run id and attempt match the run, and that `started_at` and `completed_at` are set when they should be.
   - Checks the run succeeded.
   - For a succeeded run, Backend: `GET /projects/{project_id}/tasks/{id}/results`, and checks the task has exactly one results delivery, its results PR was opened (state `OPENED`, `MERGED` or `CLOSED`; a failed delivery shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown).
-  - Does not check the files in the results repo: it only reads the backend and Dagster.
+  - Does not check the files in the results repo: it only reads nexus-api and Dagster.
 - `fncli verify-repo --tail 10`
   - The same, for only the last 10 PRs by number.
 - `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to open its results PR (state `OPENED` or later) or fail (an error is recorded), printing a `Delivery:` line each time its state changes (Backend: `GET /projects/{project_id}/tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
@@ -157,7 +157,7 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and the 
 
 Optional, to tear down one side only:
 
-- `fncli teardown-backend`: the backend deletes only.
+- `fncli teardown-backend`: nexus-api deletes only.
 - `fncli teardown-gitea`: the Gitea deletes only.
 
 ## What to expect

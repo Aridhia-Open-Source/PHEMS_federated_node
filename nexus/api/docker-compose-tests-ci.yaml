@@ -1,0 +1,48 @@
+name: federated_node_tests
+services:
+  db:
+    image: 'postgres:17-alpine'
+    environment:
+      POSTGRES_DB: test_app
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: test_app
+    volumes:
+      - federated_node_tests_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+  app:
+    image: federated_node_app_test
+    build:
+      context: .
+      dockerfile: build/test.Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    links:
+      - db
+    environment:
+      PGHOST:
+      PGDATABASE:
+      PGPORT:
+      PGUSER:
+      PGPASSWORD:
+      NEXUS_DB_USER:
+      NEXUS_DB_PASSWORD:
+      NEXUS_DB_NAME:
+      PYTHONPATH: /app
+      KEYCLOAK_ADMIN:
+      KEYCLOAK_SECRET: ${KEYCLOAK_SECRET}
+      KEYCLOAK_ADMIN_PASSWORD:
+      KEYCLOAK_SERVICE_USER:
+      KEYCLOAK_SERVICE_PASSWORD:
+      KEYCLOAK_URL:
+      DEFAULT_NAMESPACE:
+      TASK_NAMESPACE:
+      PUBLIC_URL:
+      KEYCLOAK_NAMESPACE:
+      NEXUS_ROLE: api
+volumes:
+  federated_node_tests_data:
