@@ -8,7 +8,7 @@ const BASE = "/nexus-ui/";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const backend = env.VITE_BACKEND_URL || "http://localhost:5002";
+  const backend = env.VITE_BACKEND_URL || "http://localhost:5004";
   return {
     base: BASE,
     plugins: [react()],

@@ -11,10 +11,10 @@ import {
   datasetResources, resourceKey, resourcePath, resultsResources, secretResources, triggerResources,
 } from "../../shared/projectResources";
 
-type TriggerResource = Schemas["ProjectTriggerRepositoryObject"];
-type ResultsResource = Schemas["ProjectResultsRepositoryObject"];
-type DatasetResource = Schemas["ProjectDatasetObject"];
-type SecretResource = Schemas["ProjectSecretObject"];
+type TriggerResource = Schemas["ProjectTriggerRepositoryDTO"];
+type ResultsResource = Schemas["ProjectResultsRepositoryDTO"];
+type DatasetResource = Schemas["ProjectDatasetDTO"];
+type SecretResource = Schemas["ProjectSecretDTO"];
 
 const triggerFields: Field[] = [
   { name: "watch_dir", required: true, help: "Directory in the repository the trigger watches" },
@@ -65,24 +65,24 @@ function TriggerResources({ projectId }: { projectId: number }) {
   const done = { onSuccess: () => qc.invalidateQueries({ queryKey: resourceKey(projectId, "triggers") }) };
   const add = useMutation({
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
-      call(api.PUT("/projects/{project_id}/repositories/triggers/{repository_id}", {
-        params: { path: { ...path, repository_id: id } },
-        body: body as Schemas["ProjectTriggerRepositoryPutBody"],
+      call(api.PUT("/projects/{project_id}/repositories/triggers/{repo_id}", {
+        params: { path: { ...path, repo_id: id } },
+        body,
       })),
     ...done,
   });
   const toggle = useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
-      call(api.PATCH("/projects/{project_id}/repositories/triggers/{repository_id}", {
-        params: { path: { ...path, repository_id: id } },
+      call(api.PATCH("/projects/{project_id}/repositories/triggers/{repo_id}", {
+        params: { path: { ...path, repo_id: id } },
         body: { enabled },
       })),
     ...done,
   });
   const unassign = useMutation({
     mutationFn: (id: number) =>
-      call(api.DELETE("/projects/{project_id}/repositories/triggers/{repository_id}", {
-        params: { path: { ...path, repository_id: id } },
+      call(api.DELETE("/projects/{project_id}/repositories/triggers/{repo_id}", {
+        params: { path: { ...path, repo_id: id } },
       })),
     ...done,
   });
@@ -90,25 +90,25 @@ function TriggerResources({ projectId }: { projectId: number }) {
     <ResourceSection<TriggerResource>
       title="Trigger repositories"
       resources={data}
-      rowKey={(r) => r.trigger_repository!.id!}
-      name={(r) => r.trigger_repository?.repo_path ?? String(r.trigger_repository?.id)}
+      rowKey={(r) => r.trigger_repository.id}
+      name={(r) => r.trigger_repository.repo_path}
       columns={[
         { header: "Repository", cell: (r) => (
-          <Link to={resourcePath(projectId, "triggers", r.trigger_repository!.id!)}>{r.trigger_repository?.repo_path}</Link>
+          <Link to={resourcePath(projectId, "triggers", r.trigger_repository.id)}>{r.trigger_repository.repo_path}</Link>
         ) },
         { header: "Watch dir", cell: (r) => r.watch_dir },
         { header: "Base branch", cell: (r) => r.base_branch },
         { header: "Pull requests", cell: (r) => r.pr_count },
       ]}
-      options={global.data?.map((r) => ({ value: String(r.id), label: r.repo_path ?? String(r.id) }))}
+      options={global.data?.map((r) => ({ value: String(r.id), label: r.repo_path }))}
       pickLabel="Trigger repository"
       fields={triggerFields}
       initial={{ base_branch: "main", enabled: true }}
       help={ADD_HELP}
       busy={add.isPending}
       onAdd={(id, body) => add.mutate({ id: Number(id), body })}
-      onToggle={(r, enabled) => toggle.mutate({ id: r.trigger_repository!.id!, enabled })}
-      onUnassign={(r) => unassign.mutate(r.trigger_repository!.id!)}
+      onToggle={(r, enabled) => toggle.mutate({ id: r.trigger_repository.id, enabled })}
+      onUnassign={(r) => unassign.mutate(r.trigger_repository.id)}
     />
   );
 }
@@ -126,7 +126,7 @@ function ResultsResources({ projectId }: { projectId: number }) {
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       call(api.PUT("/projects/{project_id}/repositories/results/{repository_id}", {
         params: { path: { ...path, repository_id: id } },
-        body: body as Schemas["ProjectResultsRepositoryPutBody"],
+        body,
       })),
     ...done,
   });
@@ -149,24 +149,24 @@ function ResultsResources({ projectId }: { projectId: number }) {
     <ResourceSection<ResultsResource>
       title="Results repositories"
       resources={data}
-      rowKey={(r) => r.results_repository!.id!}
-      name={(r) => r.results_repository?.repo_path ?? String(r.results_repository?.id)}
+      rowKey={(r) => r.results_repository.id}
+      name={(r) => r.results_repository.repo_path}
       columns={[
         { header: "Repository", cell: (r) => (
-          <Link to={resourcePath(projectId, "results", r.results_repository!.id!)}>{r.results_repository?.repo_path}</Link>
+          <Link to={resourcePath(projectId, "results", r.results_repository.id)}>{r.results_repository.repo_path}</Link>
         ) },
         { header: "Target dir", cell: (r) => r.target_dir },
-        { header: "Owned by node", cell: (r) => String(!!r.owned_by_federated_node) },
+        { header: "Owned by node", cell: (r) => String(r.owned_by_federated_node) },
       ]}
-      options={global.data?.map((r) => ({ value: String(r.id), label: r.repo_path ?? String(r.id) }))}
+      options={global.data?.map((r) => ({ value: String(r.id), label: r.repo_path }))}
       pickLabel="Results repository"
       fields={resultsFields}
       initial={{ owned_by_federated_node: true, enabled: true }}
       help={`A project has one results repository, and assigning needs the project disabled. ${ADD_HELP}`}
       busy={add.isPending}
       onAdd={(id, body) => add.mutate({ id: Number(id), body })}
-      onToggle={(r, enabled) => toggle.mutate({ id: r.results_repository!.id!, enabled })}
-      onUnassign={(r) => unassign.mutate(r.results_repository!.id!)}
+      onToggle={(r, enabled) => toggle.mutate({ id: r.results_repository.id, enabled })}
+      onUnassign={(r) => unassign.mutate(r.results_repository.id)}
     />
   );
 }
@@ -184,7 +184,7 @@ function DatasetResources({ projectId }: { projectId: number }) {
     mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
       call(api.PUT("/projects/{project_id}/datasets/{dataset_id}", {
         params: { path: { ...path, dataset_id: id } },
-        body: body as Schemas["ProjectDatasetPutBody"],
+        body,
       })),
     ...done,
   });
@@ -207,24 +207,24 @@ function DatasetResources({ projectId }: { projectId: number }) {
     <ResourceSection<DatasetResource>
       title="Datasets"
       resources={data}
-      rowKey={(r) => r.dataset!.id!}
-      name={(r) => r.dataset?.name ?? String(r.dataset?.id)}
+      rowKey={(r) => r.dataset.id}
+      name={(r) => r.dataset.name}
       columns={[
         { header: "Dataset", cell: (r) => (
-          <Link to={resourcePath(projectId, "datasets", r.dataset!.id!)}>{r.dataset?.name}</Link>
+          <Link to={resourcePath(projectId, "datasets", r.dataset.id)}>{r.dataset.name}</Link>
         ) },
-        { header: "Slug", cell: (r) => r.dataset?.slug },
-        { header: "Host", cell: (r) => r.dataset?.host },
+        { header: "Slug", cell: (r) => r.dataset.slug },
+        { header: "Host", cell: (r) => r.dataset.host },
       ]}
-      options={global.data?.items?.map((d) => ({ value: String(d.id), label: d.name ?? String(d.id) }))}
+      options={global.data?.items.map((d) => ({ value: String(d.id), label: d.name }))}
       pickLabel="Dataset"
       fields={enabledOnly}
       initial={{ enabled: true }}
       help={`The first dataset assigned becomes the project's default. ${ADD_HELP}`}
       busy={add.isPending}
       onAdd={(id, body) => add.mutate({ id: Number(id), body })}
-      onToggle={(r, enabled) => toggle.mutate({ id: r.dataset!.id!, enabled })}
-      onUnassign={(r) => unassign.mutate(r.dataset!.id!)}
+      onToggle={(r, enabled) => toggle.mutate({ id: r.dataset.id, enabled })}
+      onUnassign={(r) => unassign.mutate(r.dataset.id)}
     />
   );
 }
@@ -242,7 +242,7 @@ function SecretResources({ projectId }: { projectId: number }) {
     mutationFn: ({ label, body }: { label: string; body: Record<string, unknown> }) =>
       call(api.PUT("/projects/{project_id}/secrets/{label}", {
         params: { path: { ...path, label } },
-        body: body as Schemas["ProjectSecretPutBody"],
+        body,
       })),
     ...done,
   });
@@ -265,24 +265,24 @@ function SecretResources({ projectId }: { projectId: number }) {
     <ResourceSection<SecretResource>
       title="Secrets"
       resources={data}
-      rowKey={(r) => r.secret!.label!}
-      name={(r) => r.secret?.label ?? ""}
+      rowKey={(r) => r.secret.label}
+      name={(r) => r.secret.label}
       columns={[
         { header: "Label", cell: (r) => (
-          <Link to={resourcePath(projectId, "secrets", r.secret!.label!)}>{r.secret?.label}</Link>
+          <Link to={resourcePath(projectId, "secrets", r.secret.label)}>{r.secret.label}</Link>
         ) },
-        { header: "Description", cell: (r) => r.secret?.description },
-        { header: "Key", cell: (r) => r.secret?.key },
+        { header: "Description", cell: (r) => r.secret.description },
+        { header: "Key", cell: (r) => r.secret.key },
       ]}
-      options={global.data?.map((s) => ({ value: s.label!, label: s.label! }))}
+      options={global.data?.map((s) => ({ value: s.label, label: s.label }))}
       pickLabel="Secret"
       fields={enabledOnly}
       initial={{ enabled: true }}
       help={`Only the reference is assigned, never the values. ${ADD_HELP}`}
       busy={add.isPending}
       onAdd={(label, body) => add.mutate({ label, body })}
-      onToggle={(r, enabled) => toggle.mutate({ label: r.secret!.label!, enabled })}
-      onUnassign={(r) => unassign.mutate(r.secret!.label!)}
+      onToggle={(r, enabled) => toggle.mutate({ label: r.secret.label, enabled })}
+      onUnassign={(r) => unassign.mutate(r.secret.label)}
     />
   );
 }

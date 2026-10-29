@@ -9,7 +9,7 @@ import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
 import { SecretUsedBy } from "../../shared/UsedBy";
 
-type Secret = Schemas["SecretObject"];
+type Secret = Schemas["SecretDTO"];
 const KEY = ["secrets"];
 
 const createFields: Field[] = [
@@ -60,15 +60,15 @@ function SecretList() {
       <Link to="new" className="button">New secret</Link>
       <ResourceTable<Secret>
         data={data}
-        rowKey={(s) => s.id!}
+        rowKey={(s) => s.id}
         columns={[
-          { header: "Label", cell: (s) => <Link to={s.label!}>{s.label}</Link> },
+          { header: "Label", cell: (s) => <Link to={s.label}>{s.label}</Link> },
           { header: "Description", cell: (s) => s.description },
           { header: "Key", cell: (s) => s.key },
           { header: "Enabled", cell: (s) => (
-            <EnabledToggle enabled={!!s.enabled} onChange={(enabled) => setEnabled.mutate({ label: s.label!, enabled })} />
+            <EnabledToggle enabled={s.enabled} onChange={(enabled) => setEnabled.mutate({ label: s.label, enabled })} />
           ) },
-          { header: "", cell: (s) => <DeleteButton what={s.label!} onConfirm={() => remove.mutate(s.label!)} /> },
+          { header: "", cell: (s) => <DeleteButton what={s.label} onConfirm={() => remove.mutate(s.label)} /> },
         ]}
       />
     </section>
@@ -80,7 +80,7 @@ function SecretCreate() {
   const nav = useNavigate();
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      call(api.POST("/global/secrets", { body: body as Schemas["SecretPostBody"] })),
+      call(api.POST("/global/secrets", { body })),
     onSuccess: (s) => {
       qc.invalidateQueries({ queryKey: KEY });
       nav(`../${s.label}`);
@@ -104,7 +104,7 @@ function SecretDetail() {
   });
   const update = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      call(api.PATCH("/global/secrets/{label}", { params: { path: { label } }, body: body as Schemas["SecretPatchBody"] })),
+      call(api.PATCH("/global/secrets/{label}", { params: { path: { label } }, body })),
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
   const health = useQuery({

@@ -5,7 +5,7 @@ import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
 
-type Result = Schemas["ResultById"];
+type Result = Schemas["PullRequestResultDTO"];
 
 export default function ProjectResults({ projectId }: { projectId: number }) {
   return (
@@ -26,7 +26,7 @@ function ResultList({ projectId }: { projectId: number }) {
       <h2>Results</h2>
       <ResourceTable<Result>
         data={data}
-        rowKey={(r) => r.id!}
+        rowKey={(r) => r.id}
         empty="No results yet"
         columns={[
           { header: "Id", cell: (r) => <Link to={String(r.id)}>{r.id}</Link> },

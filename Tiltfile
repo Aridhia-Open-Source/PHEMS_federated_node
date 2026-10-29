@@ -142,13 +142,14 @@ local_resource(
 # NEXUS ADMIN UI
 # ==============================================================================
 # Vite dev server with hot reload of nexus/ui/src, at http://localhost:5173/nexus-ui/.
-# It proxies /nexus-ui/api to the backend forwarded on 5000 (5001 is the image registry).
+# It proxies /nexus-ui/api to nexus on 5004 when NEXUS_API_ENABLED, else to the Flask backend on 5000
+# (5001 is the image registry).
 local_resource(
   'nexus-ui',
   cmd='cd nexus/ui && npm ci',
   deps=['nexus/ui/package.json', 'nexus/ui/package-lock.json'],
   serve_cmd='cd nexus/ui && npm run dev -- --strictPort',
-  serve_env={'VITE_BACKEND_URL': 'http://localhost:5000'},
+  serve_env={'VITE_BACKEND_URL': 'http://localhost:5004' if NEXUS_ENABLED else 'http://localhost:5000'},
   links=['http://localhost:5173/nexus-ui/'],
   labels=['dev'],
 )

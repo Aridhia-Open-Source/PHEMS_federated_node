@@ -4,73 +4,7 @@
  */
 
 export interface paths {
-    "/global/datasets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all datasets available to the user */
-        get: operations["getDataset"];
-        put?: never;
-        /**
-         * Create a global dataset that the Federated Node can fetch data from. Admin only
-         * @description The dataset belongs to no project until it is linked. project_id is rejected with a 400. The credentials come from a secret created with POST /global/secrets, named by secret_label
-         */
-        post: operations["postDataset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/datasets/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a datasets by id if available to the user */
-        get: operations["getDatasetById"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a dataset and its links
-         * @description Admin only. Soft delete: the dataset is gone from the API. Applies at once. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. A task in flight gets no data from it. The secret is left alone: it has its own lifecycle under /secrets
-         */
-        delete: operations["deleteDataset"];
-        options?: never;
-        head?: never;
-        /**
-         * Edit a dataset information. Any of the fields provided on the POST or returned by the GET on this same endpoint, is a valid body
-         * @description Admin only. Every edit applies at once; the tasks created before are pinned to the old setup and fail instead of running against the new one. project_id is rejected with a 400
-         */
-        patch: operations["editDataset"];
-        trace?: never;
-    };
-    "/global/datasets/{id}/revoke": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Revoke every project's link to a dataset
-         * @description Admin only. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.
-         */
-        post: operations["revokeDataset"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/datasets/{id}/healthcheck": {
+    "/ready_check": {
         parameters: {
             query?: never;
             header?: never;
@@ -78,52 +12,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check the node can connect to a dataset
-         * @description Opens a connection to the dataset's database with its secret and runs SELECT 1, with a 5 second timeout. Requires the can_admin_dataset scope.
+         * Ready Check
+         * @description GET /ready_check endpoint
+         *         Mostly to tell k8s the server has started
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health. A failed check is reported in the body, with a 200 */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DatasetHealthObject"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Not authorised */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Dataset not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["ready_check_ready_check_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -132,28 +25,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/projects/{project_id}/tasks/{task_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a single task by its id */
-        get: operations["get_task_by_id"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Record the progress of a task's run
-         * @description Called by Dagster. System user only: 403 for any other caller, admins included. A status move not in TASK_MOVES (webserver/app/models/task_status.py) is refused with 409: only forward, and nothing out of SUCCESS, FAILED or CANCELED. The same status again is allowed.
-         */
-        patch: operations["patch_task"];
-        trace?: never;
-    };
-    "/tasks": {
+    "/health_check": {
         parameters: {
             query?: never;
             header?: never;
@@ -161,170 +33,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get the tasks of all projects
-         * @description Ordered by id, in the shape of the project's list. Used by the Dagster sensors, which filter in the webserver.
+         * Health Check
+         * @description GET /health_check endpoint
+         *         Checks the connection to keycloak and returns a jsonized summary
          */
-        get: operations["get_all_tasks"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a full list of tasks */
-        get: operations["get_tasks"];
-        put?: never;
-        /** Queue a new analytics task on a given dataset */
-        post: operations["create_task"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks/validate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Validate a task request. Checks if the docker image can be found, and the overall required fields to create a task */
-        post: operations["validate_task"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks/{task_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cancel a running task */
-        post: operations["cancel_task"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks/{task_id}/results": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List the delivery of a task's results to each destination */
-        get: operations["get_task_results"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks/{task_id}/results/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Approve the results release */
-        post: operations["approve_results"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks/{task_id}/results/block": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Block the results release */
-        post: operations["block_results"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks/{task_id}/logs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get task logs if available */
-        get: operations["get_task_logs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks/{task_id}/trigger": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the pull request that yielded a task, with its trigger repository
-         * @description 404 if the task has no pull request trigger (tasks created by hand).
-         */
-        get: operations["get_task_trigger"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks/{task_id}/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Whether the configuration a task was created under still holds
-         * @description A task is pinned to its results repository and target_dir and to its dataset as they were when it was created. current is false when any of them changed since, and changes lists what differs; such a task must not launch or publish. A task without a stored snapshot is current. outcome is the webserver's decision for a PENDING task: launch, or fail with cause. The first rule that applies decides, in this order: something it uses is revoked or deleted, its configuration changed, its dataset link is not active, its dataset's secret is disabled. Read-only, so it can be asked every tick. 404 if the task is not in the project.
-         */
-        get: operations["get_task_config"];
+        get: operations["health_check_health_check_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -342,8 +55,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login with set of credentials (only admins can have them) */
-        post: operations["login"];
+        /**
+         * Login
+         * @description POST /login endpoint.
+         *         Given a form, logs the user in, returning a refresh_token from Keycloak
+         */
+        post: operations["login_login_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -359,237 +76,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Refresh an existing token */
-        post: operations["refresh_token"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the audit logs for the whole API, with filters */
-        get: operations["get_audit"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/delivery-secret": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Admin-only endpoint that is active only when the task controller is deployed. This endpoint will update a secret linked with the automatic delivery credentials */
-        patch: operations["update_delivery_secret"];
-        trace?: never;
-    };
-    "/health_check": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Health check with keycloak's availability */
-        get: operations["health_check"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List of all of the users */
-        get: operations["get_all_users"];
-        put?: never;
-        /** Create a new user */
-        post: operations["create_user"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/users/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Reset temporary password from user creation */
-        put: operations["reset_password"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/whitelisted_images": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all whitelisted images */
-        get: operations["getWhitelistedImages"];
-        put?: never;
-        /** Add an image to the whitelist */
-        post: operations["postWhitelistedImage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/whitelisted_images/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a whitelisted image by id */
-        get: operations["getWhitelistedImageById"];
-        put?: never;
-        post?: never;
-        /** Remove a whitelisted image */
-        delete: operations["deleteWhitelistedImage"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/registries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List all container registries available */
-        get: operations["getRegistries"];
-        put?: never;
-        /** Create a new container registry mapping from which the Federated Node can pull image from for tasks */
-        post: operations["postRegistries"];
-        /** Delete all container registries */
-        delete: operations["deleteRegistries"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/registries/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a registry by id if available to the user */
-        get: operations["getRegistryById"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Amend details for a registry */
-        patch: operations["patchRegistryById"];
-        trace?: never;
-    };
-    "/global/datasets/by-name/{name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a datasets by name if available to the user */
-        get: operations["getDatasetByName"];
-        put?: never;
-        post?: never;
-        /** Delete a dataset and its links, by name */
-        delete: operations["deleteDatasetByName"];
-        options?: never;
-        head?: never;
-        /** Edit a dataset information. Any of the fields provided on the POST or returned by the GET on this same endpoint, is a valid body */
-        patch: operations["editDatasetByName"];
-        trace?: never;
-    };
-    "/global/datasets/by-name/{name}/catalogue": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the catalogue in a given dataset */
-        get: operations["getDatasetCatalogueByName"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/datasets/by-name/{name}/dictionaries": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the dictionaries in a given dataset */
-        get: operations["getDatasetDictionariesByName"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/datasets/by-name/{name}/dictionaries/{table_name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the dictionary for a given table in a given dataset */
-        get: operations["getDatasetDictionariesTableByName"];
-        put?: never;
-        post?: never;
+        /**
+         * Refresh Token
+         * @description POST /refresh_token endpoint.
+         *         Given a token, exchanges it for a new one. Returns the same
+         *         response as /login
+         */
+        post: operations["refresh_token_refresh_token_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -603,62 +96,41 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List projects */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description List of projects */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ProjectObject"][];
-                    };
-                };
-            };
-        };
+        /**
+         * List Projects
+         * @description GET /projects endpoint.
+         */
+        get: operations["list_projects_projects_get"];
         put?: never;
-        /** Create a project */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["ProjectPostBody"];
-                };
-            };
-            responses: {
-                /** @description Project created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            id?: number;
-                        };
-                    };
-                };
-                /** @description Project already exists */
-                409: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
+        /**
+         * Create Project
+         * @description POST /projects endpoint.
+         */
+        post: operations["create_project_projects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
+        /**
+         * List Projects
+         * @description GET /projects endpoint.
+         */
+        get: operations["list_projects_projects__get"];
+        put?: never;
+        /**
+         * Create Project
+         * @description POST /projects endpoint.
+         */
+        post: operations["create_project_projects__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -672,720 +144,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get a project */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    project_id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description A project */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ProjectObject"];
-                    };
-                };
-                /** @description Project not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        /**
+         * Project By Id
+         * @description GET /projects/<project_id> endpoint.
+         */
+        get: operations["project_by_id_projects__project_id__get"];
         put?: never;
         post?: never;
         /**
-         * Delete a project and everything under it
-         * @description Soft delete: the project is gone from the API (404), and its dataset, secret, results repository and trigger repository links are revoked and deleted. Its tasks and triggers are kept. Applies at once. Secrets, datasets and repositories belong to no project and are left alone.
+         * Delete Project
+         * @description DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes
+         *     every project resource under it: datasets, secrets, results repository and trigger repositories. Its tasks
+         *     and triggers stay. Secrets, datasets and results repositories belong to no project: they, and
+         *     their stored values, are left alone.
          */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    project_id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Project deleted */
-                204: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Project not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        delete: operations["delete_project_projects__project_id__delete"];
         options?: never;
         head?: never;
         /**
-         * Enable or disable a project, optionally backfilling
-         * @description Changing enabled is unconditional. Turning a disabled project back on moves the cursor of its trigger repository links to now, so pull requests merged while it was off get no trigger; send backfill true with enabled true to create those triggers instead (backfill is not stored, and is a 400 in any other case). A disabled project gets no trigger for new pull requests.
+         * Patch Project
+         * @description PATCH /projects/<project_id> endpoint. Enables or disables the project. Turning the project
+         *     on again skips the gap: what was merged while it was off gets no trigger. With
+         *     `"backfill": true` it creates those triggers instead. `backfill` is only for enabling a
+         *     disabled project (`"enabled": true`), otherwise a 400, and is not stored.
+         *     `revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:
+         *     while it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger
+         *     (see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.
          */
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    project_id: number;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["ProjectPatchBody"];
-                };
-            };
-            responses: {
-                /** @description The updated project */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ProjectObject"];
-                    };
-                };
-                /** @description Fields other than enabled, backfill and revoked, one not a boolean, or backfill without enabled true on a disabled project */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Project not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        trace?: never;
-    };
-    "/projects/{project_id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check the project's repository links can be reached
-         * @description The roll-up of the project's trigger repository links and its results repository link, each checked with its repository's own secret. Each link has its own healthcheck under its path. A failed check is reported in the body, with a 200.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    project_id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health of the project */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ProjectHealthObject"];
-                    };
-                };
-                /** @description Project not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/task_requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List task requests */
-        get: operations["get_task_requests"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/task_requests/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a single task request */
-        get: operations["get_task_request"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Set whether a task request is waiting to be launched */
-        patch: operations["patch_task_request"];
-        trace?: never;
-    };
-    "/task_requests/{id}/task": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create the task for a task request. Returns the existing task if there is one */
-        post: operations["create_task_from_request"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/results/{result_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a single result by its id */
-        get: operations["get_result"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Record the progress of a task's delivery. A pull request result's step only moves forward: UNKNOWN, PUSHED, OPENED, then MERGED, CLOSED, REVOKED or STALE, all terminal. A move to the same or a lower rank is a 409, see RESULT_ORDER in webserver/app/models/pull_request_result_step.py
-         * @description Called by Dagster. System user only: 403 for any other caller, admins included.
-         */
-        patch: operations["patch_result"];
-        trace?: never;
-    };
-    "/projects/{project_id}/results": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List results */
-        get: operations["get_results"];
-        put?: never;
-        /**
-         * Create the delivery of a task's results to a results repository. If it exists already, it is returned. If the task's configuration changed since it was created, the new result is final: step STALE, state FAILED, nothing is delivered. If the link is switched off (disabled, or its repository or provider is), the new result is step UNKNOWN, state FAILED, error "results link switched off", and the delivery retry sensor delivers it once the link is active
-         * @description Called by Dagster. System user only: 403 for any other caller, admins included.
-         */
-        post: operations["post_result"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/dagster/sensors": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List the Dagster sensors with their status and latest tick */
-        get: operations["get_sensors"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Start or stop every sensor, or only those named. Returns every sensor after the change */
-        patch: operations["patch_sensors"];
-        trace?: never;
-    };
-    "/dagster/sensors/{name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a Dagster sensor with its status and latest tick */
-        get: operations["get_sensor"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Start or stop a single sensor */
-        patch: operations["patch_sensor"];
-        trace?: never;
-    };
-    "/global/secrets": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List the secrets
-         * @description The secret values are never returned. Requires the can_admin_dataset scope.
-         */
-        get: operations["get_secrets"];
-        put?: never;
-        /**
-         * Create a secret
-         * @description Writes the values to the secret store and records a reference to them. The secret is stored under the generated key "fn-secret-<label>", which never changes. The label is unique across the node. Admin only (can_do_admin scope).
-         */
-        post: operations["post_secret"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/secrets/{label}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a secret
-         * @description The secret values are never returned. Requires the can_admin_dataset scope.
-         */
-        get: operations["get_secret"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a secret
-         * @description Deletes the reference and the stored secret. Refused while a trigger repository, results repository or dataset still uses it. Admin only (can_do_admin scope).
-         */
-        delete: operations["delete_secret"];
-        options?: never;
-        head?: never;
-        /**
-         * Set keys on a secret
-         * @description Writes the given keys to the stored secret, e.g. to rotate a token. Every repository or dataset that references the secret, in any project, picks the new values up. Keys not in the request are left as they are. Admin only (can_do_admin scope).
-         */
-        patch: operations["patch_secret"];
-        trace?: never;
-    };
-    "/global/secrets/{label}/revoke": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Revoke every project's link to a secret
-         * @description Admin only. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.
-         */
-        post: operations["revokeSecret"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/secrets/{label}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check a secret is in its store
-         * @description Checks the secret exists in its secret store provider and holds the keys its datasets and repositories need. Never returns values. Requires the can_admin_dataset scope.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    /** @description The secret's label */
-                    label: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health. A failed check is reported in the body, with a 200 */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["SecretHealthObject"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Not authorised */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Secret not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/results": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List the global results repositories
-         * @description Requires the can_admin_dataset scope.
-         */
-        get: operations["get_results_repositories"];
-        put?: never;
-        /**
-         * Create a global results repository
-         * @description Created linked to no project. Link it with PUT /projects/{project_id}/repositories/results/{repository_id}. Admin only (can_do_admin scope).
-         */
-        post: operations["post_results_repository"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/results/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a global results repository
-         * @description Requires the can_admin_dataset scope.
-         */
-        get: operations["get_results_repository"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a global results repository and its links
-         * @description Soft delete: the repository is gone from the API. Applies at once. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. Admin only (can_do_admin scope).
-         */
-        delete: operations["delete_results_repository"];
-        options?: never;
-        head?: never;
-        /**
-         * Edit a global results repository
-         * @description Every edit applies at once: the edits (enabled, provider_id, secret_label) are unconditional, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Admin only (can_do_admin scope).
-         */
-        patch: operations["patch_results_repository"];
-        trace?: never;
-    };
-    "/global/repositories/results/{id}/revoke": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Revoke every project's link to a resultsrepository
-         * @description Admin only. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.
-         */
-        post: operations["revokeResultsRepository"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/results/{id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check a results repository can be reached
-         * @description Calls the git provider's API for the repository with the token in its own secret. Requires the can_admin_dataset scope.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health. A failed check is reported in the body, with a 200 */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RepositoryConnectionObject"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Not authorised */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Repository not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/triggers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List the global trigger repositories
-         * @description Requires the can_admin_dataset scope.
-         */
-        get: operations["get_trigger_repositories"];
-        put?: never;
-        /**
-         * Create a global trigger repository
-         * @description Created linked to no project. Link it with PUT /projects/{project_id}/repositories/triggers/{repository_id}. Admin only (can_do_admin scope).
-         */
-        post: operations["post_trigger_repository"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/triggers/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a global trigger repository
-         * @description Requires the can_admin_dataset scope.
-         */
-        get: operations["get_trigger_repository"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a global trigger repository and its links
-         * @description Soft delete: the repository is gone from the API. Applies at once. While projects are linked to it the request is a 409 whose details list them, unless ?force=true, which revokes and deletes every project's link to it. A task in flight whose results go to it gets a REVOKED result. Admin only (can_do_admin scope).
-         */
-        delete: operations["delete_trigger_repository"];
-        options?: never;
-        head?: never;
-        /**
-         * Edit a global trigger repository
-         * @description Every edit applies at once: the edits (enabled, provider_id, secret_label) are unconditional, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves every link's cursor to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).
-         */
-        patch: operations["patch_trigger_repository"];
-        trace?: never;
-    };
-    "/global/repositories/triggers/{id}/revoke": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Revoke every project's link to a triggerrepository
-         * @description Admin only. Revoking a revoked link changes nothing. Un-revoking is per link, with PATCH on the project's link.
-         */
-        post: operations["revokeTriggerRepository"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/triggers/{id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check a trigger repository can be reached
-         * @description Calls the git provider's API for the repository with the token in its own secret. Requires the can_admin_dataset scope.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health. A failed check is reported in the body, with a 200 */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["RepositoryConnectionObject"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Not authorised */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Repository not found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/triggers/{id}/pull_requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List the pull requests stored for a trigger repository
-         * @description Pull requests are stored once per repository, whatever the number of projects watching it. Requires the can_admin_dataset scope.
-         */
-        get: operations["get_repository_pull_requests"];
-        put?: never;
-        /**
-         * Store pull requests and fan them out
-         * @description Called by Dagster. System user only: 403 for any other caller, admins included. Stores up to 100 pull requests of the repository and creates their triggers for every active link of it, each respecting the link's cursor, watch_dir and base_branch. Idempotent: a number already stored keeps its first facts.
-         */
-        post: operations["post_repository_pull_requests_batch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
+        patch: operations["patch_project_projects__project_id__patch"];
         trace?: never;
     };
     "/projects/{project_id}/datasets": {
@@ -1396,10 +182,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List the project's dataset links
-         * @description Requires the can_admin_dataset scope.
+         * List Project Datasets
+         * @description GET /projects/<project_id>/datasets endpoint. The project's dataset resources, inactive
+         *     ones included with their flags.
          */
-        get: operations["list_project_datasets"];
+        get: operations["list_project_datasets_projects__project_id__datasets_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1416,91 +203,33 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get a dataset link
-         * @description Requires the can_admin_dataset scope.
+         * Get Project Dataset
+         * @description GET /projects/<project_id>/datasets/<dataset_id> endpoint. The dataset is the global one's id.
          */
-        get: operations["get_project_dataset"];
+        get: operations["get_project_dataset_projects__project_id__datasets__dataset_id__get"];
         /**
-         * Link a global dataset to the project, or replace its settings
-         * @description Links the dataset, and the first one linked becomes the project's default. When it is linked already the project's settings are replaced (fields left out take their defaults). revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.
+         * Put Project Dataset
+         * @description PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Assigns a global dataset to the
+         *     project, 201, and replaces the project's settings if it is assigned already, 200. The first one assigned becomes the project's default.
+         *     Body: {"enabled": true}, optional.
          */
-        put: operations["put_project_dataset"];
+        put: operations["put_project_dataset_projects__project_id__datasets__dataset_id__put"];
         post?: never;
         /**
-         * Remove a dataset link
-         * @description Removes the link, not the dataset: a soft delete that revokes the link, applying at once. If it was the project's default, the project has none afterwards. Requires the can_admin_dataset scope.
+         * Delete Project Dataset
+         * @description DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unassigns the dataset, not the
+         *     dataset itself: a soft delete that also revokes the project resource. If it was the project's default,
+         *     the project has none afterwards.
          */
-        delete: operations["delete_project_dataset"];
+        delete: operations["delete_project_dataset_projects__project_id__datasets__dataset_id__delete"];
         options?: never;
         head?: never;
         /**
-         * Edit a dataset link
-         * @description enabled applies at once. revoked is admin only and takes effect at once. Requires the can_admin_dataset scope.
+         * Patch Project Dataset
+         * @description PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the project resource on or
+         *     off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
          */
-        patch: operations["patch_project_dataset"];
-        trace?: never;
-    };
-    "/projects/{project_id}/datasets/{dataset_id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check a project's dataset link
-         * @description The global dataset's check and the project's link state. Requires the can_admin_dataset scope.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    project_id: number;
-                    dataset_id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health. A failed check is reported in the body, with a 200 */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ProjectDatasetHealthObject"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Not authorised */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Project not found, or not linked to the dataset */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
+        patch: operations["patch_project_dataset_projects__project_id__datasets__dataset_id__patch"];
         trace?: never;
     };
     "/projects/{project_id}/secrets": {
@@ -1511,10 +240,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List the project's secret links
-         * @description References only, never the values. Requires the can_admin_dataset scope.
+         * List Project Secrets
+         * @description GET /projects/<project_id>/secrets endpoint. The project's secret resources, inactive ones
+         *     included with their flags. References only, never the values.
          */
-        get: operations["list_project_secrets"];
+        get: operations["list_project_secrets_projects__project_id__secrets_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1531,92 +261,32 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get a secret link
-         * @description Requires the can_admin_secret scope.
+         * Get Project Secret
+         * @description GET /projects/<project_id>/secrets/{label} endpoint.
          */
-        get: operations["get_project_secret"];
+        get: operations["get_project_secret_projects__project_id__secrets__label__get"];
         /**
-         * Link a global secret to the project, or replace its settings
-         * @description Links the secret, When it is linked already the project's settings are replaced (fields left out take their defaults). revoked is not accepted: only PATCH sets it. Only the reference is linked, the values are never returned. Requires the can_admin_dataset scope.
+         * Put Project Secret
+         * @description PUT /projects/<project_id>/secrets/{label} endpoint. Assigns a global secret to the project,
+         *     201, and replaces the project's settings if it is assigned already, 200.
+         *     Body: {"enabled": true}, optional.
          */
-        put: operations["put_project_secret"];
+        put: operations["put_project_secret_projects__project_id__secrets__label__put"];
         post?: never;
         /**
-         * Unlink a secret
-         * @description Removes the link, not the secret: a soft delete that revokes the link, applying at once. If it was the project's default, the project has none afterwards. Requires the can_admin_secret scope.
+         * Delete Project Secret
+         * @description DELETE /projects/<project_id>/secrets/{label} endpoint. Unassigns the secret, not the secret
+         *     itself: a soft delete that also revokes the project resource.
          */
-        delete: operations["delete_project_secret"];
+        delete: operations["delete_project_secret_projects__project_id__secrets__label__delete"];
         options?: never;
         head?: never;
         /**
-         * Edit a secret link
-         * @description enabled applies at once. revoked is admin only and takes effect at once. Requires the can_admin_secret scope.
+         * Patch Project Secret
+         * @description PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the project resource on or off (enabled),
+         *     or revokes and re-grants it (revoked), which is admin only and takes effect at once.
          */
-        patch: operations["patch_project_secret"];
-        trace?: never;
-    };
-    "/projects/{project_id}/secrets/{label}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check a project's secret link
-         * @description The global secret's check and the project's link state. Requires the can_admin_dataset scope.
-         */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    project_id: number;
-                    /** @description The secret's label */
-                    label: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health. A failed check is reported in the body, with a 200 */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ProjectSecretHealthObject"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Not authorised */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Project not found, or not linked to the secret */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
+        patch: operations["patch_project_secret_projects__project_id__secrets__label__patch"];
         trace?: never;
     };
     "/projects/{project_id}/repositories/results": {
@@ -1627,10 +297,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List the project's results repository links
-         * @description Requires the can_admin_dataset scope.
+         * List Project Results Repositories
+         * @description GET /projects/<project_id>/repositories/results endpoint. The project's results repository
+         *     resource, an inactive one included with its flags, so a project always lists exactly one.
          */
-        get: operations["list_project_results_repositorys"];
+        get: operations["list_project_results_repositories_projects__project_id__repositories_results_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1647,31 +318,43 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get a results repository link
-         * @description Requires the can_admin_dataset scope.
+         * Get Project Results Repository
+         * @description GET /projects/<project_id>/repositories/results/<repository_id> endpoint. The repository is the global one's id.
          */
-        get: operations["get_project_results_repository"];
+        get: operations["get_project_results_repository_projects__project_id__repositories_results__repository_id__get"];
         /**
-         * Link a global results repository to the project, or replace its settings
-         * @description A project has one. Linking needs the project disabled, otherwise a 409. When it is linked already the settings are replaced: a change of target_dir applies at once, and the tasks created before fail instead of delivering to the new place. Fields left out take their defaults. Refused when it would make results land where a trigger watches. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.
+         * Put Project Results Repository
+         * @description PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global
+         *     results repository to the project, which has one, 201, and replaces the project's settings
+         *     if it is assigned already, 200. Assigning needs the project disabled. A change of target_dir
+         *     is caught by the configuration snapshot of the tasks created before, which then fail
+         *     instead of delivering there.
+         *     Body: {"target_dir": "results", "owned_by_federated_node": true, "enabled": true}, the last
+         *     two are optional.
          */
-        put: operations["put_project_results_repository"];
+        put: operations["put_project_results_repository_projects__project_id__repositories_results__repository_id__put"];
         post?: never;
         /**
-         * Remove a results repository link
-         * @description Removes the link, not the repository: a soft delete that revokes the link, applying at once. A task of the project still in flight gets a REVOKED result. Requires the can_admin_dataset scope.
+         * Delete Project Results Repository
+         * @description DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unassigns the
+         *     repository, not the repository itself: a soft delete that also revokes the project resource. A task of the
+         *     project still in flight gets a REVOKED result.
          */
-        delete: operations["delete_project_results_repository"];
+        delete: operations["delete_project_results_repository_projects__project_id__repositories_results__repository_id__delete"];
         options?: never;
         head?: never;
         /**
-         * Edit a results repository link
-         * @description Every edit is unconditional: target_dir and owned_by_federated_node apply at once, and the tasks created before fail instead of delivering to the new place. revoked is admin only and takes effect at once. A revoked link makes delivery fail with 'results repository access revoked'. Requires the can_admin_dataset scope.
+         * Patch Project Results Repository
+         * @description PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
+         *     the project's results go (target_dir, owned_by_federated_node), at any time (the tasks created
+         *     before fail instead of delivering to the new place), or turns the project resource on or
+         *     off (enabled), or revokes and re-grants it
+         *     (revoked), which is admin only and takes effect at once.
          */
-        patch: operations["patch_project_results_repository"];
+        patch: operations["patch_project_results_repository_projects__project_id__repositories_results__repository_id__patch"];
         trace?: never;
     };
-    "/projects/{project_id}/repositories/results/{repository_id}/healthcheck": {
+    "/global/datasets": {
         parameters: {
             query?: never;
             header?: never;
@@ -1679,62 +362,24 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check a project's results repository link
-         * @description The global repository's check and the project's link state. Requires the can_admin_dataset scope.
+         * Get Datasets
+         * @description GET /global/datasets/ endpoint. Returns a list of all datasets
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    project_id: number;
-                    repository_id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health. A failed check is reported in the body, with a 200 */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ProjectResultsRepositoryHealthObject"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Not authorised */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Project not found, or not linked to the repository */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["get_datasets_global_datasets_get"];
         put?: never;
-        post?: never;
+        /**
+         * Post Datasets
+         * @description POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
+         *     already taken (case-insensitive) is a 409. A disabled secret_label is a 400
+         */
+        post: operations["post_datasets_global_datasets_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/projects/{project_id}/repositories/triggers": {
+    "/global/datasets/": {
         parameters: {
             query?: never;
             header?: never;
@@ -1742,19 +387,24 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List the project's trigger repository links
-         * @description Requires the can_admin_dataset scope.
+         * Get Datasets
+         * @description GET /global/datasets/ endpoint. Returns a list of all datasets
          */
-        get: operations["list_project_trigger_repositorys"];
+        get: operations["get_datasets_global_datasets__get"];
         put?: never;
-        post?: never;
+        /**
+         * Post Datasets
+         * @description POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
+         *     already taken (case-insensitive) is a 409. A disabled secret_label is a 400
+         */
+        post: operations["post_datasets_global_datasets__post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/projects/{project_id}/repositories/triggers/{repository_id}": {
+    "/global/datasets/{dataset_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1762,31 +412,32 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get a trigger repository link
-         * @description Requires the can_admin_dataset scope.
+         * Get Dataset
+         * @description GET /global/datasets/id endpoint. Gets dataset with a give id
          */
-        get: operations["get_project_trigger_repository"];
-        /**
-         * Link a global trigger repository to the project, or replace its settings
-         * @description A new watcher does not touch work in flight. The link's cursor starts after the latest pull request stored for the repository, or at the link's creation when there is none. When it is linked already the project's settings are replaced (fields left out take their defaults, the cursor stays): a change of watch_dir or base_branch applies at once. Refused when it would watch where results land. revoked is not accepted: only PATCH sets it. Requires the can_admin_dataset scope.
-         */
-        put: operations["put_project_trigger_repository"];
+        get: operations["get_dataset_global_datasets__dataset_id__get"];
+        put?: never;
         post?: never;
         /**
-         * Remove a trigger repository link
-         * @description Removes the link, not the repository: a soft delete that revokes the link, applying at once. Requires the can_admin_dataset scope.
+         * Delete Dataset
+         * @description DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
+         *         unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
+         *         other datasets may share it. Admin only.
          */
-        delete: operations["delete_project_trigger_repository"];
+        delete: operations["delete_dataset_global_datasets__dataset_id__delete"];
         options?: never;
         head?: never;
         /**
-         * Edit a trigger repository link
-         * @description Every edit is unconditional: watch_dir and base_branch apply at once. revoked is admin only and takes effect at once. Enabling or un-revoking moves the link's cursor to now: pull requests merged while it was inactive get no trigger. Requires the can_admin_dataset scope.
+         * Patch Dataset
+         * @description PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. The tasks created before
+         *     are pinned to the old setup and fail instead of running against the new one. Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
+         *     one already in use. Enabling the dataset is a 409 while its secret (the new one, if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the dataset from every project at once, or restores it:
+         *     the tasks that use it fail and nothing of theirs is delivered while it is revoked. It does not change `enabled`.
          */
-        patch: operations["patch_project_trigger_repository"];
+        patch: operations["patch_dataset_global_datasets__dataset_id__patch"];
         trace?: never;
     };
-    "/projects/{project_id}/repositories/triggers/{repository_id}/healthcheck": {
+    "/projects/{project_id}/tasks": {
         parameters: {
             query?: never;
             header?: never;
@@ -1794,62 +445,27 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check a project's trigger repository link
-         * @description The global repository's check, the project's link state and the link's pull request count. Requires the can_admin_dataset scope.
+         * Get Tasks
+         * @description GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination
+         *     Query params:
+         *         - page: page number (default 1, below 1 is clamped to 1)
+         *         - per_page: items per page (default 10, below 1 is clamped to 1)
+         *         - status: filter by task status (optional)
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    project_id: number;
-                    repository_id: number;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health. A failed check is reported in the body, with a 200 */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["ProjectTriggerRepositoryHealthObject"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Not authorised */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Project not found, or not linked to the repository */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["get_tasks_projects__project_id__tasks_get"];
         put?: never;
-        post?: never;
+        /**
+         * Post Tasks
+         * @description POST /projects/<project_id>/tasks endpoint. Creates a new task from API request
+         */
+        post: operations["post_tasks_projects__project_id__tasks_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests": {
+    "/projects/{project_id}/tasks/": {
         parameters: {
             query?: never;
             header?: never;
@@ -1857,19 +473,27 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List the link's pull requests
-         * @description Requires the can_admin_dataset scope.
+         * Get Tasks
+         * @description GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination
+         *     Query params:
+         *         - page: page number (default 1, below 1 is clamped to 1)
+         *         - per_page: items per page (default 10, below 1 is clamped to 1)
+         *         - status: filter by task status (optional)
          */
-        get: operations["get_pull_requests"];
+        get: operations["get_tasks_projects__project_id__tasks__get"];
         put?: never;
-        post?: never;
+        /**
+         * Post Tasks
+         * @description POST /projects/<project_id>/tasks endpoint. Creates a new task from API request
+         */
+        post: operations["post_tasks_projects__project_id__tasks__post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests/{number}": {
+    "/projects/{project_id}/tasks/{task_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1877,23 +501,25 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get a pull request of the link
-         * @description Requires the can_admin_dataset scope.
+         * Get Task Id
+         * @description GET /projects/<project_id>/tasks/id endpoint. Gets a single task with status
          */
-        get: operations["get_pull_request"];
+        get: operations["get_task_id_projects__project_id__tasks__task_id__get"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         /**
-         * Set a pull request's state
-         * @description Called by Dagster. System user only: 403 for any other caller, admins included. A state move not in TRIGGER_MOVES (webserver/app/models/trigger_state.py) is refused with 409: REJECTED and YIELDED are final.
+         * Patch Task
+         * @description PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.
+         *     A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
+         *     status again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.
          */
-        patch: operations["patch_pull_request"];
+        patch: operations["patch_task_projects__project_id__tasks__task_id__patch"];
         trace?: never;
     };
-    "/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests/{number}/task": {
+    "/projects/{project_id}/tasks/{task_id}/retry": {
         parameters: {
             query?: never;
             header?: never;
@@ -1903,17 +529,58 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Validate the spec and create the task
-         * @description Called by Dagster. System user only: 403 for any other caller, admins included. In one transaction marks the pull request YIELDED and creates its task in the link's project. The dataset must be actively linked to the project. Idempotent.
+         * Retry Task
+         * @description POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
          */
-        post: operations["post_pull_request_task"];
+        post: operations["retry_task_projects__project_id__tasks__task_id__retry_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/global/healthcheck": {
+    "/projects/{project_id}/tasks/{task_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Tasks
+         * @description POST /projects/<project_id>/tasks/id/cancel endpoint. Cancels a task either scheduled or running one
+         */
+        post: operations["cancel_tasks_projects__project_id__tasks__task_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/tasks/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Tasks Validate
+         * @description POST /projects/<project_id>/tasks/validate endpoint.
+         *         Allows task definition validation without creating the task
+         */
+        post: operations["post_tasks_validate_projects__project_id__tasks_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/tasks/{task_id}/trigger": {
         parameters: {
             query?: never;
             header?: never;
@@ -1921,43 +588,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check every global resource
-         * @description Checks every dataset, secret, trigger repository and results repository, in parallel. For development: it is as slow as the slowest of them. Requires the can_admin_dataset scope.
+         * Get Task Trigger
+         * @description GET /projects/<project_id>/tasks/id/trigger endpoint. The pull request that yielded the task,
+         *     with its trigger repository. A task created by hand has none: 404
          */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description The health. A failed check is reported in the body, with a 200 */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["GlobalHealthObject"];
-                    };
-                };
-                /** @description Not authenticated */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description Not authorised */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
+        get: operations["get_task_trigger_projects__project_id__tasks__task_id__trigger_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1966,7 +601,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/global/providers": {
+    "/projects/{project_id}/tasks/{task_id}/config": {
         parameters: {
             query?: never;
             header?: never;
@@ -1974,62 +609,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List the global git providers
-         * @description Requires the can_admin_dataset scope.
+         * Get Task Config
+         * @description GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created
+         *     under (its results repository and target_dir, its dataset) is still the current one. If not, the task
+         *     must not launch or publish, and changes lists what differs. A task without a stored snapshot is current.
+         *     config_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the project resource may be deleted by then.
+         *     revoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a
+         *     task must not launch either, and its results are never delivered.
+         *     outcome is the decision for a PENDING task, "launch" or "fail", and cause says why when it fails: see
+         *     helpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.
          */
-        get: operations["get_git_providers"];
-        put?: never;
-        /**
-         * Create a global git provider
-         * @description Admin only (can_do_admin scope).
-         */
-        post: operations["post_git_provider"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/providers/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a global git provider
-         * @description Requires the can_admin_dataset scope.
-         */
-        get: operations["get_git_provider"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete a global git provider
-         * @description Admin only (can_do_admin scope).
-         */
-        delete: operations["delete_git_provider"];
-        options?: never;
-        head?: never;
-        /**
-         * Edit a global git provider
-         * @description Every edit applies at once: every edit (enabled, name, type, uri, api_uri) is unconditional, and the tasks created before are pinned to the old setup and fail instead of running against the new one. Switching it back on moves the cursor of every link to its trigger repositories to now: pull requests merged while it was off are stored but get no trigger. Admin only (can_do_admin scope).
-         */
-        patch: operations["patch_git_provider"];
-        trace?: never;
-    };
-    "/global/providers/{id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Check a git provider's API answers
-         * @description Requests the provider's API without a token. Requires the can_admin_dataset scope.
-         */
-        get: operations["get_git_provider_healthcheck"];
+        get: operations["get_task_config_projects__project_id__tasks__task_id__config_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2048,10 +638,1097 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Decide a PENDING task's launch: fail it, or return what its run needs
-         * @description System user only: 403 for any other caller, admins included. The launcher's one call per PENDING task. The webserver decides with the same rules as GET .../config (something it uses is revoked or deleted, its configuration changed, its dataset link is not active, its dataset's secret is disabled; the first that applies decides). On fail it moves the task to FAILED itself, its state_cause the cause cut to 1024 characters, and returns the outcome and cause. On launch it writes nothing and returns the task, spec included, and its dataset with the secret reference (null for a task without one): everything the run request is built from. A task that is no longer PENDING is a 409 and nothing changes, so the call is safe to repeat every tick. 404 if the task is not in the project.
+         * Launch Task
+         * @description POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides
+         *     with helpers/task_config.decide_launch, the same rules GET .../config reports, and answers:
+         *     - "fail": the task is moved to FAILED here, its state_cause the cause cut to TASK_CAUSE_MAX_LENGTH. Returns
+         *       outcome, cause (as stored) and the failed task.
+         *     - "launch": nothing is written. Returns outcome, the task (spec included) and its dataset, with the secret
+         *       reference, exactly what the run request needs; dataset is null for a task without one.
+         *     A task that is no longer PENDING is a 409 and nothing changes, so a repeated call is safe.
          */
-        post: operations["launch_task"];
+        post: operations["launch_task_projects__project_id__tasks__task_id__launch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/tasks/{task_id}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Task Results
+         * @description GET /projects/<project_id>/tasks/id/results endpoint. Lists the delivery of the task's results
+         *     to each of its destinations
+         */
+        get: operations["get_task_results_projects__project_id__tasks__task_id__results_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/tasks/{task_id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Tasks Logs
+         * @description From a given task, return its logs
+         */
+        get: operations["get_tasks_logs_projects__project_id__tasks__task_id__logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/tasks/{task_id}/results/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Results
+         * @description POST /projects/<project_id>/tasks/id/results/approve endpoint.
+         *         Approves the release (automatic or manual) of
+         *         a task's results
+         */
+        post: operations["approve_results_projects__project_id__tasks__task_id__results_approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/tasks/{task_id}/results/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Block Results
+         * @description POST /projects/<project_id>/tasks/id/results/block endpoint.
+         *         Blocks the release (automatic or manual) of
+         *         a task's results
+         */
+        post: operations["block_results_projects__project_id__tasks__task_id__results_block_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Results
+         * @description GET /projects/<project_id>/results endpoint. Lists the project's results
+         *     Query params:
+         *         - step: only the pull request results at this step, repeated for several,
+         *           e.g. ?step=PUSHED&step=OPENED (optional)
+         *         - state: only the pull request results in this state, e.g. ?state=FAILED (optional)
+         *         - active_resource: ?active_resource=true keeps only the results whose project resource for the results repository is active
+         *           (enabled, not revoked, on an enabled global repository and provider) (optional)
+         */
+        get: operations["get_results_projects__project_id__results_get"];
+        put?: never;
+        /**
+         * Post Result
+         * @description POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results
+         *     repository, by pull request. The repository is the global one's id, which has to
+         *     be assigned to the project (a deleted project resource counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned,
+         *     after the revoked check below if it is not final yet (step UNKNOWN or PUSHED): when something the task uses is
+         *     revoked by now, it is moved to step REVOKED and state FAILED, with the same error.
+         *     Otherwise 409 unless the task is SUCCESS. When anything the task uses is revoked or deleted (its project, trigger, dataset
+         *     or results repository, see helpers/task_config.revoked_resources) the result is created as final,
+         *     step REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the project resource is inactive for another
+         *     reason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and
+         *     state FAILED, with the error "results resource switched off": the delivery retry sensor delivers it once the project resource
+         *     is active. A task whose configuration changed since it was created (see helpers/task_config) is not delivered:
+         *     its result is created as final, step STALE and state FAILED, with the changes as its error. The checks run in
+         *     that order: revoked, STALE, switched off.
+         */
+        post: operations["post_result_projects__project_id__results_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/results/{result_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Result
+         * @description GET /projects/<project_id>/results/<result_id> endpoint. Gets a single result
+         */
+        get: operations["get_result_projects__project_id__results__result_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Result
+         * @description PATCH /projects/<project_id>/results/<result_id> endpoint. Records the progress of a task's delivery.
+         *     A pull request result's step only moves forward, see PullRequestResult.set_step
+         */
+        patch: operations["patch_result_projects__project_id__results__result_id__patch"];
+        trace?: never;
+    };
+    "/global/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Users List
+         * @description GET /global/users/ endpoint. This is a simplified version
+         *     of what keycloak returns as a user list.
+         */
+        get: operations["get_users_list_global_users_get"];
+        put?: never;
+        /**
+         * Create User
+         * @description POST /global/users endpoint. Creates a KC user, and sets a temp
+         *         password for them.
+         */
+        post: operations["create_user_global_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/users/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Users List
+         * @description GET /global/users/ endpoint. This is a simplified version
+         *     of what keycloak returns as a user list.
+         */
+        get: operations["get_users_list_global_users__get"];
+        put?: never;
+        /**
+         * Create User
+         * @description POST /global/users endpoint. Creates a KC user, and sets a temp
+         *         password for them.
+         */
+        post: operations["create_user_global_users__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/users/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Reset Password
+         * @description PUT /global/users/reset-password endpoint. Interface to keycloak
+         *         API, so we can change the credentials and make sure
+         *         there are no pending action to undertake
+         */
+        put: operations["reset_password_global_users_reset_password_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/triggers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Repositories
+         * @description GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled and
+         *     not revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project
+         *     resources say: that is what Dagster polls.
+         */
+        get: operations["get_repositories_global_repositories_triggers_get"];
+        put?: never;
+        /**
+         * Post Repository
+         * @description POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
+         */
+        post: operations["post_repository_global_repositories_triggers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/triggers/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Repositories
+         * @description GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled and
+         *     not revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project
+         *     resources say: that is what Dagster polls.
+         */
+        get: operations["get_repositories_global_repositories_triggers__get"];
+        put?: never;
+        /**
+         * Post Repository
+         * @description POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
+         */
+        post: operations["post_repository_global_repositories_triggers__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/triggers/{repo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Repository
+         * @description GET /global/repositories/triggers/<id> — get a single repository
+         */
+        get: operations["get_repository_global_repositories_triggers__repo_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Repository
+         * @description DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
+         */
+        delete: operations["delete_repository_global_repositories_triggers__repo_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Repository
+         * @description PATCH /global/repositories/triggers/<id> — update repository. The tasks created
+         *     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
+         *     named (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,
+         *     if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
+         *     project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
+         */
+        patch: operations["patch_repository_global_repositories_triggers__repo_id__patch"];
+        trace?: never;
+    };
+    "/global/repositories/triggers/{repo_id}/pull_requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pull Requests
+         * @description GET /global/repositories/triggers/<id>/pull_requests — the provider's facts of the pull requests
+         *     stored for the repository, most recent merge first.
+         *     Query params: page (default 1), per_page (default 20), both clamped to at least 1.
+         *     Responds with page, per_page, total, pages and items.
+         */
+        get: operations["get_pull_requests_global_repositories_triggers__repo_id__pull_requests_get"];
+        put?: never;
+        /**
+         * Post Pull Requests Batch
+         * @description POST /global/repositories/triggers/<id>/pull_requests — store up to 100 pull requests of the
+         *     repository and create their triggers for every active assignment. Idempotent: a number
+         *     already stored is left as it is. Refused for a disabled or revoked repository (or one on such a provider), which stores nothing.
+         *     Responds with the numbers stored and those already there.
+         *     Body: {"pull_requests": [pull requests, see PullRequestRequest]}
+         */
+        post: operations["post_pull_requests_batch_global_repositories_triggers__repo_id__pull_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/repositories/triggers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Project Trigger Repositories
+         * @description GET /projects/<project_id>/repositories/triggers — the project's trigger repository
+         *     resources, inactive ones included with their flags unless ?active=true, which returns only the
+         *     active ones.
+         */
+        get: operations["list_project_trigger_repositories_projects__project_id__repositories_triggers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/repositories/triggers/{repo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Trigger Repository
+         * @description GET /projects/<project_id>/repositories/triggers/<repo_id>
+         */
+        get: operations["get_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__get"];
+        /**
+         * Put Project Trigger Repository
+         * @description PUT /projects/<project_id>/repositories/triggers/<repo_id> — assigns a global trigger
+         *     repository to the project, 201, or replaces the project's settings if it is assigned already,
+         *     200: a change of
+         *     watch_dir or base_branch applies at once. A new watcher does not touch work in
+         *     flight. Fields left out take their defaults. The cursor is set when
+         *     the project resource is created, after the latest pull request stored, and stays where it is.
+         *     Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir is
+         *     required, the rest optional.
+         */
+        put: operations["put_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__put"];
+        post?: never;
+        /**
+         * Delete Project Trigger Repository
+         * @description DELETE /projects/<project_id>/repositories/triggers/<repo_id> — unassigns the
+         *     repository, not the repository itself: a soft delete that also revokes the project resource.
+         */
+        delete: operations["delete_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Project Trigger Repository
+         * @description PATCH /projects/<project_id>/repositories/triggers/<repo_id> — changes what the
+         *     project watches (watch_dir, base_branch), at any time, or turns the project resource on or off
+         *     (enabled), or revokes and re-grants it
+         *     (revoked), which is admin only and takes effect at once.
+         */
+        patch: operations["patch_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__patch"];
+        trace?: never;
+    };
+    "/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pull Requests
+         * @description GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests — list PRs
+         *     of an assignment with pagination.
+         *     Query params:
+         *         - page: page number (default 1)
+         *         - per_page: items per page (default 20)
+         *         - state: filter by state (optional), one of: UNKNOWN, REJECTED, YIELDED
+         *     Sorted by merged_at DESC (most recent first).
+         */
+        get: operations["get_pull_requests_projects__project_id__repositories_triggers__repo_id__pull_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Pull Request
+         * @description GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number> — get a single PR
+         */
+        get: operations["get_pull_request_projects__project_id__repositories_triggers__repo_id__pull_requests__number__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Pull Request
+         * @description PATCH /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number> —
+         *     update PR state and state_cause
+         */
+        patch: operations["patch_pull_request_projects__project_id__repositories_triggers__repo_id__pull_requests__number__patch"];
+        trace?: never;
+    };
+    "/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests/{number}/task": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Task
+         * @description POST /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number>/task
+         *     — validate the pull request's spec and, in one transaction, mark it YIELDED and create its
+         *     task. The project comes from the assignment.
+         *     Body: {"spec_raw": "..."}, the pull request's spec file as read. It is kept on the pull
+         *     request before it is parsed, so a rejected pull request keeps it too.
+         *     Idempotent: if the pull request already has a task it is returned with a 200. Only an
+         *     UNKNOWN trigger of an active project resource of an enabled, not revoked project may create a task, otherwise 409 (REJECTED is final).
+         */
+        post: operations["post_task_projects__project_id__repositories_triggers__repo_id__pull_requests__number__task_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/secrets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Secrets
+         * @description GET /global/secrets — list the secrets. The values are never returned.
+         */
+        get: operations["get_secrets_global_secrets_get"];
+        put?: never;
+        /**
+         * Post Secret
+         * @description POST /global/secrets — create the secret in its store and the reference to it. The label is
+         *     unique across the node; the secret is stored under the generated key
+         *     "fn-secret-<label>", which is fixed from then on. Admin only.
+         *     Body: {"label": "...", "description": "...", "provider": "K8S", "values": {"KEY": "value", ...}, "enabled": true}
+         *     The description and enabled are optional.
+         */
+        post: operations["post_secret_global_secrets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/secrets/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Secrets
+         * @description GET /global/secrets — list the secrets. The values are never returned.
+         */
+        get: operations["get_secrets_global_secrets__get"];
+        put?: never;
+        /**
+         * Post Secret
+         * @description POST /global/secrets — create the secret in its store and the reference to it. The label is
+         *     unique across the node; the secret is stored under the generated key
+         *     "fn-secret-<label>", which is fixed from then on. Admin only.
+         *     Body: {"label": "...", "description": "...", "provider": "K8S", "values": {"KEY": "value", ...}, "enabled": true}
+         *     The description and enabled are optional.
+         */
+        post: operations["post_secret_global_secrets__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/secrets/{label}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Secret
+         * @description GET /global/secrets/<label> — get a single secret. The values are never returned.
+         */
+        get: operations["get_secret_global_secrets__label__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Secret
+         * @description DELETE /global/secrets/<label> — soft delete the reference and revoke and delete its project
+         *     resources, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused
+         *     with a 409 naming the enabled datasets and repositories that still use it: they have to be
+         *     disabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay
+         *     pointing at it, and can be repointed with their secret_label.
+         */
+        delete: operations["delete_secret_global_secrets__label__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Secret
+         * @description PATCH /global/secrets/<label> — set keys on the stored secret, e.g. to rotate a token, and/or turn
+         *     it on or off (enabled). Every repository and dataset that references it, in any project, picks
+         *     the new values up. Admin only. Turning it off also disables every dataset, trigger repository and
+         *     results repository that uses it, in the same commit; turning it on changes only the secret, those
+         *     stay disabled until each is enabled. Turning off a secret that is off already changes nothing else.
+         *     Turning it off moves its stored value to the quarantine namespace and turning it on moves it back,
+         *     before anything is committed: if the move fails so does the request, and nothing has changed. The
+         *     row keeps the secret's own namespace, which is what makes it unreadable there meanwhile. A disabled
+         *     secret cannot be rotated (409), unless the same request turns it on. Rotation comes before the move
+         *     when both are asked for.
+         *     Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
+         */
+        patch: operations["patch_secret_global_secrets__label__patch"];
+        trace?: never;
+    };
+    "/global/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Providers
+         * @description GET /global/providers/ — list the providers
+         */
+        get: operations["get_providers_global_providers_get"];
+        put?: never;
+        /**
+         * Post Provider
+         * @description POST /global/providers/ — create a provider. The name and the uri are unique (409).
+         *     Body: {"name": "...", "type": "github", "uri": "https://github.com", "api_uri": "https://api.github.com",
+         *     "enabled": true}. enabled is optional.
+         */
+        post: operations["post_provider_global_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/providers/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Providers
+         * @description GET /global/providers/ — list the providers
+         */
+        get: operations["get_providers_global_providers__get"];
+        put?: never;
+        /**
+         * Post Provider
+         * @description POST /global/providers/ — create a provider. The name and the uri are unique (409).
+         *     Body: {"name": "...", "type": "github", "uri": "https://github.com", "api_uri": "https://api.github.com",
+         *     "enabled": true}. enabled is optional.
+         */
+        post: operations["post_provider_global_providers__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/providers/{provider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Provider
+         * @description GET /global/providers/<id> — get a single provider
+         */
+        get: operations["get_provider_global_providers__provider_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Provider
+         * @description DELETE /global/providers/<id> — delete the provider. Refused with a 409 while a repository
+         *     is on it.
+         */
+        delete: operations["delete_provider_global_providers__provider_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Provider
+         * @description PATCH /global/providers/<id> — update a provider. The tasks created before
+         *     are pinned to the old setup and fail instead of running against the new one. `revoked` (a boolean) withdraws
+         *     the provider, and so every repository on it, from every project at once, or restores it, and does not
+         *     change `enabled`: see helpers/task_config.revoked_resources.
+         */
+        patch: operations["patch_provider_global_providers__provider_id__patch"];
+        trace?: never;
+    };
+    "/global/repositories/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Repositories
+         * @description GET /global/repositories/results/ — list the repositories
+         */
+        get: operations["get_repositories_global_repositories_results_get"];
+        put?: never;
+        /**
+         * Post Repository
+         * @description POST /global/repositories/results/ — create a new repository, assigned to no project yet. project_id
+         *     and target_dir are not accepted, results repositories are global: assign one with
+         *     PUT /projects/<id>/repositories/results/<repository id>
+         */
+        post: operations["post_repository_global_repositories_results_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/results/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Repositories
+         * @description GET /global/repositories/results/ — list the repositories
+         */
+        get: operations["get_repositories_global_repositories_results__get"];
+        put?: never;
+        /**
+         * Post Repository
+         * @description POST /global/repositories/results/ — create a new repository, assigned to no project yet. project_id
+         *     and target_dir are not accepted, results repositories are global: assign one with
+         *     PUT /projects/<id>/repositories/results/<repository id>
+         */
+        post: operations["post_repository_global_repositories_results__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/results/{repo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Repository
+         * @description GET /global/repositories/results/<id> — get a single repository
+         */
+        get: operations["get_repository_global_repositories_results__repo_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Repository
+         * @description DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
+         */
+        delete: operations["delete_repository_global_repositories_results__repo_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Repository
+         * @description PATCH /global/repositories/results/<id> — update repository. The tasks created
+         *     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
+         *     named (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,
+         *     if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
+         *     project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
+         */
+        patch: operations["patch_repository_global_repositories_results__repo_id__patch"];
+        trace?: never;
+    };
+    "/dagster/sensors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sensors
+         * @description GET /dagster/sensors — every sensor with its status and latest tick
+         */
+        get: operations["get_sensors_dagster_sensors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Sensors
+         * @description PATCH /dagster/sensors — start or stop every sensor, or only those in `names`.
+         *         Unknown names change nothing. Returns every sensor after the change.
+         */
+        patch: operations["patch_sensors_dagster_sensors_patch"];
+        trace?: never;
+    };
+    "/dagster/sensors/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get One Sensor
+         * @description GET /dagster/sensors/<name> — a single sensor
+         */
+        get: operations["get_one_sensor_dagster_sensors__name__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Patch Sensor
+         * @description PATCH /dagster/sensors/<name> — start or stop a single sensor
+         */
+        patch: operations["patch_sensor_dagster_sensors__name__patch"];
+        trace?: never;
+    };
+    "/global/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Global Healthcheck
+         * @description GET /global/healthcheck endpoint. Checks every global dataset, secret, trigger repository
+         *     and results repository, in parallel. For development: it is as slow as the slowest of
+         *     them, and lists them all.
+         */
+        get: operations["global_healthcheck_global_healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/datasets/{dataset_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dataset Healthcheck
+         * @description GET /global/datasets/<dataset_id>/healthcheck endpoint. Whether the node can connect to the
+         *     dataset's database with its secret.
+         */
+        get: operations["dataset_healthcheck_global_datasets__dataset_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/secrets/{label}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Secret Healthcheck
+         * @description GET /global/secrets/<label>/healthcheck endpoint. Whether the secret is in its store with the
+         *     keys its datasets and repositories need. Never the values.
+         */
+        get: operations["secret_healthcheck_global_secrets__label__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/providers/{provider_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Provider Healthcheck
+         * @description GET /global/providers/<provider_id>/healthcheck endpoint. Whether the provider's API answers.
+         */
+        get: operations["provider_healthcheck_global_providers__provider_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/triggers/{repository_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trigger Repository Healthcheck
+         * @description GET /global/repositories/triggers/<repository_id>/healthcheck endpoint. Whether the repository
+         *     can be reached with its own secret.
+         */
+        get: operations["trigger_repository_healthcheck_global_repositories_triggers__repository_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/results/{repository_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Results Repository Healthcheck
+         * @description GET /global/repositories/results/<repository_id>/healthcheck endpoint. Whether the repository
+         *     can be reached with its own secret.
+         */
+        get: operations["results_repository_healthcheck_global_repositories_results__repository_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Healthcheck
+         * @description GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository resource can be
+         *     reached with its token, and reports its pull request count and the project's results
+         *     repository. A failed check is reported in the body, still with a 200.
+         */
+        get: operations["project_healthcheck_projects__project_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/datasets/{dataset_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Dataset Healthcheck
+         * @description GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's
+         *     check and the project's resource state. 404 if the project has no resource for it.
+         */
+        get: operations["project_dataset_healthcheck_projects__project_id__datasets__dataset_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/secrets/{label}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Secret Healthcheck
+         * @description GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check
+         *     and the project's resource state. 404 if the project has no resource for it.
+         */
+        get: operations["project_secret_healthcheck_projects__project_id__secrets__label__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/repositories/triggers/{repository_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Trigger Repository Healthcheck
+         * @description GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The
+         *     global repository's check, the project's resource state and its pull request count. 404 if the
+         *     project has no resource for it.
+         */
+        get: operations["project_trigger_repository_healthcheck_projects__project_id__repositories_triggers__repository_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/repositories/results/{repository_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Results Repository Healthcheck
+         * @description GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The
+         *     global repository's check and the project's resource state. 404 if the project has no resource for it.
+         */
+        get: operations["project_results_repository_healthcheck_projects__project_id__repositories_results__repository_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get All Tasks
+         * @description GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
+         *     GET /projects/<project_id>/tasks. Query params:
+         *         - page, per_page: as the project's list
+         *         - status: one or more task statuses, comma separated (optional)
+         *         - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
+         *           lists them. A revoked project is still enabled, so its tasks stay.
+         */
+        get: operations["get_all_tasks_tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get All Tasks
+         * @description GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
+         *     GET /projects/<project_id>/tasks. Query params:
+         *         - page, per_page: as the project's list
+         *         - status: one or more task statuses, comma separated (optional)
+         *         - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
+         *           lists them. A revoked project is still enabled, so its tasks stay.
+         */
+        get: operations["get_all_tasks_tasks__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2062,1948 +1739,966 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @description Datasets are global. project_id is not accepted (400): link the dataset with PUT /projects/{project_id}/datasets/{dataset_id} */
-        DatasetPostBody: {
-            /**
-             * @description Human-readable name for the dataset
-             * @example Blood cancer database
-             */
+        /** Body_login_login_post */
+        Body_login_login_post: {
+            /** Username */
+            username?: string | null;
+            /** Password */
+            password?: string | null;
+        };
+        /** DatasetDTO */
+        DatasetDTO: {
+            /** Id */
+            id: number;
+            secret: components["schemas"]["SecretDTO"];
+            /** Name */
             name: string;
-            /**
-             * @description Url where the database is hosted at
-             * @example http://somewhere
-             */
+            /** Host */
             host: string;
-            /**
-             * @description Port for the host field
-             * @example 5432
-             */
+            /** Port */
             port: number;
+            /** Read Schema */
+            read_schema: string | null;
+            /** Write Schema */
+            write_schema: string | null;
+            /** Type */
+            type: string;
+            /** Extra Connection Args */
+            extra_connection_args: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Slug */
+            slug: string;
+            /** Url */
+            url: string;
+        };
+        /**
+         * DatasetHealthDTO
+         * @description A global dataset, and whether the node can connect to its database with its secret.
+         */
+        DatasetHealthDTO: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Host */
+            host: string;
+            /** Port */
+            port: number;
+            /** Type */
+            type: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Status */
+            status: string;
+            health_check: components["schemas"]["HealthCheckDTO"];
+        };
+        /** GitProviderDTO */
+        GitProviderDTO: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            type: components["schemas"]["GitProviderType"];
+            /** Uri */
+            uri: string;
+            /** Api Uri */
+            api_uri: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * GitProviderHealthDTO
+         * @description A global git provider, and whether its API answers.
+         */
+        GitProviderHealthDTO: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Uri */
+            uri: string;
+            /** Api Uri */
+            api_uri: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Status */
+            status: string;
+            health_check: components["schemas"]["HealthCheckDTO"];
+        };
+        /**
+         * GitProviderPatchRequest
+         * @description The fields of a git provider that can be updated, all optional but never null.
+         */
+        GitProviderPatchRequest: {
+            /** Name */
+            name?: string | null;
+            /** Type */
+            type?: string | null;
+            /** Uri */
+            uri?: string | null;
+            /** Api Uri */
+            api_uri?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Revoked */
+            revoked?: boolean | null;
+        };
+        /**
+         * GitProviderRefDTO
+         * @description A git provider as nested in a repository.
+         */
+        GitProviderRefDTO: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            type: components["schemas"]["GitProviderType"];
+            /** Uri */
+            uri: string;
+            /** Api Uri */
+            api_uri: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+        };
+        /**
+         * GitProviderRequest
+         * @description A git provider in a create request.
+         */
+        GitProviderRequest: {
+            /** Name */
+            name: string;
+            /** Type */
+            type: string;
+            /** Uri */
+            uri: string;
+            /** Api Uri */
+            api_uri: string;
             /**
-             * @description Label of an existing secret (see POST /global/secrets) holding the credentials the Federated Node uses to access the DB, under the keys USERNAME and PASSWORD
-             * @example my-dataset-creds
-             */
-            secret_label: string;
-            /**
-             * @description Extra argument to use for connecting to the DB. Eventually this is passed to the tasks' pod as environment variable
-             * @example TrustServerCertificate=Yes
-             */
-            extra_connection_args?: string;
-            /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
+             * Enabled
              * @default true
              */
             enabled?: boolean;
-            /** @description Read from DB schema */
-            read_schema?: string;
-            /** @description DB schema to write to in case is needed */
-            write_schema?: string;
-            /** @description Type of DB engine */
-            type?: string;
-            catalogue?: components["schemas"]["CataloguePostBody"];
-            dictionaries?: components["schemas"]["DictionariesPostBody"];
         };
-        DatasetById: {
-            /** @example 1 */
-            id?: number;
-            /** @example http://dblocation */
-            host?: string;
-            /** @example 5432 */
-            port?: number;
-            /** @example Blood Cancer Database */
-            name?: string;
-            /** @example blood_cancer_database */
-            slug?: string;
-            /** @example readSchema */
-            read_schema?: string;
-            /** @example writeSchema */
-            write_schema?: string;
-            /** @example https://federatednode.com/datasets/blood_cancer_database */
-            url?: string;
-            /** @example mssql */
-            type?: string;
-            /** @example TrustServerCertificate=Yes */
-            extra_connection_args?: string;
-            /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
-             * @example true
-             */
-            enabled?: boolean;
-            /** @description The secret holding the DB credentials, without its values */
-            secret?: components["schemas"]["SecretObject"];
-            /** @example 2026-08-18 09:30:00 */
-            created_at?: string;
-            /** @example 2026-08-18 09:30:00 */
-            updated_at?: string;
+        /**
+         * GitProviderType
+         * @description Which kind of git host a provider is, so the sensors know which API client to build.
+         *     Each value is a type the Dagster side has an API client for.
+         * @enum {string}
+         */
+        GitProviderType: "github" | "gitea";
+        /** GlobalHealthDTO */
+        GlobalHealthDTO: {
+            /** Status */
+            status: string;
+            /** Datasets */
+            datasets: components["schemas"]["DatasetHealthDTO"][];
+            /** Secrets */
+            secrets: components["schemas"]["SecretHealthDTO"][];
+            /** Trigger Repositories */
+            trigger_repositories: components["schemas"]["RepositoryConnectionDTO"][];
+            /** Results Repositories */
+            results_repositories: components["schemas"]["RepositoryConnectionDTO"][];
         };
-        DatasetCatalogue: {
-            /** @example 1 */
-            id?: number;
-            /** @example Mon, 19 Feb 2024 10:00:45 GMT */
-            created_at?: string;
-            /** @example Mon, 19 Feb 2024 10:00:45 GMT */
-            updated_at?: string;
-            /** @example 1 */
-            dataset_id?: number;
-            /** @example Blood Analysis results */
-            description?: string;
-            /** @example Blood Analysis */
-            title?: string;
-            /** @example 1 */
-            version?: number;
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
-        DatasetDictionary: {
-            /** @example 1 */
-            id?: number;
-            /** @example Mon, 19 Feb 2024 10:00:45 GMT */
-            created_at?: string;
-            /** @example Mon, 19 Feb 2024 10:00:45 GMT */
-            updated_at?: string;
-            /** @example 1 */
-            dataset_id?: number;
-            /** @example Blood Analysis results */
-            description?: string;
-            /** @example glucose_perc */
-            field_name?: string;
-            /** @example analysis */
-            table_name?: string;
-            label?: string;
+        /** HealthCheckDTO */
+        HealthCheckDTO: {
+            /** Message */
+            message: string;
+            /** Status Code */
+            status_code: number | null;
+            /** Latency Ms */
+            latency_ms: number | null;
         };
-        CataloguePostBody: {
-            /** @example Catalogue 1 */
-            title?: string;
-            /** @example  */
-            description?: string;
+        /**
+         * NewUserDTO
+         * @description The response of creating a user: the temporary password is shown once.
+         */
+        NewUserDTO: {
+            /** Email */
+            email: string;
+            /** Username */
+            username: string;
+            /** Temppassword */
+            tempPassword: string;
+            /** Info */
+            info: string;
         };
-        DictionariesPostBody: {
-            /** @example patient */
-            table_name?: string;
-            /** @example Patients' general information */
-            description?: string;
-        }[];
-        TokenPostBody: {
-            /** @example Data Access Request 1 */
-            title: string;
-            /** @example eu_research_2024 */
-            project_name: string;
-            requested_by: {
-                /** @example user@email.com */
-                email: string;
-            };
-            /** @description Project/Data access request description */
-            description: string;
-            /** @example 2024-02-10 */
-            proj_start: string;
-            /** @example 2025-02-25 */
-            proj_end: string;
-            /**
-             * @description This is here mostly for legacy purposes, but referring by name is more consistent across multiple nodes.
-             * @example 1
-             */
-            dataset_id?: string;
-            /** @example blood_samples */
-            dataset_name: string;
+        /**
+         * NodeHealthDTO
+         * @description GET /health_check: whether the node's Keycloak answers. "ok" or "non operational".
+         */
+        NodeHealthDTO: {
+            /** Status */
+            status: string;
+            /** Keycloak */
+            keycloak: boolean;
         };
-        LoginBody: {
-            username?: string;
-            password?: string;
+        /** PageDTO[DatasetDTO] */
+        PageDTO_DatasetDTO_: {
+            /** Items */
+            items: components["schemas"]["DatasetDTO"][];
+            /** Page */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            /** Total */
+            total: number;
+            /** Pages */
+            pages: number;
         };
-        UpdateDeliverySecretBody: {
-            auth?: string;
+        /** PageDTO[ProjectDTO] */
+        PageDTO_ProjectDTO_: {
+            /** Items */
+            items: components["schemas"]["ProjectDTO"][];
+            /** Page */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            /** Total */
+            total: number;
+            /** Pages */
+            pages: number;
         };
-        TaskPostBody: {
+        /** PageDTO[PullRequestDTO] */
+        PageDTO_PullRequestDTO_: {
+            /** Items */
+            items: components["schemas"]["PullRequestDTO"][];
+            /** Page */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            /** Total */
+            total: number;
+            /** Pages */
+            pages: number;
+        };
+        /** PageDTO[PullRequestTriggerDTO] */
+        PageDTO_PullRequestTriggerDTO_: {
+            /** Items */
+            items: components["schemas"]["PullRequestTriggerDTO"][];
+            /** Page */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            /** Total */
+            total: number;
+            /** Pages */
+            pages: number;
+        };
+        /**
+         * ProjectCreatedDTO
+         * @description The response of creating a project: its id.
+         */
+        ProjectCreatedDTO: {
+            /** Id */
+            id: number;
+        };
+        /** ProjectDTO */
+        ProjectDTO: {
+            /** Id */
+            id: number;
+            /** Name */
             name: string;
-            description?: string;
-            executors: {
-                image: string;
-                command?: string[];
-                /**
-                 * @example {
-                 *       "LOGS": "debug",
-                 *       "PARAMETER1": 2
-                 *     }
-                 */
-                env?: Record<string, never>;
-            };
-            /**
-             * @description Either dataset_id or dataset_name has to be set
-             * @example {
-             *       "dataset_id": 1,
-             *       "custom_tag": "value"
-             *     }
-             */
-            tags: {
-                dataset_id: string;
-                dataset_name?: string;
-            };
-            resources?: {
-                cpu_cores?: number;
-                preemptible?: boolean;
-                ram_gb?: number;
-                disk_gb?: number;
-                zones?: string;
-            };
-            /** @example Aridhia-Open-Source/PHEMS_federated_node */
-            repository?: string;
-            /**
-             * @description The project the task belongs to
-             * @example 1
-             */
+            /** Description */
+            description: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Default Dataset Id */
+            default_dataset_id: number | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+        };
+        /**
+         * ProjectDatasetDTO
+         * @description A project's resource for a global dataset, the dataset nested. Addressed by the dataset's id.
+         */
+        ProjectDatasetDTO: {
+            /** Project Id */
             project_id: number;
+            dataset: components["schemas"]["DatasetDTO"];
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Active */
+            active: boolean;
         };
-        TaskById: {
-            /** @example 1 */
-            id?: string;
-            /** @example Mon, 19 Feb 2024 10:41:54 GMT */
-            created_at?: string;
-            /** @example Custom task description */
-            description?: string;
-            /** @description What the task runs */
-            spec?: {
-                /** @example registry/image:1.2 */
-                image?: string;
-                /** @example 1 */
-                dataset_id?: number | null;
-                /**
-                 * @example {
-                 *       "KEY": "value"
-                 *     }
-                 */
-                env?: Record<string, never>;
-            };
-            /** @example aabf657d-e912-43ab-8df7-924731b0f74f */
-            requested_by?: string;
-            status?: {
-                running?: Record<string, never>;
-                terminated?: Record<string, never>;
-                waiting?: Record<string, never>;
-            };
-            /** @example Average age analysis */
-            title?: string;
-            /** @example Mon, 19 Feb 2024 11:41:54 GMT */
-            updated_at?: string;
-            /** @example 1 */
-            project_id?: number;
-            /** @example 8c6f2a52-5d1c-4e0b-9d57-3f0e8a1c2b44 */
-            executor_run_id?: string | null;
-            /** @example 0 */
-            exit_code?: number | null;
-            /** @example 2026-01-01 10:00:00 */
-            started_at?: string | null;
-            /** @example 2026-01-01 10:30:00 */
-            completed_at?: string | null;
-            /**
-             * @description sha256 of the configuration snapshot the task was created under, see GET .../config
-             * @example 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
-             */
-            config_hash?: string | null;
+        /** ProjectDatasetHealthDTO */
+        ProjectDatasetHealthDTO: {
+            /** Project Id */
+            project_id: number;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Active */
+            active: boolean;
+            dataset: components["schemas"]["DatasetHealthDTO"];
         };
-        UserEntry: {
-            /** @example user@email.com */
-            email?: string;
-            /** @example user */
-            username?: string;
-            role?: string[];
-            /** @example John */
-            firstName?: string;
-            /** @example Black */
-            lastName?: string;
-            needs_to_reset_password?: boolean;
-        };
-        CreateUserBody: {
-            /** @example user@email.com */
-            email?: string;
-            /** @example user */
-            username?: string;
-            /** @example Administrator */
-            role?: string;
-            /** @example John */
-            firstName?: string;
-            /** @example Black */
-            lastName?: string;
-        };
-        ResetPassBody: {
-            /** @example user@email.com */
-            email?: string;
-            tempPassword?: string;
-            newPassword?: string;
-        };
-        WhitelistedImageObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example beautiful_image */
-            name?: string;
-            /** @example 1.2.0 */
-            tag?: string;
-            /** @example sha256:abc... */
-            sha?: string;
-            /** @example 2 */
-            registry_id?: number;
-            /** @example 1 */
-            project_id?: number;
-        };
-        WhitelistedImagePostObject: {
-            /** @example beautiful_image */
+        /** ProjectHealthDTO */
+        ProjectHealthDTO: {
+            /** Id */
+            id: number;
+            /** Name */
             name: string;
-            /** @example acrregistry.io */
-            registry: string;
-            /** @example 1.2.0 */
-            tag?: string;
-            /** @example sha256:abc... */
-            sha?: string;
-            /**
-             * @description The project this image is whitelisted for. Defaults to the caller's project.
-             * @example 1
-             */
-            project_id?: number;
+            /** Enabled */
+            enabled: boolean;
+            /** Status */
+            status: string;
+            results_repository: components["schemas"]["ResultsRepositoryHealthDTO"] | null;
+            /** Trigger Repositories */
+            trigger_repositories: components["schemas"]["RepositoryHealthDTO"][];
         };
-        RegistryObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example acrregistry.io */
-            url?: string;
-            /** @example true */
-            needs_auth?: boolean;
-            /** @example true */
-            active?: boolean;
-        };
-        RegistryBody: {
-            /** @example 1 */
-            id?: number;
-            /** @example acrregistry.io */
-            url?: string;
-            /** @example user */
-            username?: string;
-            /** @example secrettoken */
-            password?: string;
-            /** @example true */
-            needs_auth?: boolean;
-        };
-        RegistryPostBody: {
-            /** @example acrregistry.io */
-            url?: string;
-            /** @example user */
-            username?: string;
-            /** @example secrettoken */
-            password?: string;
-            /** @example true */
-            needs_auth?: boolean;
-            /** @example true */
-            active?: boolean;
-        };
-        ProjectObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example cardio */
-            name?: string;
-            /** @example Cardiac benchmarking */
-            description?: string;
-            /**
-             * @description Whether sensors act on this project's links
-             * @example false
-             */
-            enabled?: boolean;
-            /**
-             * @description Dataset a task runs against when it names only this project. It is the first dataset linked to the project
-             * @example 1
-             */
-            default_dataset_id?: number;
-            /** @example 2026-08-18 09:30:00 */
-            created_at?: string;
-            /** @example 2026-08-18 09:30:00 */
-            updated_at?: string;
-        };
-        ProjectPostBody: {
-            /** @example cardio */
+        /**
+         * ProjectRequest
+         * @description A project as created. Fields it does not name are ignored.
+         */
+        ProjectRequest: {
+            /** Name */
             name: string;
-            /** @example Cardiac benchmarking */
-            description?: string;
-            /**
-             * @description Whether sensors act on this project's repositories. Defaults to false
-             * @example false
-             */
-            enabled?: boolean;
-        };
-        ProjectHealthObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example cardio */
-            name?: string;
-            /** @example true */
-            enabled?: boolean;
-            /**
-             * @description ok only when there is at least one trigger repository link and all repositories, the results one included, are reachable
-             * @enum {string}
-             */
-            status?: "ok" | "error";
-            /** @description The project's results repository link, or null if it has none. Its status counts towards the project's. id is the link id */
-            results_repository?: {
-                /** @example 1 */
-                id?: number;
-                /** @example github.com/org/results */
-                uri?: string;
-                /** @example true */
-                owned_by_federated_node?: boolean;
-                /** @example results */
-                target_dir?: string;
-                /** @enum {string} */
-                status?: "ok" | "unauthorized" | "not_found" | "unreachable" | "secret_missing" | "error";
-                /** @description What calling the provider's API for the repository returned */
-                health_check?: {
-                    /**
-                     * @description The provider's own message on an error, else the HTTP reason. If no request was made, why not
-                     * @example OK
-                     */
-                    message?: string;
-                    /**
-                     * @description The provider's HTTP status, or null if it could not be reached or no request was made
-                     * @example 200
-                     */
-                    status_code?: number | null;
-                    /**
-                     * @description How long the provider took to respond, or to fail. Null if no request was made
-                     * @example 42
-                     */
-                    latency_ms?: number | null;
-                };
-            } | null;
-            /** @description One entry per trigger repository link. id is the link id */
-            trigger_repositories?: {
-                /** @example 1 */
-                id?: number;
-                /** @example github.com/org/repo */
-                uri?: string;
-                /** @example github */
-                provider?: string;
-                /**
-                 * @description Pull requests the backend has ingested for the repository
-                 * @example 3
-                 */
-                pr_count?: number;
-                /** @enum {string} */
-                status?: "ok" | "unauthorized" | "not_found" | "unreachable" | "secret_missing" | "error";
-                /** @description What calling the provider's API for the repository returned */
-                health_check?: {
-                    /**
-                     * @description The provider's own message on an error, else the HTTP reason. If no request was made, why not
-                     * @example OK
-                     */
-                    message?: string;
-                    /**
-                     * @description The provider's HTTP status, or null if it could not be reached or no request was made
-                     * @example 200
-                     */
-                    status_code?: number | null;
-                    /**
-                     * @description How long the provider took to respond, or to fail. Null if no request was made
-                     * @example 42
-                     */
-                    latency_ms?: number | null;
-                };
-            }[];
-        };
-        ProjectPatchBody: {
-            /** @example true */
-            enabled?: boolean;
-            /**
-             * @description Only with enabled true on a disabled project: create the triggers for pull requests merged while it was off, instead of skipping them. Not stored
-             * @example false
-             */
-            backfill?: boolean;
-        };
-        TaskRequestObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example 1 */
-            pull_request_id?: number | null;
-            /** @example null */
-            api_request_id?: number | null;
-            /** @example 1 */
-            project_id?: number;
-            /** @example true */
-            queued?: boolean;
-            /** @description The normalised task spec */
-            payload?: Record<string, never>;
-        };
-        TaskRequestPatchBody: {
-            /** @example false */
-            queued: boolean;
-        };
-        TaskPatchBody: {
-            /** @enum {string} */
-            status?: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILURE" | "CANCELLED";
-            /** @example 8c6f2a52-5d1c-4e0b-9d57-3f0e8a1c2b44 */
-            executor_run_id?: string;
-            /** @example 0 */
-            exit_code?: number;
-            /**
-             * Format: date-time
-             * @example 2026-01-01T10:00:00
-             */
-            started_at?: string;
-            /**
-             * Format: date-time
-             * @example 2026-01-01T10:30:00
-             */
-            completed_at?: string;
-        };
-        ResultById: {
-            /** @example 1 */
-            id?: number;
-            /**
-             * @description The way of delivering. PR: a pull request opened on the results repository
-             * @example PR
-             * @enum {string}
-             */
-            type?: "PR";
-            /** @example 1 */
-            task_id?: number;
-            /**
-             * @description Id of the global results repository the result was delivered to
-             * @example 1
-             */
-            results_repository_id?: number;
-            /** @example 0 */
-            attempts?: number;
-            error?: string | null;
-            /** @example Mon, 19 Feb 2024 10:41:54 GMT */
-            created_at?: string;
-            /** @example Mon, 19 Feb 2024 10:41:54 GMT */
-            updated_at?: string;
-            /**
-             * @description Type PR only. The furthest delivery step reached, forward only
-             * @example UNKNOWN
-             * @enum {string}
-             */
-            step?: "UNKNOWN" | "PUSHED" | "OPENED" | "MERGED" | "CLOSED" | "REVOKED" | "STALE";
-            /**
-             * @description Type PR only. How the delivery is going. DELIVERED once the pull request is opened, FAILED when the delivery fails, IN_PROGRESS again when it is re-launched
-             * @example IN_PROGRESS
-             * @enum {string}
-             */
-            state?: "IN_PROGRESS" | "DELIVERED" | "FAILED";
-            /** @example task-1-results */
-            branch?: string | null;
-            commit_sha?: string | null;
-            number?: number | null;
-            url?: string | null;
-            /** @example 2026-01-01T10:30:00 */
-            merged_at?: string | null;
-            merge_commit_sha?: string | null;
-        };
-        ResultPostBody: {
-            /** @example 1 */
-            task_id: number;
-            /**
-             * @description Id of the global results repository, which the task's project has to be linked to (see GET /projects/{project_id}/repositories/results)
-             * @example 1
-             */
-            results_repository_id: number;
-        };
-        /** @description step, state, branch, commit_sha, number, url, merged_at and merge_commit_sha are only accepted for results of type PR */
-        ResultPatchBody: {
-            /**
-             * @example PUSHED
-             * @enum {string}
-             */
-            step?: "UNKNOWN" | "PUSHED" | "OPENED" | "MERGED" | "CLOSED" | "REVOKED" | "STALE";
-            /**
-             * @example DELIVERED
-             * @enum {string}
-             */
-            state?: "IN_PROGRESS" | "DELIVERED" | "FAILED";
-            /** @example 0 */
-            attempts?: number;
-            /** @example task-1-results */
-            branch?: string | null;
-            commit_sha?: string | null;
-            number?: number | null;
-            url?: string | null;
-            /** @example 2026-01-01T10:30:00 */
-            merged_at?: string | null;
-            merge_commit_sha?: string | null;
-            error?: string | null;
-        };
-        /** @description A secret's metadata. The values are never returned */
-        SecretObject: {
-            /** @example 1 */
-            id?: number;
-            /**
-             * @description Name of the secret, unique across the node
-             * @example warehouse-db
-             */
-            label?: string;
-            /** @example Credentials for the warehouse DB */
+            /** Description */
             description?: string | null;
             /**
-             * @example K8S
-             * @enum {string}
-             */
-            provider?: "K8S";
-            /**
-             * @description Name of the secret in the store, "fn-secret-<label>". Fixed at creation
-             * @example fn-secret-warehouse-db
-             */
-            key?: string;
-            /**
-             * @description Namespace holding the secret in the store
-             * @example default
-             */
-            namespace?: string | null;
-            /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
-             * @example true
-             */
-            enabled?: boolean;
-            /** @example 2026-08-18 09:30:00 */
-            created_at?: string;
-            /** @example 2026-08-18 09:30:00 */
-            updated_at?: string;
-        };
-        SecretPostBody: {
-            /**
-             * @description Name of the secret, unique across the node. The stored key is "fn-secret-<label>", so the label must be lowercase alphanumerics, '-' or '.', starting and ending with an alphanumeric, and short enough that the key fits in 253 characters
-             * @example warehouse-db
-             */
-            label: string;
-            /** @example Credentials for the warehouse DB */
-            description?: string;
-            /**
-             * @description The store that holds the values
-             * @example K8S
-             * @enum {string}
-             */
-            provider: "K8S";
-            /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
-             * @default true
-             */
-            enabled?: boolean;
-            /**
-             * @description Secret keys and their values. Keys use letters, digits, '-', '_' or '.'; values are non-empty strings
-             * @example {
-             *       "USERNAME": "dbuser",
-             *       "PASSWORD": "s3cret"
-             *     }
-             */
-            values: {
-                [key: string]: string;
-            };
-        };
-        /** @description Any of the fields. values rotates the secret, both apply at once */
-        SecretPatchBody: {
-            /**
-             * @description Secret keys and their values. Keys use letters, digits, '-', '_' or '.'; values are non-empty strings
-             * @example {
-             *       "USERNAME": "dbuser",
-             *       "PASSWORD": "s3cret"
-             *     }
-             */
-            values?: {
-                [key: string]: string;
-            };
-            /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
-             * @default true
+             * Enabled
+             * @default false
              */
             enabled?: boolean;
         };
-        Sensor: {
-            /** @example task_launcher_sensor */
-            name?: string;
-            /** @enum {string} */
-            status?: "RUNNING" | "STOPPED";
-            /**
-             * @description Time of the latest evaluation, null if it never ran
-             * @example 2025-10-09T08:53:20+00:00
-             */
-            last_tick?: string | null;
-            /** @description Whether the latest evaluation failed */
-            error?: boolean;
+        /**
+         * ProjectResultsRepositoryDTO
+         * @description A project's resource for a global results repository, the repository nested. Addressed by the repository's id.
+         */
+        ProjectResultsRepositoryDTO: {
+            /** Project Id */
+            project_id: number;
+            results_repository: components["schemas"]["ResultsRepositoryDTO"];
+            /** Target Dir */
+            target_dir: string;
+            /** Owned By Federated Node */
+            owned_by_federated_node: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Active */
+            active: boolean;
         };
-        SensorsPatchBody: {
-            /** @enum {string} */
-            status: "RUNNING" | "STOPPED";
-            /** @description Sensors to change. Omit to change every sensor. If any name is unknown nothing is changed */
-            names?: string[];
+        /** ProjectResultsRepositoryHealthDTO */
+        ProjectResultsRepositoryHealthDTO: {
+            /** Project Id */
+            project_id: number;
+            /** Owned By Federated Node */
+            owned_by_federated_node: boolean;
+            /** Target Dir */
+            target_dir: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Active */
+            active: boolean;
+            results_repository: components["schemas"]["RepositoryConnectionDTO"];
         };
-        SensorPatchBody: {
-            /** @enum {string} */
-            status: "RUNNING" | "STOPPED";
+        /**
+         * ProjectSecretDTO
+         * @description A project's resource for a global secret, the reference nested. Addressed by the secret's label. Never carries values.
+         */
+        ProjectSecretDTO: {
+            /** Project Id */
+            project_id: number;
+            secret: components["schemas"]["SecretDTO"];
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Active */
+            active: boolean;
         };
-        /** @description A global dataset */
-        DatasetObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example http://dblocation */
-            host?: string;
-            /** @example 5432 */
-            port?: number;
-            /** @example Blood Cancer Database */
-            name?: string;
-            /** @example blood_cancer_database */
-            slug?: string;
-            /** @example readSchema */
-            read_schema?: string;
-            /** @example writeSchema */
-            write_schema?: string;
-            /** @example https://federatednode.com/datasets/blood_cancer_database */
-            url?: string;
-            /** @example mssql */
-            type?: string;
-            /** @example TrustServerCertificate=Yes */
-            extra_connection_args?: string;
-            /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
-             * @example true
-             */
-            enabled?: boolean;
-            /** @description The secret holding the DB credentials, without its values */
-            secret?: components["schemas"]["SecretObject"];
-            /** @example 2026-08-18 09:30:00 */
-            created_at?: string;
-            /** @example 2026-08-18 09:30:00 */
-            updated_at?: string;
+        /** ProjectSecretHealthDTO */
+        ProjectSecretHealthDTO: {
+            /** Project Id */
+            project_id: number;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Active */
+            active: boolean;
+            secret: components["schemas"]["SecretHealthDTO"];
         };
-        /** @description A dataset linked to a project. Addressed by the dataset's id */
-        ProjectDatasetObject: {
-            /** @example 1 */
-            project_id?: number;
-            dataset?: components["schemas"]["DatasetById"];
-            /** @example true */
-            enabled?: boolean;
-            /**
-             * @description Set by an admin to withdraw the grant at once
-             * @example false
-             */
-            revoked?: boolean;
-            /**
-             * @description enabled and not revoked. Only an active link is used
-             * @example true
-             */
-            active?: boolean;
+        /**
+         * ProjectTriggerRepositoryDTO
+         * @description A project's resource for a global trigger repository, the repository nested. Addressed by the repository's id.
+         */
+        ProjectTriggerRepositoryDTO: {
+            /** Project Id */
+            project_id: number;
+            trigger_repository: components["schemas"]["TriggerRepositoryDTO"];
+            /** Watch Dir */
+            watch_dir: string;
+            /** Base Branch */
+            base_branch: string;
+            /** Dataset Id */
+            dataset_id: number | null;
+            /** Pr Cursor */
+            pr_cursor: string;
+            /** Pr Count */
+            pr_count: number;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Active */
+            active: boolean;
         };
-        /** @description Any of the fields */
-        ProjectLinkPatchBody: {
-            /**
-             * @description Applies at once
-             * @example true
-             */
-            enabled?: boolean;
-            /**
-             * @description Admin only, takes effect at once
-             * @example false
-             */
-            revoked?: boolean;
+        /** ProjectTriggerRepositoryHealthDTO */
+        ProjectTriggerRepositoryHealthDTO: {
+            /** Project Id */
+            project_id: number;
+            /** Pr Count */
+            pr_count: number;
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Active */
+            active: boolean;
+            trigger_repository: components["schemas"]["RepositoryConnectionDTO"];
         };
-        /** @description A global results repository. It belongs to no project */
-        ResultsRepositoryObject: {
-            /** @example 1 */
-            id?: number;
-            /** @description The git provider the repository is on */
-            provider?: components["schemas"]["GitProviderRefObject"];
-            /**
-             * @description The provider's uri and the repo_path
-             * @example https://github.com/org/results
-             */
-            uri?: string;
-            /**
-             * @description The repository on the provider, owner/name
-             * @example org/results
-             */
-            repo_path?: string;
-            /** @description The secret holding the provider token, without its values */
-            secret?: components["schemas"]["SecretObject"];
-            /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
-             * @example true
-             */
-            enabled?: boolean;
+        /**
+         * PullRequestBatchDTO
+         * @description The response of storing a batch of pull requests: the numbers stored, and those already there.
+         */
+        PullRequestBatchDTO: {
+            /** Created */
+            created: number[];
+            /** Existing */
+            existing: number[];
         };
-        /** @description A global trigger repository. It belongs to no project */
-        TriggerRepositoryObject: {
-            /** @example 1 */
-            id?: number;
-            /** @description The git provider the repository is on */
-            provider?: components["schemas"]["GitProviderRefObject"];
+        /**
+         * PullRequestDTO
+         * @description The provider's facts of a pull request, stored once per repository.
+         */
+        PullRequestDTO: {
+            /** Id */
+            id: number;
+            /** Trigger Repository Id */
+            trigger_repository_id: number;
+            /** Number */
+            number: number;
+            /** Title */
+            title: string;
+            /** Raised By */
+            raised_by: string;
             /**
-             * @description The provider's uri and the repo_path
-             * @example https://github.com/org/test-repo
+             * Merged At
+             * Format: date-time
              */
-            uri?: string;
-            /**
-             * @description The repository on the provider, owner/name
-             * @example org/test-repo
-             */
-            repo_path?: string;
-            /** @description The secret holding the provider token, without its values */
-            secret?: components["schemas"]["SecretObject"];
-            /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
-             * @example true
-             */
-            enabled?: boolean;
-            /**
-             * @description Where polling the provider resumes: merged_at of the latest pull request stored for the repository or, with none stored, the repository's creation
-             * @example 2026-01-01T00:00:00
-             */
-            pr_cursor?: string | null;
+            merged_at: string;
+            /** Merge Commit Sha */
+            merge_commit_sha: string;
+            /** Base Branch */
+            base_branch: string;
+            /** Files Truncated */
+            files_truncated: boolean;
         };
-        /** @description project_id and the per-project fields (target_dir, watch_dir, base_branch) are not accepted (400): they belong to the link */
-        GitRepositoryPostBody: {
-            /**
-             * @description Id of an existing git provider (see POST /global/providers)
-             * @example 1
-             */
+        /** PullRequestResultDTO */
+        PullRequestResultDTO: {
+            /** Id */
+            id: number;
+            /** Type */
+            type: string;
+            /** Task Id */
+            task_id: number;
+            /** Project Id */
+            project_id: number;
+            /** Results Repository Id */
+            results_repository_id: number;
+            /** Attempts */
+            attempts: number;
+            /** Error */
+            error: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Step */
+            step: string;
+            /** State */
+            state: string;
+            /** Branch */
+            branch: string | null;
+            /** Commit Sha */
+            commit_sha: string | null;
+            /** Number */
+            number: number | null;
+            /** Url */
+            url: string | null;
+            /** Merged At */
+            merged_at: string | null;
+            /** Merge Commit Sha */
+            merge_commit_sha: string | null;
+        };
+        /** PullRequestTriggerDTO */
+        PullRequestTriggerDTO: {
+            /** Project Id */
+            project_id: number;
+            /** Trigger Repository Id */
+            trigger_repository_id: number;
+            /** Number */
+            number: number;
+            /** Title */
+            title: string;
+            /** Raised By */
+            raised_by: string;
+            /** Merge Commit Sha */
+            merge_commit_sha: string;
+            /** Merged At */
+            merged_at: string | null;
+            /** State */
+            state: string;
+            /** State Cause */
+            state_cause: string | null;
+            /** Task Id */
+            task_id: number | null;
+            /** Spec Files */
+            spec_files: string[];
+        };
+        /**
+         * RepositoryConnectionDTO
+         * @description A global trigger or results repository, and whether it can be reached with its secret.
+         */
+        RepositoryConnectionDTO: {
+            /** Id */
+            id: number;
+            /** Uri */
+            uri: string;
+            /** Provider */
+            provider: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Status */
+            status: string;
+            health_check: components["schemas"]["HealthCheckDTO"];
+        };
+        /** RepositoryHealthDTO */
+        RepositoryHealthDTO: {
+            /** Id */
+            id: number;
+            /** Uri */
+            uri: string;
+            /** Provider */
+            provider: string;
+            /** Pr Count */
+            pr_count: number;
+            /** Status */
+            status: string;
+            health_check: components["schemas"]["HealthCheckDTO"];
+        };
+        /**
+         * RepositoryPatchRequest
+         * @description The fields of a trigger or results repository that can be updated, all optional but never null.
+         */
+        RepositoryPatchRequest: {
+            /** Provider Id */
+            provider_id?: number | null;
+            /** Secret Label */
+            secret_label?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Revoked */
+            revoked?: boolean | null;
+        };
+        /**
+         * RepositoryRequest
+         * @description A trigger or results repository in a create request.
+         */
+        RepositoryRequest: {
+            /** Provider Id */
             provider_id: number;
-            /**
-             * @description The repository on the provider, owner/name. Unique per provider (409 on a duplicate)
-             * @example org/repo
-             */
+            /** Repo Path */
             repo_path: string;
-            /**
-             * @description Label of an existing secret (see POST /global/secrets) holding the token
-             * @example repo-token
-             */
+            /** Secret Label */
             secret_label: string;
             /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
+             * Enabled
              * @default true
              */
             enabled?: boolean;
         };
-        /** @description Any of the fields. The repo_path cannot be edited */
-        GitRepositoryPatchBody: {
-            /** @example 1 */
-            provider_id?: number;
-            /** @example repo-token */
-            secret_label?: string;
-            /**
-             * @description Turned on or off for the whole node. A link is active only when this is true, the link is enabled and not revoked
-             * @default true
-             */
-            enabled?: boolean;
+        /** ResultsRepositoryDTO */
+        ResultsRepositoryDTO: {
+            /** Id */
+            id: number;
+            /** Uri */
+            uri: string;
+            /** Repo Path */
+            repo_path: string;
+            provider: components["schemas"]["GitProviderRefDTO"];
+            secret: components["schemas"]["SecretDTO"];
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
         };
-        /** @description A results repository linked to a project. A project has one. Addressed by the global repository's id */
-        ProjectResultsRepositoryObject: {
-            /** @example 1 */
-            project_id?: number;
-            results_repository?: components["schemas"]["ResultsRepositoryObject"];
-            /** @example results */
-            target_dir?: string;
-            /** @example true */
-            owned_by_federated_node?: boolean;
-            /** @example true */
-            enabled?: boolean;
-            /**
-             * @description Set by an admin to withdraw the grant at once
-             * @example false
-             */
-            revoked?: boolean;
-            /**
-             * @description enabled and not revoked. Only an active link is used
-             * @example true
-             */
-            active?: boolean;
-        };
-        /** @description Any of the fields. revoked is admin only, all of them apply at once */
-        ProjectResultsRepositoryPatchBody: {
-            /** @example results */
-            target_dir?: string;
-            /** @example true */
-            owned_by_federated_node?: boolean;
-            /** @example true */
-            enabled?: boolean;
-            /** @example false */
-            revoked?: boolean;
-        };
-        /** @description A trigger repository linked to a project. Addressed by the global repository's id */
-        ProjectTriggerRepositoryObject: {
-            /** @example 1 */
-            project_id?: number;
-            trigger_repository?: components["schemas"]["TriggerRepositoryObject"];
-            /**
-             * @description Directory of the repository the project watches. Empty is the root
-             * @example triggers
-             */
-            watch_dir?: string;
-            /** @example main */
-            base_branch?: string;
-            /**
-             * @description The project's default dataset
-             * @example 1
-             */
-            dataset_id?: number | null;
-            /**
-             * @description merged_at of the latest pull request of this link
-             * @example 2026-01-01T00:00:00Z
-             */
-            pr_cursor?: string | null;
-            /**
-             * @description Pull requests the link has
-             * @example 0
-             */
-            pr_count?: number;
-            /** @example true */
-            enabled?: boolean;
-            /**
-             * @description Set by an admin to withdraw the grant at once
-             * @example false
-             */
-            revoked?: boolean;
-            /**
-             * @description enabled and not revoked. Only an active link is used
-             * @example true
-             */
-            active?: boolean;
-        };
-        /** @description Any of the fields. revoked is admin only, all of them apply at once. */
-        ProjectTriggerRepositoryPatchBody: {
-            /** @example triggers */
-            watch_dir?: string;
-            /** @example main */
-            base_branch?: string;
-            /** @example true */
-            enabled?: boolean;
-            /** @example false */
-            revoked?: boolean;
-        };
-        /** @description A merged pull request as stored once per trigger repository */
-        PullRequestFacts: {
-            /** @example 1 */
-            id?: number;
-            /** @example 1 */
-            trigger_repository_id?: number;
-            /** @example 1 */
-            number?: number;
-            /** @example PR 1 */
-            title?: string;
-            /** @example user1 */
-            raised_by?: string;
-            /** @example 2026-01-01T10:00:00 */
-            merged_at?: string;
-            /** @example 1111111111111111111111111111111111111111 */
-            merge_commit_sha?: string;
-            /** @example main */
-            base_branch?: string;
-            /**
-             * @description The provider's list of changed files was cut at 3000 files. A truncated pull request matches every path
-             * @example false
-             */
-            files_truncated?: boolean;
-        };
-        /** @description Strict: extra fields are refused and none has a default */
-        NewPullRequestBody: {
-            /** @example 1 */
-            number: number;
-            /** @example PR 1 */
-            title: string;
-            /** @example user1 */
-            raised_by: string;
-            /** @example 2026-01-01T10:00:00Z */
-            merged_at: string;
-            /** @example 1111111111111111111111111111111111111111 */
-            merge_commit_sha: string;
-            /** @example main */
-            base_branch: string;
-            /** @example false */
-            files_truncated: boolean;
-            /** @description Paths and how each changed, never content */
-            changed_files: {
-                /** @example triggers/a.json */
-                path: string;
-                /** @example added */
-                status: string;
-            }[];
-        };
-        PullRequestBatchBody: {
-            pull_requests: components["schemas"]["NewPullRequestBody"][];
-        };
-        PullRequestBatchResult: {
-            /**
-             * @description Numbers stored by this call
-             * @example [
-             *       1,
-             *       2
-             *     ]
-             */
-            created?: number[];
-            /**
-             * @description Numbers already stored, left as they were. A pull request skipped because its merge commit is already stored on the same base branch under another number is reported as that other number
-             * @example []
-             */
-            existing?: number[];
-        };
-        /** @description A pull request as seen by one link: the stored facts and the link's evaluation state */
-        PullRequestTriggerObject: {
-            /** @example 1 */
-            number?: number;
-            /** @example 1 */
-            project_id?: number;
-            /**
-             * @description The global trigger repository's id
-             * @example 1
-             */
-            trigger_repository_id?: number;
-            /** @example PR 1 */
-            title?: string;
-            /** @example user1 */
-            raised_by?: string;
-            /** @example 2026-01-01T10:00:00 */
-            merged_at?: string;
-            /** @example 1111111111111111111111111111111111111111 */
-            merge_commit_sha?: string;
-            /**
-             * @description REJECTED when the spec file is invalid, with state_cause saying why. A pull request that does not match the link (base branch, or no added .json file under watch_dir) gets no trigger at all
-             * @example UNKNOWN
-             * @enum {string}
-             */
-            state?: "UNKNOWN" | "REJECTED" | "YIELDED";
-            /** @example no spec file */
-            state_cause?: string | null;
-            /** @example null */
-            task_id?: number | null;
-            /**
-             * @description Paths of the files the pull request adds, ending in .json, under the link's watch_dir. The evaluate step reads the spec from the only one
-             * @example [
-             *       "specs/a.json"
-             *     ]
-             */
-            spec_files?: string[];
-        };
-        TaskTriggerObject: components["schemas"]["PullRequestTriggerObject"] & {
-            trigger_repository?: {
-                id?: number;
-                repo_path?: string;
-                uri?: string;
-            };
-        };
-        PullRequestFactsPage: {
-            items?: components["schemas"]["PullRequestFacts"][];
-            /** @example 1 */
-            page?: number;
-            /** @example 20 */
-            per_page?: number;
-            /** @example 2 */
-            total?: number;
-        };
-        PullRequestTriggerPage: {
-            items?: components["schemas"]["PullRequestTriggerObject"][];
-            /** @example 1 */
-            page?: number;
-            /** @example 20 */
-            per_page?: number;
-            /** @example 2 */
-            total?: number;
-        };
-        PullRequestSpecBody: {
-            /** @description The pull request's spec file as read. Kept on the pull request before it is parsed, so a rejected one keeps it too */
-            spec_raw: string;
-        };
-        PullRequestPatchBody: {
-            /**
-             * @example REJECTED
-             * @enum {string}
-             */
-            state?: "UNKNOWN" | "REJECTED" | "YIELDED";
-            /** @example spec invalid */
-            state_cause?: string;
-        };
-        /** @description The task created from the pull request */
-        PullRequestTaskObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example PR 1 */
-            name?: string;
-            /** @example 1 */
-            project_id?: number;
-            /** @example 1 */
-            trigger_id?: number;
-            /** @example PENDING */
-            status?: string;
-            /** @example null */
-            state_cause?: string | null;
-            spec?: {
-                /** @example example:latest */
-                image?: string;
-                /** @example 1 */
-                dataset_id?: number;
-                /**
-                 * @example {
-                 *       "KEY": "value"
-                 *     }
-                 */
-                env?: Record<string, never>;
-            };
-        };
-        ProjectDatasetPutBody: {
-            /**
-             * @description Defaults to true
-             * @example true
-             */
-            enabled?: boolean;
-        };
-        /** @description A secret linked to a project. Addressed by the secret's label. The values are never returned */
-        ProjectSecretObject: {
-            /** @example 1 */
-            project_id?: number;
-            secret?: components["schemas"]["SecretObject"];
-            /** @example true */
-            enabled?: boolean;
-            /**
-             * @description Set by an admin to withdraw the grant at once
-             * @example false
-             */
-            revoked?: boolean;
-            /**
-             * @description enabled and not revoked. Only an active link is used
-             * @example true
-             */
-            active?: boolean;
-        };
-        ProjectSecretPutBody: {
-            /**
-             * @description Defaults to true
-             * @example true
-             */
-            enabled?: boolean;
-        };
-        ProjectResultsRepositoryPutBody: {
-            /** @example results */
+        /** ResultsRepositoryHealthDTO */
+        ResultsRepositoryHealthDTO: {
+            /** Id */
+            id: number;
+            /** Uri */
+            uri: string;
+            /** Owned By Federated Node */
+            owned_by_federated_node: boolean;
+            /** Target Dir */
             target_dir: string;
-            /**
-             * @description Defaults to true
-             * @example true
-             */
-            owned_by_federated_node?: boolean;
-            /**
-             * @description Defaults to true
-             * @example true
-             */
-            enabled?: boolean;
+            /** Status */
+            status: string;
+            health_check: components["schemas"]["HealthCheckDTO"];
         };
-        ProjectTriggerRepositoryPutBody: {
-            /** @example triggers */
-            watch_dir: string;
-            /**
-             * @description Defaults to main
-             * @example main
-             */
-            base_branch?: string;
-            /**
-             * @description Defaults to true
-             * @example true
-             */
-            enabled?: boolean;
+        /** SecretDTO */
+        SecretDTO: {
+            /** Id */
+            id: number;
+            /** Label */
+            label: string;
+            /** Description */
+            description: string | null;
+            provider: components["schemas"]["SecretProviderType"];
+            /** Key */
+            key: string;
+            /** Namespace */
+            namespace: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
         };
-        /** @description A global trigger or results repository and whether it can be reached with its own secret */
-        RepositoryConnectionObject: {
-            id?: number;
-            uri?: string;
-            provider?: string;
-            /** @description The global switch */
-            enabled?: boolean;
-            /** @enum {string} */
-            status?: "ok" | "unauthorized" | "not_found" | "unreachable" | "secret_missing" | "error";
-            /** @description What the check found */
-            health_check?: {
-                /**
-                 * @description The reason on a failure, else OK or the HTTP reason
-                 * @example OK
-                 */
-                message?: string;
-                /** @description The provider's HTTP status. Null if no request was made, and for datasets and secrets */
-                status_code?: number | null;
-                /** @description How long the check took. Null if no connection was attempted */
-                latency_ms?: number | null;
-            };
+        /**
+         * SecretHealthDTO
+         * @description A global secret, and whether it is in its store with the keys its datasets and
+         *     repositories need. Key names only, never values.
+         */
+        SecretHealthDTO: {
+            /** Label */
+            label: string;
+            provider: components["schemas"]["SecretProviderType"];
+            /** Enabled */
+            enabled: boolean;
+            /** Status */
+            status: string;
+            health_check: components["schemas"]["HealthCheckDTO"];
+            /** Keys */
+            keys: string[];
+            /** Missing Keys */
+            missing_keys: string[];
         };
-        /** @description A global dataset and whether the node can connect to its database with its secret (a connection, then SELECT 1). Only postgres and mssql datasets can be checked */
-        DatasetHealthObject: {
-            id?: number;
-            name?: string;
-            host?: string;
-            port?: number;
-            type?: string;
-            /** @description The global switch */
-            enabled?: boolean;
-            /** @enum {string} */
-            status?: "ok" | "unauthorized" | "not_found" | "unreachable" | "secret_missing" | "error";
-            /** @description What the check found */
-            health_check?: {
-                /**
-                 * @description The reason on a failure, else OK or the HTTP reason
-                 * @example OK
-                 */
-                message?: string;
-                /** @description The provider's HTTP status. Null if no request was made, and for datasets and secrets */
-                status_code?: number | null;
-                /** @description How long the check took. Null if no connection was attempted */
-                latency_ms?: number | null;
-            };
-        };
-        /** @description A global secret and whether it is in its secret store with the keys its datasets (USERNAME, PASSWORD) and repositories (TOKEN) need. Key names only, never values */
-        SecretHealthObject: {
-            label?: string;
-            /** @example K8S */
-            provider?: string;
-            /** @description The global switch */
-            enabled?: boolean;
-            /** @enum {string} */
-            status?: "ok" | "unauthorized" | "not_found" | "unreachable" | "secret_missing" | "error";
-            /** @description What the check found */
-            health_check?: {
-                /**
-                 * @description The reason on a failure, else OK or the HTTP reason
-                 * @example OK
-                 */
-                message?: string;
-                /** @description The provider's HTTP status. Null if no request was made, and for datasets and secrets */
-                status_code?: number | null;
-                /** @description How long the check took. Null if no connection was attempted */
-                latency_ms?: number | null;
-            };
-            /** @description The keys the store holds */
-            keys?: string[];
-            /** @description The keys the secret's users need and it lacks */
-            missing_keys?: string[];
-        };
-        /** @description The global dataset's check and the project's link state */
-        ProjectDatasetHealthObject: {
-            /** @example 1 */
-            project_id?: number;
-            /** @description The project's own switch for the link */
-            enabled?: boolean;
-            /** @description Withdrawn by an admin */
-            revoked?: boolean;
-            /** @description The global resource is enabled, and the link is enabled and not revoked. Only an active link is used */
-            active?: boolean;
-            dataset?: components["schemas"]["DatasetHealthObject"];
-        };
-        /** @description The global secret's check and the project's link state */
-        ProjectSecretHealthObject: {
-            /** @example 1 */
-            project_id?: number;
-            /** @description The project's own switch for the link */
-            enabled?: boolean;
-            /** @description Withdrawn by an admin */
-            revoked?: boolean;
-            /** @description The global resource is enabled, and the link is enabled and not revoked. Only an active link is used */
-            active?: boolean;
-            secret?: components["schemas"]["SecretHealthObject"];
-        };
-        /** @description The global trigger repository's check, the project's link state and its pull request count */
-        ProjectTriggerRepositoryHealthObject: {
-            /** @example 1 */
-            project_id?: number;
-            /** @description The project's own switch for the link */
-            enabled?: boolean;
-            /** @description Withdrawn by an admin */
-            revoked?: boolean;
-            /** @description The global resource is enabled, and the link is enabled and not revoked. Only an active link is used */
-            active?: boolean;
-            /** @description Pull requests the backend has ingested for the link */
-            pr_count?: number;
-            trigger_repository?: components["schemas"]["RepositoryConnectionObject"];
-        };
-        /** @description The global results repository's check and the project's link state */
-        ProjectResultsRepositoryHealthObject: {
-            /** @example 1 */
-            project_id?: number;
-            /** @description The project's own switch for the link */
-            enabled?: boolean;
-            /** @description Withdrawn by an admin */
-            revoked?: boolean;
-            /** @description The global resource is enabled, and the link is enabled and not revoked. Only an active link is used */
-            active?: boolean;
-            owned_by_federated_node?: boolean;
-            target_dir?: string;
-            results_repository?: components["schemas"]["RepositoryConnectionObject"];
-        };
-        /** @description Every global resource of the four kinds */
-        GlobalHealthObject: {
-            /**
-             * @description ok only when every resource is
-             * @enum {string}
-             */
-            status?: "ok" | "error";
-            datasets?: components["schemas"]["DatasetHealthObject"][];
-            secrets?: components["schemas"]["SecretHealthObject"][];
-            trigger_repositories?: components["schemas"]["RepositoryConnectionObject"][];
-            results_repositories?: components["schemas"]["RepositoryConnectionObject"][];
-        };
-        /** @description A git provider as nested in a repository */
-        GitProviderRefObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example github-github.com */
-            name?: string;
-            /**
-             * @example github
-             * @enum {string}
-             */
-            type?: "github" | "gitea";
-            /**
-             * @description The host's web address
-             * @example https://github.com
-             */
-            uri?: string;
-            /**
-             * @description The host's API base URL, which the repositories' tokens are sent to. On the uri's host (api.github.com for github.com)
-             * @example https://api.github.com
-             */
-            api_uri?: string;
-            /**
-             * @description Turned on or off for the whole node. The repositories on a disabled provider are not active
-             * @example true
-             */
-            enabled?: boolean;
-        };
-        /** @description A global git provider */
-        GitProviderObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example github-github.com */
-            name?: string;
-            /**
-             * @example github
-             * @enum {string}
-             */
-            type?: "github" | "gitea";
-            /**
-             * @description The host's web address
-             * @example https://github.com
-             */
-            uri?: string;
-            /**
-             * @description The host's API base URL, which the repositories' tokens are sent to. On the uri's host (api.github.com for github.com)
-             * @example https://api.github.com
-             */
-            api_uri?: string;
-            /**
-             * @description Turned on or off for the whole node. The repositories on a disabled provider are not active
-             * @example true
-             */
-            enabled?: boolean;
-            /** @example 2026-01-01 00:00:00 */
-            created_at?: string;
-            /** @example 2026-01-01 00:00:00 */
-            updated_at?: string;
-        };
-        GitProviderPostBody: {
-            /**
-             * @description Unique across the node (409 on a duplicate)
-             * @example github-github.com
-             */
+        /**
+         * SecretProviderType
+         * @description Which secret store holds the value of a secret.
+         * @enum {string}
+         */
+        SecretProviderType: "K8S";
+        /** SensorDTO */
+        SensorDTO: {
+            /** Name */
             name: string;
             /**
-             * @example github
+             * Status
              * @enum {string}
              */
-            type: "github" | "gitea";
-            /**
-             * @description Unique across the node (409 on a duplicate)
-             * @example https://github.com
-             */
+            status: "RUNNING" | "STOPPED";
+            /** Last Tick */
+            last_tick: string | null;
+            /** Error */
+            error: boolean;
+        };
+        /**
+         * TaskConfigDTO
+         * @description Whether the configuration a task was created under still holds, see helpers/task_config.decide_launch.
+         */
+        TaskConfigDTO: {
+            /** Outcome */
+            outcome: string;
+            /** Cause */
+            cause: string | null;
+            /** Current */
+            current: boolean;
+            /** Changes */
+            changes: string[];
+            /** Config Hash */
+            config_hash: string | null;
+            /** Config Snapshot */
+            config_snapshot: {
+                [key: string]: unknown;
+            } | null;
+            /** Revoked */
+            revoked: string[];
+        };
+        /**
+         * TaskCreatedDTO
+         * @description The response of requesting a task: the task, the API request that yielded it and when it was created.
+         */
+        TaskCreatedDTO: {
+            /** Id */
+            id: number;
+            /** Api Request Id */
+            api_request_id: number;
+            /** Status */
+            status: string | null;
+            /** Created At */
+            created_at: string | null;
+        };
+        /** TaskDTO */
+        TaskDTO: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            spec: components["schemas"]["TaskSpecDTO"];
+            /** Attempt */
+            attempt: number;
+            /** Status */
+            status: string | null;
+            /** Created At */
+            created_at: string;
+            /** Updated At */
+            updated_at: string;
+            /** Requested By */
+            requested_by: string;
+            /** Project Id */
+            project_id: number;
+            /** Trigger Id */
+            trigger_id: number;
+            /** Executor Run Id */
+            executor_run_id: string | null;
+            /** Exit Code */
+            exit_code: number | null;
+            /** State Cause */
+            state_cause: string | null;
+            /** Config Hash */
+            config_hash: string | null;
+            /** Started At */
+            started_at: string | null;
+            /** Completed At */
+            completed_at: string | null;
+        };
+        /**
+         * TaskLaunchDTO
+         * @description What the launcher is told for a PENDING task: outcome "launch" with the task and its dataset (null for a
+         *     task without one), or "fail" with the cause, the failed task and no dataset. See tasks_api.launch_task.
+         */
+        TaskLaunchDTO: {
+            /** Outcome */
+            outcome: string;
+            /** Cause */
+            cause: string | null;
+            task: components["schemas"]["TaskDTO"];
+            dataset: components["schemas"]["DatasetDTO"] | null;
+        };
+        /**
+         * TaskPageDTO
+         * @description The response shape of the task lists, a page of tasks.
+         */
+        TaskPageDTO: {
+            /** Tasks */
+            tasks: components["schemas"]["TaskDTO"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Per Page */
+            per_page: number;
+            /** Pages */
+            pages: number;
+        };
+        /** TaskSpecDTO */
+        TaskSpecDTO: {
+            /** Image */
+            image: string;
+            /** Dataset Id */
+            dataset_id: number | null;
+            /** Env */
+            env: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * TaskTriggerDTO
+         * @description The pull request that yielded a task, with the repository it was merged in nested.
+         */
+        TaskTriggerDTO: {
+            /** Project Id */
+            project_id: number;
+            /** Trigger Repository Id */
+            trigger_repository_id: number;
+            /** Number */
+            number: number;
+            /** Title */
+            title: string;
+            /** Raised By */
+            raised_by: string;
+            /** Merge Commit Sha */
+            merge_commit_sha: string;
+            /** Merged At */
+            merged_at: string | null;
+            /** State */
+            state: string;
+            /** State Cause */
+            state_cause: string | null;
+            /** Task Id */
+            task_id: number | null;
+            /** Spec Files */
+            spec_files: string[];
+            trigger_repository: components["schemas"]["TriggerRepositoryRefDTO"];
+        };
+        /** TriggerRepositoryDTO */
+        TriggerRepositoryDTO: {
+            /** Id */
+            id: number;
+            /** Uri */
             uri: string;
-            /** @example https://api.github.com */
-            api_uri: string;
-            /** @default true */
-            enabled?: boolean;
+            /** Repo Path */
+            repo_path: string;
+            provider: components["schemas"]["GitProviderRefDTO"];
+            secret: components["schemas"]["SecretDTO"];
+            /** Enabled */
+            enabled: boolean;
+            /** Revoked */
+            revoked: boolean;
+            /** Pr Cursor */
+            pr_cursor: string;
         };
-        /** @description Any of the fields. None can be null */
-        GitProviderPatchBody: {
-            /**
-             * @description Unique across the node (409 on a duplicate)
-             * @example github-github.com
-             */
-            name?: string;
-            /**
-             * @example github
-             * @enum {string}
-             */
-            type?: "github" | "gitea";
-            /**
-             * @description Unique across the node (409 on a duplicate)
-             * @example https://github.com
-             */
-            uri?: string;
-            /** @example https://api.github.com */
-            api_uri?: string;
-            /** @default true */
-            enabled?: boolean;
+        /**
+         * TriggerRepositoryRefDTO
+         * @description A trigger repository named by where it is, without its secret or cursor.
+         */
+        TriggerRepositoryRefDTO: {
+            /** Id */
+            id: number;
+            /** Repo Path */
+            repo_path: string;
+            /** Uri */
+            uri: string;
         };
-        /** @description A global git provider and whether its API answers */
-        GitProviderHealthObject: {
-            /** @example 1 */
-            id?: number;
-            /** @example github-github.com */
-            name?: string;
-            /**
-             * @example github
-             * @enum {string}
-             */
-            type?: "github" | "gitea";
-            /**
-             * @description The host's web address
-             * @example https://github.com
-             */
-            uri?: string;
-            /**
-             * @description The host's API base URL, which the repositories' tokens are sent to. On the uri's host (api.github.com for github.com)
-             * @example https://api.github.com
-             */
-            api_uri?: string;
-            /**
-             * @description Turned on or off for the whole node. The repositories on a disabled provider are not active
-             * @example true
-             */
-            enabled?: boolean;
-            /** @enum {string} */
-            status?: "ok" | "unauthorized" | "not_found" | "unreachable" | "secret_missing" | "error";
-            /** @description What the check found */
-            health_check?: {
-                /**
-                 * @description The reason on a failure, else OK or the HTTP reason
-                 * @example OK
-                 */
-                message?: string;
-                /** @description The provider's HTTP status. Null if no request was made, and for datasets and secrets */
-                status_code?: number | null;
-                /** @description How long the check took. Null if no connection was attempted */
-                latency_ms?: number | null;
-            };
+        /**
+         * UserDTO
+         * @description A simplified Keycloak user, as listed. firstName and lastName are Keycloak's names.
+         */
+        UserDTO: {
+            /** Username */
+            username: string;
+            /** Email */
+            email: string;
+            /** Firstname */
+            firstName: string;
+            /** Lastname */
+            lastName: string;
+            /** Role */
+            role: string[];
+            /** Needs To Reset Password */
+            needs_to_reset_password: boolean;
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
     };
-    responses: {
-        /** @description Successfully added */
-        DatasetPost: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["DatasetById"];
-            };
-        };
-        /** @description Successfully added */
-        DatasetById: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["DatasetById"];
-            };
-        };
-        /** @description Successfully added */
-        DatasetList: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    items?: components["schemas"]["DatasetById"][];
-                    /** @example 1 */
-                    page?: number;
-                    /** @example 25 */
-                    per_page?: number;
-                    /** @example 100 */
-                    total?: number;
-                    /** @example 4 */
-                    total_pages?: number;
-                };
-            };
-        };
-        /** @description Successfully added */
-        DatasetCatalogue: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["DatasetCatalogue"][];
-            };
-        };
-        /** @description Successfully added */
-        DatasetDictionary: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["DatasetDictionary"][];
-            };
-        };
-        /** @description Successfully added */
-        DatasetDictionaryTable: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["DatasetDictionary"];
-            };
-        };
-        /** @description Task description */
-        Task: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["TaskById"][];
-            };
-        };
-        /** @description List of tasks */
-        TaskList: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    items?: components["schemas"]["TaskById"][];
-                    /** @example 1 */
-                    page?: number;
-                    /** @example 25 */
-                    per_page?: number;
-                    /** @example 100 */
-                    total?: number;
-                    /** @example 4 */
-                    total_pages?: number;
-                };
-            };
-        };
-        /** @description Successfully added */
-        TaskPost: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @example 1 */
-                    task_id?: string;
-                };
-            };
-        };
-        /** @description Successfully added */
-        TaskResults: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/zip": string;
-            };
-        };
-        /** @description Pod's logs */
-        TaskLogs: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    logs?: string[] | string;
-                };
-            };
-        };
-        /** @description Token created */
-        TokenResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    token?: string;
-                };
-            };
-        };
-        /** @description Simple text ok response */
-        SimpleOk: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                /** @example Ok */
-                "text/plain": unknown;
-            };
-        };
-        /** @description No content response */
-        NoContent: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content?: never;
-        };
-        /** @description List of actions performed against the webserver */
-        AuditList: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    items?: {
-                        /** @example get_datasets */
-                        api_function?: string;
-                        /** @example Requested by cea6868d-26b6-4e96-95d7-4aba8df7d06e - user@email.com */
-                        details?: string;
-                        /** @example /datasets */
-                        endpoint?: string;
-                        /** @example Thu, 14 Mar 2024 11:45:36 GMT */
-                        event_time?: string;
-                        /** @example GET */
-                        http_method?: string;
-                        /** @example 1 */
-                        id?: number;
-                        /** @example 15.24.87.9 */
-                        ip_address?: string;
-                        /** @example cea6868d-26b6-4e96-95d7-4aba8df7d06e */
-                        requested_by?: string;
-                        /** @example 200 */
-                        status_code?: number;
-                    }[];
-                    /** @example 1 */
-                    page?: number;
-                    /** @example 25 */
-                    per_page?: number;
-                    /** @example 100 */
-                    total?: number;
-                    /** @example 4 */
-                    total_pages?: number;
-                };
-            };
-        };
-        /** @description User Definition */
-        UserEntry: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @example user@email.com */
-                    email?: string;
-                    /** @example user */
-                    username?: string;
-                    /** @example The user should change the temp password at https://localhost/users/reset-password */
-                    info?: string;
-                    tempPassword?: string;
-                };
-            };
-        };
-        /** @description List of users */
-        UserListResponse: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    items?: components["schemas"]["UserEntry"][];
-                    /** @example 1 */
-                    page?: number;
-                    /** @example 25 */
-                    per_page?: number;
-                    /** @example 100 */
-                    total?: number;
-                    /** @example 4 */
-                    total_pages?: number;
-                };
-            };
-        };
-        /** @description Whitelisted image representation */
-        WhitelistedImageEntry: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["WhitelistedImageObject"];
-            };
-        };
-        /** @description List of registries */
-        WhitelistedImageList: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    items?: components["schemas"]["WhitelistedImageObject"][];
-                    /** @example 1 */
-                    page?: number;
-                    /** @example 25 */
-                    per_page?: number;
-                    /** @example 100 */
-                    total?: number;
-                    /** @example 4 */
-                    total_pages?: number;
-                };
-            };
-        };
-        /** @description Image removed from the whitelist */
-        WhitelistedImageDeleted: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @example Image 1 deleted successfully */
-                    message?: string;
-                };
-            };
-        };
-        /** @description Successfully added */
-        WhitelistedImagePost: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    id?: number;
-                };
-            };
-        };
-        /** @description Single repository representation */
-        RegistryEntry: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["RegistryObject"];
-            };
-        };
-        /** @description List of registries */
-        RegistryList: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    items?: components["schemas"]["RegistryObject"][];
-                    /** @example 1 */
-                    page?: number;
-                    /** @example 25 */
-                    per_page?: number;
-                    /** @example 100 */
-                    total?: number;
-                    /** @example 4 */
-                    total_pages?: number;
-                };
-            };
-        };
-        /** @description Successfully added */
-        RegistryPost: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    id?: number;
-                };
-            };
-        };
-        /** @description Review is needed, or release has been blocked */
-        ReviewNeededOrBlocked: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    status?: string;
-                };
-            };
-        };
-        /** @description Only one review per task is allowed */
-        MultipleReviewError: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    error?: string;
-                };
-            };
-        };
-        /** @description Not found. */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content?: never;
-        };
-        /** @description The request body cannot be parsed or is missing required values. */
-        InvalidBody: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content?: never;
-        };
-        /** @description Unauthenticated. */
-        Unauthenticated: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content?: never;
-        };
-        /** @description Unauthorized. */
-        Unauthorized: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content?: never;
-        };
-        /** @description An internal error occurred. */
-        InternalError: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content?: never;
-        };
-        /** @description Could not connect to the database. */
-        DBConnectionFailed: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content?: never;
-        };
-        /** @description Conflict. Resource already exists */
-        Conflict: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    error?: string;
-                };
-            };
-        };
-        /** @description Service healthy */
-        health_check: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    keycloak?: boolean;
-                    /** @example ok */
-                    status?: string;
-                };
-            };
-        };
-        /** @description Service unhealthy */
-        "502_health_check": {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @example false */
-                    keycloak?: boolean;
-                    /** @example non operational */
-                    status?: string;
-                };
-            };
-        };
-        /** @description Result */
-        Result: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ResultById"];
-            };
-        };
-        /** @description Results, one per destination */
-        ResultList: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ResultById"][];
-            };
-        };
-        /** @description Every sensor */
-        SensorList: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Sensor"][];
-            };
-        };
-        /** @description A sensor */
-        SensorById: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Sensor"];
-            };
-        };
-        /** @description Dagster is unreachable or returned an error */
-        "502_dagster": {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    /** @example Dagster is unreachable: connection refused */
-                    error?: string;
-                };
-            };
-        };
-        /** @description A page of tasks */
-        AllTasksList: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": {
-                    tasks?: components["schemas"]["TaskById"][];
-                    /** @example 1 */
-                    page?: number;
-                    /** @example 10 */
-                    per_page?: number;
-                    /** @example 100 */
-                    total?: number;
-                    /** @example 10 */
-                    pages?: number;
-                };
-            };
-        };
-    };
-    parameters: {
-        datasetIdPath: number;
-        /** @description Dataset name, the same set from the POST /dataset, or fetched from the dataset list */
-        datasetNamePath: string;
-        dictionaryTablePath: string;
-        /** @description Used by non admin users. The value should match the project decalred on the roken_transfer endpoint */
-        projectNamePath: string;
-        whitelistedImageIdPath: number;
-        registryIdPath: number;
-        /** @description Page to return */
-        paginationPage: number;
-        /** @description How many entries maximum per page */
-        paginationPerPage: number;
-    };
+    responses: never;
+    parameters: never;
     requestBodies: never;
     headers: never;
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    getDataset: {
+    ready_check_ready_check_get: {
         parameters: {
-            query?: {
-                /** @description Page to return */
-                page?: components["parameters"]["paginationPage"];
-                /** @description How many entries maximum per page */
-                per_page?: components["parameters"]["paginationPerPage"];
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["DatasetList"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
         };
     };
-    postDataset: {
+    health_check_health_check_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeHealthDTO"];
+                };
+            };
+            /** @description Bad Gateway */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NodeHealthDTO"];
+                };
+            };
+        };
+    };
+    login_login_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4012,209 +2707,1001 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["DatasetPostBody"];
+                "application/x-www-form-urlencoded": components["schemas"]["Body_login_login_post"];
             };
         };
         responses: {
-            201: components["responses"]["DatasetPost"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    getDatasetById: {
+    refresh_token_refresh_token_post: {
         parameters: {
             query?: never;
-            header?: {
-                /** @description Used by non admin users. The value should match the project decalred on the roken_transfer endpoint */
-                project_name?: components["parameters"]["projectNamePath"];
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
             };
+        };
+    };
+    list_projects_projects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageDTO_ProjectDTO_"];
+                };
+            };
+        };
+    };
+    create_project_projects_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCreatedDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_projects_projects__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageDTO_ProjectDTO_"];
+                };
+            };
+        };
+    };
+    create_project_projects__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCreatedDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    project_by_id_projects__project_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
             path: {
-                id: components["parameters"]["datasetIdPath"];
+                project_id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["DatasetById"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    deleteDataset: {
+    delete_project_projects__project_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_project_projects__project_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_datasets_projects__project_id__datasets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDatasetDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_dataset_projects__project_id__datasets__dataset_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDatasetDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_project_dataset_projects__project_id__datasets__dataset_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDatasetDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_dataset_projects__project_id__datasets__dataset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_project_dataset_projects__project_id__datasets__dataset_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDatasetDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_secrets_projects__project_id__secrets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSecretDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_secret_projects__project_id__secrets__label__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSecretDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_project_secret_projects__project_id__secrets__label__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSecretDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_secret_projects__project_id__secrets__label__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_project_secret_projects__project_id__secrets__label__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSecretDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_results_repositories_projects__project_id__repositories_results_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectResultsRepositoryDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_results_repository_projects__project_id__repositories_results__repository_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_project_results_repository_projects__project_id__repositories_results__repository_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_results_repository_projects__project_id__repositories_results__repository_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_project_results_repository_projects__project_id__repositories_results__repository_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_datasets_global_datasets_get: {
         parameters: {
             query?: {
-                /** @description true also revokes and deletes every project's link to the resource. Without it a resource with live project links is refused with a 409. */
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageDTO_DatasetDTO_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_datasets_global_datasets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_datasets_global_datasets__get: {
+        parameters: {
+            query?: {
+                page?: number;
+                per_page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageDTO_DatasetDTO_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_datasets_global_datasets__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataset_global_datasets__dataset_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_dataset_global_datasets__dataset_id__delete: {
+        parameters: {
+            query?: {
                 force?: boolean;
             };
             header?: never;
             path: {
-                id: number;
+                dataset_id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            204: components["responses"]["NoContent"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            /** @description Projects are still linked to it and force is not true. details lists them as {id, name} */
-            409: {
+            /** @description Successful Response */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            500: components["responses"]["InternalError"];
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    editDataset: {
+    patch_dataset_global_datasets__dataset_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                id: number;
+                dataset_id: number;
             };
             cookie?: never;
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["DatasetPostBody"];
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
-            202: components["responses"]["DatasetPost"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    revokeDataset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The ids of the links, revoked now or earlier */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": number[];
+                    "application/json": components["schemas"]["DatasetDTO"];
                 };
             };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_task_by_id: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["Task"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    patch_task: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TaskPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated task */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskById"];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            /** @description The status move is not allowed */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            500: components["responses"]["InternalError"];
         };
     };
-    get_all_tasks: {
+    get_tasks_projects__project_id__tasks_get: {
         parameters: {
             query?: {
-                /** @description One or more task statuses, comma separated, e.g. PENDING,RUNNING. An unknown status is a 400 listing the valid ones. */
-                status?: string;
-                /** @description true keeps the tasks of enabled projects, as GET /projects?enabled=true lists them. A revoked project is still listed. */
-                project_enabled?: "true" | "false";
-                /** @description Page to return */
-                page?: components["parameters"]["paginationPage"];
-                /** @description How many entries maximum per page */
-                per_page?: components["parameters"]["paginationPerPage"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["AllTasksList"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_tasks: {
-        parameters: {
-            query?: {
-                /** @description Page to return */
-                page?: components["parameters"]["paginationPage"];
-                /** @description How many entries maximum per page */
-                per_page?: components["parameters"]["paginationPerPage"];
+                status?: string | null;
             };
             header?: never;
             path: {
@@ -4224,985 +3711,671 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["TaskList"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    create_task: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["TaskPostBody"];
-            };
-        };
-        responses: {
-            201: components["responses"]["TaskPost"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    validate_task: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["TaskPostBody"];
-            };
-        };
-        responses: {
-            201: components["responses"]["SimpleOk"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    cancel_task: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: components["responses"]["SimpleOk"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_task_results: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["ResultList"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    approve_results: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Review successful */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["MultipleReviewError"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    block_results: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Review successful */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["MultipleReviewError"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_task_logs: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["TaskLogs"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_task_trigger: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The task's trigger */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskTriggerObject"];
+                    "application/json": components["schemas"]["TaskPageDTO"];
                 };
             };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    get_task_config: {
+    post_tasks_projects__project_id__tasks_post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The check */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /**
-                         * @example fail
-                         * @enum {string}
-                         */
-                        outcome?: "launch" | "fail";
-                        /**
-                         * @description Why the task fails; null when the outcome is launch.
-                         * @example The secret of dataset cdm is disabled
-                         */
-                        cause?: string | null;
-                        /**
-                         * @description What the task uses that is revoked or deleted.
-                         * @example [
-                         *       "dataset cdm"
-                         *     ]
-                         */
-                        revoked?: string[];
-                        /** @example false */
-                        current?: boolean;
-                        /**
-                         * @example [
-                         *       "results.target_dir: 'results/' -> 'out/'"
-                         *     ]
-                         */
-                        changes?: string[];
-                        /** @example 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08 */
-                        config_hash?: string | null;
-                        /** @description The configuration the task is pinned to (its results link's repository id, uri, api_uri and target_dir, and its dataset). Delivery takes where to deliver from it, as the link may be deleted by then. */
-                        config_snapshot?: Record<string, never> | null;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    login: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "multipart/form-data": components["schemas"]["LoginBody"];
-            };
-        };
-        responses: {
-            201: components["responses"]["TokenResponse"];
-            401: components["responses"]["Unauthenticated"];
-        };
-    };
-    refresh_token: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            201: components["responses"]["TokenResponse"];
-            401: components["responses"]["Unauthenticated"];
-        };
-    };
-    get_audit: {
-        parameters: {
-            query?: {
-                /** @description Filter by event time equal to */
-                event_time?: string;
-                /** @description Filter by event time greater than or equal to */
-                event_time__gte?: string;
-                /** @description Filter by event time lower than or equal to */
-                event_time__lte?: string;
-                /** @description Filter by response status code */
-                status_code?: number;
-                /** @description Page to return */
-                page?: components["parameters"]["paginationPage"];
-                /** @description How many entries maximum per page */
-                per_page?: components["parameters"]["paginationPerPage"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["AuditList"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-        };
-    };
-    update_delivery_secret: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["UpdateDeliverySecretBody"];
-            };
-        };
-        responses: {
-            204: components["responses"]["NoContent"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-        };
-    };
-    health_check: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["health_check"];
-            502: components["responses"]["502_health_check"];
-        };
-    };
-    get_all_users: {
-        parameters: {
-            query?: {
-                /** @description Page to return */
-                page?: components["parameters"]["paginationPage"];
-                /** @description How many entries maximum per page */
-                per_page?: components["parameters"]["paginationPerPage"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["UserListResponse"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    create_user: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["CreateUserBody"];
-            };
-        };
-        responses: {
-            201: components["responses"]["UserEntry"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    reset_password: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["ResetPassBody"];
-            };
-        };
-        responses: {
-            204: components["responses"]["SimpleOk"];
-            400: components["responses"]["InvalidBody"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    getWhitelistedImages: {
-        parameters: {
-            query?: {
-                /** @description Page to return */
-                page?: components["parameters"]["paginationPage"];
-                /** @description How many entries maximum per page */
-                per_page?: components["parameters"]["paginationPerPage"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["WhitelistedImageList"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    postWhitelistedImage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["WhitelistedImagePostObject"];
-            };
-        };
-        responses: {
-            201: components["responses"]["WhitelistedImagePost"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    getWhitelistedImageById: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["whitelistedImageIdPath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["WhitelistedImageEntry"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    deleteWhitelistedImage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["whitelistedImageIdPath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["WhitelistedImageDeleted"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    getRegistries: {
-        parameters: {
-            query?: {
-                /** @description Page to return */
-                page?: components["parameters"]["paginationPage"];
-                /** @description How many entries maximum per page */
-                per_page?: components["parameters"]["paginationPerPage"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["RegistryList"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    postRegistries: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["RegistryPostBody"];
-            };
-        };
-        responses: {
-            201: components["responses"]["RegistryPost"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    deleteRegistries: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: components["responses"]["NoContent"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    getRegistryById: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["registryIdPath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["RegistryEntry"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    patchRegistryById: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["registryIdPath"];
             };
             cookie?: never;
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["RegistryPostBody"];
-            };
-        };
-        responses: {
-            200: components["responses"]["RegistryEntry"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    getDatasetByName: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Used by non admin users. The value should match the project decalred on the roken_transfer endpoint */
-                project_name?: components["parameters"]["projectNamePath"];
-            };
-            path: {
-                /** @description Dataset name, the same set from the POST /dataset, or fetched from the dataset list */
-                name: components["parameters"]["datasetNamePath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["DatasetById"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    deleteDatasetByName: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Dataset name, the same set from the POST /dataset, or fetched from the dataset list */
-                name: components["parameters"]["datasetNamePath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            204: components["responses"]["DatasetPost"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    editDatasetByName: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Dataset name, the same set from the POST /dataset, or fetched from the dataset list */
-                name: components["parameters"]["datasetNamePath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["DatasetPostBody"];
-            };
-        };
-        responses: {
-            204: components["responses"]["NoContent"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    getDatasetCatalogueByName: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Used by non admin users. The value should match the project decalred on the roken_transfer endpoint */
-                project_name?: components["parameters"]["projectNamePath"];
-            };
-            path: {
-                /** @description Dataset name, the same set from the POST /dataset, or fetched from the dataset list */
-                name: components["parameters"]["datasetNamePath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["DatasetCatalogue"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    getDatasetDictionariesByName: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Used by non admin users. The value should match the project decalred on the roken_transfer endpoint */
-                project_name?: components["parameters"]["projectNamePath"];
-            };
-            path: {
-                /** @description Dataset name, the same set from the POST /dataset, or fetched from the dataset list */
-                name: components["parameters"]["datasetNamePath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["DatasetDictionary"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    getDatasetDictionariesTableByName: {
-        parameters: {
-            query?: never;
-            header?: {
-                /** @description Used by non admin users. The value should match the project decalred on the roken_transfer endpoint */
-                project_name?: components["parameters"]["projectNamePath"];
-            };
-            path: {
-                /** @description Dataset name, the same set from the POST /dataset, or fetched from the dataset list */
-                name: components["parameters"]["datasetNamePath"];
-                table_name: components["parameters"]["dictionaryTablePath"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["DatasetDictionaryTable"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_task_requests: {
-        parameters: {
-            query?: {
-                /** @description Page to return */
-                page?: components["parameters"]["paginationPage"];
-                /** @description How many entries maximum per page */
-                per_page?: components["parameters"]["paginationPerPage"];
-                /** @description Only task requests waiting (true) or not waiting (false) to be launched */
-                queued?: boolean;
-                /** @description Only task requests of this project */
-                project_id?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description List of task requests */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items?: components["schemas"]["TaskRequestObject"][];
-                        /** @example 1 */
-                        page?: number;
-                        /** @example 25 */
-                        per_page?: number;
-                        /** @example 100 */
-                        total?: number;
-                        /** @example 4 */
-                        pages?: number;
-                    };
+                "application/json": {
+                    [key: string]: unknown;
                 };
             };
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_task_request: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Unique task request identifier */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description A task request */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskRequestObject"];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    patch_task_request: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Unique task request identifier */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TaskRequestPatchBody"];
-            };
         };
         responses: {
-            /** @description The updated task request */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskRequestObject"];
-                };
-            };
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    create_task_from_request: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Unique task request identifier */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The task already created for this request */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskById"];
-                };
-            };
-            /** @description Task created */
+            /** @description Successful Response */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskById"];
+                    "application/json": components["schemas"]["TaskCreatedDTO"];
                 };
             };
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    get_result: {
+    get_tasks_projects__project_id__tasks__get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskPageDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_tasks_projects__project_id__tasks__post: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description Unique project identifier */
                 project_id: number;
-                /** @description Unique result identifier */
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskCreatedDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_id_projects__project_id__tasks__task_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_task_projects__project_id__tasks__task_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_task_projects__project_id__tasks__task_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_tasks_projects__project_id__tasks__task_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_tasks_validate_projects__project_id__tasks_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_trigger_projects__project_id__tasks__task_id__trigger_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskTriggerDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_config_projects__project_id__tasks__task_id__config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskConfigDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    launch_task_projects__project_id__tasks__task_id__launch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskLaunchDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_task_results_projects__project_id__tasks__task_id__results_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestResultDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_tasks_logs_projects__project_id__tasks__task_id__logs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_results_projects__project_id__tasks__task_id__results_approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    block_results_projects__project_id__tasks__task_id__results_block_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_results_projects__project_id__results_get: {
+        parameters: {
+            query?: {
+                step?: string[];
+                state?: string | null;
+                active_resource?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestResultDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_result_projects__project_id__results_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestResultDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_result_projects__project_id__results__result_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
                 result_id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["Result"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestResultDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    patch_result: {
+    patch_result_projects__project_id__results__result_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description Unique project identifier */
                 project_id: number;
-                /** @description Unique result identifier */
                 result_id: number;
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["ResultPatchBody"];
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
-            /** @description The updated result */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ResultById"];
+                    "application/json": components["schemas"]["PullRequestResultDTO"];
                 };
             };
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            /** @description The step move is not allowed */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_results: {
-        parameters: {
-            query?: {
-                /** @description Only the pull request results in this state, e.g. ?state=FAILED */
-                state?: "IN_PROGRESS" | "DELIVERED" | "FAILED";
-                /** @description true keeps only the results whose link to the results repository is active (enabled, not revoked, on an enabled repository and provider) */
-                active_link?: "true";
-                /** @description Only the pull request results at these steps, repeated for several: ?step=PUSHED&step=OPENED */
-                step?: ("UNKNOWN" | "PUSHED" | "OPENED" | "MERGED" | "CLOSED" | "REVOKED" | "STALE")[];
-            };
-            header?: never;
-            path: {
-                /** @description Unique project identifier */
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: components["responses"]["ResultList"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    post_result: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Unique project identifier */
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResultPostBody"];
-            };
-        };
-        responses: {
-            /** @description The existing result */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ResultById"];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description The new result (state FAILED, step REVOKED, STALE or UNKNOWN, when the link was revoked, the task's configuration changed or the link is switched off) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResultById"];
-                };
-            };
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
         };
     };
-    get_sensors: {
+    get_users_list_global_users_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5211,13 +4384,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["SensorList"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            502: components["responses"]["502_dagster"];
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDTO"][];
+                };
+            };
         };
     };
-    patch_sensors: {
+    create_user_global_users_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5226,19 +4404,1404 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["SensorsPatchBody"];
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
-            200: components["responses"]["SensorList"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            502: components["responses"]["502_dagster"];
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewUserDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    get_sensor: {
+    get_users_list_global_users__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDTO"][];
+                };
+            };
+        };
+    };
+    create_user_global_users__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NewUserDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_global_users_reset_password_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_repositories_global_repositories_triggers_get: {
+        parameters: {
+            query?: {
+                pollable?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerRepositoryDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_repository_global_repositories_triggers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_repositories_global_repositories_triggers__get: {
+        parameters: {
+            query?: {
+                pollable?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerRepositoryDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_repository_global_repositories_triggers__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_repository_global_repositories_triggers__repo_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_repository_global_repositories_triggers__repo_id__delete: {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_repository_global_repositories_triggers__repo_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pull_requests_global_repositories_triggers__repo_id__pull_requests_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageDTO_PullRequestDTO_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_pull_requests_batch_global_repositories_triggers__repo_id__pull_requests_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestBatchDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_project_trigger_repositories_projects__project_id__repositories_triggers_get: {
+        parameters: {
+            query?: {
+                active?: string;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTriggerRepositoryDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTriggerRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTriggerRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTriggerRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pull_requests_projects__project_id__repositories_triggers__repo_id__pull_requests_get: {
+        parameters: {
+            query?: {
+                state?: string | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageDTO_PullRequestTriggerDTO_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_pull_request_projects__project_id__repositories_triggers__repo_id__pull_requests__number__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repo_id: number;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestTriggerDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_pull_request_projects__project_id__repositories_triggers__repo_id__pull_requests__number__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repo_id: number;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PullRequestTriggerDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_task_projects__project_id__repositories_triggers__repo_id__pull_requests__number__task_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repo_id: number;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_secrets_global_secrets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretDTO"][];
+                };
+            };
+        };
+    };
+    post_secret_global_secrets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_secrets_global_secrets__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretDTO"][];
+                };
+            };
+        };
+    };
+    post_secret_global_secrets__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_secret_global_secrets__label__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_secret_global_secrets__label__delete: {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_secret_global_secrets__label__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_providers_global_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitProviderDTO"][];
+                };
+            };
+        };
+    };
+    post_provider_global_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitProviderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitProviderDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_providers_global_providers__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitProviderDTO"][];
+                };
+            };
+        };
+    };
+    post_provider_global_providers__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitProviderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitProviderDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_provider_global_providers__provider_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitProviderDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_provider_global_providers__provider_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_provider_global_providers__provider_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitProviderPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitProviderDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_repositories_global_repositories_results_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultsRepositoryDTO"][];
+                };
+            };
+        };
+    };
+    post_repository_global_repositories_results_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepositoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_repositories_global_repositories_results__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultsRepositoryDTO"][];
+                };
+            };
+        };
+    };
+    post_repository_global_repositories_results__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepositoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_repository_global_repositories_results__repo_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_repository_global_repositories_results__repo_id__delete: {
+        parameters: {
+            query?: {
+                force?: boolean;
+            };
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_repository_global_repositories_results__repo_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RepositoryPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sensors_dagster_sensors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SensorDTO"][];
+                };
+            };
+        };
+    };
+    patch_sensors_dagster_sensors_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SensorDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_one_sensor_dagster_sensors__name__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5249,14 +5812,27 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            200: components["responses"]["SensorById"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            502: components["responses"]["502_dagster"];
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SensorDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    patch_sensor: {
+    patch_sensor_dagster_sensors__name__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -5267,19 +5843,33 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["SensorPatchBody"];
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
-            200: components["responses"]["SensorById"];
-            400: components["responses"]["InvalidBody"];
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            502: components["responses"]["502_dagster"];
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SensorDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
         };
     };
-    get_secrets: {
+    global_healthcheck_global_healthcheck_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -5288,2545 +5878,393 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The secrets */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SecretObject"][];
+                    "application/json": components["schemas"]["GlobalHealthDTO"];
                 };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
-    post_secret: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SecretPostBody"];
-            };
-        };
-        responses: {
-            /** @description The created secret */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SecretObject"];
-                };
-            };
-            /** @description label missing or not a valid name, provider not a known provider, or values is missing, empty or not an object, a key is not letters, digits, '-', '_' or '.', or a value is not a non-empty string */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description A secret with this label already exists */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_secret: {
+    dataset_healthcheck_global_datasets__dataset_id__healthcheck_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                /** @description The secret's label, unique across the node */
-                label: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The secret */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SecretObject"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Secret not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    delete_secret: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The secret's label, unique across the node */
-                label: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Secret deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The secret could not be removed from the secret store */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Secret not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The secret is still used by a repository or dataset */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    patch_secret: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The secret's label, unique across the node */
-                label: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SecretPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated secret */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SecretObject"];
-                };
-            };
-            /** @description Values is missing, empty or not an object, a key is not letters, digits, '-', '_' or '.', or a value is not a non-empty string, or the secret store could not be written */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Secret not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    revokeSecret: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                label: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The ids of the links, revoked now or earlier */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": number[];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_results_repositories: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The results repositorys */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResultsRepositoryObject"][];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    post_results_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GitRepositoryPostBody"];
-            };
-        };
-        responses: {
-            /** @description The created repository */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResultsRepositoryObject"];
-                };
-            };
-            /** @description A required field is missing, a per-project field was sent, the repo_path is invalid or the provider_id does not exist */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description secret_label does not exist */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description A repository with this provider and repo_path already exists */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_results_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The global repository id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The repository */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResultsRepositoryObject"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Repository not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    delete_results_repository: {
-        parameters: {
-            query?: {
-                /** @description true also revokes and deletes every project's link to the resource. Without it a resource with live project links is refused with a 409. */
-                force?: boolean;
-            };
-            header?: never;
-            path: {
-                /** @description The global repository id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Repository and links deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Refused while a task delivered to it */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Repository not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Projects are still linked to it and force is not true. details lists them as {id, name} */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    patch_results_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The global repository id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GitRepositoryPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated repository */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResultsRepositoryObject"];
-                };
-            };
-            /** @description No fields, a field that cannot be updated, or an empty value */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Repository or secret not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description A repository with this provider and repo_path already exists */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    revokeResultsRepository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The ids of the links, revoked now or earlier */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": number[];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_trigger_repositories: {
-        parameters: {
-            query?: {
-                /** @description Only the enabled repositories on an enabled provider with an enabled secret, whatever their project links: what Dagster polls. Each carries, as pr_cursor, where polling resumes */
-                pollable?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The trigger repositorys */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerRepositoryObject"][];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    post_trigger_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GitRepositoryPostBody"];
-            };
-        };
-        responses: {
-            /** @description The created repository */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerRepositoryObject"];
-                };
-            };
-            /** @description A required field is missing, a per-project field was sent, the repo_path is invalid or the provider_id does not exist */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description secret_label does not exist */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description A repository with this provider and repo_path already exists */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_trigger_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The global repository id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The repository */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerRepositoryObject"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Repository not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    delete_trigger_repository: {
-        parameters: {
-            query?: {
-                /** @description true also revokes and deletes every project's link to the resource. Without it a resource with live project links is refused with a 409. */
-                force?: boolean;
-            };
-            header?: never;
-            path: {
-                /** @description The global repository id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Repository and links deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Refused while a pull request of it has been ingested */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Repository not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Projects are still linked to it and force is not true. details lists them as {id, name} */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    patch_trigger_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The global repository id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GitRepositoryPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated repository */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerRepositoryObject"];
-                };
-            };
-            /** @description No fields, a field that cannot be updated, or an empty value */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Repository or secret not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description A repository with this provider and repo_path already exists */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    revokeTriggerRepository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The ids of the links, revoked now or earlier */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": number[];
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            500: components["responses"]["InternalError"];
-        };
-    };
-    get_repository_pull_requests: {
-        parameters: {
-            query?: {
-                /** @description Page to return (default 1) */
-                page?: number;
-                /** @description How many entries maximum per page (default 20) */
-                per_page?: number;
-            };
-            header?: never;
-            path: {
-                /** @description The global trigger repository id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The provider's facts of the stored pull requests, most recent merge first */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PullRequestFactsPage"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Repository not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    post_repository_pull_requests_batch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The global trigger repository id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PullRequestBatchBody"];
-            };
-        };
-        responses: {
-            /** @description The numbers stored and those already there */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PullRequestBatchResult"];
-                };
-            };
-            /** @description pull_requests is not a list, has more than 100 entries, an entry is invalid, or the repository is disabled */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Repository not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    list_project_datasets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The links, inactive ones included with their flags */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectDatasetObject"][];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_project_dataset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global dataset's id */
                 dataset_id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The link */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectDatasetObject"];
+                    "application/json": components["schemas"]["DatasetHealthDTO"];
                 };
             };
-            /** @description Not authenticated */
-            401: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
-    put_project_dataset: {
+    secret_healthcheck_global_secrets__label__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretHealthDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_healthcheck_global_providers__provider_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitProviderHealthDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    trigger_repository_healthcheck_global_repositories_triggers__repository_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryConnectionDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    results_repository_healthcheck_global_repositories_results__repository_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryConnectionDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    project_healthcheck_projects__project_id__healthcheck_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 project_id: number;
-                /** @description The global dataset's id */
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectHealthDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    project_dataset_healthcheck_projects__project_id__datasets__dataset_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
                 dataset_id: number;
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectDatasetPutBody"];
-            };
-        };
-        responses: {
-            /** @description The link existed: its settings are replaced */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectDatasetObject"];
-                };
-            };
-            /** @description The link (first time) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectDatasetObject"];
-                };
-            };
-            /** @description Invalid body */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    delete_project_dataset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global dataset's id */
-                dataset_id: number;
-            };
-            cookie?: never;
-        };
         requestBody?: never;
         responses: {
-            /** @description Link removed */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error while deleting the record, e.g. a task delivered to it */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    patch_project_dataset: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global dataset's id */
-                dataset_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectLinkPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated link */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectDatasetObject"];
+                    "application/json": components["schemas"]["ProjectDatasetHealthDTO"];
                 };
             };
-            /** @description No fields, an unknown field or a value of the wrong type */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description revoked sent by a caller that is not an admin */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    list_project_secrets: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The links, inactive ones included with their flags */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectSecretObject"][];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
-    get_project_secret: {
+    project_secret_healthcheck_projects__project_id__secrets__label__healthcheck_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 project_id: number;
-                /** @description The secret's label, unique across the node */
                 label: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The link */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectSecretObject"];
+                    "application/json": components["schemas"]["ProjectSecretHealthDTO"];
                 };
             };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    put_project_secret: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The secret's label, unique across the node */
-                label: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectSecretPutBody"];
-            };
-        };
-        responses: {
-            /** @description The link existed: its settings are replaced */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectSecretObject"];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
-            };
-            /** @description The link (first time) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectSecretObject"];
-                };
-            };
-            /** @description Invalid body */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
-    delete_project_secret: {
+    project_trigger_repository_healthcheck_projects__project_id__repositories_triggers__repository_id__healthcheck_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 project_id: number;
-                /** @description The secret's label, unique across the node */
-                label: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Link removed */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error while deleting the record, e.g. a task delivered to it */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    patch_project_secret: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The secret's label, unique across the node */
-                label: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectLinkPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated link */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectSecretObject"];
-                };
-            };
-            /** @description No fields, an unknown field or a value of the wrong type */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description revoked sent by a caller that is not an admin */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    list_project_results_repositorys: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The links, inactive ones included with their flags */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectResultsRepositoryObject"][];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_project_results_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global results repository's id */
                 repository_id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The link */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectResultsRepositoryObject"];
+                    "application/json": components["schemas"]["ProjectTriggerRepositoryHealthDTO"];
                 };
             };
-            /** @description Not authenticated */
-            401: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
-    put_project_results_repository: {
+    project_results_repository_healthcheck_projects__project_id__repositories_results__repository_id__healthcheck_get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 project_id: number;
-                /** @description The global results repository's id */
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectResultsRepositoryPutBody"];
-            };
-        };
-        responses: {
-            /** @description The link existed: its settings are replaced */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectResultsRepositoryObject"];
-                };
-            };
-            /** @description The link (first time) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectResultsRepositoryObject"];
-                };
-            };
-            /** @description Invalid body */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The project already has another results repository, or the project is enabled when the link is first created */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    delete_project_results_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global results repository's id */
                 repository_id: number;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Link removed */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error while deleting the record, e.g. a task delivered to it */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    patch_project_results_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global results repository's id */
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectResultsRepositoryPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated link */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectResultsRepositoryObject"];
+                    "application/json": components["schemas"]["ProjectResultsRepositoryHealthDTO"];
                 };
             };
-            /** @description No fields, an unknown field or a value of the wrong type */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description revoked sent by a caller that is not an admin */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    list_project_trigger_repositorys: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The links, inactive ones included with their flags */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ProjectTriggerRepositoryObject"][];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };
-    get_project_trigger_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global trigger repository's id */
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The link */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectTriggerRepositoryObject"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    put_project_trigger_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global trigger repository's id */
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectTriggerRepositoryPutBody"];
-            };
-        };
-        responses: {
-            /** @description The link existed: its settings are replaced */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectTriggerRepositoryObject"];
-                };
-            };
-            /** @description The link (first time) */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectTriggerRepositoryObject"];
-                };
-            };
-            /** @description Invalid body */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    delete_project_trigger_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global trigger repository's id */
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Link removed */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error while deleting the record, e.g. the link has pull requests */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    patch_project_trigger_repository: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global trigger repository's id */
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectTriggerRepositoryPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated link */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectTriggerRepositoryObject"];
-                };
-            };
-            /** @description No fields, an unknown field or a value of the wrong type */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description revoked sent by a caller that is not an admin */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_pull_requests: {
+    get_all_tasks_tasks_get: {
         parameters: {
             query?: {
-                /** @description Page to return (default 1) */
-                page?: number;
-                /** @description How many entries maximum per page (default 20) */
-                per_page?: number;
-                /** @description Only the pull requests in this state */
-                state?: "UNKNOWN" | "REJECTED" | "YIELDED";
+                status?: string | null;
+                project_enabled?: string | null;
             };
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global trigger repository's id */
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The pull requests, most recent merge first */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PullRequestTriggerPage"];
-                };
-            };
-            /** @description Invalid state */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Project or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_pull_request: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global trigger repository's id */
-                repository_id: number;
-                /** @description The pull request number */
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The pull request */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PullRequestTriggerObject"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Pull request or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    patch_pull_request: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global trigger repository's id */
-                repository_id: number;
-                /** @description The pull request number */
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PullRequestPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated pull request */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PullRequestTriggerObject"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Pull request or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The state move is not allowed */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    post_pull_request_task: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description The global trigger repository's id */
-                repository_id: number;
-                /** @description The pull request number */
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PullRequestSpecBody"];
-            };
-        };
-        responses: {
-            /** @description The pull request already had a task */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PullRequestTaskObject"];
-                };
-            };
-            /** @description The created task */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PullRequestTaskObject"];
-                };
-            };
-            /** @description spec_raw missing or the spec is invalid. The pull request is then REJECTED with the cause */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Pull request or link not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_git_providers: {
-        parameters: {
-            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The git providers */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GitProviderObject"][];
+                    "application/json": components["schemas"]["TaskPageDTO"];
                 };
             };
-            /** @description Not authenticated */
-            401: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
-                content?: never;
             };
         };
     };
-    post_git_provider: {
+    get_all_tasks_tasks__get: {
         parameters: {
-            query?: never;
+            query?: {
+                status?: string | null;
+                project_enabled?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GitProviderPostBody"];
-            };
-        };
-        responses: {
-            /** @description The created provider */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GitProviderObject"];
-                };
-            };
-            /** @description A required field is missing, or the type, uri or api_uri is invalid */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description A provider with this name or uri already exists */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_git_provider: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The git provider id */
-                id: number;
-            };
-            cookie?: never;
-        };
         requestBody?: never;
         responses: {
-            /** @description The provider */
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GitProviderObject"];
+                    "application/json": components["schemas"]["TaskPageDTO"];
                 };
             };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Provider not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    delete_git_provider: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The git provider id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Provider deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Provider not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description A trigger or results repository is still on it */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    patch_git_provider: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The git provider id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GitProviderPatchBody"];
-            };
-        };
-        responses: {
-            /** @description The updated provider */
-            200: {
+            /** @description Validation Error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GitProviderObject"];
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
-            /** @description No fields, or an invalid value */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Provider not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description The name or uri is taken */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    get_git_provider_healthcheck: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description The git provider id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The health. A failed check is reported in the body, with a 200 */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GitProviderHealthObject"];
-                };
-            };
-            /** @description Not authenticated */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Not authorised */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Provider not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    launch_task: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                /** @description Unique task identifier */
-                task_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The decision */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /**
-                         * @example launch
-                         * @enum {string}
-                         */
-                        outcome?: "launch" | "fail";
-                        /**
-                         * @description Why the task failed, as stored; null when the outcome is launch.
-                         * @example null
-                         */
-                        cause?: string | null;
-                        task?: components["schemas"]["TaskById"];
-                        /** @description The task's dataset with its secret reference; null on fail or for a task without a dataset. */
-                        dataset?: components["schemas"]["DatasetObject"] | null;
-                    };
-                };
-            };
-            401: components["responses"]["Unauthenticated"];
-            403: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            /** @description The task is no longer PENDING; nothing changed. The error says its status. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            500: components["responses"]["InternalError"];
         };
     };
 }

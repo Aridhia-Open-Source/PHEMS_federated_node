@@ -20,7 +20,7 @@ type ViewProps = {
   id: number | string;
   title: string;
   // The project resource, once loaded
-  resource: (Flags & object) | undefined;
+  resource: Flags | undefined;
   settings: Record<string, unknown>;
   onToggle: (enabled: boolean) => void;
   busy: boolean;
@@ -42,7 +42,7 @@ function ResourceView(p: ViewProps) {
       <p><Link to={resourcesPath(p.projectId)}>← Resources</Link></p>
       <h2>{p.title}</h2>
       <p>
-        <EnabledToggle enabled={!!p.resource.enabled} busy={p.busy} onChange={p.onToggle} />{" "}
+        <EnabledToggle enabled={p.resource.enabled} busy={p.busy} onChange={p.onToggle} />{" "}
         State: {stateText(p.resource)}
       </p>
       <p><Link to={globalPath(p.kind, p.id)}>Global resource</Link></p>
@@ -80,14 +80,14 @@ export function TriggerResourcePage({ projectId }: { projectId: number }) {
   const path = { project_id: projectId, repository_id: id };
   const { data } = useQuery(triggerResource(projectId, id));
   const toggle = useToggle(projectId, "triggers", (enabled) =>
-    call(api.PATCH("/projects/{project_id}/repositories/triggers/{repository_id}", {
-      params: { path },
+    call(api.PATCH("/projects/{project_id}/repositories/triggers/{repo_id}", {
+      params: { path: { project_id: projectId, repo_id: id } },
       body: { enabled },
     })));
   return (
     <ResourceView
       projectId={projectId} kind="triggers" id={id}
-      title={`Trigger repository ${data?.trigger_repository?.repo_path ?? id}`}
+      title={`Trigger repository ${data?.trigger_repository.repo_path ?? id}`}
       resource={data}
       settings={{
         watch_dir: data?.watch_dir,
@@ -120,7 +120,7 @@ export function ResultsResourcePage({ projectId }: { projectId: number }) {
   return (
     <ResourceView
       projectId={projectId} kind="results" id={id}
-      title={`Results repository ${data?.results_repository?.repo_path ?? id}`}
+      title={`Results repository ${data?.results_repository.repo_path ?? id}`}
       resource={data}
       settings={{ target_dir: data?.target_dir, owned_by_federated_node: data?.owned_by_federated_node }}
       busy={toggle.isPending}
@@ -145,14 +145,14 @@ export function DatasetResourcePage({ projectId }: { projectId: number }) {
   return (
     <ResourceView
       projectId={projectId} kind="datasets" id={id}
-      title={`Dataset ${data?.dataset?.name ?? id}`}
+      title={`Dataset ${data?.dataset.name ?? id}`}
       resource={data}
       settings={{
         default: project.data ? project.data.default_dataset_id === id : undefined,
-        host: data?.dataset?.host,
-        port: data?.dataset?.port,
-        type: data?.dataset?.type,
-        slug: data?.dataset?.slug,
+        host: data?.dataset.host,
+        port: data?.dataset.port,
+        type: data?.dataset.type,
+        slug: data?.dataset.slug,
       }}
       busy={toggle.isPending}
       onToggle={(enabled) => toggle.mutate(enabled)}
@@ -172,7 +172,7 @@ export function SecretResourcePage({ projectId }: { projectId: number }) {
       projectId={projectId} kind="secrets" id={label}
       title={`Secret ${label}`}
       resource={data}
-      settings={{ label, description: data?.secret?.description, key: data?.secret?.key }}
+      settings={{ label, description: data?.secret.description, key: data?.secret.key }}
       busy={toggle.isPending}
       onToggle={(enabled) => toggle.mutate(enabled)}
       health={() => call(api.GET("/projects/{project_id}/secrets/{label}/healthcheck", { params: { path } }))}

@@ -5,15 +5,15 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Route, Routes, useParams } from "react-router-dom";
-import { api, call, type Page, type Schemas } from "../../api/client";
+import { api, call, pageQuery, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
 import {
   pullRequestPath, resourcePath, stateText, taskPath, triggerPath, triggerResource, triggerResources,
 } from "../../shared/projectResources";
 
-type RepoResource = Schemas["ProjectTriggerRepositoryObject"];
-type PullRequest = Schemas["PullRequestTriggerObject"];
+type RepoResource = Schemas["ProjectTriggerRepositoryDTO"];
+type PullRequest = Schemas["PullRequestTriggerDTO"];
 type StateFilter = "UNKNOWN" | "REJECTED" | "YIELDED";
 
 const STATES: StateFilter[] = ["UNKNOWN", "REJECTED", "YIELDED"];
@@ -36,12 +36,12 @@ function RepoList({ projectId }: { projectId: number }) {
       <p>The project's trigger repositories. Pick one for its pull requests.</p>
       <ResourceTable<RepoResource>
         data={data}
-        rowKey={(r) => r.trigger_repository!.id!}
+        rowKey={(r) => r.trigger_repository.id}
         columns={[
           {
             header: "Repository",
             cell: (r) => (
-              <Link to={triggerPath(projectId, r.trigger_repository!.id!)}>{r.trigger_repository?.repo_path}</Link>
+              <Link to={triggerPath(projectId, r.trigger_repository.id)}>{r.trigger_repository.repo_path}</Link>
             ),
           },
           { header: "Watch dir", cell: (r) => r.watch_dir },
@@ -50,7 +50,7 @@ function RepoList({ projectId }: { projectId: number }) {
           { header: "State", cell: (r) => stateText(r) },
           {
             header: "",
-            cell: (r) => <Link to={resourcePath(projectId, "triggers", r.trigger_repository!.id!)}>Resource</Link>,
+            cell: (r) => <Link to={resourcePath(projectId, "triggers", r.trigger_repository.id)}>Resource</Link>,
           },
         ]}
       />
@@ -64,7 +64,7 @@ function RepoPullRequests({ projectId }: { projectId: number }) {
   return (
     <section>
       <p><Link to={`/projects/${projectId}/triggers`}>← Triggers</Link></p>
-      <h2>Pull requests of {data?.trigger_repository?.repo_path ?? `repository ${repoId}`}</h2>
+      <h2>Pull requests of {data?.trigger_repository.repo_path ?? `repository ${repoId}`}</h2>
       <p><Link to={resourcePath(projectId, "triggers", repoId)}>Project resource</Link></p>
       <PullRequestList projectId={projectId} repositoryId={repoId} />
     </section>
@@ -80,10 +80,10 @@ export function PullRequestList({ projectId, repositoryId }: { projectId: number
     queryKey: ["projects", projectId, "triggers", repositoryId, "pull_requests", page, state],
     queryFn: () =>
       call(
-        api.GET("/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests", {
+        api.GET("/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests", {
           params: {
-            path: { project_id: projectId, repository_id: repositoryId },
-            query: { page, ...(state ? { state } : {}) },
+            path: { project_id: projectId, repo_id: repositoryId },
+            query: pageQuery(page, undefined, state ? { state } : {}),
           },
         }),
       ),
@@ -98,14 +98,14 @@ export function PullRequestList({ projectId, repositoryId }: { projectId: number
         </select>
       </label>
       <ResourceTable<PullRequest>
-        data={data as Page<PullRequest> | undefined}
+        data={data}
         onPage={setPage}
-        rowKey={(p) => p.number!}
+        rowKey={(p) => p.number}
         empty="No pull requests"
         columns={[
           {
             header: "Number",
-            cell: (p) => <Link to={pullRequestPath(projectId, repositoryId, p.number!)}>#{p.number}</Link>,
+            cell: (p) => <Link to={pullRequestPath(projectId, repositoryId, p.number)}>#{p.number}</Link>,
           },
           { header: "Title", cell: (p) => p.title },
           { header: "Raised by", cell: (p) => p.raised_by },
@@ -131,8 +131,8 @@ function PullRequestDetail({ projectId }: { projectId: number }) {
     queryKey: ["projects", projectId, "triggers", repoId, "pull_request", number],
     queryFn: () =>
       call(
-        api.GET("/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests/{number}", {
-          params: { path: { project_id: projectId, repository_id: repoId, number } },
+        api.GET("/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests/{number}", {
+          params: { path: { project_id: projectId, repo_id: repoId, number } },
         }),
       ),
   });
