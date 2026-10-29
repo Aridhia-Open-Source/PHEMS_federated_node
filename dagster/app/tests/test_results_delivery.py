@@ -18,12 +18,15 @@ from app.definitions.sensors.task.delivery import (
     task_results_delivery_sensor,
 )
 from app.delivery import git_push
+from app.definitions.sensors.base import artifacts_volume_tags
 from app.delivery.results import ResultsDelivery
 from app.models import (
     GitProvider, GitToken, Project, PullRequestResult, ResultsRepository, Task, TaskTrigger,
     TriggerRepositoryRef,
 )
 from app.tests.conftest import SAMPLE_SECRET
+
+pytestmark = pytest.mark.usefixtures("artifacts_env")
 
 RUN_ID = "run-1"
 TASK = Task(
@@ -152,7 +155,7 @@ def test_success_pushes_a_branch_with_the_layout_and_records_pushed_then_opened(
     out = check / LAYOUT
     with zipfile.ZipFile(out / "results.zip") as zf:
         assert sorted(zf.namelist()) == ["out.txt", "sub/b.csv"]
-    assert json.loads((out / "spec.json").read_text()) == {"image": "img", "dataset_id": None, "env": {}}
+    assert json.loads((out / "spec.json").read_text()) == {"image": "img", "dataset_id": None, "env": {}, "resources": {}}
     assert git("rev-list", "--count", "main", cwd=remote) == "1"
     metadata = json.loads((out / "metadata.json").read_text())
     assert metadata["branch"] == BRANCH
@@ -428,7 +431,7 @@ def test_the_sensor_requests_a_delivery_run_for_a_successful_task_run():
     result = task_results_delivery_sensor._run_status_sensor_fn(context)
 
     assert result.run_key == "deliver/7/2"
-    assert result.tags == {"trigger": "delivery", "delivery_task_id": "7"}
+    assert result.tags == {"trigger": "delivery", "delivery_task_id": "7", **artifacts_volume_tags(RUN_ID)}
     assert result.run_config == {"ops": {"deliver_results": {"config": {"project_id": 1, "task_id": 7, "run_id": RUN_ID}}}}
 
 
@@ -483,7 +486,7 @@ def test_the_retry_sensor_relaunches_a_failed_delivery_with_its_task_run():
 
     (request,) = requests_
     assert re.fullmatch(r"deliver-retry/9/\d+", request.run_key)
-    assert request.tags == {"trigger": "delivery", "delivery_task_id": "7"}
+    assert request.tags == {"trigger": "delivery", "delivery_task_id": "7", **artifacts_volume_tags("run-7")}
     assert request.run_config == {"ops": {"deliver_results": {"config": {
         "project_id": 1, "task_id": 7, "run_id": "run-7"
     }}}}
@@ -525,3 +528,65 @@ def test_the_retry_run_key_does_not_change_with_the_attempts():
 def test_the_retry_sensor_is_registered_stopped_by_default():
     assert results_delivery_retry_sensor.default_status == dg.DefaultSensorStatus.STOPPED
     assert results_delivery_retry_sensor in SENSORS
+
+
+def test_a_symbolic_link_in_the_artifacts_is_not_zipped(tmp_path):
+    src = tmp_path / "run"
+    (src / "sub").mkdir(parents=True)
+    (src / "out.txt").write_text("hello")
+    secret = tmp_path / "secret.txt"
+    secret.write_text("not a result")
+    (src / "file-link").symlink_to(secret)
+    (src / "dir-link").symlink_to(tmp_path)
+
+    git_push.zip_dir(src, tmp_path / "out.zip")
+
+    with zipfile.ZipFile(tmp_path / "out.zip") as zf:
+        assert zf.namelist() == ["out.txt"]
+
+
+def test_a_file_name_with_a_backslash_is_not_zipped(tmp_path, caplog):
+    src = tmp_path / "run"
+    src.mkdir()
+    (src / "out.txt").write_text("hello")
+    (src / "..\\..\\evil.txt").write_text("evil")
+    (src / "a\\b").mkdir()
+    (src / "a\\b" / "inside.txt").write_text("evil")
+
+    git_push.zip_dir(src, tmp_path / "out.zip")
+
+    with zipfile.ZipFile(tmp_path / "out.zip") as zf:
+        assert zf.namelist() == ["out.txt"]
+    assert "evil.txt" in caplog.text
+
+
+def test_a_symbolic_link_as_the_artifacts_folder_fails_the_delivery(backend_api, remote, artifacts):
+    outside = artifacts.parent / "outside"
+    outside.mkdir()
+    (outside / "x.txt").write_text("x")
+    (artifacts / RUN_ID / "sub" / "b.csv").unlink()
+    (artifacts / RUN_ID / "sub").rmdir()
+    (artifacts / RUN_ID / "out.txt").unlink()
+    (artifacts / RUN_ID).rmdir()
+    (artifacts / RUN_ID).symlink_to(outside)
+
+    with pytest.raises(FileNotFoundError, match="No artifacts at"):
+        deliver(backend_api, remote, artifacts)
+
+    assert git("rev-list", "--count", "main", cwd=remote) == "1"
+
+
+@pytest.mark.parametrize("target_dir", ["/../../etc/", "results/../../x"])
+def test_a_target_dir_that_leaves_the_clone_fails_the_delivery_and_pushes_nothing(
+    backend_api, remote, artifacts, target_dir
+):
+    snapshot = json.loads(json.dumps(CONFIG))
+    snapshot["config_snapshot"]["results"]["target_dir"] = target_dir
+    backend_api.get_task_config.return_value = snapshot
+
+    with pytest.raises(ValueError, match="outside the clone"):
+        deliver(backend_api, remote, artifacts)
+
+    (fields,) = patches(backend_api)
+    assert fields["state"] == "FAILED" and "outside the clone" in fields["error"]
+    assert git("rev-list", "--count", "main", cwd=remote) == "1"

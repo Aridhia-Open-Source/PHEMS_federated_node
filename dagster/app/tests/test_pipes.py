@@ -19,6 +19,7 @@ PIPES_ENV = {
     "DAGSTER_TASK_NAMESPACE": "tasks",
     "DAGSTER_ARTIFACTS_PVC_NAME": "artifacts-pvc",
     "DAGSTER_ARTIFACT_MOUNT_PATH": "/mnt/dagster/artifacts",
+    "DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS": "21600",
 }
 
 SECURITY_CONTEXT_ENV = (
@@ -89,7 +90,7 @@ class TestBasePodSpec:
 
         assert spec["securityContext"] == {"fsGroup": 2001, "runAsUser": 1001}
 
-    def test_volume_is_the_artifacts_claim(self, pipes_env):
+    def test_volume_is_the_artifacts_claim_mounted_at_the_runs_folder_only(self, pipes_env):
         spec = make_pipe()._build_base_pod_spec()
 
         assert spec["volumes"] == [{
@@ -98,8 +99,39 @@ class TestBasePodSpec:
         }]
         assert spec["containers"][0]["volumeMounts"] == [{
             "name": "artifacts-pvc",
-            "mountPath": "/mnt/dagster/artifacts",
+            "mountPath": "/mnt/dagster/artifacts/run-1",
+            "subPath": "run-1",
         }]
+
+    def test_pod_is_killed_at_its_deadline(self, pipes_env):
+        assert make_pipe()._build_base_pod_spec()["activeDeadlineSeconds"] == 21600
+
+    def test_missing_deadline_is_not_defaulted(self, pipes_env, monkeypatch):
+        monkeypatch.delenv("DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS")
+
+        with pytest.raises(KeyError):
+            make_pipe()
+
+    def test_container_is_locked_down(self, pipes_env):
+        container = make_pipe()._build_base_pod_spec()["containers"][0]
+
+        assert container["securityContext"] == {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["ALL"]},
+            "seccompProfile": {"type": "RuntimeDefault"},
+            "runAsNonRoot": True,
+        }
+
+    def test_no_resources_unless_the_spec_has_some(self, pipes_env):
+        assert "resources" not in make_pipe()._build_base_pod_spec()["containers"][0]
+        assert "resources" not in make_pipe(resources={})._build_base_pod_spec()["containers"][0]
+
+    def test_spec_resources_are_the_containers(self, pipes_env):
+        resources = {"limits": {"cpu": "1", "memory": "2Gi"}, "requests": {"cpu": "100m", "memory": "512Mi"}}
+
+        container = make_pipe(resources=resources)._build_base_pod_spec()["containers"][0]
+
+        assert container["resources"] == resources
 
     def test_container_is_named_for_the_run(self, pipes_env):
         spec = make_pipe()._build_base_pod_spec()
@@ -249,14 +281,13 @@ class TestArtifactDir:
         assert os.stat(pipe.artifact_path).st_mode & 0o777 == 0o777
         assert os.stat(pipe.mnt_base_path).st_mode & 0o755 == 0o755
 
-    def test_unwritable_mount_root_warns_rather_than_raising(self, pipes_env, tmp_path):
+    def test_unwritable_mount_root_raises(self, pipes_env, tmp_path):
+        """The task pod only mounts this folder, and the kubelet would create a missing one root-owned."""
         pipe = self._pipe_on(tmp_path, pipes_env)
 
         with patch("app.definitions.pipes.Path.mkdir", side_effect=OSError("read-only")):
-            pipe._prepare_artifact_dir()
-
-        pipe.context.log.warning.assert_called_once()
-        assert "read-only" in pipe.context.log.warning.call_args.args[0]
+            with pytest.raises(RuntimeError, match="read-only"):
+                pipe._prepare_artifact_dir()
 
     def test_chmod_failure_is_tolerated(self, pipes_env, tmp_path):
         """CIFS rejects chmod outright and already mounts 0777."""
@@ -281,6 +312,7 @@ class TestCall:
         kwargs = client.run.call_args.kwargs
         assert kwargs["namespace"] == "tasks"
         assert kwargs["image"] == "ghcr.io/org/experiment:latest"
+        assert kwargs["pod_wait_timeout"] == 21600 + TERMINATION_GRACE_PERIOD_SECONDS
         assert kwargs["base_pod_spec"]["restartPolicy"] == "Never"
         assert response.output.value == {"artifacts_path": pipe.artifact_path}
 

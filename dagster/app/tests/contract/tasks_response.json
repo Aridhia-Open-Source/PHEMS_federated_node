@@ -14,7 +14,8 @@
       "spec": {
         "dataset_id": null,
         "env": {},
-        "image": "img:1"
+        "image": "img:1",
+        "resources": {}
       },
       "started_at": null,
       "state_cause": null,

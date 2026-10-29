@@ -8,3 +8,4 @@ class TaskSpec(BaseModel):
     image: str
     dataset_id: int | None = None
     env: dict
+    resources: dict = {}

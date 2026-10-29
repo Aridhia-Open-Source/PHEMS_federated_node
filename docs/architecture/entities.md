@@ -146,6 +146,7 @@ erDiagram
         string image
         int dataset_id FK "optional"
         json env
+        json resources "CPU and memory requests and limits"
     }
     results {
         int id PK
