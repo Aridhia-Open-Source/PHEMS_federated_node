@@ -21,7 +21,6 @@ from app.delivery import git_push
 from app.models import (
     PullRequestResultStep, ResultsRepository, ResultState, Task, TaskTrigger, TriggerRepositoryRef,
 )
-from app.secrets import read_secret_value
 
 ZIP_NAME = "results.zip"
 METADATA_NAME = "metadata.json"
@@ -108,7 +107,7 @@ class ResultsDelivery:
             branch, commit_sha, base_branch = self._push(task, run_id, repository, results["target_dir"], pull_request.trigger_repository, pull_request, title)
             pushed = {"branch": branch, "commit_sha": commit_sha}
             self.backend_api.patch_result(task.project_id, result.id, {"step": PullRequestResultStep.PUSHED.value, **pushed})
-            results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request)
+            results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request, task.project_id)
             # An earlier attempt's PR may be merged or closed already: record what it is
             step = PullRequestResultStep.from_git(results_pr)
             self.backend_api.patch_result(task.project_id, result.id, {
@@ -156,8 +155,8 @@ class ResultsDelivery:
         repository's default branch. The branch name is fixed by the layout and the merge sha,
         so a branch already on the remote is from an earlier attempt and is not pushed again.
         """
-        # TODO(auth): the token read and the Keycloak system user are being reworked
-        env = git_push.auth_env(read_secret_value(repository.secret, "TOKEN"))
+        # Asked for here, just before the git commands that need it: it lasts an hour
+        env = git_push.auth_env(self.backend_api.get_repository_token("results", repository.id, task.project_id).token)
 
         layout = Path(target_dir.strip("/")) / self._name(trigger_repository) / str(
             pull_request.number
@@ -207,10 +206,11 @@ class ResultsDelivery:
             return branch, git_push.commit_and_push(clone_dir, message, env), base_branch
 
     def _open_pull_request(
-        self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: TaskTrigger
+        self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: TaskTrigger,
+        project_id: int,
     ) -> dict:
         """Open the pull request of the branch, or return the one an earlier attempt opened."""
-        git_api = self.git_apis.for_repository(repository)
+        git_api = self.git_apis.for_repository(repository, project_id)
         existing = git_api.find_pull_request_by_branch(repository.repo_path, branch, base_branch)
         if existing:
             self.log.info(f"Branch {branch} already has pull request #{existing['number']}")

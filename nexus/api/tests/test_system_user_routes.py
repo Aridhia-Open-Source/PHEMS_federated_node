@@ -41,7 +41,8 @@ def test_a_caller_who_is_neither_admin_nor_system_is_refused(client, post_json_u
     assert getattr(client, method)(url, json=body, headers=post_json_user_header).status_code == 403
 
 
-# (method, url, body) for the pull request, task and result writes Dagster makes; the check runs before any lookup
+# (method, url, body) for the pull request, task and result writes Dagster makes, and the git token requests; the check runs
+# before any lookup
 STATE_ROUTES = [
     ("post", "/global/repositories/triggers/1/pull_requests", {"pull_requests": []}),
     ("patch", "/projects/1/repositories/triggers/1/pull_requests/1", {"state": "REJECTED", "state_cause": "x"}),
@@ -50,6 +51,8 @@ STATE_ROUTES = [
     ("post", "/projects/1/tasks/1/launch", None),
     ("post", "/projects/1/results", {"task_id": 1, "results_repository_id": 1}),
     ("patch", "/projects/1/results/1", {"step": "PUSHED"}),
+    ("post", "/global/repositories/triggers/1/token", {}),
+    ("post", "/global/repositories/results/1/token", {}),
 ]
 
 

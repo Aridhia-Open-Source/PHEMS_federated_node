@@ -20,7 +20,7 @@ from app.definitions.sensors.task.delivery import (
 from app.delivery import git_push
 from app.delivery.results import ResultsDelivery
 from app.models import (
-    GitProvider, Project, PullRequestResult, ResultsRepository, Secret, Task, TaskTrigger,
+    GitProvider, GitToken, Project, PullRequestResult, ResultsRepository, Task, TaskTrigger,
     TriggerRepositoryRef,
 )
 from app.tests.conftest import SAMPLE_SECRET
@@ -97,6 +97,7 @@ def backend_api():
     api.get_global_results_repository.return_value = GLOBAL_REPOSITORY
     api.get_task_trigger.return_value = PULL_REQUEST
     api.create_result.return_value = result()
+    api.get_repository_token.return_value = GitToken(token="tok", expires_at="2026-01-01T01:00:00Z")
     return api
 
 
@@ -123,11 +124,8 @@ def git_apis(git_api):
 
 def deliver(backend_api, remote, artifacts, git_apis=None, max_zip_bytes=10485760):
     config = ResultsDeliveryConfig(DAGSTER_ARTIFACT_MOUNT_PATH=str(artifacts), RESULTS_MAX_ZIP_BYTES=max_zip_bytes)
-    with patch("app.secrets.SecretProvider") as provider, \
-            patch.object(git_push, "clone_url", return_value=str(remote)):
-        provider.return_value.get.return_value = "tok"
+    with patch.object(git_push, "clone_url", return_value=str(remote)):
         ResultsDelivery(backend_api, git_apis or MagicMock(), config, MagicMock())(1, 7, RUN_ID)
-    return provider
 
 
 def patches(backend_api):
@@ -140,9 +138,8 @@ def patches(backend_api):
 def test_success_pushes_a_branch_with_the_layout_and_records_pushed_then_opened(
     backend_api, remote, artifacts, tmp_path, git_apis
 ):
-    provider = deliver(backend_api, remote, artifacts, git_apis)
+    deliver(backend_api, remote, artifacts, git_apis)
 
-    provider.return_value.get.assert_called_once_with(SAMPLE_SECRET["key"], "fn", "TOKEN")
     check = tmp_path / "check"
     git("clone", "--branch", BRANCH, str(remote), str(check), cwd=tmp_path)
     commit_sha = git("rev-parse", "HEAD", cwd=check)
@@ -294,7 +291,7 @@ def test_a_retry_after_a_failure_delivers_and_counts_the_attempt(backend_api, re
 def test_the_pull_request_is_opened_into_the_default_branch_and_recorded(backend_api, remote, artifacts, git_api, git_apis):
     deliver(backend_api, remote, artifacts, git_apis)
 
-    git_apis.for_repository.assert_called_once_with(GLOBAL_REPOSITORY)
+    git_apis.for_repository.assert_called_once_with(GLOBAL_REPOSITORY, 1)
     git_api.find_pull_request_by_branch.assert_called_once_with("fn/results", BRANCH, "main")
     repo_path, head, base, title, _ = git_api.create_pull_request.call_args.args
     assert (repo_path, head, base) == ("fn/results", BRANCH, "main")
@@ -386,6 +383,36 @@ def test_an_open_pull_request_records_no_github_test_merge_sha(backend_api, remo
     assert patches(backend_api)[-1]["merge_commit_sha"] is None
 
 
+def test_the_push_uses_a_token_from_the_backend_for_the_results_repository_and_project(
+    backend_api, remote, artifacts, git_apis
+):
+    with patch.object(git_push, "auth_env", wraps=git_push.auth_env) as auth_env:
+        deliver(backend_api, remote, artifacts, git_apis)
+
+    backend_api.get_repository_token.assert_called_once_with("results", 2, 1)
+    auth_env.assert_called_once_with("tok")
+
+
+def test_no_token_is_asked_for_when_the_results_are_already_delivered(backend_api, remote, artifacts):
+    backend_api.create_result.return_value = result(step="OPENED")
+
+    deliver(backend_api, remote, artifacts)
+
+    backend_api.get_repository_token.assert_not_called()
+
+
+def test_a_refused_token_fails_the_delivery_and_pushes_nothing(backend_api, remote, artifacts):
+    backend_api.get_repository_token.side_effect = requests.HTTPError(response=MagicMock(status_code=403))
+
+    with pytest.raises(requests.HTTPError):
+        deliver(backend_api, remote, artifacts)
+
+    (fields,) = patches(backend_api)
+    assert (fields["state"], fields["attempts"]) == ("FAILED", 1)
+    assert fields["error"].startswith("HTTPError")
+    assert git("rev-list", "--count", "main", cwd=remote) == "1"
+
+
 def test_the_token_stays_out_of_the_command_line():
     env = git_push.auth_env("secret-token")
 
@@ -439,18 +466,6 @@ def test_any_other_result_error_raises(backend_api, remote, artifacts):
 
     with pytest.raises(requests.HTTPError):
         deliver(backend_api, remote, artifacts)
-
-
-def test_a_disabled_secret_fails_the_delivery_before_its_token_is_read(backend_api, remote, artifacts):
-    disabled = SAMPLE_SECRET | {"enabled": False}
-    global_repository = GLOBAL_REPOSITORY.model_copy(update={"secret": Secret(**disabled)})
-    backend_api.get_global_results_repository.return_value = global_repository
-
-    with pytest.raises(PermissionError):
-        deliver(backend_api, remote, artifacts)
-
-    (fields,) = patches(backend_api)
-    assert fields["state"] == "FAILED" and fields["error"].startswith("PermissionError")
 
 
 def retry_sensor(results, tasks=None, in_flight=False):

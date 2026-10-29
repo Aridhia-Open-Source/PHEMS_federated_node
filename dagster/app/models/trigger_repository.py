@@ -19,7 +19,7 @@ class TriggerRepository(BaseModel):
     # Where the repository is on the provider's API (owner/name).
     repo_path: str
     provider: GitProvider
-    # The secret holding the git token, under the key TOKEN.
+    # The secret holding the git credentials. Only the backend reads it, and mints the tokens from it.
     secret: Secret
     # Turned on or off for the whole node. A disabled repository is not polled.
     enabled: bool

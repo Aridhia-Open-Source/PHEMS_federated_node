@@ -3366,6 +3366,58 @@
         }
       }
     },
+    "/global/repositories/triggers/{repo_id}/token": {
+      "post": {
+        "tags": [
+          "trigger_repositories"
+        ],
+        "summary": "Post Token",
+        "description": "POST /global/repositories/triggers/<id>/token \u2014 a short-lived read token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
+        "operationId": "post_token_global_repositories_triggers__repo_id__token_post",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitTokenDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/repositories/triggers": {
       "get": {
         "tags": [
@@ -4741,6 +4793,58 @@
         }
       }
     },
+    "/global/repositories/results/{repo_id}/token": {
+      "post": {
+        "tags": [
+          "results_repositories"
+        ],
+        "summary": "Post Token",
+        "description": "POST /global/repositories/results/<id>/token \u2014 a short-lived write token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
+        "operationId": "post_token_global_repositories_results__repo_id__token_post",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitTokenDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/dagster/sensors": {
       "get": {
         "tags": [
@@ -6037,6 +6141,44 @@
         ],
         "title": "GitProviderType",
         "description": "Which kind of git host a provider is, so the sensors know which API client to build.\nEach value is a type the Dagster side has an API client for."
+      },
+      "GitTokenDTO": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "expires_at": {
+            "type": "string",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "title": "GitTokenDTO",
+        "description": "A short-lived access token for a repository, and its expiry (UTC). Kept only in the secret's cache."
+      },
+      "GitTokenRequest": {
+        "properties": {
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "GitTokenRequest",
+        "description": "A request for a repository's git token: the project it is for, if any."
       },
       "GlobalHealthDTO": {
         "properties": {

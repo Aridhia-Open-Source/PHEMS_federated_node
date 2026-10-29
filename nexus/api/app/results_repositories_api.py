@@ -7,18 +7,22 @@ only. Deleting one is a soft delete, refused with a 409 naming the projects it i
 - POST /global/repositories/results
 - PATCH /global/repositories/results/<id>
 - DELETE /global/repositories/results/<id>
+- POST /global/repositories/results/<id>/token
 - GET /global/repositories/results/<id>/healthcheck, see healthcheck_api.py
 """
 from http import HTTPStatus
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 
+from app.dtos.git_token import GitTokenDTO, GitTokenRequest
 from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.helpers.git_tokens import mint_token, require_token_allowed
 from app.helpers.soft_delete import delete_global
-from app.helpers.wrappers import Caller, get_caller, require_scope
+from app.helpers.task_config import results_resource
+from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
@@ -46,6 +50,24 @@ def get_repository(repo_id: int):
     """
     repo = ResultsRepository.get_by_id(repo_id)
     return ResultsRepositoryDTO.from_model(repo)
+
+
+@router.post('/{repo_id}/token', response_model=GitTokenDTO, dependencies=[Depends(system_only)])
+def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitTokenRequest)):
+    """
+    POST /global/repositories/results/<id>/token — a short-lived write token for the repository, minted from the
+    credential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the
+    repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
+    its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
+    project or resource still gets a token. Dagster asks at the moment of use.
+    Body: {"project_id": int | null}
+    Responds with token and expires_at (UTC).
+    """
+    repo = ResultsRepository.get_by_id(repo_id)
+    assignment = None if req.project_id is None else results_resource(req.project_id, repo.id)
+    require_token_allowed(repo, req.project_id, assignment)
+    token, expires_at = mint_token(repo.secret, repo, repo.TOKEN_PERMISSION)
+    return GitTokenDTO(token=token, expires_at=expires_at)
 
 
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])
