@@ -8,7 +8,7 @@
 - **The previous `nexus-api/` directory is deleted** and nexus/api takes its place in the architecture.
 
 ### Rules
-- **Same wire contract:** the paths, methods, body shapes, `{"error": ...}` error bodies (plus `"details"` when present), 400 on validation errors and the pagination keys (`items/page/per_page/total/pages`, or `tasks` for the tasks list) all stay the same. Dagster and fncli then switch to nexus with one env var (`NEXUS_API_URL`).
+- **Same wire contract:** the paths, methods, body shapes, `{"error": ...}` error bodies (plus `"details"` when present), 400 on validation errors all stay the same, except the pagination, which is fastapi-pagination's: `items/total/page/size/pages`, `size` replacing `per_page` and `items` replacing `tasks` in the task lists. Dagster and fncli then switch to nexus with one env var (`NEXUS_API_URL`).
 - **Database and migrations:** nexus uses the same Postgres database as before. nexus-api owns the alembic migrations and runs `alembic upgrade head` in an init container on startup.
 - **Out of scope:** everything under `nexus/api/app/models/extras/` (audit, catalogue, dar, dictionary, registry, whitelisted_image) and the routes on them: `registries_api`, `whitelisted_images_api`, `dar_api` and `admin_api` (audit). Don't port `@audit`.
 - **No new features or DTOs during the port.** Copy the existing patterns.
@@ -43,7 +43,7 @@ These are async and run in order:
 - **Session:** a plain SQLAlchemy `scoped_session`, with `scopefunc` reading a contextvar that the middleware sets.
   - Don't set the scope in a sync dependency. Sync dependencies and handlers each run in their own threadpool call with a copied context, so the handler would not see it.
 - **Model queries:** `Base.query = session.query_property()` keeps `Model.query` working across the models.
-- **Pagination:** a `paginate(query, page, per_page)` helper replaces `.paginate`. Adapt `dtos/base.py:page_of` to it.
+- **Pagination:** `fastapi_pagination.ext.sqlalchemy.paginate` replaces `.paginate`; `dtos/base.py:page_of(query, dto)` wraps it, and a list route's `response_model` is `Page[<DTO>]`.
 - **Errors:** `get_db` rolls back on an exception.
 - **First test you write:** a dependency and its handler share one session, and two concurrent requests get different sessions.
 
@@ -59,7 +59,7 @@ These are async and run in order:
 ### 4. Validation and DTOs
 - **Request DTOs** (`ProjectRequest`, `DatasetRequest`, ...) become typed body params, and **response DTOs** become `response_model=`.
 - **Hand-validated bodies:** handlers that hand-validate `request.json` use an existing request DTO where there is one. Where there isn't, they use `dict = Body()` plus their existing checks.
-- **Request values the helpers used to read:** `?force=` (`helpers/soft_delete.py`) and page and per_page (`helpers/base_model.py`) are passed in explicitly.
+- **Request values the helpers used to read:** `?force=` (`helpers/soft_delete.py`) is passed in explicitly; page and size are read by fastapi-pagination.
 - **Filters:** the dynamic `field__gte=` filters (`helpers/query_filters.py`) come through a `QueryFilters` dependency that reads `request.query_params`.
 - **Status codes:** handlers return DTOs and declare `status_code=` on the decorator, instead of returning `(body, status)` tuples.
 

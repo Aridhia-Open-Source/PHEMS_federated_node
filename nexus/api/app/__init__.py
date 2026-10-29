@@ -5,6 +5,7 @@ Every router is registered here up front; a router module owns its routes and no
 import logging
 
 from fastapi import FastAPI
+from fastapi_pagination import add_pagination
 
 from app import (
     main, datasets_api, tasks_api, projects_api, users_api, trigger_repositories_api,
@@ -33,4 +34,6 @@ def create_app() -> FastAPI:
     ):
         app.include_router(module.router)
     app.include_router(tasks_api.all_router)
+    # After the routers: it adds the page and size parameters to every route whose response_model is a Page
+    add_pagination(app)
     return app

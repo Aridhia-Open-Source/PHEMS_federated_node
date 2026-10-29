@@ -9,7 +9,7 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
   without `helpers/container_registries.py` (only the registry code used it).
 - Skeleton:
   - `app/helpers/base_model.py`: `scoped_session` keyed by the `request_scope` contextvar, `Base.query`,
-    `db.session`/`db.Model` kept so the copied models and helpers are unchanged, `paginate()` + `Page`.
+    `db.session`/`db.Model` kept so the copied models and helpers are unchanged, `paginate()` + `Page` (since replaced by fastapi-pagination, see `dtos/base.py:page_of`).
   - `app/middleware.py`: `SessionMiddleware` (pure ASGI; sets the scope, removes the session after; a
     request where a scope is already set joins it, which is how tests share the fixture session),
     `JsonObjectBodyMiddleware` (non-object JSON body -> 400).
@@ -17,7 +17,7 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
     validation (non-integer id) is 404.
   - `app/helpers/wrappers.py`: `get_caller` (`Caller(token, user_id, is_admin, is_system, kc_client)`,
     cached per request by FastAPI), `require_scope(scope)`, `system_only`. `@audit` is gone.
-  - `app/helpers/query_filters.py`: `QueryFilters` dependency; `arg_get(filters, name, default, type)`.
+  - `app/helpers/query_filters.py`: `QueryFilters` dependency, `parse_query_params`.
   - `app/helpers/soft_delete.py`: `delete_global(resource, project_resources, force)`.
   - `app/helpers/keycloak.py`: `get_token_from_headers(headers)`.
   - `app/helpers/exceptions.py`: `LogAndException` is a plain `Exception` (no werkzeug).
@@ -161,9 +161,8 @@ Edit only `app/<name>.py` and, if a test needs a client-API fix, the test files 
 7. `@system_only` -> add `Depends(system_only)` to the route's `dependencies`, after its
    `require_scope`. System-only routes are in PLAN.md "Two deployments".
 8. Query params: `request.args.copy()` -> `filters: QueryFilters = Depends()` and `filters.copy()`;
-   `arg_get('page', 1, type=int)` -> `arg_get(filters, 'page', 1, type=int)`; `?force=` ->
-   `force: bool = False`; other single params -> typed query params with the same defaults.
-9. Paged lists keep returning `page_of(...)` (a dict), no `response_model`.
+   `?force=` -> `force: bool = False`; other single params -> typed query params with the same defaults.
+9. Paged lists return `page_of(query, DTO)` with `response_model=Page[DTO]` (fastapi-pagination: `page` and `size`).
 10. Run your test files: `NEXUS_TEST_DB=nexus_<name> ./run_local_tests.sh tests/<files>`. Fix your
     router, not the tests; edit a test only for a test-client difference.
 

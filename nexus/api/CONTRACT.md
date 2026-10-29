@@ -17,10 +17,10 @@ Same wire contract as the previous backend. Read from `origin/nexus/api`.
   `Authorization: Bearer <token>`. Missing: 401 `{"error": "Token not provided"}`. Not enough scope: 403.
 
 ## Pagination
-- Paged lists return `{"items": [...], "page", "per_page", "total", "pages"}`; `?page=` and `?per_page=`
-  (1-based, defaults 1 and 25 unless a route says otherwise). The project tasks list uses `tasks` in place of `items`.
-- Paged responses have no response model in the spec yet (no new DTOs during the port); their items do
-  where a route returns a list of DTOs. Ask under "Needs from nexus" if you need a typed page.
+- Paged lists (fastapi-pagination) return `{"items": [...], "total", "page", "size", "pages"}`; `?page=`
+  (1-based, default 1) and `?size=` (default 50, at most 100). A `page` or `size` below 1 or a `size` above 100 is a 400.
+  The task lists use `items` like the others.
+- Paged responses are typed in the spec as `Page_<DTO>_`, with the item DTO as `items`.
 
 ## Routing
 - Collections answer on both `/x` and `/x/` (no redirects).
@@ -42,7 +42,7 @@ Same wire contract as the previous backend. Read from `origin/nexus/api`.
   `DatasetPatchRequest`) the spec types the body with it, all fields optional. Hand-validated PATCH bodies
   are typed as a plain object for now.
 - `GET /projects/{id}/tasks/{task_id}` returns one object; the generated spec follows the code.
-- Pages: `GET /projects` is paged (`items/page/per_page/total/pages`), not a plain array; `/global/secrets`
-  is a plain array. Page responses are untyped in the spec until a typed page is agreed (no new DTOs in the port).
+- Pages: `GET /projects` is paged (`items/total/page/size/pages`, typed as `Page_ProjectDTO_`), not a plain array;
+  `/global/secrets` is a plain array.
 - `/login` takes form fields (urlencoded or multipart). Errors stay `{"error", "details"?}`.
 - Port: Tilt forwards nexus-api on 5000 (5001 is the local registry, 5002 and 5003 are the registry mirrors).

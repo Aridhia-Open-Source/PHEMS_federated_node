@@ -14,17 +14,17 @@ the pull request routes (evaluation state). With ?active=true the list has only 
 from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends, Response
+from fastapi_pagination import Page
 from sqlalchemy.exc import IntegrityError
 
-from app.dtos.base import PageDTO, page_of
+from app.dtos.base import page_of
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
 from app.dtos.trigger_repository import ProjectTriggerRepositoryDTO, PullRequestTriggerDTO
-from app.helpers.base_model import db, paginate
+from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.helpers.project_state import require_accepts_tasks
 from app.helpers.pull_request_fanout import skip_gap
-from app.helpers.query_filters import QueryFilters, arg_get
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
 from app.models.project import Project
@@ -212,21 +212,17 @@ def _pull_request(project_id: int, repo_id: int, number: int) -> PullRequestTrig
 
 # The pull_requests routes below are called by Dagster only. The writes are system user only; the reads are
 # still open to anyone with the scope, which should be restricted to internal callers too.
-@router.get('/{repo_id}/pull_requests', response_model=PageDTO[PullRequestTriggerDTO])
-def get_pull_requests(project_id: int, repo_id: int, state: str | None = None, filters: QueryFilters = Depends()):
+@router.get('/{repo_id}/pull_requests', response_model=Page[PullRequestTriggerDTO])
+def get_pull_requests(project_id: int, repo_id: int, state: str | None = None):
     """
     GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests — list PRs
     of an assignment with pagination.
     Query params:
-        - page: page number (default 1)
-        - per_page: items per page (default 20)
+        - page, size: see fastapi-pagination
         - state: filter by state (optional), one of: UNKNOWN, REJECTED, YIELDED
     Sorted by merged_at DESC (most recent first).
     """
     assignment = _assignment(project_id, repo_id)
-
-    page = arg_get(filters, 'page', 1, type=int)
-    per_page = arg_get(filters, 'per_page', 20, type=int)
 
     query = PullRequestTrigger.query.join(PullRequest).filter(
         PullRequestTrigger.project_trigger_repository_id == assignment.id
@@ -239,7 +235,7 @@ def get_pull_requests(project_id: int, repo_id: int, state: str | None = None, f
         query = query.filter(PullRequestTrigger.state == state)
 
     query = query.order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())
-    return page_of(paginate(query, page, per_page), PullRequestTriggerDTO)
+    return page_of(query, PullRequestTriggerDTO)
 
 
 @router.get('/{repo_id}/pull_requests/{number}', response_model=PullRequestTriggerDTO)

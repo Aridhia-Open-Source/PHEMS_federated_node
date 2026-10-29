@@ -19,7 +19,7 @@ class FncliBackendAPI(BackendAPI):
         items = []
         page = 1
         while True:
-            data = self.session.get(path, params={**filters, "page": page, "per_page": 100}).json()
+            data = self.session.get(path, params={**filters, "page": page, "size": 100}).json()
             items.extend(data["items"])
             if page >= data["pages"]:
                 return items

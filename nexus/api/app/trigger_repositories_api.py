@@ -14,15 +14,15 @@ only. Deleting one is a soft delete, refused with a 409 naming the projects it i
 from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends
+from fastapi_pagination import Page
 
-from app.dtos.base import PageDTO, page_of
+from app.dtos.base import page_of
 from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.trigger_repository import (
     PullRequestBatchDTO, PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
 )
-from app.helpers.base_model import db, paginate
+from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.query_filters import QueryFilters, arg_get
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
@@ -66,20 +66,17 @@ def get_repository(repo_id: int):
     return TriggerRepositoryDTO.from_model(repo)
 
 
-@router.get('/{repo_id}/pull_requests', response_model=PageDTO[PullRequestDTO])
-def get_pull_requests(repo_id: int, filters: QueryFilters = Depends()):
+@router.get('/{repo_id}/pull_requests', response_model=Page[PullRequestDTO])
+def get_pull_requests(repo_id: int):
     """
     GET /global/repositories/triggers/<id>/pull_requests — the provider's facts of the pull requests
     stored for the repository, most recent merge first.
-    Query params: page (default 1), per_page (default 20), both clamped to at least 1.
-    Responds with page, per_page, total, pages and items.
+    Query params: page and size, see fastapi-pagination. Responds with items, total, page, size and pages.
     """
     TriggerRepository.get_by_id(repo_id)
-    page = max(arg_get(filters, 'page', 1, type=int), 1)
-    per_page = max(arg_get(filters, 'per_page', 20, type=int), 1)
     query = PullRequest.query.filter_by(trigger_repository_id=repo_id)\
         .order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())
-    return page_of(paginate(query, page, per_page), PullRequestDTO)
+    return page_of(query, PullRequestDTO)
 
 
 @router.post(

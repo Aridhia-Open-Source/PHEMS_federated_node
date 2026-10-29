@@ -9,7 +9,7 @@ from app.models.project import Project
 
 
 def ids(response):
-    return [t["id"] for t in response.json()["tasks"]]
+    return [t["id"] for t in response.json()["items"]]
 
 
 def test_lists_the_tasks_of_every_project_with_their_project_id(client, admin_headers, make_task, project, other_project):
@@ -17,8 +17,8 @@ def test_lists_the_tasks_of_every_project_with_their_project_id(client, admin_he
     response = client.get("/tasks", headers=admin_headers)
     assert response.status_code == 200
     assert ids(response) == [first.id, second.id]
-    assert [t["project_id"] for t in response.json()["tasks"]] == [project.id, other_project.id]
-    assert {"tasks", "total", "page", "per_page", "pages"} <= set(response.json())
+    assert [t["project_id"] for t in response.json()["items"]] == [project.id, other_project.id]
+    assert {"items", "total", "page", "size", "pages"} <= set(response.json())
 
 
 def test_the_shape_is_the_project_lists(client, admin_headers, make_task, project):
@@ -65,13 +65,11 @@ def test_project_enabled_must_be_a_boolean(client, admin_headers):
     assert client.get("/tasks?project_enabled=maybe", headers=admin_headers).status_code == 400
 
 
-def test_pagination_and_clamping(client, admin_headers, make_task):
+def test_pagination(client, admin_headers, make_task):
     created = [make_task() for _ in range(5)]
-    page = client.get("/tasks?per_page=2&page=2", headers=admin_headers).json()
-    assert [t["id"] for t in page["tasks"]] == [created[2].id, created[3].id]
-    assert (page["total"], page["pages"], page["page"], page["per_page"]) == (5, 3, 2, 2)
-    clamped = client.get("/tasks?per_page=0&page=0", headers=admin_headers).json()
-    assert (clamped["page"], clamped["per_page"]) == (1, 1)
+    page = client.get("/tasks?size=2&page=2", headers=admin_headers).json()
+    assert [t["id"] for t in page["items"]] == [created[2].id, created[3].id]
+    assert (page["total"], page["pages"], page["page"], page["size"]) == (5, 3, 2, 2)
 
 
 def test_a_soft_deleted_task_is_hidden(client, admin_headers, make_task):

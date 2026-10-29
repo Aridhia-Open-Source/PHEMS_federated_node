@@ -46,7 +46,7 @@ def paged(request, client):
     if kind == "tasks":
         make_task = request.getfixturevalue("make_task")
         make_task(), make_task()
-        return f"/projects/{request.getfixturevalue('project').id}/tasks", "tasks"
+        return f"/projects/{request.getfixturevalue('project').id}/tasks", "items"
     request.getfixturevalue("assigned_trigger_repo")
     repo = request.getfixturevalue("global_trigger_repo")
     request.getfixturevalue("ingest_prs")(repo.id, 1, 2)
@@ -60,17 +60,16 @@ def test_page_past_the_end_is_empty_200(client, admin_headers, paged):
     assert response.json()[key] == [] and response.json()["total"] == 2
 
 
-def test_page_or_per_page_below_one_is_clamped(client, admin_headers, paged):
+def test_page_or_size_below_one_or_size_above_100_is_400(client, admin_headers, paged):
     url, _ = paged
-    for query in ("page=0", "page=-1", "per_page=0", "per_page=-5"):
+    for query in ("page=0", "page=-1", "size=0", "size=-5", "size=101"):
         response = get(client, admin_headers, f"{url}?{query}")
-        assert response.status_code == 200, query
-        assert response.json()["page"] >= 1 and response.json()["per_page"] >= 1
+        assert response.status_code == 400 and "error" in response.json(), query
 
 
 def test_non_numeric_page_params_are_400(client, admin_headers, paged):
     url, _ = paged
-    for query in ("page=abc", "per_page=xyz", "page=1.5"):
+    for query in ("page=abc", "size=xyz", "page=1.5"):
         response = get(client, admin_headers, f"{url}?{query}")
         assert response.status_code == 400 and "error" in response.json(), query
 
@@ -81,11 +80,11 @@ def test_projects_default_shape_and_walk(client, admin_headers):
     assert get(client, admin_headers, "/projects").json()["items"] == []
     created = make_projects(5)
     first = get(client, admin_headers, "/projects").json()
-    assert (first["page"], first["per_page"], first["total"], first["pages"]) == (1, 25, 5, 1)
+    assert (first["page"], first["size"], first["total"], first["pages"]) == (1, 50, 5, 1)
     assert {"id", "name", "enabled", "default_dataset_id"} <= set(first["items"][0])
     seen = []
     for page in (1, 2, 3):
-        response = get(client, admin_headers, f"/projects?per_page=2&page={page}").json()
+        response = get(client, admin_headers, f"/projects?size=2&page={page}").json()
         assert response["total"] == 5 and response["pages"] == 3 and response["page"] == page
         seen += ids(response["items"])
     assert seen == sorted(p.id for p in created)  # stable id order, disjoint and complete
@@ -109,7 +108,7 @@ def test_projects_filters(client, admin_headers):
     assert listed(f"id__gt={enabled[1].id}") == [enabled[2].id]
     assert listed(f"name__ne={enabled[0].name}") != listed("")
     assert listed("name=nothing-like-this") == []
-    page = get(client, admin_headers, "/projects?enabled=true&per_page=2&page=2").json()
+    page = get(client, admin_headers, "/projects?enabled=true&size=2&page=2").json()
     assert page["total"] == 3 and page["pages"] == 2 and len(page["items"]) == 1  # filter before pagination
     bad = get(client, admin_headers, "/projects?bogus=1")
     assert bad.status_code == 400 and "bogus" in bad.json()["error"]
@@ -124,8 +123,8 @@ def ids_of(projects):
 def test_datasets_list_shape(client, admin_headers, make_global_dataset, global_secret):
     for name in ("a", "b", "c"):
         make_global_dataset(name=name)
-    response = get(client, admin_headers, "/global/datasets?per_page=2").json()
-    assert (response["total"], response["pages"], response["per_page"], len(response["items"])) == (3, 2, 2, 2)
+    response = get(client, admin_headers, "/global/datasets?size=2").json()
+    assert (response["total"], response["pages"], response["size"], len(response["items"])) == (3, 2, 2, 2)
 
 
 # ---------------------------------------------------------------- tasks
@@ -133,12 +132,12 @@ def test_datasets_list_shape(client, admin_headers, make_global_dataset, global_
 def test_tasks_pages_and_ordering(client, admin_headers, make_task, project):
     tasks_url = f"/projects/{project.id}/tasks"
     empty = get(client, admin_headers, tasks_url).json()
-    assert empty["tasks"] == [] and empty["total"] == 0 and empty["pages"] == 0
+    assert empty["items"] == [] and empty["total"] == 0 and empty["pages"] == 0
     created = [make_task() for _ in range(12)]
-    first = get(client, admin_headers, tasks_url).json()
-    assert (first["page"], first["per_page"], first["total"], first["pages"]) == (1, 10, 12, 2)
-    second = get(client, admin_headers, f"{tasks_url}?page=2").json()
-    assert ids(first["tasks"]) + ids(second["tasks"]) == [t.id for t in created]  # ordered by id
+    first = get(client, admin_headers, f"{tasks_url}?size=10").json()
+    assert (first["page"], first["size"], first["total"], first["pages"]) == (1, 10, 12, 2)
+    second = get(client, admin_headers, f"{tasks_url}?size=10&page=2").json()
+    assert ids(first["items"]) + ids(second["items"]) == [t.id for t in created]  # ordered by id
 
 
 def test_tasks_filters(client, admin_headers, make_task, project, other_project):
@@ -146,13 +145,13 @@ def test_tasks_filters(client, admin_headers, make_task, project, other_project)
     by_status = {status: make_task(status=status) for status in TASK_STATUSES}
     for status, task in by_status.items():
         response = get(client, admin_headers, f"{tasks_url}?status={status}")
-        assert response.status_code == 200 and ids(response.json()["tasks"]) == [task.id]
+        assert response.status_code == 200 and ids(response.json()["items"]) == [task.id]
     theirs = make_task(project=other_project, status="FAILED")
     mine = get(client, admin_headers, tasks_url).json()
-    assert theirs.id not in ids(mine["tasks"]) and mine["total"] == len(TASK_STATUSES)
+    assert theirs.id not in ids(mine["items"]) and mine["total"] == len(TASK_STATUSES)
     both = get(client, admin_headers, f"/projects/{other_project.id}/tasks?status=FAILED").json()
-    assert ids(both["tasks"]) == [theirs.id]
-    paged_by_status = get(client, admin_headers, f"{tasks_url}?status=FAILED&per_page=1").json()
+    assert ids(both["items"]) == [theirs.id]
+    paged_by_status = get(client, admin_headers, f"{tasks_url}?status=FAILED&size=1").json()
     assert paged_by_status["total"] == 1 and paged_by_status["pages"] == 1
     for bad in ("status=NOPE", "status=pending", "status="):
         assert get(client, admin_headers, f"{tasks_url}?{bad}").status_code == 400, bad
@@ -211,15 +210,15 @@ def test_pr_list_shape_order_and_paging(client, admin_headers, project, assigned
                                         ingest_prs):
     ingest_prs(global_trigger_repo.id, 1, 2, 3, 4, 5)  # same merged_at: ties broken by number desc
     response = get(client, admin_headers, pr_list_url(project, global_trigger_repo)).json()
-    assert (response["page"], response["per_page"], response["total"]) == (1, 20, 5)
+    assert (response["page"], response["size"], response["total"]) == (1, 50, 5)
     assert [i["number"] for i in response["items"]] == [5, 4, 3, 2, 1]
     seen = []
     for page in (1, 2, 3):
-        part = get(client, admin_headers, pr_list_url(project, global_trigger_repo, f"?per_page=2&page={page}")).json()
+        part = get(client, admin_headers, pr_list_url(project, global_trigger_repo, f"?size=2&page={page}")).json()
         assert part["pages"] == 3
         seen += [i["number"] for i in part["items"]]
     assert seen == [5, 4, 3, 2, 1]
-    glob = get(client, admin_headers, f"/global/repositories/triggers/{global_trigger_repo.id}/pull_requests?per_page=2")
+    glob = get(client, admin_headers, f"/global/repositories/triggers/{global_trigger_repo.id}/pull_requests?size=2")
     assert glob.json()["pages"] == 3 and [i["number"] for i in glob.json()["items"]] == [5, 4]
 
 
@@ -243,7 +242,7 @@ def test_pr_list_state_filter(client, admin_headers, project, assigned_trigger_r
     def state(value, extra=""):
         return get(client, admin_headers, pr_list_url(project, global_trigger_repo, f"?state={value}{extra}"))
 
-    unknown = state("UNKNOWN", "&per_page=2&page=2")
+    unknown = state("UNKNOWN", "&size=2&page=2")
     assert unknown.json()["total"] == 3 and len(unknown.json()["items"]) == 1
     for empty in ("REJECTED", "YIELDED"):
         assert state(empty).json()["total"] == 0

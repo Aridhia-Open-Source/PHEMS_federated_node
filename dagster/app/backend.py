@@ -38,7 +38,7 @@ class BackendAPI:
         projects = []
         page = 1
         while True:
-            response = self.session.get("/projects", params={**query, "page": page, "per_page": 100})
+            response = self.session.get("/projects", params={**query, "page": page, "size": 100})
             data = response.json()
             projects.extend(Project(**project) for project in data["items"])
             if page >= data["pages"]:
@@ -87,10 +87,10 @@ class BackendAPI:
         self.logger.info(f"Fetching pull requests for repo {repository_id} matching {filters}")
         all_prs = []
         page = 1
-        per_page = 100
+        size = 100
 
         while True:
-            params = {**filters, "page": page, "per_page": per_page}
+            params = {**filters, "page": page, "size": size}
             response = self.session.get(
                 f"/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests",
                 params=params,
@@ -170,9 +170,9 @@ class BackendAPI:
         tasks = []
         page = 1
         while True:
-            response = self.session.get("/tasks", params={**query, "page": page, "per_page": 100})
+            response = self.session.get("/tasks", params={**query, "page": page, "size": 100})
             data = response.json()
-            tasks.extend(Task(**task) for task in data["tasks"])
+            tasks.extend(Task(**task) for task in data["items"])
             if page >= data["pages"]:
                 return tasks
             page += 1

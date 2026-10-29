@@ -256,6 +256,6 @@ def test_a_sample_task_list_response_of_the_backend_parses_into_tasks():
     """The sample is checked against the real response by nexus-api's tests/test_all_tasks_list.py."""
     sample = json.loads((Path(__file__).parent / "contract" / "tasks_response.json").read_text())
 
-    tasks = [Task(**t) for t in sample["tasks"]]
+    tasks = [Task(**t) for t in sample["items"]]
 
     assert [(t.id, t.project_id, t.status) for t in tasks] == [(1, 1, "PENDING")]

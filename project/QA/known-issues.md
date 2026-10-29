@@ -40,12 +40,12 @@ This is a probe from the end-to-end README, not a pass or fail there.
 - [ ] Pass (matches the README)
 - [ ] Fail (differs; note what you saw)
 
-## `GET /tasks` clamps `page` and `per_page`, and dataset `PATCH` returns 200
+## `GET /tasks` rejects `page` and `size` below 1, and dataset `PATCH` returns 200
 
-1. `GET /tasks?page=0&per_page=0`, then `?page=-1`.
+1. `GET /tasks?page=0&size=0`, then `?page=-1`.
 2. `PATCH /global/datasets/<id>` with a harmless change.
 
-- **Expected today:** step 1 returns 200 with values clamped to 1 rather than a 400; step 2 returns 200. Both are listed as open questions.
+- **Expected today:** step 1 returns a 400 (fastapi-pagination's limits: `page` at least 1, `size` 1 to 100; the previous backend clamped to 1); step 2 returns 200. Dataset `PATCH` is still an open question.
 - **Rule:** open questions in [Global resources and project resources].
 - **Automated by:** Partly automated: `nexus/api/tests/test_pagination_and_filters.py`. It misses a live node.
 - [ ] Pass (matches the open question)

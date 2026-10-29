@@ -32,15 +32,6 @@ class TaskDTO(DTO):
     completed_at: WireDatetime | None
 
 
-class TaskPageDTO(DTO):
-    """The response shape of the task lists, a page of tasks."""
-    tasks: list[TaskDTO]
-    total: int
-    page: int
-    per_page: int
-    pages: int
-
-
 class TaskConfigDTO(DTO):
     """Whether the configuration a task was created under still holds, see helpers/task_config.decide_launch."""
     # "launch" or "fail"

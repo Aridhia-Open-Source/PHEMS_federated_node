@@ -136,13 +136,52 @@
         "summary": "List Projects",
         "description": "GET /projects endpoint.",
         "operationId": "list_projects_projects_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PageDTO_ProjectDTO_"
+                  "$ref": "#/components/schemas/Page_ProjectDTO_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -157,14 +196,14 @@
         "description": "POST /projects endpoint.",
         "operationId": "create_project_projects_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ProjectRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -198,13 +237,52 @@
         "summary": "List Projects",
         "description": "GET /projects endpoint.",
         "operationId": "list_projects_projects__get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PageDTO_ProjectDTO_"
+                  "$ref": "#/components/schemas/Page_ProjectDTO_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -219,14 +297,14 @@
         "description": "POST /projects endpoint.",
         "operationId": "create_project_projects__post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ProjectRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -1188,19 +1266,26 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
               "default": 1,
               "title": "Page"
-            }
+            },
+            "description": "Page number"
           },
           {
-            "name": "per_page",
+            "name": "size",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "default": 25,
-              "title": "Per Page"
-            }
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
           }
         ],
         "responses": {
@@ -1209,7 +1294,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PageDTO_DatasetDTO_"
+                  "$ref": "#/components/schemas/Page_DatasetDTO_"
                 }
               }
             }
@@ -1283,19 +1368,26 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
               "default": 1,
               "title": "Page"
-            }
+            },
+            "description": "Page number"
           },
           {
-            "name": "per_page",
+            "name": "size",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "default": 25,
-              "title": "Per Page"
-            }
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
           }
         ],
         "responses": {
@@ -1304,7 +1396,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PageDTO_DatasetDTO_"
+                  "$ref": "#/components/schemas/Page_DatasetDTO_"
                 }
               }
             }
@@ -1508,7 +1600,7 @@
           "tasks"
         ],
         "summary": "Get Tasks",
-        "description": "GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination\nQuery params:\n    - page: page number (default 1, below 1 is clamped to 1)\n    - per_page: items per page (default 10, below 1 is clamped to 1)\n    - status: filter by task status (optional)",
+        "description": "GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id\nQuery params:\n    - page, size: see fastapi-pagination\n    - status: filter by task status (optional)",
         "operationId": "get_tasks_projects__project_id__tasks_get",
         "parameters": [
           {
@@ -1535,6 +1627,33 @@
               ],
               "title": "Status"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
           }
         ],
         "responses": {
@@ -1543,7 +1662,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskPageDTO"
+                  "$ref": "#/components/schemas/Page_TaskDTO_"
                 }
               }
             }
@@ -1619,7 +1738,7 @@
           "tasks"
         ],
         "summary": "Get Tasks",
-        "description": "GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination\nQuery params:\n    - page: page number (default 1, below 1 is clamped to 1)\n    - per_page: items per page (default 10, below 1 is clamped to 1)\n    - status: filter by task status (optional)",
+        "description": "GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id\nQuery params:\n    - page, size: see fastapi-pagination\n    - status: filter by task status (optional)",
         "operationId": "get_tasks_projects__project_id__tasks__get",
         "parameters": [
           {
@@ -1646,6 +1765,33 @@
               ],
               "title": "Status"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
           }
         ],
         "responses": {
@@ -1654,7 +1800,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskPageDTO"
+                  "$ref": "#/components/schemas/Page_TaskDTO_"
                 }
               }
             }
@@ -3104,7 +3250,7 @@
           "trigger_repositories"
         ],
         "summary": "Get Pull Requests",
-        "description": "GET /global/repositories/triggers/<id>/pull_requests \u2014 the provider's facts of the pull requests\nstored for the repository, most recent merge first.\nQuery params: page (default 1), per_page (default 20), both clamped to at least 1.\nResponds with page, per_page, total, pages and items.",
+        "description": "GET /global/repositories/triggers/<id>/pull_requests \u2014 the provider's facts of the pull requests\nstored for the repository, most recent merge first.\nQuery params: page and size, see fastapi-pagination. Responds with items, total, page, size and pages.",
         "operationId": "get_pull_requests_global_repositories_triggers__repo_id__pull_requests_get",
         "parameters": [
           {
@@ -3115,6 +3261,33 @@
               "type": "integer",
               "title": "Repo Id"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
           }
         ],
         "responses": {
@@ -3123,7 +3296,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PageDTO_PullRequestDTO_"
+                  "$ref": "#/components/schemas/Page_PullRequestDTO_"
                 }
               }
             }
@@ -3473,7 +3646,7 @@
           "project_trigger_repositories"
         ],
         "summary": "Get Pull Requests",
-        "description": "GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests \u2014 list PRs\nof an assignment with pagination.\nQuery params:\n    - page: page number (default 1)\n    - per_page: items per page (default 20)\n    - state: filter by state (optional), one of: UNKNOWN, REJECTED, YIELDED\nSorted by merged_at DESC (most recent first).",
+        "description": "GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests \u2014 list PRs\nof an assignment with pagination.\nQuery params:\n    - page, size: see fastapi-pagination\n    - state: filter by state (optional), one of: UNKNOWN, REJECTED, YIELDED\nSorted by merged_at DESC (most recent first).",
         "operationId": "get_pull_requests_projects__project_id__repositories_triggers__repo_id__pull_requests_get",
         "parameters": [
           {
@@ -3509,6 +3682,33 @@
               ],
               "title": "State"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
           }
         ],
         "responses": {
@@ -3517,7 +3717,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PageDTO_PullRequestTriggerDTO_"
+                  "$ref": "#/components/schemas/Page_PullRequestTriggerDTO_"
                 }
               }
             }
@@ -5201,7 +5401,7 @@
           "tasks"
         ],
         "summary": "Get All Tasks",
-        "description": "GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of\nGET /projects/<project_id>/tasks. Query params:\n    - page, per_page: as the project's list\n    - status: one or more task statuses, comma separated (optional)\n    - project_enabled: \"true\" keeps the tasks of enabled projects, as GET /projects?enabled=true\n      lists them. A revoked project is still enabled, so its tasks stay.",
+        "description": "GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of\nGET /projects/<project_id>/tasks. Query params:\n    - page, size: as the project's list\n    - status: one or more task statuses, comma separated (optional)\n    - project_enabled: \"true\" keeps the tasks of enabled projects, as GET /projects?enabled=true\n      lists them. A revoked project is still enabled, so its tasks stay.",
         "operationId": "get_all_tasks_tasks_get",
         "parameters": [
           {
@@ -5235,6 +5435,33 @@
               ],
               "title": "Project Enabled"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
           }
         ],
         "responses": {
@@ -5243,7 +5470,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskPageDTO"
+                  "$ref": "#/components/schemas/Page_TaskDTO_"
                 }
               }
             }
@@ -5267,7 +5494,7 @@
           "tasks"
         ],
         "summary": "Get All Tasks",
-        "description": "GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of\nGET /projects/<project_id>/tasks. Query params:\n    - page, per_page: as the project's list\n    - status: one or more task statuses, comma separated (optional)\n    - project_enabled: \"true\" keeps the tasks of enabled projects, as GET /projects?enabled=true\n      lists them. A revoked project is still enabled, so its tasks stay.",
+        "description": "GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of\nGET /projects/<project_id>/tasks. Query params:\n    - page, size: as the project's list\n    - status: one or more task statuses, comma separated (optional)\n    - project_enabled: \"true\" keeps the tasks of enabled projects, as GET /projects?enabled=true\n      lists them. A revoked project is still enabled, so its tasks stay.",
         "operationId": "get_all_tasks_tasks__get",
         "parameters": [
           {
@@ -5301,6 +5528,33 @@
               ],
               "title": "Project Enabled"
             }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Page size",
+              "default": 50,
+              "title": "Size"
+            },
+            "description": "Page size"
           }
         ],
         "responses": {
@@ -5309,7 +5563,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskPageDTO"
+                  "$ref": "#/components/schemas/Page_TaskDTO_"
                 }
               }
             }
@@ -5927,7 +6181,7 @@
         "title": "NodeHealthDTO",
         "description": "GET /health_check: whether the node's Keycloak answers. \"ok\" or \"non operational\"."
       },
-      "PageDTO_DatasetDTO_": {
+      "Page_DatasetDTO_": {
         "properties": {
           "items": {
             "items": {
@@ -5936,34 +6190,38 @@
             "type": "array",
             "title": "Items"
           },
-          "page": {
-            "type": "integer",
-            "title": "Page"
-          },
-          "per_page": {
-            "type": "integer",
-            "title": "Per Page"
-          },
           "total": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Size"
           },
           "pages": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Pages"
           }
         },
         "type": "object",
         "required": [
           "items",
-          "page",
-          "per_page",
           "total",
+          "page",
+          "size",
           "pages"
         ],
-        "title": "PageDTO[DatasetDTO]"
+        "title": "Page[DatasetDTO]"
       },
-      "PageDTO_ProjectDTO_": {
+      "Page_ProjectDTO_": {
         "properties": {
           "items": {
             "items": {
@@ -5972,34 +6230,38 @@
             "type": "array",
             "title": "Items"
           },
-          "page": {
-            "type": "integer",
-            "title": "Page"
-          },
-          "per_page": {
-            "type": "integer",
-            "title": "Per Page"
-          },
           "total": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Size"
           },
           "pages": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Pages"
           }
         },
         "type": "object",
         "required": [
           "items",
-          "page",
-          "per_page",
           "total",
+          "page",
+          "size",
           "pages"
         ],
-        "title": "PageDTO[ProjectDTO]"
+        "title": "Page[ProjectDTO]"
       },
-      "PageDTO_PullRequestDTO_": {
+      "Page_PullRequestDTO_": {
         "properties": {
           "items": {
             "items": {
@@ -6008,34 +6270,38 @@
             "type": "array",
             "title": "Items"
           },
-          "page": {
-            "type": "integer",
-            "title": "Page"
-          },
-          "per_page": {
-            "type": "integer",
-            "title": "Per Page"
-          },
           "total": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Size"
           },
           "pages": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Pages"
           }
         },
         "type": "object",
         "required": [
           "items",
-          "page",
-          "per_page",
           "total",
+          "page",
+          "size",
           "pages"
         ],
-        "title": "PageDTO[PullRequestDTO]"
+        "title": "Page[PullRequestDTO]"
       },
-      "PageDTO_PullRequestTriggerDTO_": {
+      "Page_PullRequestTriggerDTO_": {
         "properties": {
           "items": {
             "items": {
@@ -6044,32 +6310,76 @@
             "type": "array",
             "title": "Items"
           },
-          "page": {
-            "type": "integer",
-            "title": "Page"
-          },
-          "per_page": {
-            "type": "integer",
-            "title": "Per Page"
-          },
           "total": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Size"
           },
           "pages": {
             "type": "integer",
+            "minimum": 0.0,
             "title": "Pages"
           }
         },
         "type": "object",
         "required": [
           "items",
-          "page",
-          "per_page",
           "total",
+          "page",
+          "size",
           "pages"
         ],
-        "title": "PageDTO[PullRequestTriggerDTO]"
+        "title": "Page[PullRequestTriggerDTO]"
+      },
+      "Page_TaskDTO_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TaskDTO"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Size"
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "size",
+          "pages"
+        ],
+        "title": "Page[TaskDTO]"
       },
       "ProjectCreatedDTO": {
         "properties": {
@@ -7546,43 +7856,6 @@
         ],
         "title": "TaskLaunchDTO",
         "description": "What the launcher is told for a PENDING task: outcome \"launch\" with the task and its dataset (null for a\ntask without one), or \"fail\" with the cause, the failed task and no dataset. See tasks_api.launch_task."
-      },
-      "TaskPageDTO": {
-        "properties": {
-          "tasks": {
-            "items": {
-              "$ref": "#/components/schemas/TaskDTO"
-            },
-            "type": "array",
-            "title": "Tasks"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "page": {
-            "type": "integer",
-            "title": "Page"
-          },
-          "per_page": {
-            "type": "integer",
-            "title": "Per Page"
-          },
-          "pages": {
-            "type": "integer",
-            "title": "Pages"
-          }
-        },
-        "type": "object",
-        "required": [
-          "tasks",
-          "total",
-          "page",
-          "per_page",
-          "pages"
-        ],
-        "title": "TaskPageDTO",
-        "description": "The response shape of the task lists, a page of tasks."
       },
       "TaskSpecDTO": {
         "properties": {
