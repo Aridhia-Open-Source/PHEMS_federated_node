@@ -52,6 +52,10 @@
                 "quarantine": {
                     "type": "string",
                     "default": "fn-quarantine"
+                },
+                "secrets": {
+                    "type": "string",
+                    "default": "fn-secrets"
                 }
             }
         },

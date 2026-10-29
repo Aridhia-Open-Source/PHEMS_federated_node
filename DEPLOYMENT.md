@@ -83,12 +83,14 @@ Run these from the repo root.
 
    | What | Where |
    |---|---|
-   | Backend API | http://localhost:5000 |
+   | Backend API | http://localhost:5000 (docs at `/docs`) |
    | Dagster UI | http://localhost:3000 |
    | Gitea | http://localhost:4000 |
    | Keycloak | http://localhost:8080 |
    | Postgres | `localhost:5432` |
    | Tilt dashboard | http://localhost:10350 |
+
+   The `dagster-reload` resource prints this list in the Tilt log once the Dagster code location has loaded, and again after each reload.
 
 7. Check it works. Log in with the first user. `/login` takes form fields, not JSON, and returns a bearer token.
 
@@ -107,7 +109,8 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 
 | You change | What happens |
 |---|---|
-| `nexus/api/app/`, `dagster/app/` | Files are synced and the process restarts |
+| `nexus/api/app/`, `dagster/app/` | Files are synced and the process restarts. For Dagster, `dagster-reload` then reloads the code location once the new code server is serving |
+| `dagster/fncli/`, `dagster/app/tests/`, docs under `dagster/` | Nothing: the code server and run pods don't use them |
 | `requirements.txt`, `setup.py`, `alembic.ini`, migrations | The image is rebuilt |
 | The chart (`k8s/federated-node`) | Run `make upgrade` (helm upgrade, then restarts the app deployments) |
 

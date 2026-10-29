@@ -21,7 +21,7 @@ from kubernetes.client.exceptions import ApiException
 
 from app.dtos.secret import SecretDTO
 from app.helpers.base_model import db
-from app.helpers.const import DEFAULT_NAMESPACE, QUARANTINE_NAMESPACE
+from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
@@ -52,7 +52,7 @@ def _get_values(body: dict) -> dict[str, str]:
 class K8sSecretProvider:
     """Writes and deletes secrets in Kubernetes."""
 
-    namespace = DEFAULT_NAMESPACE
+    namespace = SECRETS_NAMESPACE
     quarantine_namespace = QUARANTINE_NAMESPACE
 
     def set(self, key: str, namespace: str, values: dict[str, str]):

@@ -5,7 +5,6 @@ import sqlalchemy as sa
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
 
-from app.helpers.const import DEFAULT_NAMESPACE
 from app.helpers.git_uri import normalise_repo_path
 from app.helpers.kubernetes import KubernetesClient
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, request_check
@@ -52,7 +51,7 @@ class GitRepositoryMixin:
         """
         The git token, read from the cluster secret this repository names.
         """
-        secret = KubernetesClient().read_namespaced_secret(self.secret.key, DEFAULT_NAMESPACE)
+        secret = KubernetesClient().read_namespaced_secret(self.secret.key, self.secret.namespace)
         if secret.data is None:
             raise KeyError("TOKEN")
         return KubernetesClient.decode_secret_value(secret.data['TOKEN'])
