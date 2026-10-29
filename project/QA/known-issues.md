@@ -12,7 +12,7 @@ Needs: the dev project, an administrator login, and the second project (`fncli s
 
 - **Expected today:** 204. The unassign is a soft delete that also revokes the project resource, so the `RESTRICT` keys of the triggers never fire. The project resource is gone from the API (`GET` is 404), and its triggers and pull requests are kept. Record the status; a 400 or 409 is a fail.
 - **Rule:** a project resource is only ever soft deleted ([Enabled, revoked and soft delete]); `RESTRICT` stops a real row delete while triggers exist, and no route makes one ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** `webserver/tests/test_trigger_repositories_and_resources.py` (`test_unassigning_a_trigger_resource_with_pull_requests_keeps_its_triggers`). This case can move out of the known issues.
+- **Automated by:** `nexus/api/tests/test_trigger_repositories_and_resources.py` (`test_unassigning_a_trigger_resource_with_pull_requests_keeps_its_triggers`). This case can move out of the known issues.
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 
@@ -23,7 +23,7 @@ Needs: the dev project, an administrator login, and the second project (`fncli s
 
 - **Expected today:** `updated_at` is set from local time, not UTC. Record the time offset. The route is admin-only (`can_do_admin`), so a non-admin token gets a 403.
 - **Rule:** global writes need the admin scope ([Global resources and project resources]).
-- **Automated by:** `webserver/tests/test_global_resources.py` (`test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources`) covers the 403 for the Secret `PATCH`; `test_system_user_routes.py` covers the System user. Nothing covers the time zone.
+- **Automated by:** `nexus/api/tests/test_global_resources.py` (`test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources`) covers the 403 for the Secret `PATCH`; `test_system_user_routes.py` covers the System user. Nothing covers the time zone.
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 
@@ -47,7 +47,7 @@ This is a probe from the end-to-end README, not a pass or fail there.
 
 - **Expected today:** step 1 returns 200 with values clamped to 1 rather than a 400; step 2 returns 200. Both are listed as open questions.
 - **Rule:** open questions in [Global resources and project resources].
-- **Automated by:** Partly automated: `webserver/tests/test_pagination_and_filters.py`. It misses a live node.
+- **Automated by:** Partly automated: `nexus/api/tests/test_pagination_and_filters.py`. It misses a live node.
 - [ ] Pass (matches the open question)
 - [ ] Fail (differs; note what you saw)
 
@@ -58,7 +58,7 @@ This is a probe from the end-to-end README, not a pass or fail there.
 
 - **Expected today:** the `keycloak-realm-init` pod can crash-loop on realm migration 2 (a 400, "client profile contains the executor which does not have valid provider"); the end-to-end suites still run. Record whether it crash-loops on your release and whether sign-in and the pipeline work.
 - **Rule:** none; a known issue listed on this page.
-- **Automated by:** Manual only. `webserver/integration_tests/` exercise the Keycloak initialiser against a real Keycloak, not this deploy.
+- **Automated by:** Manual only. `nexus/api/integration_tests/` exercise the Keycloak initialiser against a real Keycloak, not this deploy.
 - [ ] Pass (matches the expected result above)
 - [ ] Fail (differs; note what you saw)
 

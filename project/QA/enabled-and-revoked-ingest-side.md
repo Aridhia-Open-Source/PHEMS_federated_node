@@ -28,7 +28,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** after step 2 the stored count is up by one and the project's pull request and task counts are unchanged. After step 3 they are still unchanged: the pull request merged while the project was off never gets a trigger. In step 4 the new pull request gets a trigger and a task.
 - **Rule:** a disabled project gets no trigger; enabling it skips the gap by default ([Enabled, revoked and soft delete]; [Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_a_disabled_project_gets_no_trigger_and_enabling_it_skips_the_gap`) and the stateful test `webserver/tests/test_stateful_rules.py`. The end-to-end failure suite covers the disabled project only with backfill. The unit tests do not run the sensors.
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_a_disabled_project_gets_no_trigger_and_enabling_it_skips_the_gap`) and the stateful test `nexus/api/tests/test_stateful_rules.py`. The end-to-end failure suite covers the disabled project only with backfill. The unit tests do not run the sensors.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -40,7 +40,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** after step 2 the pull request merged while the project was off gets a trigger and a task, once (pull request and task counts each up by one). After step 3 there are no more: repeating `backfill` creates no duplicate. Pull requests before the project resource's cursor do not get a trigger.
 - **Rule:** `"backfill": true` on enable creates the triggers of pull requests stored while the project was off ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the project is disabled gets a task when it is enabled with backfill" (written, never run on a cluster); `webserver/tests/test_pull_requests_and_tasks.py` (`test_enabling_with_backfill_twice_creates_no_duplicates`). The suite does not repeat it.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the project is disabled gets a task when it is enabled with backfill" (written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_enabling_with_backfill_twice_creates_no_duplicates`). The suite does not repeat it.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -52,7 +52,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** 400 each time and nothing changes; `backfill` is not stored.
 - **Rule:** `backfill` is a 400 unless the body also has `enabled: true` and the project is currently disabled ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Automated: `webserver/tests/test_projects_api.py` (`test_backfill_without_enabling_is_400`, `test_backfill_on_an_enabled_project_is_400`) and the refused-backfill action of the stateful test. They miss the live node.
+- **Automated by:** Automated: `nexus/api/tests/test_projects_api.py` (`test_backfill_without_enabling_is_400`, `test_backfill_on_an_enabled_project_is_400`) and the refused-backfill action of the stateful test. They miss the live node.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -65,7 +65,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** the pull request gets no trigger at step 3 (the project resource is off) and none at step 4 (switching the project resource on skips the gap).
 - **Rule:** backfill calls the trigger creation only for project resources that now accept triggers; there is no backfill for any other switch ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_backfill_leaves_a_resource_that_is_off_without_triggers`); no end-to-end group.
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_backfill_leaves_a_resource_that_is_off_without_triggers`); no end-to-end group.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -78,7 +78,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** step 2: stored up by one, no trigger, no task. Step 3: still none. Step 4: a trigger and a task. The project's `enabled` stayed `true` the whole time.
 - **Rule:** a revoked project gets no trigger; un-revoking skips the gap and never changes `enabled` ([Enabled, revoked and soft delete]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the project is revoked is stored and gets no task" (written, never run on a cluster); `webserver/tests/test_pull_requests_and_tasks.py` (`test_a_revoked_project_gets_no_trigger_and_re_granting_it_skips_the_gap`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the project is revoked is stored and gets no task" (written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_a_revoked_project_gets_no_trigger_and_re_granting_it_skips_the_gap`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -91,7 +91,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** step 2: no trigger and no task, and the pull request is still stored (the poll serves every project). Step 3: still none. Step 4: a trigger and a task.
 - **Rule:** switching a project resource back on moves its cursor to now ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the trigger resource is switched off gets no task" (written, never run on a cluster); `webserver/tests/test_trigger_repositories_and_resources.py` (`test_switching_a_repository_back_on_skips_the_gap`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the trigger resource is switched off gets no task" (written, never run on a cluster); `nexus/api/tests/test_trigger_repositories_and_resources.py` (`test_switching_a_repository_back_on_skips_the_gap`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -104,7 +104,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** the same as the previous case. The project resource's `enabled` stays `true`.
 - **Rule:** the same as the previous case, for `revoked` ([Enabled, revoked and soft delete]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the resource is revoked never gets a trigger" (written, never run on a cluster); `webserver/tests/test_pull_requests_and_tasks.py` (`test_unrevoke_skips_the_gap`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the resource is revoked never gets a trigger" (written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_unrevoke_skips_the_gap`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -117,7 +117,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** step 2: the pull request is not stored while the repository is off; no trigger, no task. Step 3: the pull request is stored on catch-up (stored up by one) and still gets no trigger or task, in any project. Step 4: 400 (the repository is not active).
 - **Rule:** a disabled TriggerRepository is not polled and refuses batches; what was merged meanwhile is ingested when it is back on, with no trigger ([docs/architecture/revoke-and-enabled.md#does-a-new-pull-request-get-a-trigger]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the GlobalResource is switched off gets no task" (written, never run on a cluster); `webserver/tests/test_pull_requests_and_tasks.py` (`test_disabled_and_unknown_repository_refuse_ingest`) and `webserver/tests/test_trigger_repositories_and_resources.py`. The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the GlobalResource is switched off gets no task" (written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_disabled_and_unknown_repository_refuse_ingest`) and `nexus/api/tests/test_trigger_repositories_and_resources.py`. The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -131,7 +131,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** step 3: no trigger or task in either project. Step 4: still none; the pull request is stored. The GlobalResource's `enabled` stayed `true`.
 - **Rule:** GlobalResource flags are read live and apply to every project resource ([Enabled, revoked and soft delete]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the GlobalResource is revoked gets no task" (one project; written, never run on a cluster); `webserver/tests/test_trigger_repositories_and_resources.py` (`test_a_revoked_trigger_repository_is_not_polled_and_takes_no_pull_requests`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the GlobalResource is revoked gets no task" (one project; written, never run on a cluster); `nexus/api/tests/test_trigger_repositories_and_resources.py` (`test_a_revoked_trigger_repository_is_not_polled_and_takes_no_pull_requests`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -145,7 +145,7 @@ No fncli command changes a GitProvider: use `PATCH /global/providers/<id>` with 
 
 - **Expected:** with the provider off or revoked, both repositories on it are inactive: no pull request is polled or stored, no trigger, no task. After switching it back on the pull request merged meanwhile is stored on catch-up with no trigger, and the next one is processed.
 - **Rule:** provider flags apply to every repository on it ([Global resources and project resources]; [Enabled, revoked and soft delete]).
-- **Automated by:** Partly automated: `webserver/tests/test_git_providers.py` (a disabled or revoked provider makes its repositories inactive and unpollable; switching it back on skips the gap). No end-to-end group changes a provider, and no test runs the sensors with one switched off.
+- **Automated by:** Partly automated: `nexus/api/tests/test_git_providers.py` (a disabled or revoked provider makes its repositories inactive and unpollable; switching it back on skips the gap). No end-to-end group changes a provider, and no test runs the sensors with one switched off.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -158,7 +158,7 @@ No fncli command changes a GitProvider: use `PATCH /global/providers/<id>` with 
 
 - **Expected:** step 2: no trigger or task. Step 3: the repository is still off. Step 4: the project resource is active again; the pull request merged meanwhile gets no trigger.
 - **Rule:** disabling a Secret switches off what uses it; enabling it does not switch them back on ([docs/architecture/revoke-and-enabled.md#secrets]). The value move is in [secrets and quarantine](secrets-and-quarantine.md).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the trigger repository's Secret is switched off gets no task" (written, never run on a cluster); `webserver/tests/test_global_resources.py`. The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the trigger repository's Secret is switched off gets no task" (written, never run on a cluster); `nexus/api/tests/test_global_resources.py`. The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -172,7 +172,7 @@ No fncli command changes a GitProvider: use `PATCH /global/providers/<id>` with 
 
 - **Expected:** step 3: stored, no trigger. Step 4: still none (the gap is skipped from now). Step 5: a trigger and a task. Try the same order with `revoked` on the project resource and `enabled` on the GlobalResource.
 - **Rule:** a project resource is active only when every level is on and not revoked ([Enabled, revoked and soft delete]).
-- **Automated by:** Partly automated: the stateful test `webserver/tests/test_stateful_rules.py` explores random orders of the project, project resource and trigger repository flags for one project resource, and checks the model; it does not run the sensors or cover Secret or GitProvider flags.
+- **Automated by:** Partly automated: the stateful test `nexus/api/tests/test_stateful_rules.py` explores random orders of the project, project resource and trigger repository flags for one project resource, and checks the model; it does not run the sensors or cover Secret or GitProvider flags.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -184,7 +184,7 @@ No fncli command changes a GitProvider: use `PATCH /global/providers/<id>` with 
 
 - **Expected:** after un-revoking, `enabled` is still `false` and the project resource or project is still inactive. The flags never overwrite each other.
 - **Rule:** revoking sets only `revoked`, so a re-grant restores the previous state without overriding a manual disable ([Enabled, revoked and soft delete]).
-- **Automated by:** Automated: `webserver/tests/test_trigger_repositories_and_resources.py`, `webserver/tests/test_projects_api.py`, `webserver/tests/test_git_providers.py` (`..._leaves_enabled_alone`) and the stateful test. They miss Secret and GitProvider combinations on a live node and the sensors.
+- **Automated by:** Automated: `nexus/api/tests/test_trigger_repositories_and_resources.py`, `nexus/api/tests/test_projects_api.py`, `nexus/api/tests/test_git_providers.py` (`..._leaves_enabled_alone`) and the stateful test. They miss Secret and GitProvider combinations on a live node and the sensors.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -196,7 +196,7 @@ No fncli command changes a GitProvider: use `PATCH /global/providers/<id>` with 
 
 - **Expected:** step 2: the new project's trigger resource exists and shows `active` false. After step 3 it is active.
 - **Rule:** GlobalResource flags are read live, so they apply to project resources created later ([docs/architecture/revoke-and-enabled.md#where-each-flag-lives]).
-- **Automated by:** Automated: `webserver/tests/test_trigger_repositories_and_resources.py` (`test_a_revoked_global_resource_makes_its_project_resources_inactive_one_created_later_too`). It misses a live node.
+- **Automated by:** Automated: `nexus/api/tests/test_trigger_repositories_and_resources.py` (`test_a_revoked_global_resource_makes_its_project_resources_inactive_one_created_later_too`). It misses a live node.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -211,7 +211,7 @@ This is a known limit; the case records what the node does.
 
 - **Expected:** the pull request is stored (stored up by one) and gets no trigger, because switching the project resource on moved its cursor to now. If the beta needs such a pull request to be processed, record it as a finding.
 - **Rule:** the open question in [Pull requests stored once per repository, fanned out to project resources, with cursors]: a pull request merged just before a project resource is switched off, and not yet ingested, is skipped when it is switched on.
-- **Automated by:** Partly automated: the stateful test `webserver/tests/test_stateful_rules.py` models "every pull request that exists at that moment is stored when ingested but never gets a trigger". It has no real ingest sensor or timing.
+- **Automated by:** Partly automated: the stateful test `nexus/api/tests/test_stateful_rules.py` models "every pull request that exists at that moment is stored when ingested but never gets a trigger". It has no real ingest sensor or timing.
 - [ ] Pass
 - [ ] Fail — notes:
 

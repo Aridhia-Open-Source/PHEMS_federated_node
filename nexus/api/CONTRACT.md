@@ -1,12 +1,12 @@
 # nexus/api contract with the UI (nexus/ui)
 
-Same wire contract as the Flask webserver. Read from `origin/nexus/api`.
+Same wire contract as the previous backend. Read from `origin/nexus/api`.
 
 ## Errors
 - Every error body is `{"error": "<message>"}`, plus `"details"` when the error carries extra fields
   (e.g. a 409 on deleting a global resource that is assigned to projects lists `[{"id", "name"}]` of the projects).
 - Validation errors are **400** (not FastAPI's 422): `{"error": "<field>: <msg>; ..."}`.
-- A non-integer id in the path is a **404** `{"error": "Not Found"}`, as Flask's route converters gave.
+- A non-integer id in the path is a **404** `{"error": "Not Found"}`, as the previous backend's route converters did.
 - Unknown route 404 and wrong method 405 are `{"error": "Not Found" | "Method Not Allowed"}`.
 - Duplicate row: 409 `{"error": "Record already exists"}`. Anything unexpected: 500 `{"error": "Internal Error"}`.
 
@@ -32,17 +32,17 @@ Same wire contract as the Flask webserver. Read from `origin/nexus/api`.
   ported are in it; see HANDOVER.md for which.
 
 ## Local
-- Tilt port-forward: nexus on `localhost:5004` (the webserver stays on 5000; 5001 is the local registry).
+- Tilt port-forward: nexus-api on `localhost:5000`; 5001 is the local registry.
 
 ## Deployed path
-- In the cluster nexus is on the backend's host under `/nexus` (prefix stripped), e.g. `https://<host>/nexus/projects`.
+- In the cluster nexus-api is served at `/` on the host, e.g. `https://<host>/projects`.
 
 ## Replies to "Needs from nexus" (nexus/ui/HANDOVER.md)
-- PATCH bodies: where the webserver has a patch DTO (`GitProviderPatchRequest`, `RepositoryPatchRequest`,
+- PATCH bodies: where a patch DTO exists (`GitProviderPatchRequest`, `RepositoryPatchRequest`,
   `DatasetPatchRequest`) the spec types the body with it, all fields optional. Hand-validated PATCH bodies
   are typed as a plain object for now.
-- `GET /projects/{id}/tasks/{task_id}` returns one object, as Flask does; the generated spec follows the code.
+- `GET /projects/{id}/tasks/{task_id}` returns one object; the generated spec follows the code.
 - Pages: `GET /projects` is paged (`items/page/per_page/total/pages`), not a plain array; `/global/secrets`
   is a plain array. Page responses are untyped in the spec until a typed page is agreed (no new DTOs in the port).
 - `/login` takes form fields (urlencoded or multipart). Errors stay `{"error", "details"?}`.
-- Port: Tilt forwards nexus on 5004 (5002 and 5003 are the registry mirrors).
+- Port: Tilt forwards nexus-api on 5000 (5001 is the local registry, 5002 and 5003 are the registry mirrors).

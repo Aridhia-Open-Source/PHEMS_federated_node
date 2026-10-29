@@ -4,7 +4,7 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
 `fn-worktrees/nexus/api`. Commit and push to `origin nexus/api` (plain push) after each milestone.
 
 ## Done
-- `nexus/api/app` copied from `webserver/app` without `extras/` (except `catalogue.py` and `dictionary.py`,
+- `nexus/api/app` copied from `nexus/api/app` without `extras/` (except `catalogue.py` and `dictionary.py`,
   which `POST /global/datasets` writes), without `registries/whitelisted_images/dar/admin` routers and
   without `helpers/container_registries.py` (only the registry code used it).
 - Skeleton:
@@ -25,21 +25,20 @@ Read this, then `CONTRACT.md`, then `PLAN.md`. Branch `nexus/api`, worktree
     `tasks_api.all_router`). Agents never touch it.
 - Ported routers: `main`, `secrets_api`, `projects_api` (lead); Wave A: `project_trigger_repositories_api`,
   `tasks_api`, `results_api`, `results_repositories_api`, `datasets_api`, `git_providers_api`,
-  `healthcheck_api` (each agent reported its own test files green). `trigger_repositories_api` (it also fixed 3 test bugs copied from the webserver tests in
+  `healthcheck_api` (each agent reported its own test files green). `trigger_repositories_api` (it also fixed 3 test bugs copied from nexus-api tests in
   `test_pull_requests_and_tasks.py`: missing `system_headers` fixture args). Wave B (`users_api`, `dagster_api`): one agent running at the last update.
 - Tests: all converted mechanically (`response.json` -> `response.json()`, `query_string=` -> `params=`,
   `data=` -> `content=`). `conftest.py` `client` is a `TestClient` subclass that also takes `json=` on
   get/delete. Registry/audit/DAR tests and fixtures removed.
 - `CONTRACT.md`, `dump_openapi.py` -> `openapi.json` (only ported routers are in it).
-- `run_local_tests.sh` (fast, venv + postgres container, per-caller DB) and `run_tests.sh` (docker
-  compose, as the webserver's).
+- `run_local_tests.sh` (fast, venv + postgres container, per-caller DB) and `run_tests.sh` (docker compose).
 
 ## In progress / Next
 1. Fan-out: Wave A done (all eight routers committed). Wave B running at the last update.
 2. Helm/Tilt/Dockerfile: see "Status of Helm/Tilt" at the bottom.
 3. Spec path diff: done, clean. `openapi.json` regenerated with every router. Against
-   `webserver/app/static/openapi.json` (minus registries/whitelisted_images/dar/audit) the only
-   missing paths are ones the Flask code doesn't have either (the hand-written spec drifted:
+   `nexus/api/app/static/openapi.json` (minus registries/whitelisted_images/dar/audit) the only
+   missing paths are ones the previous backend didn't have either (the hand-written spec drifted:
    `/task_requests*`, `/global/datasets/by-name/*`, `*/revoke`), plus `PATCH /delivery-secret`, which is
    in `admin_api` (out of scope with it). nexus adds `/ready_check` and `.../tasks/{id}/retry`, both real.
    Whole-suite run: see "Test status".
@@ -72,16 +71,16 @@ Never run e2e tests. Run only the test files for what you changed, foreground, w
 **Local uvicorn** (against the dev cluster's Postgres and Keycloak, forwarded by Tilt on 5432 and 8080):
 ```bash
 cd nexus/api
-export PGHOST=localhost PGPORT=5432 BACKEND_DB_USER=<backend db user> BACKEND_DB_PASSWORD=<pw> BACKEND_DB_NAME=<db>
+export PGHOST=localhost PGPORT=5432 NEXUS_DB_USER=<backend db user> NEXUS_DB_PASSWORD=<pw> NEXUS_DB_NAME=<db>
 export KEYCLOAK_URL=http://localhost:8080 KEYCLOAK_REALM=FederatedNode KEYCLOAK_CLIENT=global \
   KEYCLOAK_SECRET=<global client secret> DEFAULT_NAMESPACE=<ns> TASK_NAMESPACE=<tasks ns> PUBLIC_URL=localhost:5004
 /tmp/nexus-venv/bin/uvicorn --factory app:create_app --reload --port 5004
 ```
 Same env vars as the backend pod (`kubectl get cm backend-configmap keycloak-config -o yaml`). Docs at
-`http://localhost:5004/docs`, spec at `/openapi.json`. nexus never migrates: the webserver's alembic owns the schema.
+`http://localhost:5004/docs`, spec at `/openapi.json`. nexus-api owns the database migrations and runs `alembic upgrade head` on startup.
 
 **Unit tests**: see "How to resume" (`run_local_tests.sh`, venv + `nexus-test-db` container). CI-style:
-`./run_tests.sh` (docker compose, as the webserver's).
+`./run_tests.sh` (docker compose, as nexus-api's).
 
 **Tilt**: `NEXUS_API_ENABLED=true tilt up` with the chart deployed with nexus on (next item). Builds
 `localhost:5001/nexus-api-fn`, runs `uvicorn --reload`, syncs `nexus/api/app`, forwards `localhost:5004`.
@@ -94,14 +93,14 @@ nexus:
     enabled: true                   # pathPrefix /nexus on the backend host (traefik.enabled), replicas 1
 ```
 Then `make deploy` (the user's call; the dev cluster wasn't touched here). Check with
-`helm template t k8s/federated-node -f <values> --set nexus.api.enabled=true` (needs `charts/` deps).
+`helm template t k8s/federated-node -f <values>` (needs `charts/` deps).
 Merge note: `nexus/ui` also adds a `nexus:` block (`nexus.ui.*`) to `values.yaml`; merge the two blocks
 when the branches meet (`nexus.image`/`nexus.tag`/`nexus.port` are the API's; consider moving them under
 `nexus.api` then).
 
 **Pointing the UI (nexus/ui) at nexus**:
 - Vite dev server (5173, UI at `http://localhost:5173/nexus-ui/`):
-  `cd nexus/ui && VITE_BACKEND_URL=http://localhost:5004 npm run dev` (5004 = nexus via Tilt or local
+  `cd nexus/ui && VITE_NEXUS_API_URL=http://localhost:5004 npm run dev` (5004 = nexus via Tilt or local
   uvicorn; the UI's default 5001 is the local registry, so always set it).
 - In the cluster: `nexus.ui.backendUri: http://nexus-api.<namespace>.svc:5000` (the nexus-api Service).
 - Types: switch the UI's `gen:api` to `nexus/api/openapi.json` (regenerate with `python dump_openapi.py`).
@@ -111,7 +110,7 @@ when the branches meet (`nexus.image`/`nexus.tag`/`nexus.port` are the API's; co
   - `tasks_api`/`models/task.py`: `Task.validate(data, user_token)` takes the token; the image whitelist
     and "image exists on the registry" checks are removed (their models are out of scope), only the image
     format check is left (`Task.validate_image_format`). So a task with a missing image is now a 201,
-    where the webserver gave 404. `ENABLE_IMAGE_WHITELIST` in `helpers/const.py` is unused.
+    where nexus-api gave 404. `ENABLE_IMAGE_WHITELIST` in `helpers/const.py` is unused.
   - `tasks_api.does_user_own_task(task, caller)` uses the caller (no own Keycloak); `results_api` imports it.
   - `datasets_api` POST/PATCH keep `body: dict` + `.parse(body)`: the credential/project_id rejections
     need the raw body (`DatasetRequest` ignores extras), and the `Invalid dataset: ...` message stays.
@@ -128,20 +127,20 @@ when the branches meet (`nexus.image`/`nexus.tag`/`nexus.port` are the API's; co
 - Keycloak patch paths in `conftest.py` are unchanged: `app.helpers.wrappers.Keycloak`,
   `app.main.Keycloak`, `app.users_api.Keycloak`, `app.tasks_api.Keycloak`, `app.models.task.Keycloak`.
   The stubs of `users_api` and `tasks_api` import `Keycloak` so those patches resolve; keep that import.
-- `app/models/task.py:105` calls `Keycloak.get_token_from_headers()` with no args (it read Flask's
-  request). The tasks agent must pass the token down (`caller.token`) instead.
+- `app/models/task.py:105` calls `Keycloak.get_token_from_headers()` with no args (the previous backend
+  read the request context). The tasks agent must pass the token down (`caller.token`) instead.
 - `tests/tasks/test_resource_validators.py` and `tests/tasks/test_task_from_spec.py` import
   `tests.fixtures.azure_cr_fixtures` (deleted, registry code). The tasks agent drops that import and
   the `registry_client` / `cr_client` fixture args.
 - `delete_global` and `?force=`: handlers take `force: bool = False` and pass it.
-- `pyproject.toml` / `requirements*.txt` still list the webserver's deps (Flask); see Helm/Tilt status.
+- `pyproject.toml` / `requirements*.txt` are set up for FastAPI and uvicorn.
 
 ## How to port a router (checklist)
 Pattern to copy: `app/projects_api.py` (pagination, filters, `caller.is_admin`, dynamic 201/200) and
-`app/secrets_api.py` (router-level auth plus an admin-only write). Source: `webserver/app/<name>.py`.
+`app/secrets_api.py` (router-level auth plus an admin-only write). Source: `nexus/api/app/<name>.py`.
 Edit only `app/<name>.py` and, if a test needs a client-API fix, the test files you own.
 
-1. Imports: `from fastapi import APIRouter, Body, Depends, Response`; drop flask; `from
+1. Imports: `from fastapi import APIRouter, Body, Depends, Response`; drop any the previous backend imports; `from
    app.helpers.wrappers import Caller, get_caller, require_scope, system_only`.
 2. `bp = Blueprint(..., url_prefix=P)` -> `router = APIRouter(prefix=P, tags=["<name>"])`. If every route
    has the same `@auth(scope=S)` (or a `@bp.before_request @auth`), put
@@ -156,7 +155,7 @@ Edit only `app/<name>.py` and, if a test needs a client-API fix, the test files 
    and set `response.status_code`. DELETE 204 returns nothing.
 5. Body: an existing request DTO becomes a typed param (`req: ProjectRequest`), dropping `.parse()`.
    Hand-validated `request.json or {}` becomes `body: dict = Body(default_factory=dict)` with the same
-   checks. A body that is a list stays `body: list = Body()`... only if the webserver took a list.
+   checks. A body that is a list stays `body: list = Body()`... only if nexus-api took a list.
 6. `g.caller_is_admin` / `g.caller_is_system` -> `caller: Caller = Depends(get_caller)` and
    `caller.is_admin` / `caller.is_system`. Keycloak token from headers -> `caller.token`.
 7. `@system_only` -> add `Depends(system_only)` to the route's `dependencies`, after its
@@ -170,7 +169,7 @@ Edit only `app/<name>.py` and, if a test needs a client-API fix, the test files 
 
 Before/after for one handler (`projects_api.py`):
 ```python
-# before (Flask)
+# before (previous backend)
 @bp.route('/<int:project_id>/datasets/<int:dataset_id>', methods=['PATCH'])
 @audit
 @auth(scope='can_admin_dataset')
@@ -197,7 +196,7 @@ def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(de
 
 ## Fan-out instructions (one Sonnet agent per router)
 Agents edit files only; the lead commits after each wave. No git commands, no branch switching,
-no e2e, no cluster. Each agent: port `webserver/app/<name>.py` into `nexus/api/app/<name>.py` with the
+no e2e, no cluster. Each agent: port `nexus/api/app/<name>.py` into `nexus/api/app/<name>.py` with the
 checklist above, run its test files with its own `NEXUS_TEST_DB`, report what passes, what fails and
 why (another router's 404 is fine). Favour working code over coverage: don't write new tests, don't
 loop on test runs or chase flaky/minor failures; note them and stop.
@@ -219,20 +218,14 @@ Wave B: `users_api` (`keycloak/test_keycloak_users.py`, `test_smoke.py`), `dagst
 `test_live_client_integration.py` (see Next 4) as a whole-suite pass (Haiku).
 
 ## Status of Helm/Tilt
-- Done: `nexus/api/Dockerfile` (uvicorn `--factory app:create_app` on 5000, no alembic),
-  `pyproject.toml` (Flask/alembic/waitress out; fastapi, uvicorn, python-multipart, httpx in),
+- Done: `nexus/api/Dockerfile` (uvicorn `--factory app:create_app` on 5000, with alembic init container),
+  `pyproject.toml` (fastapi, uvicorn, python-multipart, httpx, alembic),
   `requirements.txt` / `requirements-dev.txt` recompiled with hashes.
 - Chart: `k8s/federated-node/templates/nexus-api-{deployment,service,configmap,http-route,roles}.yaml`
-  behind `nexus.api.enabled` (default false). Values under `nexus:` (image, tag, port, `api.replicas`,
-  `api.pathPrefix: /nexus`). Same host as the backend under `/nexus`, prefix stripped by a URLRewrite
-  filter. Own service account `nexus-api` bound to the backend's secrets ClusterRole. Reuses
-  `backend-configmap` + `keycloak-config`; `nexus-api-configmap` sets `NEXUS_ROLE=api` (not read by
-  the code yet; the two-deployment step uses it).
-- Checked: `helm lint` and `helm template --set nexus.api.enabled=true` (with `traefik.enabled=true`
-  for the route) render clean. The chart needs its `charts/` deps: I copied them from the main
-  checkout into a temp copy of the chart to render.
-- Tilt: `NEXUS_API_ENABLED=true tilt up` builds `localhost:5001/nexus-api-fn` with `uvicorn --reload`,
-  syncs `nexus/api/app`, forwards `5004:5000` (5001 is the local registry).
-  `scripts/tilt_manifests.py` takes the extra deployment. Not run here (no cluster).
-  For Tilt to swap the image, dev values must set `nexus.image: localhost:5001/nexus-api-fn` (the backend
-  does the same for `webserver-fn`) and `nexus.api.enabled: true`.
+  (replaces previous backend templates). Values under `nexus.api.*`. Runs at `/` on the host (no `/nexus` prefix).
+  Own service account `nexus-api` bound to the secrets ClusterRole. Reuses `keycloak-config`; 
+  `nexus-api-configmap` sets `NEXUS_ROLE=api` (for the two-deployment step). Init container runs `alembic upgrade head`.
+- Checked: `helm lint` and `helm template` render clean.
+- Tilt: `tilt up` builds `localhost:5001/nexus-api-fn` with `uvicorn --reload`,
+  syncs `nexus/api/app`, forwards `5000:5000`.
+  For Tilt to swap the image, dev values must set `nexus.image: localhost:5001/nexus-api-fn`.
