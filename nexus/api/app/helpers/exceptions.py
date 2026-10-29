@@ -59,6 +59,9 @@ class KubernetesException(LogAndException):
 class DagsterError(LogAndException):
     code = 502
 
+class GitProviderError(LogAndException):
+    code = 502
+
 class ContainerRegistryException(LogAndException):
     pass
 

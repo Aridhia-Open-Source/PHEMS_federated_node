@@ -9,8 +9,8 @@ from app.models import TriggerRepository
 class PullRequestIngestSensor(LaunchingSensor, GitSensor):
     """
     Polls the git provider once per global trigger repository that is enabled, on an enabled
-    provider, with an enabled secret, whatever its project resources. It uses the repository's own
-    secret and the cursor the backend gives it, and launches ingest_pull_requests_job for each one
+    provider, with an enabled secret, whatever its project resources. It uses a token the backend mints
+    for the repository and the cursor the backend gives it, and launches ingest_pull_requests_job for each one
     with new merged PRs. The job posts them once for every project. The poll has no base branch
     filter: each PR carries its base branch and the backend matches it per project resource. A disabled
     project does not stop the poll, it gets no evaluation or launch.
@@ -32,10 +32,10 @@ class PullRequestIngestSensor(LaunchingSensor, GitSensor):
         return item.uri
 
     def tags(self, item: TriggerRepository) -> dict[str, str]:
-        return {"trigger": "ingest", "repo_id": str(item.id)}
+        return {"fn/trigger": "ingest", "fn/repo_id": str(item.id)}
 
     def ready(self, item: TriggerRepository) -> bool:
-        """The provider's merged PRs since the repository's cursor. Reads the repository's secret."""
+        """The provider's merged PRs since the repository's cursor. Asks the backend for a token for the repository."""
         git_api = self.git_apis.for_repository(item)
         merged = git_api.get_new_merged_pulls(repo_path=item.repo_path, merged_after=item.pr_cursor)
         self.log.info(f"Git provider returned {len(merged)} new PRs for {item.repo_path} since {item.pr_cursor}")

@@ -9,6 +9,7 @@ only. Deleting one is a soft delete, refused with a 409 naming the projects it i
 - DELETE /global/repositories/triggers/<id>
 - GET /global/repositories/triggers/<id>/pull_requests
 - POST /global/repositories/triggers/<id>/pull_requests
+- POST /global/repositories/triggers/<id>/token
 - GET /global/repositories/triggers/<id>/healthcheck, see healthcheck_api.py
 """
 from http import HTTPStatus
@@ -17,16 +18,19 @@ from fastapi import APIRouter, Body, Depends
 from fastapi_pagination import Page
 
 from app.dtos.base import page_of
+from app.dtos.git_token import GitTokenDTO, GitTokenRequest
 from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.trigger_repository import (
     PullRequestBatchDTO, PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
 )
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.helpers.git_tokens import mint_token, require_token_allowed
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
 from app.models.git_provider import GitProvider
+from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
 from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
@@ -108,6 +112,26 @@ def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dic
         'created': [pr.number for pr in created],
         'existing': [pr.number for pr in existing],
     }
+
+
+@router.post('/{repo_id}/token', response_model=GitTokenDTO, dependencies=[Depends(system_only)])
+def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitTokenRequest)):
+    """
+    POST /global/repositories/triggers/<id>/token — a short-lived read token for the repository, minted from the
+    credential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the
+    repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
+    its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
+    project or resource still gets a token. Dagster asks at the moment of use.
+    Body: {"project_id": int | null}
+    Responds with token and expires_at (UTC).
+    """
+    repo = TriggerRepository.get_by_id(repo_id)
+    assignment = None if req.project_id is None else ProjectTriggerRepository.query.filter_by(
+        project_id=req.project_id, trigger_repository_id=repo.id
+    ).execution_options(include_deleted=True).order_by(ProjectTriggerRepository.id.desc()).first()
+    require_token_allowed(repo, req.project_id, assignment)
+    token, expires_at = mint_token(repo.secret, repo, repo.TOKEN_PERMISSION)
+    return GitTokenDTO(token=token, expires_at=expires_at)
 
 
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])

@@ -1,0 +1,31 @@
+suite: Dagster run pod's access to the tasks namespace
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+set:
+  dagster:
+    enabled: true
+    postgresql:
+      postgresqlHost: db.default.svc
+  fnDagster:
+    createDB: true
+templates:
+  - dagster-user-roles.yaml
+tests:
+  - it: lets the run pod create, get and delete the ConfigMap of a task's config file in the tasks namespace
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: metadata.name
+          value: federatednode-dagster-task-pod-role
+      - equal:
+          path: metadata.namespace
+          value: tasks
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["create", "get", "delete"]

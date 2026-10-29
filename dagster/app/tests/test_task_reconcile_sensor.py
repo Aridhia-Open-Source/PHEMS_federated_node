@@ -37,8 +37,8 @@ class World:
             self.runs[(task_id, attempt)] = SimpleNamespace(status=run_status, run_id=f"run-{task_id}-{attempt}")
 
     def get_runs(self, filters, limit):
-        assert filters.tags["trigger"] == "task"
-        run = self.runs.get((int(filters.tags["task_id"]), int(filters.tags["attempt"])))
+        assert filters.tags["fn/trigger"] == "task"
+        run = self.runs.get((int(filters.tags["fn/task_id"]), int(filters.tags["fn/attempt"])))
         return [run] if run else []
 
     def patch_task(self, project_id, task_id, fields):
@@ -149,7 +149,7 @@ def test_an_error_reading_the_runs_does_not_stop_the_others(world):
     world.add_task(2, "RUNNING", run_status=S.SUCCESS)
     real = world.instance.get_runs.side_effect
     world.instance.get_runs.side_effect = lambda filters, limit: (
-        (_ for _ in ()).throw(RuntimeError("db down")) if filters.tags["task_id"] == "1" else real(filters, limit)
+        (_ for _ in ()).throw(RuntimeError("db down")) if filters.tags["fn/task_id"] == "1" else real(filters, limit)
     )
 
     world.tick()

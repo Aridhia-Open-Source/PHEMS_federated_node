@@ -141,12 +141,12 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-git-secret [--entity]` | Stores a fresh Gitea token in the repo's K8s secret (`read:repository` for trigger, `write:repository` for results) |
+| `init-git-secret [--entity] [--static-token]` | Stores what nexus-api mints the repo's one-hour git tokens from (ADR 0023) in the repo's K8s secret. Gitea: `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN` of an OAuth2 application named after `GITEA_TOKEN_NAME` / `GITEA_RESULTS_TOKEN_NAME`, created or reused as the Gitea admin user and authorised over HTTP with no browser or prompt (a re-run gives the application a new secret and a new refresh token). With `--static-token`: `TOKEN`, a fresh personal access token (`read:repository` for trigger, `write:repository` for results). GitHub: `APP_ID`, `INSTALLATION_ID` and `PRIVATE_KEY` from `GH_APP_ID`, `GH_INSTALLATION_ID` and `GH_PRIVATE_KEY` if `GH_APP_ID` is set, else `TOKEN` from `GH_TOKEN` |
 | `init-backend-secret [--entity trigger\|results\|dataset]` | Creates the global secret in nexus-api (`POST /global/secrets`) with placeholder values (`{"TOKEN": "unset"}`, or the dataset's dummies), with no Gitea call. An existing secret is left alone, so a real token is never overwritten |
 | `init-dataset-secret` | Stores `USERNAME` and `PASSWORD` (`DATASET_USERNAME`, `DATASET_PASSWORD`, default `dummy`) in the dataset's secret (`<dataset>-dataset-creds`) |
-| `verify-git-secret [--entity]` | Checks Gitea accepts the token currently stored in the repo's secret |
+| `verify-git-secret [--entity]` | Asks nexus-api for a token for the repo (`POST /global/repositories/{triggers,results}/{id}/token`, so the repo must be registered) and checks the provider accepts it |
 | `delete-secret [--entity trigger\|results\|dataset]` | Deletes the global secret from nexus-api and K8s. Refused while a repo or dataset uses it |
-| `delete-gitea-token [--entity]` | Deletes the Gitea token `init-git-secret` created for the repo |
+| `delete-gitea-token [--entity]` | Deletes the Gitea token and the OAuth2 application (with the tokens it issued) `init-git-secret` created for the repo |
 
 **Dataset** (`cmds/dataset.py`)
 
@@ -229,7 +229,7 @@ fncli demo -y --env-file .demo-github.env   # the same on GitHub (phems-sandbox)
 
 It needs the dev cluster with Tilt running and the Dagster sensors already running. The secrets, git provider, repository records and dataset are global (they belong to no project) and only the project's resources for them belong to the project, while the Gitea repos live only in Gitea; each step says which it touches. The demo's own project, repos and dataset names are in `.demo.env`, which overrides `.dev.env`, so it never touches the e2e project; the steps are idempotent, so it can be rerun.
 
-On GitHub (`TEST_GIT_PROVIDER=github`, see `.demo-github.env.example`) the repo must already exist and `GH_TOKEN` in `.dev.env` is stored as both repos' secret; fncli never creates or deletes GitHub repos or tokens. It uses the sensors' own client, `app/github.py`. `GIT_PROVIDER` is not the switch: `.dev.env` sets that for other tools.
+On GitHub (`TEST_GIT_PROVIDER=github`, see `.demo-github.env.example`) the repo must already exist and `GH_TOKEN` in `.dev.env` is stored as both repos' secret, or, if `GH_APP_ID`, `GH_INSTALLATION_ID` and `GH_PRIVATE_KEY` are set (quote the multi-line key in the env file), those are stored instead and the backend mints installation tokens from them; `GH_TOKEN` is still what fncli's own GitHub calls use. fncli never creates or deletes GitHub repos, tokens or Apps. It uses the sensors' own client, `app/github.py`. `GIT_PROVIDER` is not the switch: `.dev.env` sets that for other tools.
 
 ## Real experiments
 

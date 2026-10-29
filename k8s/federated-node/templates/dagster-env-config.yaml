@@ -14,6 +14,7 @@ data:
   DAGSTER_TASK_NAMESPACE: {{ include "tasks_namespace" . }}
   DAGSTER_ARTIFACT_MOUNT_PATH: {{ .Values.fnDagster.artifactMountPath | quote }}
   DAGSTER_ARTIFACTS_PVC_NAME: {{ .Values.fnDagster.artifactsPvcName | quote }}
+  DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS: {{ .Values.fnDagster.taskPod.activeDeadlineSeconds | int64 | quote }}
   DAGSTER_PG_HOST: {{ include "dagsterDbHost" . | quote }}
   DAGSTER_PG_USER: {{ include "dagsterDbUser" . | quote }}
   DAGSTER_PG_NAME: {{ include "dagsterDbName" . | quote }}
@@ -23,6 +24,7 @@ data:
   DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.retryIntervalSeconds | quote }}
   DAGSTER_DELIVERY_MAX_ATTEMPTS: {{ .Values.fnDagster.sensors.deliveryMaxAttempts | quote }}
   NEXUS_API_URL: {{ include "nexusApiUrl" . | quote }}
+  NODE_ID: {{ .Values.nodeId | quote }}
   {{- /*
   Pod securityContext for pipes task pods. Only emitted when set - an unset
   runAsUser must stay absent rather than be sent as null, which the API rejects.

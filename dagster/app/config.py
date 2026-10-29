@@ -43,6 +43,14 @@ DELIVERY_MAX_ATTEMPTS = SensorStatusConfig().delivery_max_attempts
 class ResultsDeliveryConfig(EnvConfig):
     artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
     max_zip_bytes: int = Field(default=10485760, alias="RESULTS_MAX_ZIP_BYTES")
+    node_id: str = Field(default="", alias="NODE_ID")
+
+
+class ArtifactsVolumeConfig(EnvConfig):
+    """The artifacts volume as the chart sets it for every pod that mounts it: its claim and where it is mounted."""
+
+    pvc_name: str = Field(default="", alias="DAGSTER_ARTIFACTS_PVC_NAME")
+    mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
 
 
 class PipesSecurityContextConfig(BaseSettings):
@@ -84,3 +92,13 @@ class PipesSecurityContextConfig(BaseSettings):
                 if g.strip()
             ]
         return ctx
+
+    def to_container_security_context(self) -> dict:
+        """What every task container is held to, whatever the pod's identity: no privilege escalation, no
+        capabilities, the runtime's seccomp profile and a non-root uid. Needs an image with a USER or a runAsUser."""
+        return {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["ALL"]},
+            "seccompProfile": {"type": "RuntimeDefault"},
+            "runAsNonRoot": True,
+        }

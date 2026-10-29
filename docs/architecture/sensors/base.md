@@ -11,12 +11,12 @@ Three small things every sensor leans on: a run key that allows a timed retry (`
 | Name | What it is | Used by |
 |---|---|---|
 | `BaseSensor` | Abstract class. Keeps `context` and `log`; `setup()` does nothing; `__call__` is abstract. | every class-based sensor |
-| `LaunchingSensor` | `BaseSensor` that launches one run per ready item (below). | ingest, evaluate, delivery retry |
+| `LaunchingSensor` | `BaseSensor` that launches one run per ready item (below). | ingest, evaluate, delivery retry, results pull request sync |
 | `run_key(kind, item_id, state)` | Builds the run key `kind/item_id/state/slot`. | ingest, evaluate, delivery retry, results pull request sync |
-| `run_in_flight(context, job, tags)` | True when a run of the job with these tags is queued or started. | `LaunchingSensor`, results pull request sync |
+| `run_in_flight(context, job, tags)` | True when a run of the job with these tags is queued or started. | `LaunchingSensor` |
 | `IN_FLIGHT` | The statuses `run_in_flight` looks for: `NOT_STARTED`, `QUEUED`, `STARTING`, `STARTED`. | `run_in_flight` |
 
-`GitSensor` (`sensors/git/base.py`) adds the backend client and the git client factory. The ingest and evaluate sensors extend `LaunchingSensor` and `GitSensor`. The delivery retry sensor extends `LaunchingSensor` only. The task launcher and the task status mirror extend `BaseSensor` directly.
+`GitSensor` (`sensors/git/base.py`) adds the backend client and the git client factory. The ingest, evaluate and results pull request sync sensors extend `LaunchingSensor` and `GitSensor`. The delivery retry sensor extends `LaunchingSensor` only. The task launcher and the task status mirror extend `BaseSensor` directly.
 
 ## run_key
 
@@ -38,7 +38,7 @@ flowchart TD
 | ingest | `ingest/repository id/pr_cursor/slot` | new merged pull requests move the cursor; or the next slot |
 | evaluate | `evaluate/project id/repository id/newest UNKNOWN PR number/slot` | a newer UNKNOWN pull request arrives; or the next slot |
 | delivery retry | `deliver-retry/result id/slot` | the next slot |
-| results pull request sync | `sync-results-prs/slot` | the next slot |
+| results pull request sync | `sync-result/result id/step/slot` | the pull request moves the result to a new step; or the next slot |
 | task launcher (no helper) | `task/task id/attempt` | a manual retry bumps the attempt |
 | delivery on success (no helper) | `deliver/task id/attempt` | a manual retry bumps the attempt |
 

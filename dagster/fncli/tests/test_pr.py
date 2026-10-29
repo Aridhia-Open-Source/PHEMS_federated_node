@@ -29,7 +29,7 @@ def test_watched_file_is_under_the_watch_dir_with_a_valid_spec(config):
     path, content = file_for(config, "pr-1", "watched")
 
     assert path == "specs/pr-1.json"
-    assert spec_of(content) == {"name": "pr-1", "image": "busybox:1"}
+    assert json.loads(content) == {"spec": {"image": "busybox:1"}}
 
 
 def test_watched_file_carries_the_extra_env_from_test_pr_env(monkeypatch):
@@ -39,11 +39,35 @@ def test_watched_file_carries_the_extra_env_from_test_pr_env(monkeypatch):
     assert spec_of(content)["env"] == {"UC1_DEV": "1"}
 
 
+def test_watched_file_carries_the_tags_from_test_pr_tags(monkeypatch):
+    monkeypatch.setenv("TEST_PR_TAGS", '{"team": "a"}')
+    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
+
+    assert spec_of(content)["tags"] == {"team": "a"}
+
+
+def test_watched_file_carries_the_config_from_test_pr_config(monkeypatch):
+    monkeypatch.setenv("TEST_PR_CONFIG", '{"threshold": 0.5, "labels": ["a"]}')
+    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
+
+    assert spec_of(content)["config"] == {"threshold": 0.5, "labels": ["a"]}
+
+
+def test_the_spec_file_has_none_of_the_removed_keys(monkeypatch):
+    monkeypatch.setenv("TEST_PR_ENV", '{"A": "1"}')
+    monkeypatch.setenv("TEST_PR_TAGS", '{"team": "a"}')
+    monkeypatch.setenv("TEST_PR_CONFIG", '{"k": 1}')
+    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
+
+    assert list(json.loads(content)) == ["spec"]
+    assert list(spec_of(content)) == ["image", "env", "tags", "config"]
+
+
 def test_invalid_file_is_watched_but_has_a_field_the_spec_forbids(config):
     path, content = file_for(config, "pr-1", "invalid")
 
     assert path.startswith("specs/") and path.endswith(".json")
-    assert spec_of(content) == {"name": "pr-1", "image": "busybox:1", "unknown_field": True}
+    assert spec_of(content) == {"image": "busybox:1", "unknown_field": True}
 
 
 def test_unwatched_file_is_outside_the_watch_dir(config):
@@ -107,7 +131,7 @@ class FakeBackend:
 def run_of(status):
     return {
         "runId": "abc", "status": status, "jobName": "k8s_pipes_job",
-        "tags": [{"key": "attempt", "value": "1"}],
+        "tags": [{"key": "fn/attempt", "value": "1"}],
     }
 
 

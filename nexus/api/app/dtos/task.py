@@ -1,4 +1,6 @@
-from typing import Self
+from typing import Any, Self
+
+from pydantic import AliasChoices, Field
 
 from app.dtos.base import DTO, WireDatetime
 from app.dtos.dataset import DatasetDTO
@@ -11,6 +13,11 @@ class TaskSpecDTO(DTO):
     image: str
     dataset_id: int | None
     env: dict
+    compute: dict
+    tags: dict
+    config: dict | None
+    # The model's attribute is metadata_, SQLAlchemy reserves metadata. On the wire it is metadata
+    metadata: Any = Field(validation_alias=AliasChoices("metadata_", "metadata"), serialization_alias="metadata")
 
 
 class TaskDTO(DTO):
@@ -23,6 +30,9 @@ class TaskDTO(DTO):
     updated_at: WireDatetime
     requested_by: str
     project_id: int
+    project_name: str
+    # The dataset the task actually uses, see TaskSpecDTO.dataset_id
+    dataset_name: str | None
     trigger_id: int
     executor_run_id: str | None
     exit_code: int | None
@@ -89,12 +99,20 @@ class NewTaskDTO(DTO):
         snapshot = build_snapshot(trigger.project, dataset)
         return cls(
             # A pull request spec has no name of its own
-            name=spec.name or trigger.title,
+            name=spec.name or f"{trigger.project.name}:PR#{trigger.number}",
             requested_by=trigger.requested_by,
             project_id=trigger.project_id,
             trigger_id=trigger.id,
             params=spec.params,
             config_snapshot=snapshot,
             config_hash=snapshot_hash(snapshot),
-            spec={"image": spec.image, "dataset_id": dataset.id if dataset else None, "env": spec.env},
+            spec={
+                "image": spec.image,
+                "dataset_id": dataset.id if dataset else None,
+                "env": spec.env,
+                "compute": spec.compute.model_dump(exclude_none=True),
+                "tags": spec.tags,
+                "config": spec.config,
+                "metadata": spec.metadata,
+            },
         )

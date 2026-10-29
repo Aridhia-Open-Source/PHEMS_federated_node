@@ -11,7 +11,7 @@ class ResultsRepository(BaseModel):
     - uri: the provider's uri and the repo_path, as the backend derives it.
     - repo_path: where the repository is on the provider's API (owner/name).
     - provider: the git host it is on.
-    - secret: the secret holding the git token, under the key TOKEN.
+    - secret: the secret holding the git credentials. Only the backend reads it, and mints the tokens from it.
     - enabled: turned on or off for the whole node.
     """
     model_config = ConfigDict(extra="allow")

@@ -21,10 +21,9 @@ from app.delivery import git_push
 from app.models import (
     PullRequestResultStep, ResultsRepository, ResultState, Task, TaskTrigger, TriggerRepositoryRef,
 )
-from app.secrets import read_secret_value
 
 ZIP_NAME = "results.zip"
-METADATA_NAME = "metadata.json"
+RUN_NAME = "run.json"
 SPEC_NAME = "spec.json"
 MAX_ERROR_LENGTH = 1000
 REVOKED_ERROR = "results repository access revoked"
@@ -37,9 +36,9 @@ FINAL = PAST_PUSHED | {PullRequestResultStep.REVOKED, PullRequestResultStep.STAL
 
 class ResultsDelivery:
     """
-    Zips a task's artifacts and pushes them with the task's spec and a metadata file to a new branch of
-    the project's results repository, opens a pull request from it into the repository's default
-    branch, and records each step on the task's result as soon as it is done.
+    Zips a task's artifacts and pushes them with the pull request's spec file and a run.json to a new
+    branch of the project's results repository, opens a pull request from it into the repository's
+    default branch, and records each step on the task's result as soon as it is done.
     Delivery never touches the task's own status.
     """
 
@@ -108,7 +107,7 @@ class ResultsDelivery:
             branch, commit_sha, base_branch = self._push(task, run_id, repository, results["target_dir"], pull_request.trigger_repository, pull_request, title)
             pushed = {"branch": branch, "commit_sha": commit_sha}
             self.backend_api.patch_result(task.project_id, result.id, {"step": PullRequestResultStep.PUSHED.value, **pushed})
-            results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request)
+            results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request, task.project_id)
             # An earlier attempt's PR may be merged or closed already: record what it is
             step = PullRequestResultStep.from_git(results_pr)
             self.backend_api.patch_result(task.project_id, result.id, {
@@ -156,8 +155,8 @@ class ResultsDelivery:
         repository's default branch. The branch name is fixed by the layout and the merge sha,
         so a branch already on the remote is from an earlier attempt and is not pushed again.
         """
-        # TODO(auth): the token read and the Keycloak system user are being reworked
-        env = git_push.auth_env(read_secret_value(repository.secret, "TOKEN"))
+        # Asked for here, just before the git commands that need it: it lasts an hour
+        env = git_push.auth_env(self.backend_api.get_repository_token("results", repository.id, task.project_id).token)
 
         layout = Path(target_dir.strip("/")) / self._name(trigger_repository) / str(
             pull_request.number
@@ -177,40 +176,50 @@ class ResultsDelivery:
                 return branch, commit_sha, base_branch
 
             artifacts = Path(self.config.artifact_mount_path) / run_id
-            if not artifacts.is_dir():
+            if artifacts.is_symlink() or not artifacts.is_dir():
                 raise FileNotFoundError(f"No artifacts at {artifacts}")
 
             zip_path = Path(work) / ZIP_NAME
-            git_push.zip_dir(artifacts, zip_path)
+            file_count = git_push.zip_dir(artifacts, zip_path)
             zip_size = zip_path.stat().st_size
             if zip_size > self.config.max_zip_bytes:
                 raise ValueError(
                     f"{ZIP_NAME} is {zip_size} bytes, over the {self.config.max_zip_bytes} byte limit"
                 )
 
-            git_push.checkout_new_branch(clone_dir, branch)
             out_dir = clone_dir / layout
+            # target_dir is checked at the API, and a link inside the results repository could still lead out
+            if not out_dir.resolve().is_relative_to(clone_dir.resolve()):
+                raise ValueError(f"Output path {layout} is outside the clone")
+            git_push.checkout_new_branch(clone_dir, branch)
             out_dir.mkdir(parents=True, exist_ok=True)
             zip_path.replace(out_dir / ZIP_NAME)
-            (out_dir / SPEC_NAME).write_text(json.dumps(task.spec.model_dump(), indent=2) + "\n")
-            (out_dir / METADATA_NAME).write_text(json.dumps({
-                "branch": branch,
-                "merge_commit_sha": pull_request.merge_commit_sha,
-                "task_id": task.id,
-                "executor_run_id": run_id,
-                "trigger_repository_uri": trigger_repository.uri,
-                "number": pull_request.number,
-                "delivered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "zip_size_bytes": zip_size,
+            # The spec file as it was merged, not re-serialised
+            (out_dir / SPEC_NAME).write_bytes(pull_request.spec_raw.encode())
+            (out_dir / RUN_NAME).write_text(json.dumps({
+                "node": {"id": self.config.node_id},
+                "project": {"id": task.project_id, "name": task.project_name},
+                "trigger": {
+                    "repository_uri": trigger_repository.uri,
+                    "pr_number": pull_request.number,
+                    "merge_commit_sha": pull_request.merge_commit_sha,
+                },
+                "task": {"id": task.id, "name": task.name, "executor_id": run_id, "dataset": task.dataset_name},
+                "results": {
+                    "zip_size_bytes": zip_size,
+                    "file_count": file_count,
+                    "delivered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                },
             }, indent=2) + "\n")
 
             return branch, git_push.commit_and_push(clone_dir, message, env), base_branch
 
     def _open_pull_request(
-        self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: TaskTrigger
+        self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: TaskTrigger,
+        project_id: int,
     ) -> dict:
         """Open the pull request of the branch, or return the one an earlier attempt opened."""
-        git_api = self.git_apis.for_repository(repository)
+        git_api = self.git_apis.for_repository(repository, project_id)
         existing = git_api.find_pull_request_by_branch(repository.repo_path, branch, base_branch)
         if existing:
             self.log.info(f"Branch {branch} already has pull request #{existing['number']}")

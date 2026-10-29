@@ -22,7 +22,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 1. After the previous case, open the results repository in Gitea and the results pull request.
 2. Open the branch and the files in it. Download `results.zip` and look inside.
 
-- **Expected:** the branch is `<target_dir>/<trigger repository name>/<pull request number>/<task id>-<first 7 characters of the merge sha>`. Under `<target_dir>/<trigger repository name>/<pull request number>/<task id>/` are `results.zip`, `spec.json` (the task's spec) and `metadata.json` (branch, merge commit sha, task id, run id, trigger repository uri, pull request number, delivery time, zip size). The zip holds the run's artifacts. The pull request goes from the branch into the results repository's default branch.
+- **Expected:** the branch is `<target_dir>/<trigger repository name>/<pull request number>/<task id>-<first 7 characters of the merge sha>`. Under `<target_dir>/<trigger repository name>/<pull request number>/<task id>/` are `results.zip`, `spec.json` (the pull request's spec file, byte for byte) and `run.json` (`node.id`; `project.id` and `name`; `trigger.repository_uri`, `pr_number` and `merge_commit_sha`; `task.id`, `name`, `executor_id` and `dataset`; `results.zip_size_bytes`, `file_count` and `delivered_at`). The zip holds the run's artifacts. The pull request goes from the branch into the results repository's default branch.
 - **Rule:** the delivery layout ([Results delivered as a pushed branch plus a results pull request]).
 - **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` checks the layout against a mocked git host; the end-to-end suite checks only the steps and that a pull request was opened. Neither opens the zip.
 - [ ] Pass
@@ -30,7 +30,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 
 ## The task's status and times mirror its Dagster run
 
-1. In the Dagster UI open the `k8s_pipes_job` run for the task (tags `trigger=task`, `task_id`, `attempt`).
+1. In the Dagster UI open the `k8s_pipes_job` run for the task (tags `fn/trigger=task`, `fn/task_id`, `fn/attempt`).
 2. `GET /projects/<pid>/tasks/<id>`.
 
 - **Expected:** the task's `executor_run_id` is the run's id; its status is the run's status (`SUCCESS`); `started_at` and `completed_at` are set and match the run's times. The exit code is not recorded (the run does not expose it).
@@ -53,7 +53,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 ## A results pull request merged by hand is recorded as merged
 
 1. Run a task to `OPENED`. In the Gitea UI merge the results pull request yourself.
-2. Wait one results-sync interval (the retry slot, 60 seconds by default, plus a tick).
+2. Wait one sensor tick (30 seconds by default) and the run it launches.
 
 - **Expected:** the result goes `MERGED` and records `merged_at` and the merge commit sha.
 - **Rule:** the sync sensor records the provider's state of an opened results pull request ([Run keys, retries and the results pull request sync]).
@@ -64,7 +64,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 ## A results pull request closed without merging is final
 
 1. Run a task to `OPENED`. In Gitea close the results pull request without merging.
-2. Wait one sync interval. Then reopen it in Gitea and wait two more.
+2. Wait one tick and its run. Then reopen it in Gitea and wait two more ticks.
 
 - **Expected:** the result goes `CLOSED`, then stays `CLOSED` after the reopen (a reopened pull request is not followed). The task stays `SUCCESS`.
 - **Rule:** `CLOSED` is final; the sync reads only `PUSHED` and `OPENED` results ([Run keys, retries and the results pull request sync]; [State transition tables for triggers, tasks and result steps; 409 on a refused move]).
@@ -75,11 +75,11 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 ## A results pull request deleted on the provider stays at its last step
 
 1. Run a task to `OPENED`. If your Gitea allows it, delete the results pull request or the branch.
-2. Wait three sync intervals. Check `fncli sensor-status` for the sync sensor.
+2. Wait three ticks. Check `fncli sensor-status` for the sync sensor.
 
-- **Expected:** the result stays `OPENED`; it is not guessed `CLOSED`. The sync keeps skipping it without failing the other results.
+- **Expected:** the result stays `OPENED`; it is not guessed `CLOSED`. The sensor keeps skipping it, launches no run for it, and does not fail the other results.
 - **Rule:** a 404 is logged and skipped, never guessed `CLOSED` ([Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_results_pull_request_sync.py` (`test_a_deleted_pull_request_is_skipped_and_the_others_still_synced`); it misses a real provider.
+- **Automated by:** Partly automated: `dagster/app/tests/test_results_pull_request_sync.py` (`test_a_deleted_pull_request_is_skipped_and_the_others_still_launch`); it misses a real provider.
 - [ ] Pass
 - [ ] Fail — notes:
 

@@ -21,10 +21,13 @@ export KC_BOOTSTRAP_ADMIN_USERNAME=tmpadmin
 export KC_BOOTSTRAP_ADMIN_PASSWORD=password1
 export KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2
 export PYTHONPATH=/app
-export DEFAULT_NAMESPACE=default
+export SECRETS_NAMESPACE=default
 export TASK_NAMESPACE=tasks
 export KEYCLOAK_NAMESPACE=keycloak
 export PUBLIC_URL=localhost:5000
+# The chart's taskCompute values, what a spec's compute is checked against
+export TASK_COMPUTE_MAX_CPU=4 TASK_COMPUTE_MAX_MEMORY=16Gi
+export TASK_COMPUTE_DEFAULT_LIMIT_CPU=2 TASK_COMPUTE_DEFAULT_LIMIT_MEMORY=4Gi
 
 is_ci=$1
 pytest_args="${2:-.}"

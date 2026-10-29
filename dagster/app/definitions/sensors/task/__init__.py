@@ -41,7 +41,7 @@ def task_launcher_sensor(context: OpExecCtx):
 
 def _record_run_status(context: RunStatusSensorContext):
     """Record the status of a task run on its task."""
-    if context.dagster_run.tags.get("trigger") != "task":
+    if context.dagster_run.tags.get("fn/trigger") != "task":
         return
 
     backend_config = BackendConfig()
