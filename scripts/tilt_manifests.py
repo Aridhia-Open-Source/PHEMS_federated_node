@@ -22,7 +22,7 @@ Transformations applied for dev workflow:
   The dagster user-deployment keeps the args Helm gave it: the image has no
   entrypoint, so they are the command that Tilt's restart wrapper runs.
 
-Usage: tilt_manifests.py <namespace> <backend-deploy> <dagster-deploy>
+Usage: tilt_manifests.py <namespace> <backend-deploy> <dagster-deploy> [nexus-deploy]
 """
 import json
 import subprocess
@@ -32,10 +32,10 @@ RUN_IMAGE_TAG = "tilt-run"
 
 
 def main():
-    ns, backend, dagster = sys.argv[1], sys.argv[2], sys.argv[3]
+    ns, backend, dagster, *others = sys.argv[1:]
 
     out = subprocess.run(
-        ["kubectl", "get", "deployment", backend, dagster, "-n", ns, "-o", "json"],
+        ["kubectl", "get", "deployment", backend, dagster, *others, "-n", ns, "-o", "json"],
         capture_output=True,
         text=True,
     )

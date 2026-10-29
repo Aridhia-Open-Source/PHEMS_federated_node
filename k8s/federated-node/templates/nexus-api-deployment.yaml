@@ -1,0 +1,72 @@
+{{- if .Values.nexus.api.enabled }}
+{{- /* nexus: the FastAPI port of the backend, next to it on the same database. The backend owns the
+       migrations, so there is no alembic init container. */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus-api
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: nexus-api
+spec:
+  replicas: {{ .Values.nexus.api.replicas }}
+  selector:
+    matchLabels:
+      app: nexus-api
+  template:
+    metadata:
+      annotations:
+        rollme: {{ template "rollMe" . }}
+      labels:
+        app: nexus-api
+    spec:
+      serviceAccountName: nexus-api
+      containers:
+        - image: {{ template "nexus-image" . }}
+          name: nexus-api
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          resources:
+            {{- toYaml .Values.federatedNode.resources | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.nexus.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready_check
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 30
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /health_check
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 30
+            failureThreshold: 5
+          envFrom:
+            - configMapRef:
+                name: backend-configmap
+            - configMapRef:
+                name: keycloak-config
+            - configMapRef:
+                name: nexus-api-configmap
+          env:
+          - name: BACKEND_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.backend.db.secret.name }}
+                key: {{ .Values.backend.db.secret.key }}
+          volumeMounts:
+            - name: kc-secrets
+              mountPath: {{ include "kcSecretsMountPath" . }}
+              readOnly: true
+      volumes:
+        - name: kc-secrets
+          secret:
+            secretName: kc-secrets
+{{- end }}

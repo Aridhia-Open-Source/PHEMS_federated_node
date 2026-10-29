@@ -1,0 +1,308 @@
+"""
+Global git providers: /global/providers CRUD and its 409s, and what a disabled provider does to
+the repositories on it.
+"""
+from datetime import datetime, timedelta
+from unittest.mock import MagicMock
+
+import pytest
+import requests
+
+from app.helpers.base_model import db
+from app.models.git_provider import GitProvider
+from app.models.project_trigger_repository import ProjectTriggerRepository
+
+PROV = "/global/providers"
+TRIG = "/global/repositories/triggers"
+RES = "/global/repositories/results"
+
+
+def body(**fields):
+    return {
+        "name": "github", "type": "github", "uri": "https://github.com", "api_uri": "https://api.github.com", **fields
+    }
+
+
+def assert_error(response, status):
+    assert response.status_code == status, response.json()
+    assert isinstance(response.json().get("error"), str) and response.json()["error"]
+
+
+def fake_response(status_code, body=None, reason="Reason"):
+    response = MagicMock(status_code=status_code, ok=status_code < 400, reason=reason)
+    response.json.return_value = body
+    return response
+
+
+# ---------------------------------------------------------------- create, get and list
+
+def test_create_get_and_list(client, admin_headers):
+    created = client.post(PROV, json=body(uri="https://GitHub.com/"), headers=admin_headers)
+    assert created.status_code == 201, created.json()
+    assert set(created.json()) == {"id", "name", "type", "uri", "api_uri", "enabled", "revoked", "created_at", "updated_at"}
+    assert created.json() | {"id": None, "created_at": None, "updated_at": None} == {
+        **body(), "id": None, "enabled": True, "revoked": False, "created_at": None, "updated_at": None
+    }  # the uri is kept normalised
+
+    mirror = client.post(PROV, json=body(
+        name="gitea", type="gitea", uri="http://gitea:4000", api_uri="http://gitea:4000/api/v1", enabled=False,
+    ), headers=admin_headers)
+    assert mirror.status_code == 201, mirror.json()
+    assert mirror.json()["enabled"] is False
+
+    assert client.get(f"{PROV}/{created.json()['id']}", headers=admin_headers).json() == created.json()
+    assert [p["id"] for p in client.get(PROV, headers=admin_headers).json()] == [created.json()["id"], mirror.json()["id"]]
+    assert_error(client.get(f"{PROV}/999", headers=admin_headers), 404)
+
+
+@pytest.mark.parametrize("changes", [
+    {"uri": "https://git.example.com", "api_uri": "https://git.example.com/api"},  # the same name
+    {"name": "other"},  # the same uri
+    {"name": "other", "uri": "https://GitHub.com/"},  # the same uri, spelt differently
+    {"name": "other", "uri": "https://github.com:443"},
+])
+def test_create_duplicate_name_or_uri_is_409(client, admin_headers, changes):
+    assert client.post(PROV, json=body(), headers=admin_headers).status_code == 201
+    assert_error(client.post(PROV, json=body(**changes), headers=admin_headers), 409)
+
+
+@pytest.mark.parametrize("changes", [
+    {"type": "gitlab"}, {"type": 5},
+    {"uri": "github.com"}, {"uri": "ssh://github.com"}, {"uri": "https://user:pw@github.com"},
+    {"api_uri": "https://evil.example.com"},  # the api has to be on the provider's own host
+    {"api_uri": "https://user:pw@api.github.com"},
+    {"name": ""}, {"enabled": "yes"},
+    {"bogus": 1},
+])
+def test_create_invalid_is_400(client, admin_headers, changes):
+    assert_error(client.post(PROV, json=body(**changes), headers=admin_headers), 400)
+
+
+def test_create_missing_field_is_400(client, admin_headers):
+    for missing in ("name", "type", "uri", "api_uri"):
+        payload = body()
+        del payload[missing]
+        response = client.post(PROV, json=payload, headers=admin_headers)
+        assert_error(response, 400)
+        assert missing in response.json()["error"]
+
+
+# ---------------------------------------------------------------- patch
+
+def test_patch_fields(client, admin_headers, git_provider):
+    url = f"{PROV}/{git_provider.id}"
+    renamed = client.patch(url, json={"name": "gh"}, headers=admin_headers)
+    assert renamed.status_code == 200, renamed.json()
+    assert renamed.json()["name"] == "gh"
+
+    moved = client.patch(url, json={
+        "uri": "https://git.example.org", "api_uri": "https://git.example.org/api", "enabled": False
+    }, headers=admin_headers)
+    assert moved.status_code == 200, moved.json()
+    assert (moved.json()["uri"], moved.json()["api_uri"], moved.json()["enabled"]) == (
+        "https://git.example.org", "https://git.example.org/api", False
+    )
+
+
+@pytest.mark.parametrize("changes", [
+    {}, {"bogus": 1}, {"name": None}, {"name": ""}, {"type": "gitlab"}, {"uri": "ftp://x"}, {"enabled": "no"},
+    {"api_uri": "https://evil.example.com"},
+    {"uri": "https://git.example.com"},  # the api_uri is no longer on the uri's host
+])
+def test_patch_invalid_is_400(client, admin_headers, git_provider, changes):
+    assert_error(client.patch(f"{PROV}/{git_provider.id}", json=changes, headers=admin_headers), 400)
+
+
+def test_patch_to_a_taken_name_or_uri_is_409(client, admin_headers, git_provider, make_provider):
+    other = make_provider("git.example.com", type="gitea")
+    assert_error(client.patch(f"{PROV}/{other.id}", json={"name": git_provider.name}, headers=admin_headers), 409)
+    assert_error(client.patch(
+        f"{PROV}/{other.id}", json={"uri": "https://github.com", "api_uri": "https://api.github.com"}, headers=admin_headers
+    ), 409)
+    # its own name and uri are not a clash
+    assert client.patch(f"{PROV}/{other.id}", json={"name": other.name, "uri": other.uri}, headers=admin_headers).status_code == 200
+
+
+def test_patch_enabled_applies_at_once(client, admin_headers, project, git_provider, assigned_trigger_repo):
+    url = f"{PROV}/{git_provider.id}"
+    assert client.patch(url, json={"name": "renamed"}, headers=admin_headers).status_code == 200
+    assert client.patch(url, json={"api_uri": git_provider.api_uri}, headers=admin_headers).status_code == 200
+    assert client.patch(url, json={"enabled": False}, headers=admin_headers).json()["enabled"] is False
+
+
+# ---------------------------------------------------------------- delete
+
+def test_delete_204_then_404_and_the_name_and_uri_are_free_again(client, admin_headers, git_provider):
+    assert client.delete(f"{PROV}/{git_provider.id}", headers=admin_headers).status_code == 204
+    assert_error(client.get(f"{PROV}/{git_provider.id}", headers=admin_headers), 404)
+    assert client.get(PROV, headers=admin_headers).json() == []
+    body = {"name": git_provider.name, "type": git_provider.type, "uri": git_provider.uri, "api_uri": git_provider.api_uri}
+    assert client.post(PROV, json=body, headers=admin_headers).status_code == 201
+
+
+@pytest.mark.parametrize("make", ["global_trigger_repo", "global_results_repo"])
+def test_delete_is_409_while_a_repository_is_on_it(client, admin_headers, request, git_provider, make):
+    repo = request.getfixturevalue(make)
+    assert_error(client.delete(f"{PROV}/{git_provider.id}", headers=admin_headers), 409)
+    db.session.delete(repo)
+    db.session.commit()
+    assert client.delete(f"{PROV}/{git_provider.id}", headers=admin_headers).status_code == 204
+
+
+# ---------------------------------------------------------------- a disabled provider
+
+def test_disabled_provider_makes_its_repositories_inactive(
+        client, admin_headers, system_headers, project, git_provider, assigned_trigger_repo, assigned_results_repo, global_trigger_repo,
+        make_provider, make_trigger_repo):
+    project.enabled = True
+    T = global_trigger_repo.id
+    elsewhere = make_trigger_repo(uri="git.example.com/org/elsewhere")  # a repository on another provider
+    elsewhere_resource = f"/projects/{project.id}/repositories/triggers/{elsewhere.id}"
+    assert client.put(elsewhere_resource, json={"watch_dir": "e"}, headers=admin_headers).status_code == 201
+    trigger_resources = f"/projects/{project.id}/repositories/triggers"
+    results_resources = f"/projects/{project.id}/repositories/results"
+    active = lambda url: [x["active"] for x in client.get(url, headers=admin_headers).json()]  # noqa: E731
+    active_ids = lambda url: [  # noqa: E731
+        x["trigger_repository"]["id"] for x in client.get(f"{url}?active=true", headers=admin_headers).json()
+    ]
+    assert active(trigger_resources) == [True, True] and active(results_resources) == [True]
+    assert [r["id"] for r in client.get(f"{TRIG}?pollable=true", headers=admin_headers).json()] == [T, elsewhere.id]
+
+    disabled = client.patch(f"{PROV}/{git_provider.id}", json={"enabled": False}, headers=admin_headers)
+    assert disabled.status_code == 200, disabled.json()
+
+    assert active(trigger_resources) == [False, True] and active(results_resources) == [False]
+    assert active_ids(trigger_resources) == [elsewhere.id]
+    assert [r["id"] for r in client.get(f"{TRIG}?pollable=true", headers=admin_headers).json()] == [elsewhere.id]
+    # the repositories themselves are still enabled, and say which provider is not
+    repo = client.get(f"{TRIG}/{T}", headers=admin_headers).json()
+    assert repo["enabled"] is True and repo["provider"]["enabled"] is False
+
+    # no pull requests are taken for it, and none of its resources can be used
+    refused = client.post(f"{TRIG}/{T}/pull_requests", json={"pull_requests": []}, headers=system_headers)
+    assert_error(refused, 400)
+
+    client.patch(f"{PROV}/{git_provider.id}", json={"enabled": True}, headers=admin_headers)
+    assert active(trigger_resources) == [True, True] and active(results_resources) == [True]
+
+
+@pytest.mark.parametrize("off, on", [
+    ({"enabled": False}, {"enabled": True}),
+    ({"revoked": True}, {"revoked": False}),
+])
+def test_switching_a_provider_back_on_skips_the_gap(
+        client, admin_headers, system_headers, project, git_provider, assigned_trigger_repo, global_trigger_repo, off, on):
+    """Pull requests merged before the provider was switched back on (or restored) are stored but get no trigger; later ones do."""
+    T = global_trigger_repo.id
+    # Start the resource's cursor far back, so the first pull request is in its scope but for the re-enable
+    assignment = ProjectTriggerRepository.query.filter_by(project_id=project.id, trigger_repository_id=T).one()
+    assignment.initial_cursor = datetime(2000, 1, 1)
+    db.session.commit()
+
+    def pull_request(number, merged_at):
+        return {
+            "number": number, "title": f"PR {number}", "raised_by": "user1",
+            "merged_at": merged_at.strftime("%Y-%m-%dT%H:%M:%SZ"), "merge_commit_sha": f"{number:040x}",
+            "base_branch": "main", "files_truncated": False,
+            "changed_files": [{"path": "triggers/spec.json", "status": "added"}],
+        }
+
+    for change in (off, on):
+        assert client.patch(f"{PROV}/{git_provider.id}", json=change, headers=admin_headers).status_code == 200
+
+    r = client.post(f"{TRIG}/{T}/pull_requests", headers=system_headers, json={"pull_requests": [
+        pull_request(1, datetime.utcnow() - timedelta(hours=1)), pull_request(2, datetime.utcnow() + timedelta(days=1)),
+    ]})
+    assert r.status_code == 201, r.json()
+    assert r.json()["created"] == [1, 2]
+    stored = client.get(f"{TRIG}/{T}/pull_requests?per_page=50", headers=admin_headers).json()
+    assert sorted(i["number"] for i in stored["items"]) == [1, 2]
+    triggers = client.get(
+        f"/projects/{project.id}/repositories/triggers/{T}/pull_requests?per_page=50", headers=admin_headers
+    ).json()
+    assert [i["number"] for i in triggers["items"]] == [2]
+
+
+# ---------------------------------------------------------------- a revoked provider
+
+@pytest.mark.parametrize("changes", [{"revoked": "yes"}, {"revoked": 1}, {"revoked": None}])
+def test_patch_revoked_must_be_a_boolean(client, admin_headers, git_provider, changes):
+    assert_error(client.patch(f"{PROV}/{git_provider.id}", json=changes, headers=admin_headers), 400)
+    assert client.get(f"{PROV}/{git_provider.id}", headers=admin_headers).json()["revoked"] is False
+
+
+def test_patch_revoked_is_admin_only_shows_in_the_dtos_and_leaves_enabled_alone(
+        client, admin_headers, post_json_user_header, git_provider, global_trigger_repo):
+    url = f"{PROV}/{git_provider.id}"
+    assert client.patch(url, json={"revoked": True}, headers=post_json_user_header).status_code == 403
+    assert client.get(url, headers=admin_headers).json()["revoked"] is False
+
+    revoked = client.patch(url, json={"revoked": True}, headers=admin_headers)
+    assert revoked.status_code == 200, revoked.json()
+    assert (revoked.json()["revoked"], revoked.json()["enabled"]) == (True, True)
+    assert client.get(url, headers=admin_headers).json()["revoked"] is True
+    assert [p["revoked"] for p in client.get(PROV, headers=admin_headers).json()] == [True]
+    # nested in the repositories on it
+    assert client.get(f"{TRIG}/{global_trigger_repo.id}", headers=admin_headers).json()["provider"]["revoked"] is True
+
+    # one call restores it, and clears the flag only
+    restored = client.patch(url, json={"revoked": False}, headers=admin_headers)
+    assert (restored.json()["revoked"], restored.json()["enabled"]) == (False, True)
+
+
+def test_a_revoked_provider_makes_its_repositories_inactive_unpollable_and_refuses_pull_requests(
+        client, admin_headers, system_headers, project, git_provider, assigned_trigger_repo, assigned_results_repo, global_trigger_repo,
+        make_trigger_repo):
+    T = global_trigger_repo.id
+    elsewhere = make_trigger_repo(uri="git.example.com/org/elsewhere")  # a repository on another provider
+    assert client.put(
+        f"/projects/{project.id}/repositories/triggers/{elsewhere.id}", json={"watch_dir": "e"}, headers=admin_headers
+    ).status_code == 201
+    trigger_resources = f"/projects/{project.id}/repositories/triggers"
+    results_resources = f"/projects/{project.id}/repositories/results"
+    active = lambda url: [x["active"] for x in client.get(url, headers=admin_headers).json()]  # noqa: E731
+    pollable = lambda: [r["id"] for r in client.get(f"{TRIG}?pollable=true", headers=admin_headers).json()]  # noqa: E731
+    assert active(trigger_resources) == [True, True] and active(results_resources) == [True]
+    assert pollable() == [T, elsewhere.id]
+
+    revoked = client.patch(f"{PROV}/{git_provider.id}", json={"revoked": True}, headers=admin_headers)
+    assert revoked.status_code == 200, revoked.json()
+
+    assert active(trigger_resources) == [False, True] and active(results_resources) == [False]
+    assert pollable() == [elsewhere.id]
+    # nothing is disabled or revoked below the provider, which is the one that says so
+    repo = client.get(f"{TRIG}/{T}", headers=admin_headers).json()
+    assert (repo["enabled"], repo["revoked"], repo["provider"]["revoked"]) == (True, False, True)
+    resource = client.get(f"{trigger_resources}/{T}", headers=admin_headers).json()
+    assert (resource["enabled"], resource["revoked"], resource["active"]) == (True, False, False)
+    assert_error(client.post(f"{TRIG}/{T}/pull_requests", json={"pull_requests": []}, headers=system_headers), 400)
+
+    client.patch(f"{PROV}/{git_provider.id}", json={"revoked": False}, headers=admin_headers)
+    assert active(trigger_resources) == [True, True] and active(results_resources) == [True]
+    assert pollable() == [T, elsewhere.id]
+
+
+# ---------------------------------------------------------------- healthcheck
+
+@pytest.mark.parametrize("type,host,path", [
+    ("github", "github.com", ""), ("gitea", "git.example.com", "version"),
+])
+def test_healthcheck_asks_the_api_without_a_token(client, admin_headers, mocker, make_provider, type, host, path):
+    provider = make_provider(host, type=type)
+    get = mocker.patch("requests.get", return_value=fake_response(200))
+    response = client.get(f"{PROV}/{provider.id}/healthcheck", headers=admin_headers)
+    assert response.status_code == 200, response.json()
+    assert response.json()["status"] == "ok" and response.json()["id"] == provider.id
+    assert get.call_args.args[0] == f"{provider.api_uri}/{path}"
+    assert "Authorization" not in get.call_args.kwargs["headers"]
+
+
+def test_healthcheck_failure_is_reported_in_the_body(client, admin_headers, mocker, git_provider):
+    mocker.patch("requests.get", side_effect=requests.ConnectionError("down"))
+    response = client.get(f"{PROV}/{git_provider.id}/healthcheck", headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json()["status"] == "unreachable"
+
+
+def test_healthcheck_unknown_provider_is_404(client, admin_headers):
+    assert_error(client.get(f"{PROV}/999/healthcheck", headers=admin_headers), 404)

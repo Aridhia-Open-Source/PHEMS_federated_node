@@ -33,6 +33,9 @@ Create chart name and version as used by the chart label.
 {{- define "backend-image" -}}
 {{ printf "%s:%s" (.Values.backend.image) ((.Values.backend.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}
+{{- define "nexus-image" -}}
+{{ printf "%s:%s" (.Values.nexus.image) ((.Values.nexus.tag) | default (include "image-tag" . | trim)) }}
+{{- end }}
 {{- define "fn-alpine" -}}
 {{ printf "%s:%s" (.Values.alpine.image) ((.Values.alpine.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}

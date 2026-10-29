@@ -1,0 +1,16 @@
+{{- if .Values.nexus.api.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: nexus-api
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.nexus.port }}
+      name: http
+      targetPort: {{ .Values.nexus.port }}
+      protocol: TCP
+  selector:
+    app: nexus-api
+{{- end }}

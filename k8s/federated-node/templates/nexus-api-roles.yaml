@@ -1,0 +1,21 @@
+{{- if .Values.nexus.api.enabled }}
+{{- /* The backend's secret permissions, for nexus's own service account. */}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Name }}-nexus-api-role-binding
+subjects:
+  - kind: ServiceAccount
+    namespace: {{ .Release.Namespace }}
+    name: nexus-api
+roleRef:
+  kind: ClusterRole
+  name: {{ .Release.Name }}-backend-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nexus-api
+  namespace: {{ .Release.Namespace }}
+{{- end }}
