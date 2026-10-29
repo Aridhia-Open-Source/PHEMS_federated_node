@@ -53,6 +53,7 @@ def pipes_env(monkeypatch):
 def make_pipe(client=None, ext_env=None, **config):
     context = MagicMock()
     context.run_id = "run-1"
+    context.run.tags = {"task_id": "7"}
     context.op_config = {"docker_image": "ghcr.io/org/experiment:latest", **config}
     return K8sPipe(client=client or MagicMock(), context=context, ext_env=ext_env)
 
@@ -137,6 +138,22 @@ class TestBasePodSpec:
         spec = make_pipe()._build_base_pod_spec()
 
         assert spec["containers"][0]["name"] == "pipes-run-1"
+
+    def test_a_dataset_task_has_its_limits_hardening_run_folder_and_secret_env_together(self, pipes_env):
+        resources = {"limits": {"cpu": "1", "memory": "2Gi"}}
+
+        spec = make_pipe(resources=resources, **DATASET_CONFIG)._build_base_pod_spec()
+
+        container = spec["containers"][0]
+        names = [e["name"] for e in container["env"]]
+        assert container["resources"] == resources
+        assert container["securityContext"]["runAsNonRoot"] is True
+        assert spec["activeDeadlineSeconds"] == 21600
+        assert container["volumeMounts"][0]["subPath"] == "run-1"
+        assert container["env"][names.index("DB_PASSWORD")]["valueFrom"]["secretKeyRef"] == {
+            "name": "task-7", "key": "PASSWORD"
+        }
+        assert names[-3:] == ["DB_USERNAME", "DB_PASSWORD", "CONNECTION_STRING"]
 
 
 class TestNamespaces:
@@ -225,19 +242,41 @@ class TestEnvironment:
 
         assert "CONNECTION_STRING" not in names
 
-    def test_connection_string_is_resolved_from_the_secret(self, pipes_env):
+    def test_credentials_come_from_the_task_secret_not_the_pod_spec(self, pipes_env):
+        pipe = make_pipe(**DATASET_CONFIG)
+
+        with patch.object(pipes.SecretProvider, "get") as secret:
+            env = pipe._pod_env()
+
+        secret.assert_not_called()
+        names = [e["name"] for e in env]
+        assert env[names.index("DB_USERNAME")] == {
+            "name": "DB_USERNAME", "valueFrom": {"secretKeyRef": {"name": "task-7", "key": "USERNAME"}}
+        }
+        assert env[names.index("DB_PASSWORD")] == {
+            "name": "DB_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "task-7", "key": "PASSWORD"}}
+        }
+
+    def test_connection_string_refers_to_the_secret_variables_defined_before_it(self, pipes_env):
+        env = make_pipe(**DATASET_CONFIG)._pod_env()
+
+        names = [e["name"] for e in env]
+        connstr = env[names.index("CONNECTION_STRING")]["value"]
+        assert connstr == (
+            "driver={PostgreSQL ANSI};Uid=$(DB_USERNAME);Pwd=$(DB_PASSWORD);Server=db.host,5432;Database=cdm;"
+        )
+        assert names.index("DB_USERNAME") < names.index("CONNECTION_STRING")
+        assert names.index("DB_PASSWORD") < names.index("CONNECTION_STRING")
+
+    def test_the_credentials_are_read_from_the_dataset_secret(self, pipes_env):
         pipe = make_pipe(**DATASET_CONFIG)
 
         with patch.object(pipes.SecretProvider, "get", side_effect=["user", "pass"]) as secret:
-            env = pipe._pod_env()
+            creds = pipe._get_dataset_creds()
 
-        connstr = next(e["value"] for e in env if e["name"] == "CONNECTION_STRING")
-        assert connstr == (
-            "driver={PostgreSQL ANSI};Uid=user;Pwd=pass;Server=db.host,5432;Database=cdm;"
-        )
+        assert creds == {"USERNAME": "user", "PASSWORD": "pass"}
         assert secret.call_args_list[0].args == ("db-host-cdm-creds", "fn", "USERNAME")
         assert secret.call_args_list[1].args == ("db-host-cdm-creds", "fn", "PASSWORD")
-
 
     @pytest.mark.parametrize("db_type, expected", [
         ("mssql", "driver={ODBC Driver 18 for SQL Server};Uid=u;Pwd=p;Server=db.host,5432;Database=cdm;"),
@@ -330,6 +369,55 @@ class TestCall:
         pipe()
 
         assert seen["existed"] is True
+
+
+class TestTaskSecret:
+    def _pipe_on(self, tmp_path, client, **config):
+        pipe = make_pipe(client=client, **config)
+        pipe.mnt_base_path = str(tmp_path)
+        pipe.artifact_path = str(tmp_path / "run-1")
+        return pipe
+
+    def test_no_secret_without_a_dataset(self, pipes_env, tmp_path):
+        pipe = self._pipe_on(tmp_path, MagicMock())
+
+        with patch.object(pipes, "TaskSecret") as task_secret:
+            pipe()
+
+        task_secret.assert_not_called()
+
+    def test_the_secret_holds_the_credentials_in_the_tasks_namespace_while_the_pod_runs(self, pipes_env, tmp_path):
+        client = MagicMock()
+        pipe = self._pipe_on(tmp_path, client, **DATASET_CONFIG)
+        seen = {}
+        client.run.side_effect = lambda **_: seen.update(entered=task_secret.return_value.__enter__.called)
+
+        with patch.object(pipes.SecretProvider, "get", side_effect=["user", "pass"]), \
+                patch.object(pipes, "TaskSecret") as task_secret:
+            pipe()
+
+        task_secret.assert_called_once_with("task-7", "tasks", {"USERNAME": "user", "PASSWORD": "pass"})
+        assert seen["entered"] is True
+        task_secret.return_value.__exit__.assert_called_once()
+
+    def test_the_secret_is_deleted_when_the_task_fails(self, pipes_env, tmp_path):
+        client = MagicMock()
+        client.run.side_effect = RuntimeError("pod failed")
+        pipe = self._pipe_on(tmp_path, client, **DATASET_CONFIG)
+
+        with patch.object(pipes.SecretProvider, "get", side_effect=["user", "pass"]), \
+                patch.object(pipes, "TaskSecret") as task_secret:
+            with pytest.raises(RuntimeError, match="pod failed"):
+                pipe()
+
+        task_secret.return_value.__exit__.assert_called_once()
+
+    def test_a_run_without_a_task_id_is_rejected(self, pipes_env):
+        pipe = make_pipe(**DATASET_CONFIG)
+        pipe.context.run.tags = {}
+
+        with pytest.raises(KeyError, match="task_id"):
+            pipe.task_secret_name
 
 
 class TestResponse:
