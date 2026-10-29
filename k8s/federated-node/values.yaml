@@ -414,3 +414,12 @@ gitea:
     secret:
       name: gitea-db
       key: password
+
+  # OAuth2 provider settings, set through GITEA__oauth2__* so they also reach an app.ini that
+  # already exists on the volume. The node mints one-hour git tokens from Gitea's refresh
+  # token (ADR 0023), so a used refresh token must stay valid: invalidateRefreshTokens must
+  # stay false, or the second of two concurrent refreshes fails.
+  oauth2:
+    enabled: true
+    accessTokenExpirationTime: 3600
+    invalidateRefreshTokens: false

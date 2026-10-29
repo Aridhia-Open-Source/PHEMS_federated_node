@@ -69,7 +69,7 @@ def evaluate_pull_request(context: OpExecCtx, pr: PullRequestTrigger):
     backend_api = cast(BackendAPI, context.resources.backend_api)
     git_apis = cast(GitAPIFactory, context.resources.git_apis)
     repo = backend_api.get_project_trigger_repository(pr.project_id, pr.trigger_repository_id)
-    parsed = PullRequestParser(git_apis.for_repository(repo.trigger_repository), repo, context.log).parse(pr)
+    parsed = PullRequestParser(git_apis.for_repository(repo.trigger_repository, pr.project_id), repo, context.log).parse(pr)
     record_outcome(backend_api, pr, parsed, context.log)
 
 

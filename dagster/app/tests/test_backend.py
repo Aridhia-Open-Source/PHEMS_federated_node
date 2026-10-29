@@ -4,7 +4,7 @@ import pytest
 
 from app.backend import BackendAPI
 from app.models import (
-    Dataset, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TriggerRepository,
+    Dataset, GitToken, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TriggerRepository,
 )
 from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response
 
@@ -361,6 +361,22 @@ class TestResults:
 
         session.get.assert_called_once_with("/projects/1/repositories/results/2")
         assert result.results_repository.id == 2
+
+    @pytest.mark.parametrize("kind,segment", [("trigger", "triggers"), ("results", "results")])
+    def test_a_repository_token_is_posted_for_the_kind_the_repository_and_project(self, api, session, kind, segment):
+        session.post.return_value = make_response({"token": "tok", "expires_at": "2026-01-01T01:00:00Z"})
+
+        token = api.get_repository_token(kind, 2, 4)
+
+        session.post.assert_called_once_with(f"/global/repositories/{segment}/2/token", json={"project_id": 4})
+        assert token == GitToken(token="tok", expires_at="2026-01-01T01:00:00Z")
+
+    def test_a_repository_token_without_a_project_sends_null(self, api, session):
+        session.post.return_value = make_response({"token": "tok", "expires_at": "2026-01-01T01:00:00Z"})
+
+        api.get_repository_token("trigger", 2)
+
+        assert session.post.call_args.kwargs["json"] == {"project_id": None}
 
     def test_create_posts_the_task_and_repository(self, api, session):
         session.post.return_value = make_response(self.RESULT)
