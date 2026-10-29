@@ -74,22 +74,22 @@ Never run e2e tests. Run only the test files for what you changed, foreground, w
 cd nexus/api
 export PGHOST=localhost PGPORT=5432 BACKEND_DB_USER=<backend db user> BACKEND_DB_PASSWORD=<pw> BACKEND_DB_NAME=<db>
 export KEYCLOAK_URL=http://localhost:8080 KEYCLOAK_REALM=FederatedNode KEYCLOAK_CLIENT=global \
-  KEYCLOAK_SECRET=<global client secret> DEFAULT_NAMESPACE=<ns> TASK_NAMESPACE=<tasks ns> PUBLIC_URL=localhost:5002
-/tmp/nexus-venv/bin/uvicorn --factory app:create_app --reload --port 5002
+  KEYCLOAK_SECRET=<global client secret> DEFAULT_NAMESPACE=<ns> TASK_NAMESPACE=<tasks ns> PUBLIC_URL=localhost:5004
+/tmp/nexus-venv/bin/uvicorn --factory app:create_app --reload --port 5004
 ```
 Same env vars as the backend pod (`kubectl get cm backend-configmap keycloak-config -o yaml`). Docs at
-`http://localhost:5002/docs`, spec at `/openapi.json`. nexus never migrates: the webserver's alembic owns the schema.
+`http://localhost:5004/docs`, spec at `/openapi.json`. nexus never migrates: the webserver's alembic owns the schema.
 
 **Unit tests**: see "How to resume" (`run_local_tests.sh`, venv + `nexus-test-db` container). CI-style:
 `./run_tests.sh` (docker compose, as the webserver's).
 
 **Tilt**: `NEXUS_API_ENABLED=true tilt up` with the chart deployed with nexus on (next item). Builds
-`localhost:5001/nexus-api`, runs `uvicorn --reload`, syncs `nexus/api/app`, forwards `localhost:5002`.
+`localhost:5001/nexus-api-fn`, runs `uvicorn --reload`, syncs `nexus/api/app`, forwards `localhost:5004`.
 
 **Helm values** to turn nexus-api on (in `dev.values.yaml` or `--set`):
 ```yaml
 nexus:
-  image: localhost:5001/nexus-api   # dev only, so Tilt can swap it; default ghcr.io/aridhia-open-source/nexus_api
+  image: localhost:5001/nexus-api-fn   # dev only, so Tilt can swap it; default ghcr.io/aridhia-open-source/nexus_api
   api:
     enabled: true                   # pathPrefix /nexus on the backend host (traefik.enabled), replicas 1
 ```
@@ -101,7 +101,7 @@ when the branches meet (`nexus.image`/`nexus.tag`/`nexus.port` are the API's; co
 
 **Pointing the UI (nexus/ui) at nexus**:
 - Vite dev server (5173, UI at `http://localhost:5173/nexus-ui/`):
-  `cd nexus/ui && VITE_BACKEND_URL=http://localhost:5002 npm run dev` (5002 = nexus via Tilt or local
+  `cd nexus/ui && VITE_BACKEND_URL=http://localhost:5004 npm run dev` (5004 = nexus via Tilt or local
   uvicorn; the UI's default 5001 is the local registry, so always set it).
 - In the cluster: `nexus.ui.backendUri: http://nexus-api.<namespace>.svc:5000` (the nexus-api Service).
 - Types: switch the UI's `gen:api` to `nexus/api/openapi.json` (regenerate with `python dump_openapi.py`).
@@ -231,8 +231,8 @@ Wave B: `users_api` (`keycloak/test_keycloak_users.py`, `test_smoke.py`), `dagst
 - Checked: `helm lint` and `helm template --set nexus.api.enabled=true` (with `traefik.enabled=true`
   for the route) render clean. The chart needs its `charts/` deps: I copied them from the main
   checkout into a temp copy of the chart to render.
-- Tilt: `NEXUS_API_ENABLED=true tilt up` builds `localhost:5001/nexus-api` with `uvicorn --reload`,
-  syncs `nexus/api/app`, forwards `5002:5000` (5001 is the local registry).
+- Tilt: `NEXUS_API_ENABLED=true tilt up` builds `localhost:5001/nexus-api-fn` with `uvicorn --reload`,
+  syncs `nexus/api/app`, forwards `5004:5000` (5001 is the local registry).
   `scripts/tilt_manifests.py` takes the extra deployment. Not run here (no cluster).
-  For Tilt to swap the image, dev values must set `nexus.image: localhost:5001/nexus-api` (the backend
+  For Tilt to swap the image, dev values must set `nexus.image: localhost:5001/nexus-api-fn` (the backend
   does the same for `webserver-fn`) and `nexus.api.enabled: true`.

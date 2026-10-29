@@ -32,7 +32,7 @@ Same wire contract as the Flask webserver. Read from `origin/nexus/api`.
   ported are in it; see HANDOVER.md for which.
 
 ## Local
-- Tilt port-forward: nexus on `localhost:5002` (the webserver stays on 5000; 5001 is the local registry).
+- Tilt port-forward: nexus on `localhost:5004` (the webserver stays on 5000; 5001 is the local registry).
 
 ## Deployed path
 - In the cluster nexus is on the backend's host under `/nexus` (prefix stripped), e.g. `https://<host>/nexus/projects`.
@@ -45,4 +45,4 @@ Same wire contract as the Flask webserver. Read from `origin/nexus/api`.
 - Pages: `GET /projects` is paged (`items/page/per_page/total/pages`), not a plain array; `/global/secrets`
   is a plain array. Page responses are untyped in the spec until a typed page is agreed (no new DTOs in the port).
 - `/login` takes form fields (urlencoded or multipart). Errors stay `{"error", "details"?}`.
-- Port: Tilt forwards nexus on 5002.
+- Port: Tilt forwards nexus on 5004 (5002 and 5003 are the registry mirrors).

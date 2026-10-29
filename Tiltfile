@@ -76,7 +76,7 @@ docker_build_with_restart(
 NEXUS_ENABLED = os.getenv('NEXUS_API_ENABLED', 'false') == 'true'
 if NEXUS_ENABLED:
   docker_build_with_restart(
-    '{}/nexus-api'.format(DOCKER_REGISTRY),
+    '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
     'nexus/api',
     entrypoint=[
       'uvicorn', '--factory', 'app:create_app', '--reload',
@@ -156,7 +156,7 @@ local_resource(
 k8s_resource('backend', port_forwards=['5000:5000'])
 if NEXUS_ENABLED:
   # 5001 is the local image registry
-  k8s_resource('nexus-api', port_forwards=['5002:5000'])
+  k8s_resource('nexus-api', port_forwards=['5004:5000'])
 
 # kubectl port-forward exits when one of its connections breaks, and Tilt does not start
 # a serve_cmd again once it has exited. Loop, so a dead forward comes back after a second.

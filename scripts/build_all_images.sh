@@ -23,4 +23,7 @@ for dir in "${DOCKER_DIRS[@]}"; do
   ./scripts/build_image.sh "$dir" "$DOCKER_TAG"
 done
 
+# nexus/api shares its basename with other dirs, so it gets an explicit image name
+./scripts/build_image.sh nexus/api "$DOCKER_TAG" nexus-api-fn
+
 echo "Image builds successful!"
