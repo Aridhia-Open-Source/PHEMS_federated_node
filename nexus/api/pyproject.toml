@@ -1,6 +1,6 @@
 [project]
 name = "nexus-api"
-description = "Federated Node API (FastAPI port of the webserver)"
+description = "Federated Node API"
 version = "1.2.1"
 requires-python = ">=3.13"
 readme = "README.md"
@@ -19,6 +19,7 @@ maintainers = [
 dependencies = [
     "sqlalchemy~=2.0.49",
     "psycopg2~=2.9.10",
+    "alembic~=1.16.5",
     "kubernetes~=33.1.0",
     "joserfc~=1.6.5",
     "pyjwt~=2.10.1",

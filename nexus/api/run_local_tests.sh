@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 db="${NEXUS_TEST_DB:-test_app}"
 docker exec nexus-test-db psql -U admin -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
     || docker exec nexus-test-db createdb -U admin "$db"
-export PGHOST=localhost PGPORT=55432 BACKEND_DB_USER=admin BACKEND_DB_PASSWORD=test_app BACKEND_DB_NAME="$db"
+export PGHOST=localhost PGPORT=55432 NEXUS_DB_USER=admin NEXUS_DB_PASSWORD=test_app NEXUS_DB_NAME="$db"
 export KEYCLOAK_URL=http://keycloak:8080 KEYCLOAK_REALM=FederatedNode KEYCLOAK_CLIENT=global KEYCLOAK_ADMIN=admin
 export KEYCLOAK_ADMIN_PASSWORD=password1 KEYCLOAK_SERVICE_USER=fn-service KEYCLOAK_SERVICE_PASSWORD=servicepass1
 export KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2 DEFAULT_NAMESPACE=default TASK_NAMESPACE=tasks

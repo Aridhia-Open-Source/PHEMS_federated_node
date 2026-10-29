@@ -24,6 +24,8 @@ RUN groupadd -g "$USER_GID" "$APP_USER" \
     && useradd --uid "$USER_UID" --gid "$USER_GID" "$APP_USER"
 
 COPY --chown=${APP_USER}:${APP_USER} app ./app
+COPY --chown=${APP_USER}:${APP_USER} migrations ./migrations
+COPY --chown=${APP_USER}:${APP_USER} alembic.ini .
 
 USER ${USER_UID}
 
