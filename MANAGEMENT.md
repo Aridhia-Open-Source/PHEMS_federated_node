@@ -227,13 +227,24 @@ How often they tick (`fnDagster.sensors.minIntervalSeconds`, default 30 s) and h
    ```json
    {
      "spec": {
-       "name": "first-task",
-       "image": "ghcr.io/your-org/your-analytics-image:1.0"
-     }
+       "image": "ghcr.io/your-org/your-analytics-image:1.0",
+       "dataset": "my-dataset",
+       "env": {"MY_VAR": "value"},
+       "tags": {"team": "analytics"},
+       "config": {"epochs": 3}
+     },
+     "metadata": {"ticket": "ABC-1"}
    }
    ```
 
-   `image` is required. `env`, `params`, `dataset` and `resources` are optional. Any other field makes the pull request `REJECTED`. The rules are in [ADR 0002](project/decisions/0002-task-spec-and-derivation.md).
+   Only `spec` and `metadata` are allowed at the top level, and `spec` is required. In `spec`, `image` is required; `dataset`, `env`, `tags` and `config` are optional. Any other field, in either place, makes the pull request `REJECTED`.
+   - `env` keys can't be `ARTIFACT_PATH`, `CDM_SCHEMA`, `WRITE_SCHEMA`, `DB_USERNAME`, `DB_PASSWORD`, `CONNECTION_STRING` or `CONFIG_PATH`, or start with `DAGSTER_` or `KUBERNETES_`, in any letter case: the run sets those itself.
+   - `tags` are text to text, copied onto the task's run. A key is 1 to 63 letters, digits, `_`, `.` or `-` (so no `/`), otherwise the pull request is rejected.
+   - `config` is a JSON object the task reads as a file. Its contents are not checked.
+   - `metadata` is yours: any JSON, not checked, kept with the task.
+   - The task is named `<project name>:PR#<pull request number>`.
+
+   The rules are in [ADR 0002](project/decisions/0002-task-spec-and-derivation.md).
 2. Open a pull request into the base branch and **merge it**. Only merged pull requests are read.
 3. Wait a few sensor intervals, then look:
 

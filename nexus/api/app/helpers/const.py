@@ -63,8 +63,13 @@ SPEC_RAW_MAX_BYTES = 64 * 1024
 TASK_NAME_MAX_LENGTH = 256
 TASK_IMAGE_MAX_LENGTH = 256
 TASK_ENV_KEY_REGEX = r'^[A-Za-z_][A-Za-z0-9_]*$'
-# Set by the run itself from the dataset
-TASK_ENV_RESERVED_KEYS = {"CDM_SCHEMA", "WRITE_SCHEMA"}
+# Set by the run itself. A spec's env key is compared upper-cased: the exact names, and the prefixes
+TASK_ENV_RESERVED_KEYS = {
+    "ARTIFACT_PATH", "CDM_SCHEMA", "WRITE_SCHEMA", "DB_USERNAME", "DB_PASSWORD", "CONNECTION_STRING", "CONFIG_PATH"
+}
+TASK_ENV_RESERVED_PREFIXES = ("DAGSTER_", "KUBERNETES_")
+# Dagster stores a spec's tags as `user/<key>`, and its tag validation takes no further `/` in a key
+TASK_TAG_KEY_REGEX = r'^[A-Za-z0-9_.-]{1,63}$'
 TASK_ENV_MAX_BYTES = 32 * 1024
 TASK_REVIEW = os.getenv("TASK_REVIEW")
 ENABLE_IMAGE_WHITELIST = os.getenv("ENABLE_IMAGE_WHITELIST", "false").lower() == "true"

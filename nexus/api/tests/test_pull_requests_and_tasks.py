@@ -479,7 +479,9 @@ def pr_state(client, admin_headers, pr_url) -> dict:
 
 def test_create_task_yields_pr_and_is_idempotent(client, admin_headers, system_headers, project, pr_trigger, spec_raw):
     task = create_task(client, system_headers, pr_trigger, spec_raw)
-    assert (task["status"], task["name"], task["project_id"]) == ("PENDING", "PR 1", project.id)
+    assert (task["status"], task["name"], task["project_id"]) == ("PENDING", f"{project.name}:PR#1", project.id)
+    assert (task["project_name"], task["dataset_name"]) == (project.name, None)
+    assert (task["spec"]["tags"], task["spec"]["config"], task["spec"]["metadata"]) == ({}, None, None)
     assert task["spec"]["image"] == "img:1" and task["spec"]["dataset_id"] is None
     pr_row = pr_state(client, admin_headers, pr_trigger)
     assert (pr_row["state"], pr_row["task_id"], pr_row["state_cause"]) == ("YIELDED", task["id"], None)
@@ -504,13 +506,22 @@ def test_a_revoked_project_creates_no_task(client, admin_headers, system_headers
     assert post_task(client, system_headers, pr_trigger, spec_raw).status_code == 201
 
 
-def test_spec_options_are_kept(client, system_headers, pr_trigger):
-    task = create_task(client, system_headers, pr_trigger,
-                       json.dumps({"note": "ignored", "spec": {"docker_image": "img:9", "name": "MyTask",
-                                                               "env": {"MY_VAR": "x"}, "params": {"p": {"q": [1]}}}}))
-    assert task["name"] == "MyTask" and task["spec"]["image"] == "img:9"  # docker_image is an alias of image
-    assert task["spec"]["env"] == {"MY_VAR": "x"}
-    assert Task.query.get(task["id"]).params == {"p": {"q": [1]}}
+def test_spec_options_are_kept(client, system_headers, project, pr_trigger, global_dataset, assigned_dataset):
+    raw = json.dumps({
+        "spec": {
+            "image": "img:9", "dataset": global_dataset.name, "env": {"MY_VAR": "x"}, "tags": {"team": "a"},
+            "config": {"epochs": 3, "layers": [1, {"x": None}]},
+        },
+        "metadata": {"ticket": "ABC-1", "any": [1, None]},
+    })
+    task = create_task(client, system_headers, pr_trigger, raw)
+    assert task["name"] == f"{project.name}:PR#1"
+    assert task["spec"] == {
+        "image": "img:9", "dataset_id": global_dataset.id, "env": {"MY_VAR": "x"}, "tags": {"team": "a"},
+        "config": {"epochs": 3, "layers": [1, {"x": None}]}, "metadata": {"ticket": "ABC-1", "any": [1, None]},
+    }
+    assert (task["project_name"], task["dataset_name"]) == (project.name, global_dataset.name)
+    assert Task.query.get(task["id"]).params == {}
 
 
 def test_dataset_default_and_case_insensitive_override(client, admin_headers, system_headers, project, global_trigger_repo,
@@ -550,9 +561,21 @@ def test_unusable_dataset_rejects_the_pr(client, admin_headers, system_headers, 
     spec(image=5),                                  # wrong type
     spec(bogus=1),                                  # unknown spec field
     spec(env="notdict"),
+    spec(name="n"),                                 # no longer in the spec file
+    spec(params={"p": 1}),
+    spec(repository="org/repo"),
+    spec(resources={"limits": {"cpu": "1"}}),
+    spec(env={"CDM_SCHEMA": "x"}),                  # reserved env keys, whatever the case
+    spec(env={"dagster_home": "x"}),
+    spec(tags={"a/b": "x"}),                        # tag keys are plain: no `/`
+    spec(tags={"dagster/max_retries": "3"}),
+    spec(tags={"k": 1}),
+    spec(config=["not", "an", "object"]),
+    json.dumps({"image": "i:1"}),                   # not under spec
+    json.dumps({"spec": {"image": "i:1"}, "extra": 1}),
     "not json at all",
     '{"spec": "a string"}',
-    json.dumps({"spec": {"image": "i:1", "params": {"blob": "x" * (70 * 1024)}}}),   # over the size limit
+    json.dumps({"spec": {"image": "i:1"}, "metadata": {"blob": "x" * (70 * 1024)}}),   # over the size limit
 ])
 def test_bad_spec_rejects_the_pr(client, admin_headers, system_headers, pr_trigger, raw):
     r = post_task(client, system_headers, pr_trigger, raw)
@@ -722,6 +745,8 @@ def test_task_trigger_is_the_pull_request_with_its_repository(client, admin_head
         "trigger_repository": {
             "id": global_trigger_repo.id, "repo_path": global_trigger_repo.repo_path, "uri": global_trigger_repo.uri,
         },
+        # The spec file as the pull request stored it, byte for byte
+        "spec_raw": spec_raw,
     }
     assert response.json()["number"] == 1 and response.json()["merge_commit_sha"]
     assert client.get(f"/projects/{other_project.id}/tasks/{task['id']}/trigger", headers=admin_headers).status_code == 404

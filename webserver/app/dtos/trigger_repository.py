@@ -101,14 +101,16 @@ class PullRequestTriggerDTO(DTO):
 
 
 class TaskTriggerDTO(PullRequestTriggerDTO):
-    """The pull request that yielded a task, with the repository it was merged in nested."""
+    """The pull request that yielded a task, with the repository it was merged in nested and its spec file as stored."""
     trigger_repository: TriggerRepositoryRefDTO
+    spec_raw: str
 
     @classmethod
     def from_model(cls, obj: PullRequestTrigger):
         return cls(
             **PullRequestTriggerDTO.from_model(obj).model_dump(),
             trigger_repository=TriggerRepositoryRefDTO.from_model(obj.project_trigger_repository.trigger_repository),
+            spec_raw=obj.spec_raw,
         )
 
 

@@ -90,6 +90,15 @@ class Task(db.Model, BaseModel):
         self.created_at = dt.now()
         self.updated_at = dt.now()
 
+    @property
+    def project_name(self) -> str:
+        return self.project.name
+
+    @property
+    def dataset_name(self) -> str | None:
+        """The name of the dataset the task actually uses, the one its spec resolved to."""
+        return self.spec.dataset.name if self.spec.dataset else None
+
     @classmethod
     def _get_required_fields(cls) -> list[str]:
         # Set when the task is created from its validated trigger, never in a request body
