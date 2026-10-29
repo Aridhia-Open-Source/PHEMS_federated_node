@@ -184,7 +184,7 @@ def test_no_token_is_refused(client, project, full_task):
 # --------------------------------------------------------------------------- contract with Dagster
 
 
-@pytest.mark.skipif(not CONTRACT.is_file(), reason="the Dagster source is not next to webserver/")
+@pytest.mark.skipif(not CONTRACT.is_file(), reason="the Dagster source is not in the checkout")
 @pytest.mark.parametrize("with_dataset", [True, False])
 def test_the_response_has_the_shape_dagsters_launch_decision_parses(
         client, system_headers, project, full_task, make_task, with_dataset):

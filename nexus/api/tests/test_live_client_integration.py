@@ -6,7 +6,7 @@ process-wide Keycloak/k8s mocks, and the fncli backend client (dagster/fncli/bac
 Dagster code location's BackendAPI (dagster/app/backend.py) are pointed at it with the Dagster system user's token
 (the identity they log in as), and `admin_api` with the admin token, which revoking needs.
 
-Skipped when ../dagster is not there (the CI container mounts only webserver/tests and webserver/app).
+Skipped when ../dagster is not there (the CI container mounts only tests and app).
 """
 import importlib
 import importlib.util
@@ -32,7 +32,7 @@ import uvicorn  # noqa: E402
 
 def _load_dagster_client():
     """
-    dagster/app is a package called `app` too, like the webserver's. Import it with the webserver's
+    dagster/app is a package called `app` too, like nexus-api's. Import it with nexus-api's
     `app` modules set aside, then put them back. Needs no `dagster` package. None if unavailable.
     """
     if not (DAGSTER_DIR / "app" / "backend.py").is_file():
@@ -235,7 +235,7 @@ def test_fncli_project_trigger_resources_and_prs(api, raw, world):
     assert [resource.trigger_repository.id for resource in resources] == [tid]
     assert api.get_project_trigger_repository(pid, tid).active is True
 
-    # 101 PRs: two ingest batches, so get_pull_requests pages (per_page is fixed at 100 by the client)
+    # 101 PRs: two ingest batches, so get_pull_requests pages (size is fixed at 100 by the client)
     created = api.create_pull_requests_batch(tid, [pr(n) for n in range(1, 101)])
     assert created["created"] == list(range(1, 101)) and created["existing"] == []
     created = api.create_pull_requests_batch(tid, [pr(n) for n in range(100, 102)])
@@ -253,8 +253,8 @@ def test_fncli_project_trigger_resources_and_prs(api, raw, world):
     assert exc.value.response.status_code == 400
 
     # small pages through the same route, as the client's loop would see them
-    page = raw.ok("GET", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests?per_page=40&page=3")
-    assert len(page["items"]) == 21 and page["total"] == 101 and page["page"] == 3 and page["per_page"] == 40
+    page = raw.ok("GET", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests?size=40&page=3")
+    assert len(page["items"]) == 21 and page["total"] == 101 and page["page"] == 3 and page["size"] == 40
 
     # a PR on another base branch creates no trigger for the resource
     api.create_pull_requests_batch(tid, [pr(200, base_branch="dev")])

@@ -55,7 +55,7 @@ def trig_url(pid, repo_id, number=None):
 
 
 def states(client, headers, pid, repo_id) -> dict:
-    r = client.get(trig_url(pid, repo_id) + "?per_page=200", headers=headers)
+    r = client.get(trig_url(pid, repo_id) + "?size=100", headers=headers)
     assert r.status_code == 200, r.json()
     return {i["number"]: i["state"] for i in r.json()["items"]}
 
@@ -153,7 +153,7 @@ def test_merged_at_formats_and_utc_conversion(client, admin_headers, system_head
         assert post_prs(client, system_headers, T, pr(n, merged_at=merged_at)).status_code == 201
     r = post_prs(client, system_headers, T, pr(9, merged_at="2030-01-03T12:00:00+02:00"))
     assert r.status_code == 201
-    items = client.get(f"/global/repositories/triggers/{T}/pull_requests?per_page=50", headers=admin_headers).json()["items"]
+    items = client.get(f"/global/repositories/triggers/{T}/pull_requests?size=50", headers=admin_headers).json()["items"]
     assert [i for i in items if i["number"] == 9][0]["merged_at"].startswith("2030-01-03T10:00:00")
 
 
@@ -415,9 +415,9 @@ def test_list_filter_pagination_and_unknown(client, admin_headers, system_header
     for bad in ("IGNORED", "NOPE"):
         assert client.get(f"{list_url}?state={bad}", headers=admin_headers).status_code == 400
 
-    page = client.get(f"{list_url}?per_page=1&page=2", headers=admin_headers)
+    page = client.get(f"{list_url}?size=1&page=2", headers=admin_headers)
     assert page.status_code == 200 and page.json()["total"] == 2 and len(page.json()["items"]) == 1
-    past = client.get(f"{list_url}?page=9&per_page=1", headers=admin_headers)
+    past = client.get(f"{list_url}?page=9&size=1", headers=admin_headers)
     assert past.status_code == 200 and past.json()["items"] == []
 
     assert client.get(f"{list_url}/99", headers=admin_headers).status_code == 404
@@ -685,19 +685,19 @@ def test_tasks_list_filters_and_pagination(client, admin_headers, project, other
     tasks = lambda q="": client.get(f"/projects/{project.id}/tasks{q}", headers=admin_headers)  # noqa: E731
 
     assert tasks().json()["total"] == 4
-    assert {t["status"] for t in tasks("?status=RUNNING").json()["tasks"]} == {"RUNNING"}
-    assert other.id not in [t["id"] for t in tasks().json()["tasks"]]
+    assert {t["status"] for t in tasks("?status=RUNNING").json()["items"]} == {"RUNNING"}
+    assert other.id not in [t["id"] for t in tasks().json()["items"]]
     others = client.get(f"/projects/{other_project.id}/tasks?status=RUNNING", headers=admin_headers)
-    assert [t["id"] for t in others.json()["tasks"]] == [other.id]
+    assert [t["id"] for t in others.json()["items"]] == [other.id]
     assert tasks("?status=SUCCESS").json()["total"] == 0
     assert tasks("?status=bogus").status_code == 400
 
-    first = tasks("?page=1&per_page=2").json()
-    assert [t["id"] for t in first["tasks"]] == ids[:2]
-    assert (first["total"], first["pages"], first["page"], first["per_page"]) == (4, 2, 1, 2)
-    assert tasks("?page=9&per_page=2").json()["tasks"] == []  # past the end is an empty page
-    for clamped in ("page=0", "per_page=-1"):  # below one is clamped
-        assert tasks(f"?{clamped}").status_code == 200
+    first = tasks("?page=1&size=2").json()
+    assert [t["id"] for t in first["items"]] == ids[:2]
+    assert (first["total"], first["pages"], first["page"], first["size"]) == (4, 2, 1, 2)
+    assert tasks("?page=9&size=2").json()["items"] == []  # past the end is an empty page
+    for below_one in ("page=0", "size=-1"):
+        assert tasks(f"?{below_one}").status_code == 400
     assert 400 <= tasks("?page=abc").status_code < 500
 
 

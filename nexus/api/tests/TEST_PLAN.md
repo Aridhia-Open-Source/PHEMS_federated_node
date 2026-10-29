@@ -12,7 +12,7 @@ Status codes were checked by running or reading the code on 2026-10-16.
 
 ## Rules for every file
 
-- Run: `cd webserver && source /tmp/fn_env.sh && timeout 300 .venv/bin/pytest tests/<your file> -q -p no:cacheprovider --no-cov -W ignore`
+- Run: `cd nexus/api && source /tmp/fn_env.sh && timeout 300 .venv/bin/pytest tests/<your file> -q -p no:cacheprovider --no-cov -W ignore`
   (Postgres container `fn-routes-test-db`; `docker start fn-routes-test-db` if it is down).
 - Request only `client`, `admin_headers` and the fixtures named in that test's setup column. The file-level "Fixtures:" list is a menu, not a parameter list (an extra `disabled_project` turns an expected 200 into 409 for a results resource, or the reverse).
 - Plain functions `def test_...(fixtures):`, no classes. Copy the style of `tests/test_smoke.py`.
@@ -27,7 +27,7 @@ Status codes were checked by running or reading the code on 2026-10-16.
 
 | fixture | what it gives |
 |---|---|
-| `client` | Flask test client, fresh DB per test |
+| `client` | Starlette TestClient, fresh DB per test |
 | `admin_headers` | admin bearer + JSON content type |
 | `post_json_user_header` | NON-admin bearer + JSON. Only use it for the "revoked by non-admin -> 403" tests |
 | `project`, `other_project` | two projects. Both are **enabled** |

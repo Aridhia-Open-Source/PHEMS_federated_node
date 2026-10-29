@@ -13,8 +13,8 @@ Do not test these as pass or fail. If you notice behaviour, write it down for th
 - **Tasks requested through the API.** They are created, and run, but their results are not delivered: delivery needs a task that came from a pull request ([Results delivered as a pushed branch plus a results pull request]).
 - **Backfill for anything but a project being enabled.** There is none for a project resource, a repository or a GitProvider switched back on ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **ProjectSecret.** The flags exist and nothing reads them ([docs/architecture/revoke-and-enabled.md#known-limits]).
-- **Cancelling a task through the webserver.** The route is not implemented; cancelling a run in Dagster is mirrored onto the task ([task and result state machines](task-and-result-state-machines.md)).
-- **After the beta:** a delivery decision endpoint like the launch one (an open question in [Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]), generating the Dagster models from `openapi.json`, replacing the five run-status sensors with the reconcile sensor.
+- **Cancelling a task through nexus-api.** The route is not implemented; cancelling a run in Dagster is mirrored onto the task ([task and result state machines](task-and-result-state-machines.md)).
+- **After the beta:** a delivery decision endpoint like the launch one (an open question in [Responsibility: nexus-api owns the record and the rules; Dagster carries out decisions]), generating the Dagster models from `openapi.json`, replacing the five run-status sensors with the reconcile sensor.
 
 ## What a normal (non-admin) user can do: observe only
 
@@ -24,7 +24,7 @@ Needs a Keycloak user without the Administrator role. Skip if there is none.
 
 - **Expected:** `revoked` and the global write routes are refused (403). For everything else the sources do not say: write down which calls succeed. This is input for the authorization work, not a failure.
 - **Rule:** `revoked` needs the Administrator role; global writes need the admin scope; other scopes are not designed yet ([docs/architecture/revoke-and-enabled.md#who-may-do-what]; [Authorization detached from DAR, Keycloak and whitelisted images]).
-- **Automated by:** Partly automated: `webserver/tests/test_global_resources.py` and `webserver/tests/test_trigger_repositories_and_resources.py` for the refusals, with a mocked Keycloak that lets a non-admin token through every other scope.
+- **Automated by:** Partly automated: `nexus/api/tests/test_global_resources.py` and `nexus/api/tests/test_trigger_repositories_and_resources.py` for the refusals, with a mocked Keycloak that lets a non-admin token through every other scope.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -32,13 +32,13 @@ Needs a Keycloak user without the Administrator role. Skip if there is none.
 
 Do not print any value. Count matches only.
 
-1. After a full run (happy path with a delivery), count lines that mention a header or a token in the backend log and in a delivery run's log: `kubectl logs <pod> | grep -c -i "bearer\|authorization"`. If the count is not zero, use `grep -n` to find the lines and read only those, looking for credential text. Never paste a value into the notes.
+1. After a full run (happy path with a delivery), count lines that mention a header or a token in nexus-api log and in a delivery run's log: `kubectl logs <pod> | grep -c -i "bearer\|authorization"`. If the count is not zero, use `grep -n` to find the lines and read only those, looking for credential text. Never paste a value into the notes.
 2. Look at the process arguments of a delivery run while it pushes (`kubectl exec <pod> -- ps`, if the image has it) and at the git remote URL in its logs.
 3. Read the responses of `GET /global/secrets`, `GET /global/datasets` and `GET /global/repositories/triggers`.
 
 - **Expected:** no token or password in the logs, in the arguments or in the remote URL. The push passes the token in an environment variable used as an extra HTTP header. No response carries a Secret value (only the reference).
 - **Rule:** responses return secret references only, never values; the push uses the token in an `http.extraHeader` env, never in the URL or arguments ([Global resources and project resources]; [Results delivered as a pushed branch plus a results pull request]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` (`test_the_token_stays_out_of_the_command_line`) and `webserver/tests/test_global_resources.py` (values hidden). Real logs are not scanned. A leaked git token must also be revoked at the git host.
+- **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` (`test_the_token_stays_out_of_the_command_line`) and `nexus/api/tests/test_global_resources.py` (values hidden). Real logs are not scanned. A leaked git token must also be revoked at the git host.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -60,7 +60,7 @@ Retry is on hold; this only records the refusal.
 
 - **Expected:** 400 (a retry only applies to `FAILED` or `CANCELED`), and the task is unchanged. Do not retry failed tasks as part of the beta.
 - **Rule:** the only way out of a final status is a retry, and it needs `FAILED` or `CANCELED` ([State transition tables for triggers, tasks and result steps; 409 on a refused move]).
-- **Automated by:** Automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_retry_resets_a_failed_task_only`). It misses only the live node (mocked Keycloak).
+- **Automated by:** Automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_retry_resets_a_failed_task_only`). It misses only the live node (mocked Keycloak).
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -69,7 +69,7 @@ Retry is on hold; this only records the refusal.
 [Authorization detached from DAR, Keycloak and whitelisted images]: ../decisions/0017-authorization-detached-from-dar-and-keycloak.md
 [Global resources and project resources]: ../decisions/0006-global-resources-and-project-resources.md
 [Pull requests stored once per repository, fanned out to project resources, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
-[Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]: ../decisions/0021-webserver-owns-the-record-and-the-rules.md
+[Responsibility: nexus-api owns the record and the rules; Dagster carries out decisions]: ../decisions/0021-nexus-api-owns-the-record-and-the-rules.md
 [Results delivered as a pushed branch plus a results pull request]: ../decisions/0013-results-delivered-as-branch-and-pull-request.md
 [State transition tables for triggers, tasks and result steps; 409 on a refused move]: ../decisions/0005-state-transition-tables.md
 [Task isolation: storage, secrets, namespace and network]: ../decisions/0022-task-isolation.md

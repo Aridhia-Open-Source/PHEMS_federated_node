@@ -13,8 +13,9 @@ admin-only. Deleting a dataset is a soft delete, refused with a 409 naming the p
 from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends
+from fastapi_pagination import Page
 
-from app.dtos.base import PageDTO, page_of
+from app.dtos.base import page_of
 from app.dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
@@ -30,13 +31,13 @@ router = APIRouter(prefix='/global/datasets', tags=["datasets"])
 session = db.session
 
 
-@router.get('/', response_model=PageDTO[DatasetDTO], dependencies=[Depends(require_scope('can_access_dataset'))])
-@router.get('', response_model=PageDTO[DatasetDTO], dependencies=[Depends(require_scope('can_access_dataset'))])
-def get_datasets(page: int = 1, per_page: int = 25):
+@router.get('/', response_model=Page[DatasetDTO], dependencies=[Depends(require_scope('can_access_dataset'))])
+@router.get('', response_model=Page[DatasetDTO], dependencies=[Depends(require_scope('can_access_dataset'))])
+def get_datasets():
     """
     GET /global/datasets/ endpoint. Returns a list of all datasets
     """
-    return page_of(Dataset.get_all(page, per_page), DatasetDTO)
+    return page_of(Dataset.query, DatasetDTO)
 
 
 def _reject_project(body: dict):

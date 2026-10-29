@@ -1,5 +1,5 @@
 """
-Auth dependencies. require_scope replaces the webserver's @auth(scope), system_only its @system_only.
+Auth dependencies. require_scope replaces the previous backend's @auth(scope), system_only its @system_only.
 A route (or a router, through dependencies=[...]) depends on require_scope(scope); a handler that needs
 who is calling takes `caller: Caller = Depends(get_caller)`, which FastAPI resolves once per request.
 """
@@ -34,7 +34,7 @@ def get_caller(request: Request) -> Caller:
     token_info = kc_client.decode_token(token)
     user = kc_client.get_user_by_username(token_info['username'])
 
-    # TODO(DAR): DAR checking is disconnected, as in the webserver. Every caller takes the plain path.
+    # TODO(DAR): DAR checking is disconnected, as in the previous backend. Every caller takes the plain path.
     return Caller(
         token=token,
         user_id=user["id"],

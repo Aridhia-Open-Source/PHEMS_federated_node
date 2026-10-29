@@ -1,10 +1,8 @@
-import math
 from contextvars import ContextVar
-from dataclasses import dataclass
 from typing import Self
 
 from sqlalchemy import Column, create_engine
-from sqlalchemy.orm import Query, Relationship, declarative_base, scoped_session, sessionmaker
+from sqlalchemy.orm import Relationship, declarative_base, scoped_session, sessionmaker
 
 from app.helpers.const import build_sql_uri
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry
@@ -19,7 +17,7 @@ Base.query = session.query_property()
 
 
 class Database:
-    """What the models and helpers copied from the webserver reach through `db`."""
+    """What the models and helpers reach through `db`."""
     session = session
     Model = Base
 
@@ -27,36 +25,9 @@ class Database:
 db = Database()
 
 
-@dataclass
-class Page:
-    items: list
-    page: int
-    per_page: int
-    total: int
-
-    @property
-    def pages(self) -> int:
-        return math.ceil(self.total / self.per_page) if self.per_page else 0
-
-
-def paginate(query: Query, page: int, per_page: int) -> Page:
-    """Replaces Flask-SQLAlchemy's .paginate(error_out=False), which clamps a page below 1 to 1 and a
-    per_page below 1 to 20."""
-    page = max(page, 1)
-    per_page = per_page if per_page >= 1 else 20
-    return Page(
-        items=query.limit(per_page).offset((page - 1) * per_page).all(),
-        page=page, per_page=per_page, total=query.order_by(None).count(),
-    )
-
-
 # Another helper class for common methods
 class BaseModel:
     WIRE_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-
-    @classmethod
-    def _query(cls, page: int, per_page: int, **filters) -> Page:
-        return paginate(cls.query.filter_by(**filters), page, per_page)
 
     def add(self, commit=True):
         db.session.add(self)
@@ -69,10 +40,6 @@ class BaseModel:
         db.session.flush()
         if commit:
             db.session.commit()
-
-    @classmethod
-    def get_all(cls, page: int, per_page: int, **filters) -> Page:
-        return cls._query(page, per_page, **filters)
 
     @classmethod
     def _get_fields(cls) -> list[Column]:

@@ -2,7 +2,7 @@
 
 # Add files or directories matching the regex patterns to the ignore-list. The
 # regex matches against paths and can be in Posix or Windows format.
-# Tests live under app/ here; the webserver doesn't lint its tests either.
+# Tests live under app/ here; nexus-api does not lint its tests either.
 ignore-paths=^app/tests/
 
 # Specify a score threshold to be exceeded before program exits with error.
@@ -10,7 +10,7 @@ fail-under=9.0
 
 [MESSAGES CONTROL]
 # unused-import/argument/variable and the docstring checks are off during the dagster
-# rework (more noise than help). Re-enable at the first release. Same as webserver/pylintrc.
+# rework (more noise than help). Re-enable at the first release. Same as nexus/api/pylintrc.
 disable=not-callable,
         raw-checker-failed,
         bad-inline-option,

@@ -53,7 +53,7 @@ class DagsterConfig(EnvConfig):
 
 class BackendConfig(EnvConfig):
     keycloak_namespace: str = Field(default="", alias="KEYCLOAK_NAMESPACE")
-    backend_url: str = Field(default="", alias="BACKEND_URL")
+    nexus_api_url: str = Field(default="", alias="NEXUS_API_URL")
 
 
 class ProjectConfig(BackendConfig):
@@ -181,7 +181,7 @@ def build_git_api(config: RepoConfig) -> GiteaAdminAPI | GithubAPI:
 def build_backend_api(config: BackendConfig) -> FncliBackendAPI:
     """Logs in as the dagster system user, the identity the sensors use."""
     adapter = BackendAdapter(
-        base_url=config.backend_url,
+        base_url=config.nexus_api_url,
         username=get_k8s_secret(
             secret_name="dagster-keycloak-creds",
             namespace=config.keycloak_namespace,
@@ -199,7 +199,7 @@ def build_backend_api(config: BackendConfig) -> FncliBackendAPI:
 def build_admin_backend_api(config: BackendConfig) -> FncliBackendAPI:
     """Logs in as the first Keycloak user (an Administrator), which deploy.sh stores in the keycloak-first-user secret."""
     adapter = BackendAdapter(
-        base_url=config.backend_url,
+        base_url=config.nexus_api_url,
         username=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.keycloak_namespace, key="EMAIL"),
         password=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.keycloak_namespace, key="PASSWORD"),
     )

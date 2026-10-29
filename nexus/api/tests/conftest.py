@@ -172,7 +172,7 @@ def post_form_admin_header(login_admin):
 
 
 class Client(TestClient):
-    """Flask's test client took a body on every method; httpx's get and delete don't."""
+    """httpx's get and delete take no body; these do, as the previous backend's test client did."""
 
     def get(self, url, **kwargs):
         return self.request("GET", url, **kwargs)
@@ -182,7 +182,7 @@ class Client(TestClient):
 
 
 # Starlette client to perform requests. The test runs in one DB session scope, which its requests join
-# (app/middleware.py), so fixtures and handlers share a session as they did under Flask's app context.
+# (app/middleware.py), so fixtures and handlers share a session as they did in the previous backend's app context.
 @fixture
 def client():
     token = request_scope.set("test")

@@ -1,6 +1,6 @@
 # Tilt configuration for federated_node development
 # Manages image builds and live reloads for:
-# - Webserver (Flask backend)
+# - nexus-api
 # - Dagster user code
 # - Dagster daemon and webserver
 
@@ -36,24 +36,23 @@ allow_k8s_contexts('kind-fn')
 # K8s resources are managed by Helm via `make deploy`. Tilt needs to know about
 # them to inject the restart wrapper.
 k8s_yaml(local(
-  'python3 scripts/tilt_manifests.py {ns} backend {dagster}{nexus}'.format(
+  'python3 scripts/tilt_manifests.py {ns} nexus-api {dagster}'.format(
     ns=NAMESPACE,
     dagster=DAGSTER_DEPLOYMENT,
-    nexus=' nexus-api' if os.getenv('NEXUS_API_ENABLED', 'true') == 'true' else '',
   ),
   quiet=True,
 ))
 
 # ==============================================================================
-# WEBSERVER BACKEND
+# NEXUS API (nexus/api)
 # ==============================================================================
 # Image ref has NO tag: Tilt assigns its own tag and injects it into the
-# deployment, matching by the tag-stripped name.
+# deployment, matching by the tag-stripped name. uvicorn --reload picks up synced code itself.
 docker_build_with_restart(
-  '{}/webserver-fn'.format(DOCKER_REGISTRY),
-  'webserver',
+  '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
+  'nexus/api',
   entrypoint=[
-    'python', '-m', 'flask', 'run',
+    'uvicorn', '--factory', 'app:create_app', '--reload',
     '--host=0.0.0.0', '--port=5000',
   ],
   only=[
@@ -65,34 +64,14 @@ docker_build_with_restart(
   live_update=[
     # Dependency / packaging changes => full rebuild
     fall_back_on([
-      'webserver/requirements.txt',
-      'webserver/alembic.ini',
-      'webserver/migrations',
+      'nexus/api/requirements.txt',
+      'nexus/api/alembic.ini',
+      'nexus/api/migrations',
     ]),
     # Python code changes => sync into the running container
-    sync('webserver/app', '/webserver/app'),
+    sync('nexus/api/app', '/nexus/app'),
   ],
 )
-
-# ==============================================================================
-# NEXUS API (FastAPI port of the backend, nexus/api)
-# ==============================================================================
-# Only when the chart runs it (nexus.api.enabled). uvicorn --reload picks up synced code itself.
-NEXUS_ENABLED = os.getenv('NEXUS_API_ENABLED', 'true') == 'true'
-if NEXUS_ENABLED:
-  docker_build_with_restart(
-    '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
-    'nexus/api',
-    entrypoint=[
-      'uvicorn', '--factory', 'app:create_app', '--reload',
-      '--host=0.0.0.0', '--port=5000',
-    ],
-    only=['app', 'requirements.txt'],
-    live_update=[
-      fall_back_on(['nexus/api/requirements.txt']),
-      sync('nexus/api/app', '/nexus/app'),
-    ],
-  )
 
 # ==============================================================================
 # DAGSTER USER CODE DEPLOYMENT
@@ -150,13 +129,9 @@ local_resource(
 # STATUS HELPERS
 # ==============================================================================
 
-# Expose the backend locally
-k8s_resource('backend', port_forwards=['5000:5000'])
-DEV_URLS.append(('Backend API docs', 'http://localhost:5000/docs'))
-if NEXUS_ENABLED:
-  # 5001 is the local image registry
-  k8s_resource('nexus-api', port_forwards=['5004:5000'])
-  DEV_URLS.append(('Nexus API docs', 'http://localhost:5004/docs'))
+# Expose nexus-api locally
+k8s_resource('nexus-api', port_forwards=['5000:5000'])
+DEV_URLS.append(('nexus-api docs', 'http://localhost:5000/docs'))
 
 # kubectl port-forward exits when one of its connections breaks, and Tilt does not start
 # a serve_cmd again once it has exited. Loop, so a dead forward comes back after a second.
@@ -206,7 +181,7 @@ DEV_URLS.append(('Keycloak', 'http://localhost:8080'))
 
 local_resource(
   'deployment-check',
-  cmd='kubectl get deployment backend -n {ns} >/dev/null 2>&1 && echo "OK: deployments ready" || echo "MISSING: run make deploy"'.format(ns=NAMESPACE),
+  cmd='kubectl get deployment nexus-api -n {ns} >/dev/null 2>&1 && echo "OK: deployments ready" || echo "MISSING: run make deploy"'.format(ns=NAMESPACE),
   trigger_mode=TRIGGER_MODE_MANUAL,
   labels=['infrastructure'],
 )

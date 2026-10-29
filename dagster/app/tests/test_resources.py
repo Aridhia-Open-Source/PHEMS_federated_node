@@ -16,7 +16,7 @@ from app.definitions.sensors.git.base import GitAPIFactory
 
 @pytest.fixture
 def backend_env(monkeypatch):
-    monkeypatch.setenv("BACKEND_API_URI", "http://backend.fn.svc:5000")
+    monkeypatch.setenv("NEXUS_API_URL", "http://nexus-api.fn.svc:5000")
     monkeypatch.setenv("DAGSTER_KC_USER", "dagster")
     monkeypatch.setenv("DAGSTER_KC_PASSWORD", "secret")
 
@@ -26,7 +26,7 @@ class TestConfigResources:
         config = backend_config()
 
         assert isinstance(config, BackendConfig)
-        assert config.uri == "http://backend.fn.svc:5000"
+        assert config.uri == "http://nexus-api.fn.svc:5000"
 
 
 class TestApiResources:
@@ -38,7 +38,7 @@ class TestApiResources:
         api = backend_api(context)
 
         assert isinstance(api, BackendAPI)
-        assert api.session.base_url == "http://backend.fn.svc:5000"
+        assert api.session.base_url == "http://nexus-api.fn.svc:5000"
         assert api.session.adapter.username == "dagster"
 
     def test_git_apis_are_built_on_the_backend_api(self):

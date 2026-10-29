@@ -215,10 +215,10 @@ def test_switching_a_provider_back_on_skips_the_gap(
     ]})
     assert r.status_code == 201, r.json()
     assert r.json()["created"] == [1, 2]
-    stored = client.get(f"{TRIG}/{T}/pull_requests?per_page=50", headers=admin_headers).json()
+    stored = client.get(f"{TRIG}/{T}/pull_requests?size=50", headers=admin_headers).json()
     assert sorted(i["number"] for i in stored["items"]) == [1, 2]
     triggers = client.get(
-        f"/projects/{project.id}/repositories/triggers/{T}/pull_requests?per_page=50", headers=admin_headers
+        f"/projects/{project.id}/repositories/triggers/{T}/pull_requests?size=50", headers=admin_headers
     ).json()
     assert [i["number"] for i in triggers["items"]] == [2]
 

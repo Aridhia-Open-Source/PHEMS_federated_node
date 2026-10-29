@@ -1,9 +1,12 @@
 from datetime import datetime
 from typing import Annotated, Self
 
+from fastapi_pagination import Page
+from fastapi_pagination.ext.sqlalchemy import paginate
 from pydantic import BaseModel, ConfigDict, PlainSerializer
+from sqlalchemy.orm import Query
 
-from app.helpers.base_model import BaseModel as DBModel, Page
+from app.helpers.base_model import BaseModel as DBModel
 
 WireDatetime = Annotated[
     datetime,
@@ -27,20 +30,6 @@ class DTO(BaseModel):
         return self.model_dump(mode="json", by_alias=True)
 
 
-class PageDTO[T](DTO):
-    """The response shape of a list route with pagination, see page_of."""
-    items: list[T]
-    page: int
-    per_page: int
-    total: int
-    pages: int
-
-
-def page_of(pagination: Page, dto: type[DTO]) -> dict:
-    return {
-        "items": [dto.from_model(obj).dump() for obj in pagination.items],
-        "page": pagination.page,
-        "per_page": pagination.per_page,
-        "total": pagination.total,
-        "pages": pagination.pages,
-    }
+def page_of(query: Query, dto: type[DTO]) -> Page[DTO]:
+    """A page of the query's rows as dto, per the page and size parameters (see add_pagination in the app factory)."""
+    return paginate(query, transformer=lambda rows: [dto.from_model(row) for row in rows])

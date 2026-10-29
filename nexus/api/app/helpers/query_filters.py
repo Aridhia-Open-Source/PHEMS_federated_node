@@ -1,8 +1,9 @@
 import re
 
 from fastapi import Request
+from sqlalchemy.orm import Query
 
-from app.helpers.base_model import Base, Page, paginate
+from app.helpers.base_model import Base
 from app.helpers.exceptions import InvalidRequest
 
 
@@ -17,7 +18,7 @@ FILTERS = [
 
 
 class QueryFilters:
-    """Dependency: the request's query string, for parse_query_params and arg_get."""
+    """Dependency: the request's query string, for parse_query_params."""
 
     def __init__(self, request: Request):
         self.params = request.query_params
@@ -26,19 +27,7 @@ class QueryFilters:
         return dict(self.params)
 
 
-def arg_get(filters: QueryFilters, name: str, default=None, type=str):  # pylint: disable=redefined-builtin  # mirrors request.args.get
-    """A query parameter converted with type; 400 if it doesn't convert, where request.args.get
-    silently falls back to the default."""
-    value = filters.params.get(name)
-    if value is None:
-        return default
-    try:
-        return type(value)
-    except ValueError as ve:
-        raise InvalidRequest(f"{name} should be a valid {type.__name__}") from ve
-
-
-def parse_query_params(model: Base, query_params: dict) -> Page: # type: ignore
+def parse_query_params(model: Base, query_params: dict) -> Query: # type: ignore
     """
     We aim to convert query strings in models fields
     to be used as filters.
@@ -55,11 +44,9 @@ def parse_query_params(model: Base, query_params: dict) -> Page: # type: ignore
     :param model: The Table model to look against the query args
     :param query_params: the request args => filters.copy()
     """
-    try:
-        page = int(query_params.pop("page", '1'))
-        per_page = int(query_params.pop("per_page", '25'))
-    except ValueError as ve:
-        raise InvalidRequest("page and per_page parameters should be integers") from ve
+    # The pagination parameters, read by fastapi-pagination, are not filters
+    query_params.pop("page", None)
+    query_params.pop("size", None)
 
     current_query = model.query
     for qp_f, qp_v in query_params.items():
@@ -89,5 +76,5 @@ def parse_query_params(model: Base, query_params: dict) -> Page: # type: ignore
             # We are in the = case
             current_query = current_query.filter(getattr(model, field) == qp_v)
 
-    return paginate(current_query, page, per_page)
+    return current_query
 

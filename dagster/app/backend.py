@@ -33,13 +33,13 @@ class BackendAPI:
         return data
 
     def get_projects(self, **filters: bool) -> list[Project]:
-        """Get all projects, automatically handling pagination. Filters are the webserver's, e.g. enabled=True."""
+        """Get all projects, automatically handling pagination. Filters are nexus-api's, e.g. enabled=True."""
         self.logger.info("Fetching projects")
         query = {name: str(value).lower() for name, value in filters.items()}
         projects = []
         page = 1
         while True:
-            response = self.session.get("/projects", params={**query, "page": page, "per_page": 100})
+            response = self.session.get("/projects", params={**query, "page": page, "size": 100})
             data = response.json()
             projects.extend(Project(**project) for project in data["items"])
             if page >= data["pages"]:
@@ -83,15 +83,15 @@ class BackendAPI:
     def get_pull_requests(self, project_id: int, repository_id: int, **filters: str | int) -> list[PullRequestTrigger]:
         """
         Get all pull requests of a project's trigger repository, automatically handling pagination.
-        Filters are the webserver's, e.g. state=.
+        Filters are nexus-api's, e.g. state=.
         """
         self.logger.info(f"Fetching pull requests for repo {repository_id} matching {filters}")
         all_prs = []
         page = 1
-        per_page = 100
+        size = 100
 
         while True:
-            params = {**filters, "page": page, "per_page": per_page}
+            params = {**filters, "page": page, "size": size}
             response = self.session.get(
                 f"/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests",
                 params=params,
@@ -171,9 +171,9 @@ class BackendAPI:
         tasks = []
         page = 1
         while True:
-            response = self.session.get("/tasks", params={**query, "page": page, "per_page": 100})
+            response = self.session.get("/tasks", params={**query, "page": page, "size": 100})
             data = response.json()
-            tasks.extend(Task(**task) for task in data["tasks"])
+            tasks.extend(Task(**task) for task in data["items"])
             if page >= data["pages"]:
                 return tasks
             page += 1
