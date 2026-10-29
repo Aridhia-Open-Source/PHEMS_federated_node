@@ -36,7 +36,7 @@ tests:
       # under values-aks is "local-db".
       - equal:
           path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
-          value: backend-db
+          value: nexus-db
       - equal:
           path: spec.template.spec.containers[0].env[1].valueFrom.secretKeyRef.name
           value: keycloak-db-secret
@@ -68,13 +68,13 @@ tests:
     set:
       db:
         passwords:
-          backend: pinned
+          nexus: pinned
     asserts:
       - hasDocuments:
           count: 1
       - equal:
           path: metadata.name
-          value: backend-db
+          value: nexus-db
       - equal:
           path: data.password
           value: cGlubmVk
@@ -141,4 +141,4 @@ tests:
           pattern: "dagster_admin on dagster at dagster-only.example.org"
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: "backend_admin on backend at postgres.postgres.database.azure.com"
+          pattern: "fn_nexus on fn_nexus at postgres.postgres.database.azure.com"

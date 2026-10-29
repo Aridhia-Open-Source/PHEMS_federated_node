@@ -1,6 +1,3 @@
-{{- if .Values.nexus.api.enabled }}
-{{- /* nexus: the FastAPI port of the backend, next to it on the same database. The backend owns the
-       migrations, so there is no alembic init container. */}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -9,7 +6,9 @@ metadata:
   labels:
     app: nexus-api
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.nexus.api.replicas }}
+  {{- end }}
   selector:
     matchLabels:
       app: nexus-api
@@ -21,8 +20,35 @@ spec:
         app: nexus-api
     spec:
       serviceAccountName: nexus-api
+      initContainers:
+        {{- /* nexus-db-init is a pre-install hook, so the database already exists
+               by now - except with an in-cluster Postgres, where the server is part
+               of this release and its hook runs post-install. */}}
+        {{- if .Values.create_db_deployment }}
+        {{- include "pgWaitContainer" (dict "ctx" . "host" (include "dbHost" .) "port" (include "dbPort" .)) | nindent 8 }}
+        {{- end }}
+        - name: db-migrations
+          image: {{ template "nexus-api-image" . }}
+          command: ["/bin/sh"]
+          workingDir: /nexus
+          {{- include "nonRootSC" . | nindent 10 }}
+          args:
+            [
+              '-c',
+              'python -m alembic upgrade head'
+            ]
+          envFrom:
+            - configMapRef:
+                name: nexus-api-configmap
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          env:
+          - name: NEXUS_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Values.nexus.api.db.secret.name }}
+                key: {{ .Values.nexus.api.db.secret.key }}
       containers:
-        - image: {{ template "nexus-image" . }}
+        - image: {{ template "nexus-api-image" . }}
           name: nexus-api
           imagePullPolicy: {{ .Values.pullPolicy }}
           {{- include "nonRootSC" . | nindent 10 }}
@@ -30,7 +56,7 @@ spec:
             {{- toYaml .Values.federatedNode.resources | nindent 12 }}
           ports:
             - name: http
-              containerPort: {{ .Values.nexus.port }}
+              containerPort: {{ .Values.nexus.api.port }}
               protocol: TCP
           readinessProbe:
             httpGet:
@@ -50,17 +76,15 @@ spec:
             failureThreshold: 5
           envFrom:
             - configMapRef:
-                name: backend-configmap
+                name: nexus-api-configmap
             - configMapRef:
                 name: keycloak-config
-            - configMapRef:
-                name: nexus-api-configmap
           env:
-          - name: BACKEND_DB_PASSWORD
+          - name: NEXUS_DB_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: {{ .Values.backend.db.secret.name }}
-                key: {{ .Values.backend.db.secret.key }}
+                name: {{ .Values.nexus.api.db.secret.name }}
+                key: {{ .Values.nexus.api.db.secret.key }}
           volumeMounts:
             - name: kc-secrets
               mountPath: {{ include "kcSecretsMountPath" . }}
@@ -69,4 +93,3 @@ spec:
         - name: kc-secrets
           secret:
             secretName: kc-secrets
-{{- end }}

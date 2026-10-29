@@ -1,5 +1,12 @@
-{{- if .Values.nexus.api.enabled }}
-{{- /* The backend's secret permissions, for nexus's own service account. */}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Name }}-nexus-api-role
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list", "create", "patch", "delete"]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -10,7 +17,7 @@ subjects:
     name: nexus-api
 roleRef:
   kind: ClusterRole
-  name: {{ .Release.Name }}-backend-role
+  name: {{ .Release.Name }}-nexus-api-role
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: v1
@@ -18,4 +25,3 @@ kind: ServiceAccount
 metadata:
   name: nexus-api
   namespace: {{ .Release.Namespace }}
-{{- end }}

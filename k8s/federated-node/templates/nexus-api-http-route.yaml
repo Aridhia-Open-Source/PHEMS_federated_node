@@ -1,5 +1,4 @@
-{{- if and .Values.nexus.api.enabled .Values.traefik.enabled }}
-{{- /* Same host as the backend, under its own prefix, which is stripped: nexus serves the backend's paths. */}}
+{{- if .Values.traefik.enabled -}}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -18,13 +17,8 @@ spec:
   - matches:
     - path:
         type: PathPrefix
-        value: {{ .Values.nexus.api.pathPrefix }}
+        value: /
     filters:
-    - type: URLRewrite
-      urlRewrite:
-        path:
-          type: ReplacePrefixMatch
-          replacePrefixMatch: /
     {{- if .Values.integrations }}
     - type: ResponseHeaderModifier
       responseHeaderModifier:
@@ -39,5 +33,5 @@ spec:
         name: cors-headers
     backendRefs:
     - name: nexus-api
-      port: {{ .Values.nexus.port }}
-{{- end }}
+      port: {{ .Values.nexus.api.port }}
+{{- end -}}
