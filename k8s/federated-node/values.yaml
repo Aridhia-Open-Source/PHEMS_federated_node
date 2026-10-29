@@ -7,37 +7,28 @@
 # default_image_tag:
 dagsterHome: /opt/dagster/home
 
-backend:
-  image: ghcr.io/aridhia-open-source/federated_node_run
-  replicas: 1
-  # In-cluster URL Dagster uses to reach the backend API. Leave empty to derive it
-  # from the release namespace (http://backend.<namespace>.svc:<federatedNode.port>).
-  uri:
-  tag:
-  db:
-    name: backend
-    user: backend_admin
-    secret:
-      name: backend-db
-      key: password
-
-# nexus: the FastAPI port of the backend (nexus/api) and its admin UI (nexus/ui)
+# nexus-api (nexus/api): the Federated Node API. Its db-migrations init container owns the schema.
+# nexus.ui: its admin UI (nexus/ui), proxying /nexus-ui/api to nexus-api.
 nexus:
-  image: ghcr.io/aridhia-open-source/nexus_api
-  tag:
-  port: 5000
   api:
-    enabled: false
+    image: ghcr.io/aridhia-open-source/nexus_api
+    tag:
+    port: 5000
     replicas: 1
-    # Served on the backend's host under this prefix, stripped before it reaches nexus
-    pathPrefix: /nexus
+    # In-cluster URL Dagster, fncli and the smoke tests use to reach the API. Leave empty to
+    # derive it from the release namespace (http://nexus-api.<namespace>.svc:<nexus.api.port>).
+    url:
+    db:
+      name: fn_nexus
+      user: fn_nexus
+      secret:
+        name: nexus-db
+        key: password
   ui:
     enabled: false
     image: ghcr.io/aridhia-open-source/federated_node_nexus_ui
     tag:
     replicas: 1
-    # Where the UI's nginx proxies /nexus-ui/api. Empty: the Flask backend (backendUri)
-    backendUri:
     resources:
       requests:
         cpu: 50m
@@ -68,7 +59,7 @@ keycloak:
   # credentials, but applies neither the realms.json partial import nor any realm migration.
   manageRealm: true
 
-  # Seconds a service-account token may be reused by the backend. Without this, every Keycloak()
+  # Seconds a service-account token may be reused by nexus-api. Without this, every Keycloak()
   # instantiation performs a fresh password grant, so a brief authentication blip during a rotation
   # becomes a total outage instead of a few retried calls. 0 disables caching.
   tokenCacheSeconds: 30
@@ -98,7 +89,7 @@ global:
   namespaces:
     keycloak: keycloak
     tasks: tasks
-    # Where the backend keeps the value of a disabled secret, moved out of its own namespace
+    # Where nexus-api keeps the value of a disabled secret, moved out of its own namespace
     quarantine: fn-quarantine
 
 token:
@@ -142,7 +133,7 @@ db:
   # a secret manager instead.
   passwords: {}
     # superuser:
-    # backend:
+    # nexus:
     # keycloak:
     # dagster:
 
@@ -156,8 +147,6 @@ taskReview: false
   # email:
 
 federatedNode:
-  enable_image_whitelist: false
-  port: 5000
   resources:
     requests:
       cpu: 250m
@@ -180,7 +169,7 @@ storage:
     # url:
     # path:
   # local: {}
-    # Local storage that will be shared with the backend
+    # Local storage that will be shared with nexus-api
     # path: /data/results
     # Local storage that will be shared with the db
     # dbpath: /data/db
@@ -347,7 +336,7 @@ dagster:
     # postgresqlHost:
     postgresqlDatabase: dagster
     postgresqlUsername: dagster_admin
-    # Azure requires TLS, and db.enforceSSL only covers the backend. The chart
+    # Azure requires TLS, and db.enforceSSL only covers nexus-api. The chart
     # insists on this when db.enforceSSL is set:
     # postgresqlParams:
     #   sslmode: require

@@ -40,17 +40,17 @@ const task = (id: number, name: string, status: string): S["TaskDTO"] => ({
   trigger_id: id, executor_run_id: null, exit_code: null, state_cause: null, config_hash: null,
   started_at: null, completed_at: null,
 });
-const page = { page: 1, per_page: 25, pages: 1 };
+const page = { page: 1, size: 25, pages: 1 };
 
 const fixtures: Record<string, (o: Opts) => unknown> = {
-  "/projects": () => ({ items: [project], total: 1, ...page }) satisfies S["PageDTO_ProjectDTO_"],
+  "/projects": () => ({ items: [project], total: 1, ...page }) satisfies S["Page_ProjectDTO_"],
   "/projects/{project_id}": () => project,
   "/projects/{project_id}/repositories/triggers": () => [trigger],
   "/projects/{project_id}/repositories/triggers/{repo_id}": () => trigger,
   "/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests": () =>
-    ({ items: [pullRequest], total: 1, ...page }) satisfies S["PageDTO_PullRequestTriggerDTO_"],
+    ({ items: [pullRequest], total: 1, ...page }) satisfies S["Page_PullRequestTriggerDTO_"],
   "/projects/{project_id}/tasks": () =>
-    ({ tasks: [task(9, "from-pr", "SUCCESS"), task(10, "by-hand", "PENDING")], total: 2, ...page }) satisfies S["TaskPageDTO"],
+    ({ items: [task(9, "from-pr", "SUCCESS"), task(10, "by-hand", "PENDING")], total: 2, ...page }) satisfies S["Page_TaskDTO_"],
   // A task made by hand has no pull request trigger: 404
   "/projects/{project_id}/tasks/{task_id}/trigger": (o) =>
     o.params?.path?.task_id === 9

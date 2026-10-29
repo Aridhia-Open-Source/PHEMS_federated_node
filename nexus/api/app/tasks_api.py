@@ -1,7 +1,7 @@
 """
 tasks-related endpoints, under the project that owns the tasks. A task of another project is a 404:
-- GET /tasks (the tasks of all projects; status, comma separated; project_enabled=true; page and per_page as below)
-- GET /projects/<project_id>/tasks (page and per_page below 1 are clamped to 1)
+- GET /tasks (the tasks of all projects; status, comma separated; project_enabled=true; page and size as below)
+- GET /projects/<project_id>/tasks (page and size, see fastapi-pagination)
 - POST /projects/<project_id>/tasks
 - POST /projects/<project_id>/tasks/validate
 - GET /projects/<project_id>/tasks/<task_id>
@@ -20,9 +20,10 @@ from datetime import datetime as dt
 from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends, Request
+from fastapi_pagination import Page
 from fastapi.responses import PlainTextResponse
 
-from app.helpers.base_model import db, paginate
+from app.helpers.base_model import db
 from app.helpers.const import TASK_CAUSE_MAX_LENGTH
 from app.helpers.exceptions import (
     DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
@@ -31,12 +32,12 @@ from app.helpers.exceptions import (
 from app.helpers.keycloak import Keycloak  # noqa: F401  patched by tests/conftest.py
 from app.helpers.project_state import require_accepts_tasks
 from app.helpers.state_rules import transition
-from app.helpers.query_filters import QueryFilters, arg_get
 from app.helpers.task_config import decide_launch
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
 from app.dtos.dataset import DatasetDTO
-from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskPageDTO
+from app.dtos.base import page_of
+from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO
 from app.dtos.trigger_repository import TaskTriggerDTO
 from app.dtos.result import PullRequestResultDTO, dump_result
 from app.models.api_request_trigger import ApiRequestTrigger
@@ -82,28 +83,27 @@ async def raw_body(request: Request) -> str:
     return (await request.body()).decode()
 
 
-@router.get('/', response_model=TaskPageDTO, dependencies=[Depends(require_scope('can_admin_task'))])
-@router.get('', response_model=TaskPageDTO, dependencies=[Depends(require_scope('can_admin_task'))])
-def get_tasks(project_id: int, filters: QueryFilters = Depends(), status: str | None = None):
+@router.get('/', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
+@router.get('', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
+def get_tasks(project_id: int, status: str | None = None):
     """
-    GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination
+    GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id
     Query params:
-        - page: page number (default 1, below 1 is clamped to 1)
-        - per_page: items per page (default 10, below 1 is clamped to 1)
+        - page, size: see fastapi-pagination
         - status: filter by task status (optional)
     """
     Project.get_by_id(project_id)
     query = Task.query.filter(Task.project_id == project_id)
-    return task_page(query, parse_statuses(status), filters)
+    return task_page(query, parse_statuses(status))
 
 
-@all_router.get('/', response_model=TaskPageDTO, dependencies=[Depends(require_scope('can_admin_task'))])
-@all_router.get('', response_model=TaskPageDTO, dependencies=[Depends(require_scope('can_admin_task'))])
-def get_all_tasks(filters: QueryFilters = Depends(), status: str | None = None, project_enabled: str | None = None):
+@all_router.get('/', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
+@all_router.get('', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
+def get_all_tasks(status: str | None = None, project_enabled: str | None = None):
     """
     GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
     GET /projects/<project_id>/tasks. Query params:
-        - page, per_page: as the project's list
+        - page, size: as the project's list
         - status: one or more task statuses, comma separated (optional)
         - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
           lists them. A revoked project is still enabled, so its tasks stay.
@@ -114,7 +114,7 @@ def get_all_tasks(filters: QueryFilters = Depends(), status: str | None = None, 
             raise InvalidRequest("project_enabled should be true or false")
         if project_enabled == 'true':
             query = query.filter(Task.project_id.in_(Project.query.filter(Project.enabled.is_(True)).with_entities(Project.id)))
-    return task_page(query, parse_statuses(status), filters)
+    return task_page(query, parse_statuses(status))
 
 
 def parse_statuses(raw: str | None) -> list[str] | None:
@@ -129,20 +129,11 @@ def parse_statuses(raw: str | None) -> list[str] | None:
     return statuses
 
 
-def task_page(query, statuses: list[str] | None, filters: QueryFilters) -> dict:
-    """A page of the query's tasks, filtered by status and ordered by id, per the page and per_page parameters."""
-    page = max(arg_get(filters, 'page', 1, type=int), 1)
-    per_page = max(arg_get(filters, 'per_page', 10, type=int), 1)
+def task_page(query, statuses: list[str] | None) -> Page[TaskDTO]:
+    """A page of the query's tasks, filtered by status and ordered by id."""
     if statuses is not None:
         query = query.filter(Task.status.in_(statuses))
-    pagination = paginate(query.order_by(Task.id), page, per_page)
-    return {
-        "tasks": [TaskDTO.from_model(t).dump() for t in pagination.items],
-        "total": pagination.total,
-        "page": pagination.page,
-        "per_page": pagination.per_page,
-        "pages": pagination.pages
-    }
+    return page_of(query.order_by(Task.id), TaskDTO)
 
 
 @router.get('/{task_id}', response_model=TaskDTO, dependencies=[Depends(require_scope('can_exec_task'))])

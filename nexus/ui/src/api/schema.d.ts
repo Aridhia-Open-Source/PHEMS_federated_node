@@ -446,10 +446,9 @@ export interface paths {
         };
         /**
          * Get Tasks
-         * @description GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination
+         * @description GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id
          *     Query params:
-         *         - page: page number (default 1, below 1 is clamped to 1)
-         *         - per_page: items per page (default 10, below 1 is clamped to 1)
+         *         - page, size: see fastapi-pagination
          *         - status: filter by task status (optional)
          */
         get: operations["get_tasks_projects__project_id__tasks_get"];
@@ -474,10 +473,9 @@ export interface paths {
         };
         /**
          * Get Tasks
-         * @description GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination
+         * @description GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id
          *     Query params:
-         *         - page: page number (default 1, below 1 is clamped to 1)
-         *         - per_page: items per page (default 10, below 1 is clamped to 1)
+         *         - page, size: see fastapi-pagination
          *         - status: filter by task status (optional)
          */
         get: operations["get_tasks_projects__project_id__tasks__get"];
@@ -975,8 +973,7 @@ export interface paths {
          * Get Pull Requests
          * @description GET /global/repositories/triggers/<id>/pull_requests — the provider's facts of the pull requests
          *     stored for the repository, most recent merge first.
-         *     Query params: page (default 1), per_page (default 20), both clamped to at least 1.
-         *     Responds with page, per_page, total, pages and items.
+         *     Query params: page and size, see fastapi-pagination. Responds with items, total, page, size and pages.
          */
         get: operations["get_pull_requests_global_repositories_triggers__repo_id__pull_requests_get"];
         put?: never;
@@ -1072,8 +1069,7 @@ export interface paths {
          * @description GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests — list PRs
          *     of an assignment with pagination.
          *     Query params:
-         *         - page: page number (default 1)
-         *         - per_page: items per page (default 20)
+         *         - page, size: see fastapi-pagination
          *         - state: filter by state (optional), one of: UNKNOWN, REJECTED, YIELDED
          *     Sorted by merged_at DESC (most recent first).
          */
@@ -1696,7 +1692,7 @@ export interface paths {
          * Get All Tasks
          * @description GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
          *     GET /projects/<project_id>/tasks. Query params:
-         *         - page, per_page: as the project's list
+         *         - page, size: as the project's list
          *         - status: one or more task statuses, comma separated (optional)
          *         - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
          *           lists them. A revoked project is still enabled, so its tasks stay.
@@ -1721,7 +1717,7 @@ export interface paths {
          * Get All Tasks
          * @description GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
          *     GET /projects/<project_id>/tasks. Query params:
-         *         - page, per_page: as the project's list
+         *         - page, size: as the project's list
          *         - status: one or more task statuses, comma separated (optional)
          *         - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
          *           lists them. A revoked project is still enabled, so its tasks stay.
@@ -1954,55 +1950,68 @@ export interface components {
             /** Keycloak */
             keycloak: boolean;
         };
-        /** PageDTO[DatasetDTO] */
-        PageDTO_DatasetDTO_: {
+        /** Page[DatasetDTO] */
+        Page_DatasetDTO_: {
             /** Items */
             items: components["schemas"]["DatasetDTO"][];
-            /** Page */
-            page: number;
-            /** Per Page */
-            per_page: number;
             /** Total */
             total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
             /** Pages */
             pages: number;
         };
-        /** PageDTO[ProjectDTO] */
-        PageDTO_ProjectDTO_: {
+        /** Page[ProjectDTO] */
+        Page_ProjectDTO_: {
             /** Items */
             items: components["schemas"]["ProjectDTO"][];
-            /** Page */
-            page: number;
-            /** Per Page */
-            per_page: number;
             /** Total */
             total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
             /** Pages */
             pages: number;
         };
-        /** PageDTO[PullRequestDTO] */
-        PageDTO_PullRequestDTO_: {
+        /** Page[PullRequestDTO] */
+        Page_PullRequestDTO_: {
             /** Items */
             items: components["schemas"]["PullRequestDTO"][];
-            /** Page */
-            page: number;
-            /** Per Page */
-            per_page: number;
             /** Total */
             total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
             /** Pages */
             pages: number;
         };
-        /** PageDTO[PullRequestTriggerDTO] */
-        PageDTO_PullRequestTriggerDTO_: {
+        /** Page[PullRequestTriggerDTO] */
+        Page_PullRequestTriggerDTO_: {
             /** Items */
             items: components["schemas"]["PullRequestTriggerDTO"][];
-            /** Page */
-            page: number;
-            /** Per Page */
-            per_page: number;
             /** Total */
             total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
+            /** Pages */
+            pages: number;
+        };
+        /** Page[TaskDTO] */
+        Page_TaskDTO_: {
+            /** Items */
+            items: components["schemas"]["TaskDTO"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Size */
+            size: number;
             /** Pages */
             pages: number;
         };
@@ -2522,22 +2531,6 @@ export interface components {
             task: components["schemas"]["TaskDTO"];
             dataset: components["schemas"]["DatasetDTO"] | null;
         };
-        /**
-         * TaskPageDTO
-         * @description The response shape of the task lists, a page of tasks.
-         */
-        TaskPageDTO: {
-            /** Tasks */
-            tasks: components["schemas"]["TaskDTO"][];
-            /** Total */
-            total: number;
-            /** Page */
-            page: number;
-            /** Per Page */
-            per_page: number;
-            /** Pages */
-            pages: number;
-        };
         /** TaskSpecDTO */
         TaskSpecDTO: {
             /** Image */
@@ -2757,7 +2750,12 @@ export interface operations {
     };
     list_projects_projects_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Page number */
+                page?: number;
+                /** @description Page size */
+                size?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2770,7 +2768,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageDTO_ProjectDTO_"];
+                    "application/json": components["schemas"]["Page_ProjectDTO_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2810,7 +2817,12 @@ export interface operations {
     };
     list_projects_projects__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Page number */
+                page?: number;
+                /** @description Page size */
+                size?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2823,7 +2835,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageDTO_ProjectDTO_"];
+                    "application/json": components["schemas"]["Page_ProjectDTO_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3468,8 +3489,10 @@ export interface operations {
     get_datasets_global_datasets_get: {
         parameters: {
             query?: {
+                /** @description Page number */
                 page?: number;
-                per_page?: number;
+                /** @description Page size */
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -3483,7 +3506,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageDTO_DatasetDTO_"];
+                    "application/json": components["schemas"]["Page_DatasetDTO_"];
                 };
             };
             /** @description Validation Error */
@@ -3535,8 +3558,10 @@ export interface operations {
     get_datasets_global_datasets__get: {
         parameters: {
             query?: {
+                /** @description Page number */
                 page?: number;
-                per_page?: number;
+                /** @description Page size */
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -3550,7 +3575,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageDTO_DatasetDTO_"];
+                    "application/json": components["schemas"]["Page_DatasetDTO_"];
                 };
             };
             /** @description Validation Error */
@@ -3702,6 +3727,10 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string | null;
+                /** @description Page number */
+                page?: number;
+                /** @description Page size */
+                size?: number;
             };
             header?: never;
             path: {
@@ -3717,7 +3746,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskPageDTO"];
+                    "application/json": components["schemas"]["Page_TaskDTO_"];
                 };
             };
             /** @description Validation Error */
@@ -3772,6 +3801,10 @@ export interface operations {
         parameters: {
             query?: {
                 status?: string | null;
+                /** @description Page number */
+                page?: number;
+                /** @description Page size */
+                size?: number;
             };
             header?: never;
             path: {
@@ -3787,7 +3820,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskPageDTO"];
+                    "application/json": components["schemas"]["Page_TaskDTO_"];
                 };
             };
             /** @description Validation Error */
@@ -4751,7 +4784,12 @@ export interface operations {
     };
     get_pull_requests_global_repositories_triggers__repo_id__pull_requests_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Page number */
+                page?: number;
+                /** @description Page size */
+                size?: number;
+            };
             header?: never;
             path: {
                 repo_id: number;
@@ -4766,7 +4804,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageDTO_PullRequestDTO_"];
+                    "application/json": components["schemas"]["Page_PullRequestDTO_"];
                 };
             };
             /** @description Validation Error */
@@ -4992,6 +5030,10 @@ export interface operations {
         parameters: {
             query?: {
                 state?: string | null;
+                /** @description Page number */
+                page?: number;
+                /** @description Page size */
+                size?: number;
             };
             header?: never;
             path: {
@@ -5008,7 +5050,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageDTO_PullRequestTriggerDTO_"];
+                    "application/json": components["schemas"]["Page_PullRequestTriggerDTO_"];
                 };
             };
             /** @description Validation Error */
@@ -6208,6 +6250,10 @@ export interface operations {
             query?: {
                 status?: string | null;
                 project_enabled?: string | null;
+                /** @description Page number */
+                page?: number;
+                /** @description Page size */
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -6221,7 +6267,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskPageDTO"];
+                    "application/json": components["schemas"]["Page_TaskDTO_"];
                 };
             };
             /** @description Validation Error */
@@ -6240,6 +6286,10 @@ export interface operations {
             query?: {
                 status?: string | null;
                 project_enabled?: string | null;
+                /** @description Page number */
+                page?: number;
+                /** @description Page size */
+                size?: number;
             };
             header?: never;
             path?: never;
@@ -6253,7 +6303,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskPageDTO"];
+                    "application/json": components["schemas"]["Page_TaskDTO_"];
                 };
             };
             /** @description Validation Error */

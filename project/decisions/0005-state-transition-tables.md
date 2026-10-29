@@ -6,7 +6,7 @@ Triggers, tasks and delivery results each have a state that should only move one
 
 ## Decision
 
-The allowed moves are data, in tables next to the enums in `webserver/app/models`. Two helpers in `webserver/app/helpers/state_rules.py` check them. Writing the same value again is always allowed. Any other refused move raises `InvalidRequest` with status 409 (the request is valid but conflicts with the current state).
+The allowed moves are data, in tables next to the enums in `nexus/api/app/models`. Two helpers in `nexus/api/app/helpers/state_rules.py` check them. Writing the same value again is always allowed. Any other refused move raises `InvalidRequest` with status 409 (the request is valid but conflicts with the current state).
 
 - `transition(moves, current, new)`: `new` must be in `moves[current]`.
 - `forward_only(order, current, new)`: `new` must have a higher rank than `current`.
@@ -25,7 +25,7 @@ The allowed moves are data, in tables next to the enums in `webserver/app/models
 
 **Result state** (`result_state.py`: `IN_PROGRESS`, `DELIVERED`, `FAILED`) is a separate column from the step ([0004](0004-polymorphic-result-and-forward-only-state.md)). It has no move table: `PATCH` accepts any valid value. A `FAILED` result whose step is not final, on an active project resource, is relaunched by the delivery retry sensor ([0015](0015-run-keys-retries-and-results-pr-sync.md)).
 
-**Dagster copies the enums, not the tables.** `dagster/app/models/` repeats the values (the step also has `from_git`). There is no copy of `TRIGGER_MOVES`, `TASK_MOVES` or `RESULT_ORDER` there: Dagster sends the move and the webserver decides. The run-status sensors and the delivery and sync jobs treat the 409 as "already moved on" and skip ([0014](0014-dagster-pipeline-ops-sensors-and-retries.md)).
+**Dagster copies the enums, not the tables.** `dagster/app/models/` repeats the values (the step also has `from_git`). There is no copy of `TRIGGER_MOVES`, `TASK_MOVES` or `RESULT_ORDER` there: Dagster sends the move and nexus-api decides. The run-status sensors and the delivery and sync jobs treat the 409 as "already moved on" and skip ([0014](0014-dagster-pipeline-ops-sensors-and-retries.md)).
 
 ## Consequences
 
@@ -42,14 +42,14 @@ The allowed moves are data, in tables next to the enums in `webserver/app/models
 
 ## Where it lives
 
-- `webserver/app/models/trigger_state.py`, `task_status.py`, `pull_request_result_step.py`, `result_state.py`
-- `webserver/app/helpers/state_rules.py`
-- `webserver/app/models/trigger.py`, `pull_request_result.py`; `webserver/app/tasks_api.py`, `results_api.py`, `project_trigger_repositories_api.py`
+- `nexus/api/app/models/trigger_state.py`, `task_status.py`, `pull_request_result_step.py`, `result_state.py`
+- `nexus/api/app/helpers/state_rules.py`
+- `nexus/api/app/models/trigger.py`, `pull_request_result.py`; `nexus/api/app/tasks_api.py`, `results_api.py`, `project_trigger_repositories_api.py`
 - `dagster/app/models/` (enum copies)
 
 ## Open questions
 
 - Should result `state` `DELIVERED` be final?
-- The `ResultState` docstring in the webserver says `FAILED` is a state "nothing retries"; the retry sensor does retry it unless the step is final or attempts run out. The docstring is out of date.
-- No test compares the Dagster enums with the webserver's; a drift would only show at runtime.
+- The `ResultState` docstring in nexus-api says `FAILED` is a state "nothing retries"; the retry sensor does retry it unless the step is final or attempts run out. The docstring is out of date.
+- No test compares the Dagster enums with nexus-api's; a drift would only show at runtime.
 - Retrying a task that cannot be retried is a 400, while the other refused moves are 409.

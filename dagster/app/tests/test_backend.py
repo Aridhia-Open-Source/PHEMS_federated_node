@@ -266,8 +266,8 @@ SAMPLE_TASK = {
 }
 
 
-def page(items, pages, key="items"):
-    return make_response({key: items, "page": 1, "per_page": 100, "total": len(items), "pages": pages})
+def page(items, pages):
+    return make_response({"items": items, "page": 1, "size": 100, "total": len(items), "pages": pages})
 
 
 class TestProjects:
@@ -285,7 +285,7 @@ class TestProjects:
 
         api.get_projects(enabled=True)
 
-        assert session.get.call_args.kwargs["params"] == {"enabled": "true", "page": 1, "per_page": 100}
+        assert session.get.call_args.kwargs["params"] == {"enabled": "true", "page": 1, "size": 100}
 
     def test_no_projects(self, api, session):
         session.get.return_value = page([], 0)
@@ -295,26 +295,26 @@ class TestProjects:
 
 class TestTasks:
     def test_get_tasks_lists_all_projects_in_a_status(self, api, session):
-        session.get.return_value = page([SAMPLE_TASK], 1, key="tasks")
+        session.get.return_value = page([SAMPLE_TASK], 1)
 
         tasks = api.get_tasks(status="PENDING")
 
         assert [t.id for t in tasks] == [9]
         assert session.get.call_args.args == ("/tasks",)
         assert session.get.call_args.kwargs["params"] == {
-            "status": "PENDING", "project_enabled": "true", "page": 1, "per_page": 100,
+            "status": "PENDING", "project_enabled": "true", "page": 1, "size": 100,
         }
 
     def test_get_tasks_takes_several_statuses_and_any_project(self, api, session):
-        session.get.return_value = page([SAMPLE_TASK], 1, key="tasks")
+        session.get.return_value = page([SAMPLE_TASK], 1)
 
         api.get_tasks(status=["PENDING", "RUNNING"], project_enabled=False)
 
-        assert session.get.call_args.kwargs["params"] == {"status": "PENDING,RUNNING", "page": 1, "per_page": 100}
+        assert session.get.call_args.kwargs["params"] == {"status": "PENDING,RUNNING", "page": 1, "size": 100}
 
     def test_get_tasks_follows_the_pages(self, api, session):
         second = {**SAMPLE_TASK, "id": 10}
-        session.get.side_effect = [page([SAMPLE_TASK], 2, key="tasks"), page([second], 2, key="tasks")]
+        session.get.side_effect = [page([SAMPLE_TASK], 2), page([second], 2)]
 
         tasks = api.get_tasks(status="PENDING")
 

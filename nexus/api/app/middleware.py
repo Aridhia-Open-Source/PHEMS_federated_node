@@ -13,7 +13,7 @@ _scope_ids = count()
 class SessionMiddleware:
     """
     Gives the request its own DB session scope and removes the session on the way out. A request made where
-    a scope is set already (a test's TestClient call) joins it and leaves it open, as the webserver's
+    a scope is set already (a test's TestClient call) joins it and leaves it open, as the previous backend's
     requests joined the test's app context.
     """
 

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, call, pageQuery, type Schemas } from "../../api/client";
+import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
@@ -47,7 +47,7 @@ function ProjectList() {
   const [page, setPage] = useState(1);
   const { data } = useQuery({
     queryKey: [...KEY, "list", page],
-    queryFn: () => call(api.GET("/projects", { params: { query: pageQuery(page) } })),
+    queryFn: () => call(api.GET("/projects", { params: { query: { page } } })),
   });
   const setEnabled = useSetEnabled();
   const remove = useMutation({

@@ -6,7 +6,7 @@ A rebuild-and-redeploy loop takes minutes. The Dagster code runs in two kinds of
 
 ## Decision
 
-- Helm (`make deploy`) owns all Kubernetes resources; Tilt (`Tiltfile`) only builds images and attaches live update and port-forwards. It watches `localhost:5001/webserver-fn` (Flask, synced `webserver/app`) and `localhost:5001/dagster-fn` (synced `dagster/app`, restart wrapper). Dependency or config file changes fall back to a full rebuild.
+- Helm (`make deploy`) owns all Kubernetes resources; Tilt (`Tiltfile`) only builds images and attaches live update and port-forwards. It watches `localhost:5001/nexus-api-fn` (the previous backend, synced `nexus/api/app`) and `localhost:5001/dagster-fn` (synced `dagster/app`, restart wrapper). Dependency or config file changes fall back to a full rebuild.
 - `dagster-run-image` rebuilds and pushes `dagster-fn:tilt-run` on each `dagster/` change; `scripts/tilt_manifests.py` points `DAGSTER_CURRENT_IMAGE` at it, and run pods always pull, so the next run uses the new code.
 - `dagster-reload` reloads the code location over the Dagster GraphQL API after the pod restarts.
 - Port-forwards: backend 5000, Dagster UI 3000, Postgres 5432 and datasets DB 5433, Gitea 4000, Keycloak 8080.

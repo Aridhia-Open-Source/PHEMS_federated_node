@@ -1,12 +1,11 @@
 """
-The Dagster-side enums must carry the same values as the webserver's, which defines them.
+The Dagster-side enums must carry the same values as nexus-api's, which defines them.
 
-The two packages are both called `app`, so the webserver source is parsed with `ast` rather than imported. It needs
-the whole repository, so run it from a checkout, from the repository root:
+The two packages are both called `app`, so the nexus-api source is parsed with `ast` rather than imported. It
+lives outside dagster/, so the test image gets it as a read-only mount (docker-compose-tests-ci.yaml) and a
+checkout has it beside dagster/:
 
     pytest dagster/app/tests/test_enum_drift.py
-
-The Dagster test image holds only dagster/, where this module is skipped.
 """
 
 import ast
@@ -16,16 +15,12 @@ import pytest
 
 from app.models import PullRequestResultStep, ResultState, TaskStatus, TriggerState
 
-WEBSERVER_MODELS = Path(__file__).resolve().parents[3] / "webserver" / "app" / "models"
-
-pytestmark = pytest.mark.skipif(
-    not WEBSERVER_MODELS.is_dir(), reason="the webserver source is not next to dagster/ (run from a full checkout)"
-)
+NEXUS_MODELS = Path(__file__).resolve().parents[3] / "nexus" / "api" / "app" / "models"
 
 
-def webserver_members(filename: str, class_name: str) -> dict[str, str]:
-    """The NAME = "value" members of a class in a webserver models module."""
-    tree = ast.parse((WEBSERVER_MODELS / filename).read_text())
+def nexus_members(filename: str, class_name: str) -> dict[str, str]:
+    """The NAME = "value" members of a class in a nexus-api models module."""
+    tree = ast.parse((NEXUS_MODELS / filename).read_text())
     cls = next(n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name)
     return {
         stmt.targets[0].id: stmt.value.value
@@ -41,8 +36,8 @@ def webserver_members(filename: str, class_name: str) -> dict[str, str]:
     (ResultState, "result_state.py"),
     (PullRequestResultStep, "pull_request_result_step.py"),
 ])
-def test_the_dagster_enum_has_the_values_of_the_webserver_enum(enum, filename):
-    expected = webserver_members(filename, enum.__name__)
+def test_the_dagster_enum_has_the_values_of_the_nexus_enum(enum, filename):
+    expected = nexus_members(filename, enum.__name__)
 
-    assert expected, f"no members found for {enum.__name__} in the webserver"
+    assert expected, f"no members found for {enum.__name__} in nexus-api"
     assert {m.name: m.value for m in enum} == expected

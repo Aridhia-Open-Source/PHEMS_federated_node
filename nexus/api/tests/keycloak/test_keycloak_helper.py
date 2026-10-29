@@ -15,7 +15,7 @@ class TestKeycloakMixin:
     """
     Collection of tests that aims to prove the correct exceptions are raised
         in case of failed requests in the context of the Keycloak class.
-    An exception raised in this class will be then handled by the Flask's
+    An exception raised in this class will be then handled by the app's
         exception handlers. In order to make these tests less crowded
         and verbose the direct class method behaviour will be considered.
     """

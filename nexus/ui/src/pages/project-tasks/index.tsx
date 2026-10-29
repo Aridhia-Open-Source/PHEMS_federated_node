@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Route, Routes, useParams } from "react-router-dom";
-import { api, call, pageQuery, quietApi, type Page, type Schemas } from "../../api/client";
+import { api, call, quietApi, type Page, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
 import { pullRequestPath, taskPath } from "../../shared/projectResources";
@@ -42,13 +42,8 @@ function TaskList({ projectId }: { projectId: number }) {
   const [page, setPage] = useState(1);
   const { data } = useQuery({
     queryKey: ["projects", projectId, "tasks", "list", page],
-    // The task list calls its array `tasks`, the other pages `items`
-    queryFn: async (): Promise<Page<Task>> => {
-      const { tasks, ...rest } = await call(
-        api.GET("/projects/{project_id}/tasks", { params: { path: { project_id: projectId }, query: pageQuery(page) } }),
-      );
-      return { items: tasks, ...rest };
-    },
+    queryFn: (): Promise<Page<Task>> =>
+      call(api.GET("/projects/{project_id}/tasks", { params: { path: { project_id: projectId }, query: { page } } })),
   });
   return (
     <section>

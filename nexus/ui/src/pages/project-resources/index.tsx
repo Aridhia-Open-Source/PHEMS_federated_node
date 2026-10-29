@@ -177,7 +177,7 @@ function DatasetResources({ projectId }: { projectId: number }) {
   const { data } = useQuery(datasetResources(projectId));
   const global = useQuery({
     queryKey: ["global", "datasets", "all"],
-    queryFn: () => call(api.GET("/global/datasets", { params: { query: { per_page: 100 } } })),
+    queryFn: () => call(api.GET("/global/datasets", { params: { query: { size: 100 } } })),
   });
   const done = { onSuccess: () => qc.invalidateQueries({ queryKey: resourceKey(projectId, "datasets") }) };
   const add = useMutation({

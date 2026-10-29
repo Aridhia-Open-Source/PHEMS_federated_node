@@ -1,5 +1,5 @@
 """
-Random sequences of actions against the webserver, checked against a small model of the rules (Hypothesis stateful testing).
+Random sequences of actions against nexus-api, checked against a small model of the rules (Hypothesis stateful testing).
 The rules are those in docs/architecture/revoke-and-enabled.md (enabled and revoked) and ADRs 0008 and 0011
 (project/decisions/0008-enabled-revoked-and-soft-delete.md, 0011-pull-requests-stored-once-fan-out-and-cursors.md: the cursor, fan-out and backfill).
 It needs `hypothesis` (pinned in requirements-dev.txt) and the usual test database.
@@ -299,19 +299,19 @@ class TriggerResourceMachine(RuleBasedStateMachine):
 
     @invariant()
     def triggers_match_model(self):
-        page = self.call("get", f"{self.resource_url}/pull_requests?per_page=200").json()
+        page = self.call("get", f"{self.resource_url}/pull_requests?size=100").json()
         assert {item["number"]: item["state"] for item in page["items"]} == self.triggers
 
     @invariant()
     def stored_prs_match_model(self):
-        listing = self.call("get", f"/global/repositories/triggers/{self.repo_id}/pull_requests?per_page=200").json()
+        listing = self.call("get", f"/global/repositories/triggers/{self.repo_id}/pull_requests?size=100").json()
         assert listing["total"] == len(self.stored)
 
     @invariant()
     def tasks_match_model(self):
-        page = self.call("get", f"/projects/{self.project_id}/tasks?per_page=200").json()
-        assert {task["id"]: task["status"] for task in page["tasks"]} == self.tasks
-        items = self.call("get", f"{self.resource_url}/pull_requests?per_page=200").json()["items"]
+        page = self.call("get", f"/projects/{self.project_id}/tasks?size=100").json()
+        assert {task["id"]: task["status"] for task in page["items"]} == self.tasks
+        items = self.call("get", f"{self.resource_url}/pull_requests?size=100").json()["items"]
         task_ids = [item["task_id"] for item in items if item["task_id"] is not None]
         assert len(task_ids) == len(set(task_ids)), "two triggers share a task"
 

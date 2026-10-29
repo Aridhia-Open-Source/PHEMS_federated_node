@@ -26,9 +26,9 @@ spec:
               containerPort: 8080
               protocol: TCP
           env:
-            # Where nginx proxies /nexus-ui/api. Defaults to the Flask backend until nexus has a service.
-            - name: BACKEND_URL
-              value: {{ .Values.nexus.ui.backendUri | default (include "backendUri" .) | quote }}
+            # Where nginx proxies /nexus-ui/api
+            - name: NEXUS_API_URL
+              value: {{ include "nexusApiUrl" . | quote }}
           readinessProbe:
             httpGet:
               path: /healthz

@@ -5,7 +5,7 @@ export type Column<T> = { header: string; cell: (row: T) => ReactNode };
 
 type Props<T> = {
   columns: Column<T>[];
-  // A plain array, or a page ({items, total, page, per_page}) with onPage to move between pages
+  // A plain array, or a page ({items, total, page, size}) with onPage to move between pages
   data: T[] | Page<T> | undefined;
   onPage?: (page: number) => void;
   rowKey: (row: T) => string | number;
@@ -16,7 +16,7 @@ export function ResourceTable<T>({ columns, data, onPage, rowKey, empty = "Nothi
   if (data === undefined) return <p>Loading…</p>;
   const rows = Array.isArray(data) ? data : data.items;
   const page = Array.isArray(data) ? null : data;
-  const pages = page ? Math.max(1, Math.ceil(page.total / page.per_page)) : 1;
+  const pages = page ? Math.max(1, Math.ceil(page.total / page.size)) : 1;
   return (
     <div>
       <table className="table">

@@ -17,7 +17,7 @@ test("ResourceTable pages", () => {
   const onPage = vi.fn();
   render(
     <ResourceTable<{ id: number }>
-      data={{ items: [{ id: 1 }], page: 1, per_page: 1, total: 2, pages: 2 }}
+      data={{ items: [{ id: 1 }], page: 1, size: 1, total: 2, pages: 2 }}
       onPage={onPage}
       rowKey={(r) => r.id}
       columns={[{ header: "Id", cell: (r) => r.id }]}

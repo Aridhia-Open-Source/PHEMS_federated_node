@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Route, Routes, useParams } from "react-router-dom";
-import { api, call, pageQuery, type Schemas } from "../../api/client";
+import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
 import {
@@ -83,7 +83,7 @@ export function PullRequestList({ projectId, repositoryId }: { projectId: number
         api.GET("/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests", {
           params: {
             path: { project_id: projectId, repo_id: repositoryId },
-            query: pageQuery(page, undefined, state ? { state } : {}),
+            query: state ? { page, state } : { page },
           },
         }),
       ),

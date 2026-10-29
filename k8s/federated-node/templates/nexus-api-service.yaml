@@ -1,4 +1,3 @@
-{{- if .Values.nexus.api.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -7,10 +6,9 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: {{ .Values.nexus.port }}
+    - port: {{ .Values.nexus.api.port }}
       name: http
-      targetPort: {{ .Values.nexus.port }}
+      targetPort: {{ .Values.nexus.api.port }}
       protocol: TCP
   selector:
     app: nexus-api
-{{- end }}

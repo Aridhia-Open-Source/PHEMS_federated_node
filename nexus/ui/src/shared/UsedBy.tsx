@@ -4,7 +4,7 @@
 // the project's Resources tab, so they share its cache.
 import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { api, call, pageQuery, type Schemas } from "../api/client";
+import { api, call, type Schemas } from "../api/client";
 import { ResourceTable } from "./ResourceTable";
 import {
   datasetResources, resourcePath, resultsResources, secretResources, stateText, triggerResources, type Flags,
@@ -18,7 +18,7 @@ type Listing<T> = { queryKey: readonly unknown[]; queryFn: () => Promise<T[]> };
 function useAcrossProjects<T>(list: (projectId: number) => Listing<T>) {
   const projects = useQuery({
     queryKey: ["projects", "all"],
-    queryFn: () => call(api.GET("/projects", { params: { query: pageQuery(1, 100) } })),
+    queryFn: () => call(api.GET("/projects", { params: { query: { page: 1, size: 100 } } })),
   });
   const lists = useQueries({
     queries: (projects.data?.items ?? []).map((p) => list(p.id)),

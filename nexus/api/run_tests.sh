@@ -6,10 +6,10 @@ export PGDATABASE=test_app
 export PGPORT=5432
 export PGUSER=admin
 export PGPASSWORD=test_app
-# The app builds its URI from BACKEND_DB_*; PG* stay for psql inside the container.
-export BACKEND_DB_USER=$PGUSER
-export BACKEND_DB_PASSWORD=$PGPASSWORD
-export BACKEND_DB_NAME=$PGDATABASE
+# The app builds its URI from NEXUS_DB_*; PG* stay for psql inside the container.
+export NEXUS_DB_USER=$PGUSER
+export NEXUS_DB_PASSWORD=$PGPASSWORD
+export NEXUS_DB_NAME=$PGDATABASE
 export KEYCLOAK_URL=http://keycloak:8080
 export KEYCLOAK_REALM=FederatedNode
 export KEYCLOAK_CLIENT=global
@@ -45,7 +45,7 @@ echo "Starting docker compose (project $COMPOSE_PROJECT_NAME)"
 if [[ "$is_ci" != "ci" ]]; then
     docker compose -f docker-compose-tests-ci.yaml -f docker-compose-tests.yaml run --build --name "$container" --entrypoint pytest app -x -v $pytest_args
     exit_code=$?
-    docker cp "$container":/app/artifacts/coverage.xml ../artifacts/ 2>/dev/null || true
+    docker cp "$container":/app/artifacts/coverage.xml ../../artifacts/ 2>/dev/null || true
     exit $exit_code
 else
     docker compose -f docker-compose-tests-ci.yaml run --build --quiet-pull --name "$container" --entrypoint pytest app -v $pytest_args
@@ -54,6 +54,6 @@ else
         echo "Something went wrong. Here are some logs"
         docker compose -f docker-compose-tests-ci.yaml logs app
     fi
-    docker cp "$container":/app/artifacts/coverage.xml ../artifacts/ 2>/dev/null || true
+    docker cp "$container":/app/artifacts/coverage.xml ../../artifacts/ 2>/dev/null || true
     exit $exit_code
 fi

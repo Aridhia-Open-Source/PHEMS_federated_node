@@ -34,7 +34,7 @@ def register_error_handlers(app: FastAPI):
 
     @app.exception_handler(RequestValidationError)
     def validation_error(_: Request, e: RequestValidationError):
-        # Flask's <int:...> converters made a non-integer id a route miss
+        # The previous backend's <int:...> route converters made a non-integer id a route miss
         if any(error["loc"][0] == "path" for error in e.errors()):
             return JSONResponse({"error": "Not Found"}, status_code=HTTPStatus.NOT_FOUND)
         return JSONResponse({"error": _validation_message(e)}, status_code=HTTPStatus.BAD_REQUEST)

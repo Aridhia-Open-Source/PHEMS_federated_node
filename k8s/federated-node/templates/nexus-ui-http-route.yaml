@@ -14,7 +14,7 @@ spec:
   hostnames:
   - {{ .Values.host }}
   rules:
-  # Longer than the backend route's "/" prefix, so it wins for /nexus-ui
+  # Longer than the nexus-api route's "/" prefix, so it wins for /nexus-ui
   - matches:
     - path:
         type: PathPrefix

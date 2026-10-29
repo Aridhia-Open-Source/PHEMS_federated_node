@@ -4,14 +4,8 @@ import { getToken, setToken } from "./auth";
 import { showToast } from "../shared/toast";
 
 export type Schemas = components["schemas"];
-// PageDTO of the API's generic lists (the task lists call their array `tasks`)
-export type Page<T> = { items: T[]; page: number; per_page: number; total: number; pages: number };
-
-// page and per_page are read from the raw query string by the API and are not declared in
-// the spec on GET /projects, GET .../tasks and GET .../pull_requests, so a typed query
-// can't carry them. This is the one place that says so.
-export const pageQuery = (page: number, per_page?: number, rest: object = {}) =>
-  ({ ...rest, page, per_page }) as never;
+// The API's paged lists (fastapi-pagination: query params page and size)
+export type Page<T> = { items: T[]; page: number; size: number; total: number; pages: number };
 
 export const API_BASE = `${import.meta.env.BASE_URL}api`;
 

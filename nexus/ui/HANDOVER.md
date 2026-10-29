@@ -22,9 +22,9 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 - 3 smoke tests in `src/pages/projects/projects.test.tsx` (api client mocked): Tasks tab, trigger resource page, Used by.
 - `gen:api` uses `--default-non-nullable false`, so fields with a spec default (e.g. `enabled` on request bodies) stay optional. Response DTO fields are required, so no `!` or `?.` on them.
 - `tsc`, `vite build` and `vitest` clean at the last push.
-- `Dockerfile` (node build, then `nginx-unprivileged` on 8080) with `nginx/default.conf.template`: serves `/nexus-ui/`, proxies `/nexus-ui/api/` to `$BACKEND_URL`.
-- Helm: `k8s/federated-node/templates/nexus-ui-{deployment,service,http-route}.yaml` behind `nexus.ui.enabled` (values under `nexus.ui`, image helper `nexus-ui-image` in `_helpers.tpl`). `BACKEND_URL` defaults to `backendUri` (Flask) until nexus has a service; override with `nexus.ui.backendUri`.
-- Tilt: `nexus-ui` local_resource runs the Vite dev server (hot reload) on 5173 against the backend forward on 5000.
+- `Dockerfile` (node build, then `nginx-unprivileged` on 8080) with `nginx/default.conf.template`: serves `/nexus-ui/`, proxies `/nexus-ui/api/` to `$NEXUS_API_URL`.
+- Helm: `k8s/federated-node/templates/nexus-ui-{deployment,service,http-route}.yaml` behind `nexus.ui.enabled` (values under `nexus.ui`, image helper `nexus-ui-image` in `_helpers.tpl`). `NEXUS_API_URL` is the chart's `nexusApiUrl` (nexus-api's in-cluster URL).
+- Tilt: `nexus-ui` local_resource runs the Vite dev server (hot reload) on 5173 against the nexus-api forward on 5000.
 - 4 Vitest tests in `src/shared/shared.test.tsx` pass.
 
 ## In progress
@@ -40,19 +40,17 @@ Read this, then `nexus/api/CONTRACT.md` on `origin/nexus/api`, then `PLAN.md`.
 Read this file, then `git show origin/nexus/api:nexus/api/CONTRACT.md`, then `PLAN.md`.
 
 ## How to run
-- **Local dev:** `cd nexus/ui && npm ci && npm run dev`, then open `http://localhost:5173/nexus-ui/`. Vite proxies `/nexus-ui/api/*` to `VITE_BACKEND_URL`.
-- **Against nexus (FastAPI):** default `VITE_BACKEND_URL=http://localhost:5004` (nexus's Tilt port-forward, see nexus/api CONTRACT.md). Run nexus itself per `nexus/api/HANDOVER.md` "How to run" on branch `nexus/api`.
-- **Against Flask:** `VITE_BACKEND_URL=http://localhost:5000 npm run dev` (the Tilt backend forward). The UI follows the nexus DTOs and routes, so anything that differs in Flask may break there. Prefer nexus.
+- **Local dev:** `cd nexus/ui && npm ci && npm run dev`, then open `http://localhost:5173/nexus-ui/`. Vite proxies `/nexus-ui/api/*` to `VITE_NEXUS_API_URL` (default `http://localhost:5000`, nexus-api's Tilt port-forward, see nexus/api CONTRACT.md). Run nexus-api itself per `nexus/api/HANDOVER.md` "How to run".
 - **Login:** an admin Keycloak user; the login page posts to `/login`.
 - **Checks:** `npx tsc --noEmit`, `npm run build`, `npm test`.
-- **Cluster (Helm):** `--set nexus.ui.enabled=true`; UI at `https://<host>/nexus-ui/`. It proxies to Flask by default; to use nexus, enable `nexus.api.enabled` too (from `nexus/api`) and set `nexus.ui.backendUri=http://nexus-api.<release namespace>.svc.cluster.local:<nexus.port>`.
+- **Cluster (Helm):** `--set nexus.ui.enabled=true`; UI at `https://<host>/nexus-ui/`. It proxies to nexus-api (`nexus.api.url`, or the in-cluster service when empty).
 
 ## Gotchas
 - `helm template` needs the chart dependencies. Without network, copy the chart to /tmp, cut `dependencies:` from `Chart.yaml`, and render with `--set nexus.ui.enabled=true --set traefik.enabled=true --set host=fn.local --set db.host=db --set storage.local.path=/data --show-only templates/nexus-ui-deployment.yaml` (and the service/route).
 - The image `ghcr.io/aridhia-open-source/federated_node_nexus_ui` is not built by CI yet; no workflow added.
 - UI is served under `/nexus-ui/` (not `/admin`, which Keycloak's admin console uses). Router basename, client base and proxy all derive from `import.meta.env.BASE_URL`.
 - TanStack Query has `retry: false` and no focus refetch: errors toast from the fetch middleware, so retries would duplicate toasts and loop on 401.
-- Paged lists (`PageDTO`: `items/page/per_page/total/pages`): projects, datasets, pull requests. The task lists are `TaskPageDTO` (same but the array is `tasks`; the Tasks tab maps it to `items`). Secrets, providers, repositories and project resources are plain arrays. `ResourceTable` takes either.
+- Paged lists (fastapi-pagination `Page`: `items/page/size/total/pages`, query params `page` and `size`): projects, datasets, pull requests and tasks. Secrets, providers, repositories and project resources are plain arrays. `ResourceTable` takes either.
 - `/login` is multipart form data.
 - Path parameter names come from the spec and differ per route (`{dataset_id}`, `{repo_id}` on trigger repositories, `{repository_id}` on healthchecks and results repositories), so `params.path` keys follow the generated type.
 
@@ -87,12 +85,12 @@ After the wave the lead runs `npx tsc --noEmit && npm run build && npm test`, co
 
 ## Needs from nexus
 The UI follows the FastAPI DTOs: `src/api/schema.d.ts` is generated from `nexus/api/openapi.json` (`npm run gen:api`; rerun it whenever the API's routes or DTOs change, then fix what `tsc` reports). What the spec still lacks, and what the UI does about it:
-- `page` and `per_page` are not declared on `GET /projects`, `GET /projects/{id}/tasks` and `GET .../pull_requests` (the routes read the raw query string), so a typed query can't carry them. `pageQuery()` in `src/api/client.ts` bypasses the typing there; declare them as `Query` params and it can go.
+- ~~`page` and `size` not declared in the spec~~: they are now (fastapi-pagination), so `pageQuery()` is gone and queries are typed.
 - Request bodies of datasets, secrets, trigger repositories, project resources, tasks and sensors are `additionalProperties: true` objects, so nothing checks them. Typed: providers (`GitProviderRequest`, `GitProviderPatchRequest`), results repositories (`RepositoryRequest`, `RepositoryPatchRequest`) and `ProjectRequest`; the UI casts the form's `Record<string, unknown>` to those.
 - No response schema for `POST /login` and `POST /refresh_token` (the login page casts to `{token}`) or `GET .../tasks/{id}/logs` (always 501 today; shown as raw JSON on a button).
 - The task list carries no trigger repository or pull request number. The Tasks tab asks `GET .../tasks/{id}/trigger` per row (404 = made by hand, so it uses `quietApi`). A trigger summary on `TaskDTO` would remove the N+1.
 - Nothing lists the project resources that use a global resource, so "Used by" fetches the first 100 projects and each one's resources. A `GET /global/.../{id}/projects` would replace that.
 - Revoking a global resource is `PATCH { revoked }` (there are no `/revoke` routes): trigger and results repositories get a Revoke/Restore button, providers a `revoked` checkbox. Secrets have no `revoked` field.
 - Project resource DELETE is a soft revoke (rows stay as revoked); assigning a results repo needs the project disabled (409 otherwise).
-- ~~Port 5001 clash~~: settled, nexus is on 5004 (vite default updated).
+- ~~Port 5001 clash~~: settled, nexus-api is on 5000 (vite default updated).
 - Keep: `/login` as multipart form, `{"error", "details"}` error bodies.

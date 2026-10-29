@@ -23,10 +23,11 @@ it, admin only.
 
 from http import HTTPStatus
 from fastapi import APIRouter, Body, Depends, Response
+from fastapi_pagination import Page
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
-from app.dtos.base import PageDTO, page_of
+from app.dtos.base import page_of
 from app.dtos.dataset import ProjectDatasetDTO
 from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.secret import ProjectSecretDTO
@@ -48,8 +49,8 @@ from app.models.secret import Secret
 router = APIRouter(prefix='/projects', tags=["projects"], dependencies=[Depends(require_scope('can_admin_dataset'))])
 
 
-@router.get('/', response_model=PageDTO[ProjectDTO])
-@router.get('', response_model=PageDTO[ProjectDTO])
+@router.get('/', response_model=Page[ProjectDTO])
+@router.get('', response_model=Page[ProjectDTO])
 def list_projects(filters: QueryFilters = Depends()):
     """
     GET /projects endpoint.

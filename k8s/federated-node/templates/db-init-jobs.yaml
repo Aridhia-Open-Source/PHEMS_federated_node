@@ -151,7 +151,7 @@ spec:
 {{- if .Values.db.manageRolesAndDatabases }}
 {{- include "fn.dbInitJob" (dict
       "ctx" .
-      "jobName" "backend-db-init"
+      "jobName" "nexus-db-init"
       "namespace" .Release.Namespace
       "inCluster" .Values.create_db_deployment
       "host" (include "dbHost" .)
@@ -159,9 +159,9 @@ spec:
       "superuser" .Values.db.superuser
       "superuserSecret" $superuserSecret
       "roles" (list (dict
-        "user" .Values.backend.db.user
-        "dbname" .Values.backend.db.name
-        "secret" .Values.backend.db.secret))) }}
+        "user" .Values.nexus.api.db.user
+        "dbname" .Values.nexus.api.db.name
+        "secret" .Values.nexus.api.db.secret))) }}
 ---
 {{- /* In the release namespace, not the keycloak one, so the superuser password
        never has to be copied into a second namespace. */}}
@@ -213,7 +213,7 @@ spec:
 {{- else }}
 {{- /* Nothing to create, so verify what the DBA created instead. */}}
 {{- $checkRoles := list
-      (dict "user" .Values.backend.db.user "dbname" .Values.backend.db.name "secret" .Values.backend.db.secret)
+      (dict "user" .Values.nexus.api.db.user "dbname" .Values.nexus.api.db.name "secret" .Values.nexus.api.db.secret)
       (dict "user" .Values.keycloak.db.user "dbname" .Values.keycloak.db.name "secret" .Values.keycloak.db.secret) -}}
 {{- if .Values.dagster.enabled -}}
 {{- $checkRoles = append $checkRoles (dict

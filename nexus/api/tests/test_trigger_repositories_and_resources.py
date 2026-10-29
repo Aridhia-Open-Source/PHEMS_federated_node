@@ -415,9 +415,9 @@ def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, sys
     assert r.status_code == 201, r.json()
     assert r.json()["created"] == [1, 2]
 
-    stored = get(client, admin_headers, f"{BASE}/{T}/pull_requests?per_page=50").json()
+    stored = get(client, admin_headers, f"{BASE}/{T}/pull_requests?size=50").json()
     assert sorted(i["number"] for i in stored["items"]) == [1, 2]
-    triggers = get(client, admin_headers, f"{resource}/pull_requests?per_page=50").json()
+    triggers = get(client, admin_headers, f"{resource}/pull_requests?size=50").json()
     assert [i["number"] for i in triggers["items"]] == [2]
 
 

@@ -10,3 +10,6 @@ services:
     build:
       context: .
       dockerfile: build/test.Dockerfile
+    volumes:
+      # test_enum_drift.py parses the nexus-api enums, which live outside this build context
+      - ../nexus/api/app/models:/opt/dagster/nexus/api/app/models:ro

@@ -2,9 +2,9 @@ server {
     listen 8080;
     root /usr/share/nginx/html;
 
-    # /nexus-ui/api/<path> -> ${BACKEND_URL}/<path>
+    # /nexus-ui/api/<path> -> ${NEXUS_API_URL}/<path>
     location /nexus-ui/api/ {
-        proxy_pass ${BACKEND_URL}/;
+        proxy_pass ${NEXUS_API_URL}/;
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;

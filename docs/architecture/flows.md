@@ -110,7 +110,7 @@ flowchart LR
     end
     subgraph Kind["kind cluster kind-fn"]
         subgraph FNNS["namespace fn"]
-            BE["Backend (Flask, port 5000)"]
+            BE["nexus-api (FastAPI, port 5000)"]
             DB[(Postgres db)]
             GITEA["Gitea service gitea.fn.svc:4000"]
             DWS[Dagster webserver]
