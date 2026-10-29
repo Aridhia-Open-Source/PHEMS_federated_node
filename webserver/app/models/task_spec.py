@@ -9,8 +9,8 @@ from app.helpers.const import TASK_IMAGE_MAX_LENGTH
 
 class TaskSpec(db.Model, BaseModel):
     """
-    What a task runs: the image, the dataset it runs against, if any, its env, its tags, its config and the metadata
-    that came with it.
+    What a task runs: the image, the dataset it runs against, if any, its env, its compute, its tags, its config and the
+    metadata that came with it.
     """
     __tablename__ = 'task_specs'
 
@@ -18,6 +18,8 @@ class TaskSpec(db.Model, BaseModel):
     image = sa.Column(sa.String(TASK_IMAGE_MAX_LENGTH), nullable=False)
     dataset_id = sa.Column(sa.Integer, sa.ForeignKey('datasets.id', ondelete='RESTRICT'), nullable=True)
     env = sa.Column(sa.JSON, nullable=False, server_default='{}')
+    # The CPU and memory the spec asked for: Kubernetes requests and limits, only what it gave, no defaults
+    compute = sa.Column(sa.JSON, nullable=False, server_default='{}')
     # Copied onto the task's run as tags
     tags = sa.Column(sa.JSON, nullable=False, server_default='{}')
     # A JSON object the task reads as a file, as the spec gave it. Null if the spec has none
@@ -29,13 +31,14 @@ class TaskSpec(db.Model, BaseModel):
     dataset = relationship("Dataset")
 
     def __init__(
-        self, image: str, dataset_id: int | None, env: dict, tags: dict | None = None, config: dict | None = None,
-        metadata: Any = None
+        self, image: str, dataset_id: int | None, env: dict, compute: dict | None = None, tags: dict | None = None,
+        config: dict | None = None, metadata: Any = None
     ):
         self.image = image
         self.dataset_id = dataset_id
         self.env = env
         # None would be stored as a JSON null, not the empty object the column's default means
+        self.compute = compute or {}
         self.tags = tags or {}
         self.config = config
         self.metadata_ = metadata

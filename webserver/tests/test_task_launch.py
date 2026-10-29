@@ -53,7 +53,8 @@ def test_launch_returns_the_run_inputs_and_changes_nothing(client, admin_headers
     assert body["task"]["id"] == full_task.id and body["task"]["status"] == "PENDING"
     assert body["task"]["spec"] == {
         "image": full_task.spec.image, "dataset_id": global_dataset.id, "env": full_task.spec.env,
-        "tags": full_task.spec.tags, "config": full_task.spec.config, "metadata": full_task.spec.metadata_,
+        "compute": full_task.spec.compute, "tags": full_task.spec.tags, "config": full_task.spec.config,
+        "metadata": full_task.spec.metadata_,
     }
     assert (body["task"]["project_name"], body["task"]["dataset_name"]) == (project.name, global_dataset.name)
     assert body["task"]["attempt"] == full_task.attempt

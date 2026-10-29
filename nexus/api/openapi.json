@@ -7765,6 +7765,11 @@
             "type": "object",
             "title": "Env"
           },
+          "compute": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Compute"
+          },
           "tags": {
             "additionalProperties": true,
             "type": "object",
@@ -7791,6 +7796,7 @@
           "image",
           "dataset_id",
           "env",
+          "compute",
           "tags",
           "config",
           "metadata"

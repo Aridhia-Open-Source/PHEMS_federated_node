@@ -42,6 +42,7 @@
     "project_name": "TestProject",
     "requested_by": "user1",
     "spec": {
+      "compute": {},
       "config": null,
       "dataset_id": 1,
       "env": {},

@@ -15,6 +15,32 @@
             "type": "boolean",
             "default": false
         },
+        "cpuQuantity": {
+            "type": "string",
+            "description": "CPU in cores or millicores, e.g. 2, 0.5 or 500m",
+            "pattern": "^(\\d+m|\\d+(\\.\\d+)?)$"
+        },
+        "memoryQuantity": {
+            "type": "string",
+            "description": "Memory as a whole number with an optional unit, e.g. 512Mi, 4Gi or 2e9",
+            "pattern": "^\\d+(e\\d+|[EPTGM]i?|Ki|k|m)?$"
+        },
+        "computeQuantities": {
+            "type": "object",
+            "required": [
+                "cpu",
+                "memory"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "cpu": {
+                    "$ref": "#/definitions/cpuQuantity"
+                },
+                "memory": {
+                    "$ref": "#/definitions/memoryQuantity"
+                }
+            }
+        },
         "capacity": {
             "type": "string",
             "description": "How much to reserve for tasks, defaults to 10Gi. Other possible units are Mi, Ti, Ki",
@@ -275,6 +301,37 @@
         },
         "taskReview": {
             "$ref": "#/definitions/taskReview"
+        },
+        "taskCompute": {
+            "type": "object",
+            "description": "The CPU and memory of task pods: the task namespace's LimitRange defaults and max, which a spec file's compute is checked against too",
+            "required": [
+                "default",
+                "max"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "default": {
+                    "type": "object",
+                    "description": "What a container that asks for nothing gets. The default limits can't be over max, nor the default requests over the default limits",
+                    "required": [
+                        "requests",
+                        "limits"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "requests": {
+                            "$ref": "#/definitions/computeQuantities"
+                        },
+                        "limits": {
+                            "$ref": "#/definitions/computeQuantities"
+                        }
+                    }
+                },
+                "max": {
+                    "$ref": "#/definitions/computeQuantities"
+                }
+            }
         },
         "firstUserSecret": {
             "type": "object",

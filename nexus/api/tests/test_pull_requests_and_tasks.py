@@ -481,7 +481,9 @@ def test_create_task_yields_pr_and_is_idempotent(client, admin_headers, system_h
     task = create_task(client, system_headers, pr_trigger, spec_raw)
     assert (task["status"], task["name"], task["project_id"]) == ("PENDING", f"{project.name}:PR#1", project.id)
     assert (task["project_name"], task["dataset_name"]) == (project.name, None)
-    assert (task["spec"]["tags"], task["spec"]["config"], task["spec"]["metadata"]) == ({}, None, None)
+    assert (task["spec"]["compute"], task["spec"]["tags"], task["spec"]["config"], task["spec"]["metadata"]) == (
+        {}, {}, None, None
+    )
     assert task["spec"]["image"] == "img:1" and task["spec"]["dataset_id"] is None
     pr_row = pr_state(client, admin_headers, pr_trigger)
     assert (pr_row["state"], pr_row["task_id"], pr_row["state_cause"]) == ("YIELDED", task["id"], None)
@@ -511,6 +513,7 @@ def test_spec_options_are_kept(client, system_headers, project, pr_trigger, glob
         "spec": {
             "image": "img:9", "dataset": global_dataset.name, "env": {"MY_VAR": "x"}, "tags": {"team": "a"},
             "config": {"epochs": 3, "layers": [1, {"x": None}]},
+            "compute": {"requests": {"cpu": "250m"}, "limits": {"cpu": "1", "memory": "1Gi"}},
         },
         "metadata": {"ticket": "ABC-1", "any": [1, None]},
     })
@@ -518,6 +521,7 @@ def test_spec_options_are_kept(client, system_headers, project, pr_trigger, glob
     assert task["name"] == f"{project.name}:PR#1"
     assert task["spec"] == {
         "image": "img:9", "dataset_id": global_dataset.id, "env": {"MY_VAR": "x"}, "tags": {"team": "a"},
+        "compute": {"requests": {"cpu": "250m"}, "limits": {"cpu": "1", "memory": "1Gi"}},
         "config": {"epochs": 3, "layers": [1, {"x": None}]}, "metadata": {"ticket": "ABC-1", "any": [1, None]},
     }
     assert (task["project_name"], task["dataset_name"]) == (project.name, global_dataset.name)
@@ -571,6 +575,10 @@ def test_unusable_dataset_rejects_the_pr(client, admin_headers, system_headers, 
     spec(tags={"dagster/max_retries": "3"}),
     spec(tags={"k": 1}),
     spec(config=["not", "an", "object"]),
+    spec(compute={"limits": {"cpu": "lots"}}),      # not a quantity
+    spec(compute={"limits": {"memory": "999Ti"}}),  # over the node max
+    spec(compute={"requests": {"cpu": "2"}, "limits": {"cpu": "1"}}),   # a limit under its request
+    spec(compute={"limit": {"cpu": "1"}}),          # not requests or limits
     json.dumps({"image": "i:1"}),                   # not under spec
     json.dumps({"spec": {"image": "i:1"}, "extra": 1}),
     "not json at all",

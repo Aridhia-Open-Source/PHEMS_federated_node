@@ -30,6 +30,9 @@ export KEYCLOAK_TOKEN_LIFE=3600 KEYCLOAK_LOGLEVEL=INFO
 export PYTHONPATH=/app
 export DEFAULT_NAMESPACE=default TASK_NAMESPACE=tasks KEYCLOAK_NAMESPACE=keycloak
 export PUBLIC_URL=localhost:5000
+# The chart's taskCompute values, what a spec's compute is checked against
+export TASK_COMPUTE_MAX_CPU=4 TASK_COMPUTE_MAX_MEMORY=16Gi
+export TASK_COMPUTE_DEFAULT_LIMIT_CPU=2 TASK_COMPUTE_DEFAULT_LIMIT_MEMORY=4Gi
 
 # Where steps leave each kc-init run's output for the steps that assert across runs.
 ARTIFACTS="$(mktemp -d)"

@@ -231,16 +231,18 @@ How often they tick (`fnDagster.sensors.minIntervalSeconds`, default 30 s) and h
        "dataset": "my-dataset",
        "env": {"MY_VAR": "value"},
        "tags": {"team": "analytics"},
-       "config": {"epochs": 3}
+       "config": {"epochs": 3},
+       "compute": {"requests": {"cpu": "500m", "memory": "1Gi"}, "limits": {"cpu": "2", "memory": "4Gi"}}
      },
      "metadata": {"ticket": "ABC-1"}
    }
    ```
 
-   Only `spec` and `metadata` are allowed at the top level, and `spec` is required. In `spec`, `image` is required; `dataset`, `env`, `tags` and `config` are optional. Any other field, in either place, makes the pull request `REJECTED`.
+   Only `spec` and `metadata` are allowed at the top level, and `spec` is required. In `spec`, `image` is required; `dataset`, `env`, `tags`, `config` and `compute` are optional. Any other field, in either place, makes the pull request `REJECTED`.
    - `env` keys can't be `ARTIFACT_PATH`, `CDM_SCHEMA`, `WRITE_SCHEMA`, `DB_USERNAME`, `DB_PASSWORD`, `CONNECTION_STRING` or `CONFIG_PATH`, or start with `DAGSTER_` or `KUBERNETES_`, in any letter case: the run sets those itself.
    - `tags` are text to text, copied onto the task's run. A key is 1 to 63 letters, digits, `_`, `.` or `-` (so no `/`), otherwise the pull request is rejected.
    - `config` is a JSON object the task reads as a file. Its contents are not checked.
+   - `compute` asks for CPU and memory: `requests` and `limits`, each with an optional `cpu` and `memory` (`500m`, `2`, `512Mi`, `4Gi`). A limit can't be lower than its request, nothing can be over the node max, and a request without a limit of its own can't be over the default limit. Without it the task namespace's defaults apply. The max and the defaults are the chart's `taskCompute` values (`taskCompute.max` and `taskCompute.default`).
    - `metadata` is yours: any JSON, not checked, kept with the task.
    - The task is named `<project name>:PR#<pull request number>`.
 

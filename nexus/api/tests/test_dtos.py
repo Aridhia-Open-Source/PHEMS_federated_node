@@ -91,7 +91,8 @@ class TestTaskDTO:
             name="task", requested_by="user", project_id=project.id, trigger_id=1,
             spec={
                 "image": "alpine:latest", "dataset_id": None, "env": {"K": "v"},
-                "tags": {"team": "a"}, "config": {"epochs": 3}, "metadata": {"ticket": "ABC-1"},
+                "compute": {"limits": {"cpu": "1"}}, "tags": {"team": "a"}, "config": {"epochs": 3},
+                "metadata": {"ticket": "ABC-1"},
             }
         )
         task.id = 1
@@ -106,7 +107,8 @@ class TestTaskDTO:
         assert dumped["attempt"] == 1
         assert dumped["spec"] == {
             "image": "alpine:latest", "dataset_id": None, "env": {"K": "v"},
-            "tags": {"team": "a"}, "config": {"epochs": 3}, "metadata": {"ticket": "ABC-1"},
+            "compute": {"limits": {"cpu": "1"}}, "tags": {"team": "a"}, "config": {"epochs": 3},
+            "metadata": {"ticket": "ABC-1"},
         }
         assert (dumped["project_name"], dumped["dataset_name"]) == (project.name, None)
         assert dumped["trigger_id"] == 1
@@ -120,7 +122,8 @@ class TestTaskDTO:
         task.id = 1
         task.project = project
         assert TaskDTO.from_model(task).dump()["spec"] == {
-            "image": "alpine:latest", "dataset_id": None, "env": {}, "tags": {}, "config": None, "metadata": None,
+            "image": "alpine:latest", "dataset_id": None, "env": {}, "compute": {}, "tags": {}, "config": None,
+            "metadata": None,
         }
 
 

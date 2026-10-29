@@ -13,6 +13,7 @@ class TaskSpecDTO(DTO):
     image: str
     dataset_id: int | None
     env: dict
+    compute: dict
     tags: dict
     config: dict | None
     # The model's attribute is metadata_, SQLAlchemy reserves metadata. On the wire it is metadata
@@ -118,6 +119,7 @@ class NewTaskDTO(DTO):
                 "image": spec.image,
                 "dataset_id": dataset.id if dataset else None,
                 "env": spec.env,
+                "compute": spec.compute.model_dump(exclude_none=True),
                 "tags": spec.tags,
                 "config": spec.config,
                 "metadata": spec.metadata,
