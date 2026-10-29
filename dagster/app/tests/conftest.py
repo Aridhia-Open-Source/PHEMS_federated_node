@@ -232,3 +232,10 @@ def non_github_run():
 @pytest.fixture
 def success_event():
     return make_success_event()
+
+
+@pytest.fixture
+def artifacts_env(monkeypatch):
+    """The artifacts volume as the chart sets it in the environment."""
+    monkeypatch.setenv("DAGSTER_ARTIFACTS_PVC_NAME", "artifacts-pvc")
+    monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/mnt/dagster/artifacts")

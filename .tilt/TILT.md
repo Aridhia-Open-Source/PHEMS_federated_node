@@ -103,9 +103,11 @@ kubectl get pods
 ```
 
 Wait for all pods to be Running. Then access:
-- **nexus-api**: http://localhost:5000
+- **nexus-api docs**: http://localhost:5000/docs
 - **Dagster UI**: http://localhost:3000
 - **Tilt UI**: http://localhost:10350/
+
+The `dagster-reload` resource prints this list in the Tilt log once the Dagster code location has loaded, and again after each reload.
 
 ## How Tilt Works
 

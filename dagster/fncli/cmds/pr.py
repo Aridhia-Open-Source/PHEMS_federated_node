@@ -52,6 +52,8 @@ class PrConfig(TriggerRepoConfig):
     pr_image: str = Field(default="localhost:5001/pypipes-fn:latest", alias="TEST_PR_IMAGE")
     # Extra env for the task, as JSON, e.g. '{"UC1_DEV": "1"}' (fncli experiment run)
     pr_env: dict[str, str] = Field(default={}, alias="TEST_PR_ENV", validate_default=False)
+    # The task's resources, as JSON, e.g. '{"limits": {"cpu": "500m", "memory": "256Mi"}}'
+    pr_resources: dict = Field(default={}, alias="TEST_PR_RESOURCES", validate_default=False)
 
 
 branch_option = click.option(
@@ -71,6 +73,8 @@ def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
     spec = {"name": branch, "image": config.pr_image}
     if config.pr_env:
         spec["env"] = dict(config.pr_env)
+    if config.pr_resources:
+        spec["resources"] = config.pr_resources
     if kind == "failing":
         spec["env"] = {**spec.get("env", {}), "PYPIPES_EXIT_CODE": "1"}
     if kind == "invalid":

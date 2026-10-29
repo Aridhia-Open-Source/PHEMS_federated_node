@@ -229,6 +229,8 @@ are given. Setting them explicitly means a driver change cannot alter them under
 file_mode/dir_mode of 0777 is what makes the volume writable by an analytical image
 running as ANY uid; uid=/gid= are deliberately omitted, since with 0777 they only
 affect how ownership is reported.
+mfsymlinks is deliberately not set: the volume holds partner output, and a symbolic link in it
+could point out of its folder.
 */}}
 {{- define "dagsterArtifactsMountOptions" -}}
 {{- $a := (.Values.fnDagster.artifacts | default dict) -}}
@@ -237,7 +239,6 @@ affect how ownership is reported.
 {{- else if .Values.storage.azure -}}
 - file_mode={{ $a.fileMode | default "0777" }}
 - dir_mode={{ $a.dirMode | default "0777" }}
-- mfsymlinks
 - nosharesock
 - actimeo=30
 {{- else if .Values.storage.nfs -}}

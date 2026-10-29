@@ -32,6 +32,7 @@ ODBC_DRIVERS = {
     config_schema={
         "docker_image": dg.Field(str),
         "env": dg.Field(dict, default_value={}, is_required=False),
+        "resources": dg.Field(dict, default_value={}, is_required=False),
         "image_pull_secret": dg.Field(str, is_required=False),
         "dataset": dg.Field(
             dg.Shape(
@@ -66,11 +67,14 @@ class K8sPipe:
         self.task_namespace = os.environ.get("DAGSTER_TASK_NAMESPACE") or self.namespace
         self.pvc_name = os.environ["DAGSTER_ARTIFACTS_PVC_NAME"]
         self.mnt_base_path = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
+        self.active_deadline_seconds = int(os.environ["DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS"])
         self.image = self.config['docker_image']
         self.image_pull_secret = self.config.get('image_pull_secret')
+        self.resources = self.config.get('resources')
         self.name = f"pipes-{self.run_id}"
         self.artifact_path = f"{self.mnt_base_path}/{self.run_id}"
         self.security_context = PipesSecurityContextConfig().to_pod_security_context()
+        self.container_security_context = PipesSecurityContextConfig().to_container_security_context()
         self.dataset = self._setup_dataset()
         self.env = self._setup_env(ext_env)
 
@@ -106,6 +110,8 @@ class K8sPipe:
             namespace=self.task_namespace,
             context=self.context,
             image=self.image,
+            # The pod is killed at its deadline, and Kubernetes then takes up to the grace period to stop it
+            pod_wait_timeout=self.active_deadline_seconds + TERMINATION_GRACE_PERIOD_SECONDS,
         )
 
         self.log("Pipes op completed")
@@ -136,9 +142,9 @@ class K8sPipe:
         Elsewhere it does depend on this pod being able to write the volume root, which
         today means running as root (the dagster image declares no USER). That is not
         guaranteed - k8sRunLauncher.securityContext can override it, and a restricted
-        Pod Security Standard would force non-root - so a failure here is reported
-        rather than swallowed: nothing else in the cluster can fix it, since the task
-        pod is no more privileged than we are.
+        Pod Security Standard would force non-root - so a failure here is raised rather
+        than swallowed: nothing else in the cluster can fix it, since the task pod only
+        mounts this folder, and the kubelet would create a missing one root-owned.
 
         Deliberately not a root initContainer on the task pod: that would require root
         in the pod running partner code, which a restricted Pod Security Standard
@@ -152,16 +158,12 @@ class K8sPipe:
                 owner = f"owner {st.st_uid}:{st.st_gid} mode {oct(st.st_mode & 0o777)}"
             except OSError:
                 owner = "could not stat mount root"
-            self.warn(
-                f"Could not pre-create {self.artifact_path} as "
+            raise RuntimeError(
+                f"Could not create {self.artifact_path} as "
                 f"uid={os.geteuid()} gid={os.getegid()} ({exc}). "
                 f"Mount root {self.mnt_base_path}: {owner}. "
-                "The analytical container will have to create it itself, which will "
-                "fail unless it runs as a uid that can write there. "
-                "In which case the shared artifacts volume will need to be "
-                "made writable by the analytical container manually."
-            )
-            return
+                "The shared artifacts volume needs to be made writable by this pod."
+            ) from exc
 
         # The run dir must be writable, and the mount root must be traversable, for the
         # task pod to reach it. Both are no-ops on CIFS, which rejects chmod and already
@@ -181,16 +183,22 @@ class K8sPipe:
             "automountServiceAccountToken": False,
             "restartPolicy": "Never",
             "terminationGracePeriodSeconds": TERMINATION_GRACE_PERIOD_SECONDS,
+            # Kubernetes kills a pod past this, which is what ends a hung task: the Pipes client
+            # follows the pod's logs until the container exits, so its own timeout cannot.
+            "activeDeadlineSeconds": self.active_deadline_seconds,
             "volumes": self._pod_volumes(),
             "containers": [
                 {
                     "name": self.name,
                     "imagePullPolicy": "Always",
+                    "securityContext": self.container_security_context,
                     "env": self._pod_env(),
                     "volumeMounts": self._pod_volume_mounts(),
                 }
             ],
         }
+        if self.resources:
+            spec["containers"][0]["resources"] = self.resources
         if self.image_pull_secret:
             spec["imagePullSecrets"] = [{"name": self.image_pull_secret}]
         if self.security_context:
@@ -214,10 +222,12 @@ class K8sPipe:
         return env
 
     def _pod_volume_mounts(self):
+        # Only this run's folder, not the volume: a task must not reach other runs' results
         return [
             {
                 "name": self.pvc_name,
-                "mountPath": self.mnt_base_path,
+                "mountPath": self.artifact_path,
+                "subPath": self.run_id,
             }
         ]
 
