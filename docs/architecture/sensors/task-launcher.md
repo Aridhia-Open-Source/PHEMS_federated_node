@@ -4,7 +4,7 @@ Sensor `task_launcher_sensor` (`TaskLauncherSensor`) and the job it launches, `k
 
 ## 1. Purpose
 
-Launches a run of `k8s_pipes_job` for each PENDING task of an enabled project, whether a merged pull request or the API created it. For each task it makes one call to the webserver, which decides. The webserver owns the rules ([0021](../../../project/decisions/0021-webserver-owns-the-record-and-the-rules.md)): it fails a task with the cause itself, or answers with what the run needs, and the launcher launches it.
+Launches a run of `k8s_pipes_job` for each PENDING task of an enabled project, whether a merged pull request or the API created it. For each task it makes one call to nexus-api, which decides. nexus-api owns the rules ([0021](../../../project/decisions/0021-nexus-api-owns-the-record-and-the-rules.md)): it fails a task with the cause itself, or answers with what the run needs, and the launcher launches it.
 
 ## 2. When it runs
 
@@ -17,9 +17,9 @@ Launches a run of `k8s_pipes_job` for each PENDING task of an enabled project, w
 | Call | Filter or note |
 |---|---|
 | `GET /tasks` | `status=PENDING&project_enabled=true`, all pages of 100: the PENDING tasks of all enabled projects, by id, one list per tick whatever the number of projects. A revoked project is still enabled, so its tasks are listed. Each task carries its `project_id`, which the launch call uses. |
-| `POST /projects/{id}/tasks/{task}/launch` | One per task. The decision: `outcome` (`launch` or `fail`) and `cause`. On `fail` the webserver has moved the task to `FAILED` itself. On `launch` it writes nothing and returns the task (spec included) and its dataset with the secret reference, which the run config is built from. A task no longer `PENDING` is a 409: skipped. |
+| `POST /projects/{id}/tasks/{task}/launch` | One per task. The decision: `outcome` (`launch` or `fail`) and `cause`. On `fail` nexus-api has moved the task to `FAILED` itself. On `launch` it writes nothing and returns the task (spec included) and its dataset with the secret reference, which the run config is built from. A task no longer `PENDING` is a 409: skipped. |
 
-It considers the PENDING tasks of enabled projects; the webserver filters them. Through the webserver's decision it covers everything a task uses: the project, the TriggerRepository (the project resource, the GlobalResource, its GitProvider), the Dataset (the ProjectDataset and the GlobalResource) and the ResultsRepository (the same three levels). It does not call the git provider.
+It considers the PENDING tasks of enabled projects; nexus-api filters them. Through nexus-api's decision it covers everything a task uses: the project, the TriggerRepository (the project resource, the GlobalResource, its GitProvider), the Dataset (the ProjectDataset and the GlobalResource) and the ResultsRepository (the same three levels). It does not call the git provider.
 
 ## 4. Flow chart
 
@@ -34,7 +34,7 @@ flowchart TD
     ERR --> D
     E -->|409| D
     E --> F{"outcome"}
-    F -->|"fail (the webserver moved the task to FAILED)"| D
+    F -->|"fail (nexus-api moved the task to FAILED)"| D
     F -->|launch| L["Yield RunRequest task/task_id/attempt with the run config built from the response"]
     L --> D
     Z -->|yes| Y([Done])
@@ -49,7 +49,7 @@ flowchart TD
 | Run key | `task/<task id>/<attempt>` |
 | Tags | `trigger=task`, `task_id`, `attempt`, `project_id`, `project` (the name) |
 | Run config | `k8s_pipes_op: {env, docker_image, dataset}` from the task spec; the dataset (name, host, port, type, schemas, secret reference) comes in the launch response and is left out when the task has none |
-| Task write | None. On a failure the webserver sets `status=FAILED` and `state_cause`, cut to 1024 characters |
+| Task write | None. On a failure nexus-api sets `status=FAILED` and `state_cause`, cut to 1024 characters |
 | Skip | `SkipReason("No pending tasks found.")` when nothing launched, even if some tasks were failed |
 
 The launcher moves no task and writes nothing. The [run-status sensors](run-status.md) do once Dagster has the run, and until then the same request is yielded again each tick; the run key makes Dagster ignore it.
@@ -65,7 +65,7 @@ The job: `k8s_pipes_job` has one op, `k8s_pipes_op`. It starts the task pod from
 
 ## 7. How `enabled` and `revoked` change what it does
 
-The webserver's rules run in this order ([0021](../../../project/decisions/0021-webserver-owns-the-record-and-the-rules.md)); `decide_launch` in `webserver/app/helpers/task_config.py` holds them. The first that applies fails the task.
+nexus-api's rules run in this order ([0021](../../../project/decisions/0021-nexus-api-owns-the-record-and-the-rules.md)); `decide_launch` in `nexus/api/app/helpers/task_config.py` holds them. The first that applies fails the task.
 
 | State | Effect |
 |---|---|

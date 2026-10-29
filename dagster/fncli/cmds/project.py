@@ -1,5 +1,5 @@
 """
-Commands for the webserver Project. Its datasets and repositories are global, the project only holds assignments of them. Deleting what is already gone is logged, not an error.
+Commands for the nexus-api Project. Its datasets and repositories are global, the project only holds assignments of them. Deleting what is already gone is logged, not an error.
 """
 
 import json

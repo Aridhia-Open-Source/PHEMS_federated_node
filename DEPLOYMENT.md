@@ -18,11 +18,11 @@ One Helm chart, `k8s/federated-node`, installs:
 
 | Part | Namespace | Notes |
 |---|---|---|
-| Backend (Flask API) | release namespace | The record and the rules. Port 5000 |
+| nexus-api (FastAPI) | release namespace | The record and the rules. Port 5000 |
 | Dagster webserver, daemon, code server | release namespace | Runs the sensors and the task and delivery jobs. The UI has no login: never expose it |
 | Keycloak | `keycloak` | Logins and roles. Reached at `https://<host>/keycloak` |
 | Postgres | release namespace | Only with `create_db_deployment: true` (local development). In production you bring your own server |
-| Traefik + Gateway API routes | release namespace | Optional subchart. Serves the backend and Keycloak on `host` |
+| Traefik + Gateway API routes | release namespace | Optional subchart. Serves nexus-api and Keycloak on `host` |
 | cert-manager | `fn-certmanager` | Optional subchart, for certificate renewal |
 | Gitea | release namespace | Optional, `gitea.enabled`. A git host for development only |
 | Task pods | `tasks` | Created per task by Dagster. A NetworkPolicy leaves them DNS and their dataset database only |
@@ -109,7 +109,7 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 
 | You change | What happens |
 |---|---|
-| `webserver/app/`, `dagster/app/` | Files are synced and the process restarts. For Dagster, `dagster-reload` then reloads the code location once the new code server is serving |
+| `nexus/api/app/`, `dagster/app/` | Files are synced and the process restarts. For Dagster, `dagster-reload` then reloads the code location once the new code server is serving |
 | `dagster/fncli/`, `dagster/app/tests/`, docs under `dagster/` | Nothing: the code server and run pods don't use them |
 | `requirements.txt`, `setup.py`, `alembic.ini`, migrations | The image is rebuilt |
 | The chart (`k8s/federated-node`) | Run `make upgrade` (helm upgrade, then restarts the app deployments) |
@@ -117,7 +117,7 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 | Task | Command |
 |---|---|
 | Stop or open Tilt | `make tilt-down`, `make tilt-open` |
-| Rebuild one service | `tilt trigger backend` |
+| Rebuild one service | `tilt trigger nexus-api` |
 | Read the generated database passwords | `make show-db-passwords` |
 | Lint and render the chart without a cluster | `make helm_lint helm_template` |
 | Chart unit tests | `make helm_tests` |
@@ -137,7 +137,7 @@ There is one dev cluster and one worktree owns it. `make deploy` and `make upgra
 The chart generates every database password and reuses it on each upgrade, so `.dev.env` holds none. Read them with `make show-db-passwords`, or one at a time:
 
 ```bash
-kubectl get secret backend-db -n fn -o jsonpath='{.data.password}' | base64 -d
+kubectl get secret fn-nexus-db -n fn -o jsonpath='{.data.password}' | base64 -d
 ```
 
 ### Loading real sample data
@@ -357,7 +357,7 @@ All Dagster sensors start **stopped**. Nothing is polled and no task runs until 
 Useful reads after install:
 
 ```bash
-# Passwords the chart generated (backend, keycloak, dagster roles)
+# Passwords the chart generated (fn_nexus, keycloak, dagster roles)
 kubectl get secret -A -l federatednode.com/generated-password=true
 
 # Keycloak admin password
@@ -378,7 +378,7 @@ The chart creates a `ClusterRole` for the backend (pods, PVs, PVCs, jobs, secret
 
 ## Upgrade, uninstall, reinstall
 
-**Upgrade** with the same command as the install and a new `--version`. Passwords are reused, hook job names carry a hash so an image change does not fail on an immutable Job, and the backend applies database migrations itself (an init container runs `alembic upgrade head` before it starts).
+**Upgrade** with the same command as the install and a new `--version`. Passwords are reused, hook job names carry a hash so an image change does not fail on an immutable Job, and nexus-api applies database migrations itself (an init container runs `alembic upgrade head` before it starts).
 
 ```bash
 helm repo update

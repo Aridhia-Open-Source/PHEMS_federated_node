@@ -49,9 +49,10 @@ storage:
 
 # Locally built images; devTag must match DOCKER_TAG in .dev.env. On a real cluster
 # you set none of this - the chart's images track its appVersion.
-backend:
-  image: localhost:5001/webserver-fn
-  tag: &devTag "v1"
+nexus:
+  api:
+    image: localhost:5001/nexus-api-fn
+    tag: &devTag "v1"
 
 alpine:
   image: localhost:5001/alpine-fn

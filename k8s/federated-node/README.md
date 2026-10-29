@@ -25,7 +25,9 @@ The necessary values are:
 |db|manageRolesAndDatabases|Create and maintain each component's database, role and grants (default `true`). False means they already exist: no superuser is needed, no passwords are generated, and one secret per role is required instead|
 |db.secret|name/key|Where the superuser password lives. Generated when `create_db_deployment` is true; yours when Postgres is external; unused when `manageRolesAndDatabases` is false|
 |db|passwords|Optional explicit role passwords, for renders that cannot reach the cluster (ArgoCD, `helm diff`)|
-|backend.db|name/user/secret|Backend database, role and password secret|
+|nexus.api|image/tag/replicas/port|The nexus-api image, replicas and port. It serves `/` and its init container runs the database migrations|
+|nexus.api|url|In-cluster URL Dagster, fncli and the smoke tests use to reach nexus-api (default `http://nexus-api.<namespace>.svc:<port>`)|
+|nexus.api.db|name/user/secret|nexus-api database, role and password secret (default `fn_nexus`, `fn_nexus`, `nexus-db`)|
 |keycloak.db|name/user/secret|Keycloak database, role and password secret|
 |-|-|-|
 |token|life|Duration in seconds for tokens|
@@ -51,7 +53,7 @@ What you have to create yourself, in the release namespace:
 - azure storage credentials, and the tls cert, where those apply
 
 With `db.manageRolesAndDatabases: false` the chart creates no databases or roles and needs no admin
-login at all; instead each role's password becomes a secret you supply (`backend.db.secret`,
+login at all; instead each role's password becomes a secret you supply (`nexus.api.db.secret`,
 `keycloak.db.secret` and `global.postgresqlSecretName`). Install once and the chart will print the
 exact DDL and `kubectl` commands for your own database and role names, and a `db-check` hook verifies
 the credentials before anything else is installed.

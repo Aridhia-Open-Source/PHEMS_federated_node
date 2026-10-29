@@ -1,14 +1,14 @@
 # fncli
 
 Dev tooling for the Federated Node: a click CLI for the simulation work (setting up Gitea,
-the backend project and the trigger repository the git sensor builds on). New commands go in
+nexus-api project and the trigger repository the git sensor builds on). New commands go in
 `cmds/` and are registered in `cli.py`.
 
 ## Requirements
 
 - Python 3.12 or newer
 - A working kubeconfig pointing at the dev cluster (the commands read secrets from it)
-- For the setup, open-pr and teardown commands: the Tilt port-forwards running, so the backend
+- For the setup, open-pr and teardown commands: the Tilt port-forwards running, so nexus-api
   (`localhost:5000`) and Gitea (`localhost:4000`) are reachable
 
 ## Install
@@ -88,13 +88,13 @@ fncli teardown-gitea -y [--project NAME]
 fncli teardown-backend -y
 ```
 
-- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via the backend; dummies unless the `DATASET_*` env vars are set, see below), and the backend records: the project, the global git provider (the Gitea host), trigger repository, results repository and dataset, and the project's assignment of each. The project is created disabled and enabled at the end, once its resources are set up.
+- `setup-project`: builds the dev project. Side effects: creates two Gitea repos (trigger and results), a Gitea token for each (`fn-sensor`, `fn-results`), the K8s secrets holding them and the dataset's credentials (via nexus-api; dummies unless the `DATASET_*` env vars are set, see below), and nexus-api records: the project, the global git provider (the Gitea host), trigger repository, results repository and dataset, and the project's assignment of each. The project is created disabled and enabled at the end, once its resources are set up.
 - `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
-- `teardown-project -y`: deletes the lot, side effects included: the backend project and its assignments, then the global dataset, repositories, git provider (unless another project's repositories are still on it) and secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
+- `teardown-project -y`: deletes the lot, side effects included: nexus-api project and its assignments, then the global dataset, repositories, git provider (unless another project's repositories are still on it) and secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
-- `setup-backend`: the backend only, no Gitea call. Side effects: the backend project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global git provider, trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `main`). The project stays disabled: enable it with `project-set --enabled true` once `setup-gitea` has run.
+- `setup-backend`: nexus-api only, no Gitea call. Side effects: nexus-api project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global git provider, trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `main`). The project stays disabled: enable it with `project-set --enabled true` once `setup-gitea` has run.
 - `setup-gitea`: the Gitea side of an existing backend project, which is the reference (not the `TEST_*_REPO` env vars). Side effects: creates the Gitea repos its trigger and results repository records name, issues a Gitea token for each (`fn-sensor`, `fn-results`), writes it into that record's existing secret and checks Gitea accepts it.
-- `teardown-gitea -y`: deletes the Gitea tokens and repos (with all their PRs) named by the project's backend records. The backend is left alone.
+- `teardown-gitea -y`: deletes the Gitea tokens and repos (with all their PRs) named by the project's backend records. nexus-api is left alone.
 - `teardown-backend -y`: deletes the project (with its assignments), then the global dataset, repositories and secrets (backend and K8s). Gitea is left alone.
 
 Intended use: `setup-backend` then `setup-gitea`, or `setup-project` for both in one go (and `teardown-gitea` then `teardown-backend`, or `teardown-project`).
@@ -122,9 +122,9 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-backend-project` | Finds or creates the test project in the backend. A new project is disabled (a results repository can only be assigned to a disabled project); enable it with `project-set --enabled true` |
+| `init-backend-project` | Finds or creates the test project in nexus-api. A new project is disabled (a results repository can only be assigned to a disabled project); enable it with `project-set --enabled true` |
 | `delete-backend-project` | Deletes the project with its tasks, triggers and assignments (`DELETE /projects/<id>`). The global secrets, datasets and repositories stay |
-| `project-healthcheck` | Prints the backend's healthcheck for the test project as JSON (can the repos be reached with their tokens?). Exits 1 unless the status is `ok` |
+| `project-healthcheck` | Prints nexus-api's healthcheck for the test project as JSON (can the repos be reached with their tokens?). Exits 1 unless the status is `ok` |
 
 **Repository** (`cmds/repository.py`)
 
@@ -134,18 +134,18 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | `delete-gitea-repo [--entity] [-y]` | Deletes the repo from Gitea, after asking. Backend records are left alone |
 | `init-backend-trigger-repo [--base-branch]` | Creates the global git provider (the Gitea host: the API's scheme and the repo uri's host) and then the global trigger repository on it if missing and assigns it to the project (watch_dir, base_branch), so the sensor polls it. Without `--base-branch` the branch is the repo's default branch in Gitea (a Gitea call) |
 | `init-backend-results-repo` | Creates the global git provider if missing and then the global results repository on it if missing and assigns it to the project (target_dir) as its results repository |
-| `delete-backend-trigger-repo`, `delete-backend-results-repo` | Delete that global repository from the backend, and with it every project's assignment of it. The trigger one is refused while any of its assignments has pull requests (delete the project first) |
-| `delete-backend-provider` | Deletes the Gitea git provider from the backend, unless a repository (of any project) is still on it, in which case it is left. Run after the two repository deletes |
+| `delete-backend-trigger-repo`, `delete-backend-results-repo` | Delete that global repository from nexus-api, and with it every project's assignment of it. The trigger one is refused while any of its assignments has pull requests (delete the project first) |
+| `delete-backend-provider` | Deletes the Gitea git provider from nexus-api, unless a repository (of any project) is still on it, in which case it is left. Run after the two repository deletes |
 
 **Secret** (`cmds/secret.py`)
 
 | Command | What it does |
 |---|---|
 | `init-git-secret [--entity]` | Stores a fresh Gitea token in the repo's K8s secret (`read:repository` for trigger, `write:repository` for results) |
-| `init-backend-secret [--entity trigger\|results\|dataset]` | Creates the global secret in the backend (`POST /global/secrets`) with placeholder values (`{"TOKEN": "unset"}`, or the dataset's dummies), with no Gitea call. An existing secret is left alone, so a real token is never overwritten |
+| `init-backend-secret [--entity trigger\|results\|dataset]` | Creates the global secret in nexus-api (`POST /global/secrets`) with placeholder values (`{"TOKEN": "unset"}`, or the dataset's dummies), with no Gitea call. An existing secret is left alone, so a real token is never overwritten |
 | `init-dataset-secret` | Stores `USERNAME` and `PASSWORD` (`DATASET_USERNAME`, `DATASET_PASSWORD`, default `dummy`) in the dataset's secret (`<dataset>-dataset-creds`) |
 | `verify-git-secret [--entity]` | Checks Gitea accepts the token currently stored in the repo's secret |
-| `delete-secret [--entity trigger\|results\|dataset]` | Deletes the global secret from the backend and K8s. Refused while a repo or dataset uses it |
+| `delete-secret [--entity trigger\|results\|dataset]` | Deletes the global secret from nexus-api and K8s. Refused while a repo or dataset uses it |
 | `delete-gitea-token [--entity]` | Deletes the Gitea token `init-git-secret` created for the repo |
 
 **Dataset** (`cmds/dataset.py`)
@@ -153,7 +153,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 | Command | What it does |
 |---|---|
 | `init-backend-dataset` | Creates the global dataset if missing (needs the dataset secret) and assigns it to the project. The first one assigned becomes the project's default |
-| `delete-backend-dataset` | Soft deletes the global dataset in the backend, and revokes and deletes every project's assignment of it |
+| `delete-backend-dataset` | Soft deletes the global dataset in nexus-api, and revokes and deletes every project's assignment of it |
 
 **Pull request** (`cmds/pr.py`; the file name, branch and title carry a timestamp, so it can be re-run)
 
@@ -178,18 +178,18 @@ whose spec has an unknown field, so the PR is rejected.
 | `stop-sensor (--group G \| --name N)` | Stops them, the same choices; a group stops in reverse order, so `all` stops the launcher first |
 | `sensor-status` | Prints every sensor's status and last 3 ticks (status, skip reason or error) |
 
-Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` polls the repository once and stores the PR, which the backend fans out to every project assigned to the repository (a trigger per assignment, UNKNOWN), `evaluate` turns each into a task (YIELDED, or REJECTED with a cause), `launcher`
+Everything is STOPPED in Dagster by default. The whole path from a merged PR is: `ingest` polls the repository once and stores the PR, which nexus-api fans out to every project assigned to the repository (a trigger per assignment, UNKNOWN), `evaluate` turns each into a task (YIELDED, or REJECTED with a cause), `launcher`
 starts a Dagster run for each PENDING task, and the run-status sensors copy the run's status onto the
 task. The reconcile sensor sets every unfinished task to the current status of its run on each tick,
 so the start order of the sensors does not matter. `start-sensor --group all` starts them all.
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
-The Gitea-facing steps (`init-gitea-repo`, `delete-gitea-repo`, `init-git-secret`, `verify-git-secret`, `delete-gitea-token`) also take `--from-backend` and `--project NAME`. By default the repo and its secret label come from the `TEST_*` env vars. With `--from-backend` they come from the backend project's own trigger or results repository record: the repo is the last uri segment (its `repo_path` is `owner/name`), which must sit under the Gitea admin user (otherwise the command fails), and the secret is the record's. `--project` names the backend project (default `TEST_PROJECT_NAME`). The command fails with a clear message if the project is missing or does not have exactly one record of that kind.
+The Gitea-facing steps (`init-gitea-repo`, `delete-gitea-repo`, `init-git-secret`, `verify-git-secret`, `delete-gitea-token`) also take `--from-backend` and `--project NAME`. By default the repo and its secret label come from the `TEST_*` env vars. With `--from-backend` they come from nexus-api project's own trigger or results repository record: the repo is the last uri segment (its `repo_path` is `owner/name`), which must sit under the Gitea admin user (otherwise the command fails), and the secret is the record's. `--project` names nexus-api project (default `TEST_PROJECT_NAME`). The command fails with a clear message if the project is missing or does not have exactly one record of that kind.
 
 `--entity` is `trigger` (default) or `results`. Steps that are the same for both repos (Gitea
 repo, git secret, verify, Gitea token) take `--entity`; steps that differ in fields or
-endpoints (the backend trigger repository vs results repository) are separate commands.
+endpoints (nexus-api trigger repository vs results repository) are separate commands.
 
 Each command reads only the env vars it uses,
 all documented in `.dev.env.example`: the existing ones, plus `TEST_RESULTS_REPO`,
@@ -200,7 +200,7 @@ The dataset defaults to a dummy stand-in. These env vars point it at a real data
 
 ## State and rules (for the end-to-end suites)
 
-The suites in [tests/e2e](tests/e2e/README.md) use these to look at the test project and to change the state the webserver's rules act on.
+The suites in [tests/e2e](tests/e2e/README.md) use these to look at the test project and to change the state nexus-api's rules act on.
 Every write prints the HTTP status and body; `--expect STATUS` asserts the status (exit 1 if it differs), which is how the suites
 check the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--project NAME` picks another project.
 
@@ -216,7 +216,7 @@ check the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--p
 
 ## Demo
 
-`fncli demo` walks through setting up everything needed to watch a Gitea repo, then proves it works: the two Gitea repos, the secrets, the project and its resources, a merged pull request and its results. Before each step it says what the step creates, shows the equivalent fncli command and asks: Enter runs it, `s` skips it, `q` quits. Steps are separated by a line of dashes. After each step it lists the webserver calls it made (`METHOD /path -> status`, repeats counted) and shows what the step made: links to open in the browser (`Open:` lines) and the backend objects as JSON. A step that changes the project waits for the change to show in the project's state, polling every second, and prints it when it changes. A last, optional step tears the demo down (it asks again, default No).
+`fncli demo` walks through setting up everything needed to watch a Gitea repo, then proves it works: the two Gitea repos, the secrets, the project and its resources, a merged pull request and its results. Before each step it says what the step creates, shows the equivalent fncli command and asks: Enter runs it, `s` skips it, `q` quits. Steps are separated by a line of dashes. After each step it lists nexus-api calls it made (`METHOD /path -> status`, repeats counted) and shows what the step made: links to open in the browser (`Open:` lines) and nexus-api objects as JSON. A step that changes the project waits for the change to show in the project's state, polling every second, and prints it when it changes. A last, optional step tears the demo down (it asks again, default No).
 
 ```bash
 cp .demo.env.example .demo.env   # once, in the repo root
@@ -292,10 +292,10 @@ dagster/fncli/
   cmds/             the commands, one module per entity (each has its init- and delete- commands; the init- ones create the global record, then assign it)
     common.py       env config classes and the Gitea and backend API builders
     actions.py      group commands: setup-/teardown-project, -backend, -gitea, and open-pr
-    project.py      the backend project, and the find/init helpers the other entities use
-    repository.py   Gitea repos and the backend trigger/results repository records
+    project.py      nexus-api project, and the find/init helpers the other entities use
+    repository.py   Gitea repos and nexus-api trigger/results repository records
     secret.py       Gitea token and dataset secrets
-    dataset.py      the backend dataset record
+    dataset.py      nexus-api dataset record
     pr.py           the individual PR steps
     sensor.py       start/stop/status of the Dagster sensors
     hello_world.py  install check
