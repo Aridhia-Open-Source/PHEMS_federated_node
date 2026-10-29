@@ -118,6 +118,21 @@ local_resource(
 )
 
 # ==============================================================================
+# NEXUS ADMIN UI
+# ==============================================================================
+# Vite dev server with hot reload of nexus/ui/src, at http://localhost:5173/nexus-ui/.
+# It proxies /nexus-ui/api to nexus-api on 5000.
+local_resource(
+  'nexus-ui',
+  cmd='cd nexus/ui && npm ci',
+  deps=['nexus/ui/package.json', 'nexus/ui/package-lock.json'],
+  serve_cmd='cd nexus/ui && npm run dev -- --strictPort',
+  serve_env={'VITE_NEXUS_API_URL': 'http://localhost:5000'},
+  links=['http://localhost:5173/nexus-ui/'],
+  labels=['dev'],
+)
+
+# ==============================================================================
 # STATUS HELPERS
 # ==============================================================================
 
