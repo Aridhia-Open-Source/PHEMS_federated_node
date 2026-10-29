@@ -53,7 +53,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 ## A results pull request merged by hand is recorded as merged
 
 1. Run a task to `OPENED`. In the Gitea UI merge the results pull request yourself.
-2. Wait one results-sync interval (the retry slot, 60 seconds by default, plus a tick).
+2. Wait one sensor tick (30 seconds by default) and the run it launches.
 
 - **Expected:** the result goes `MERGED` and records `merged_at` and the merge commit sha.
 - **Rule:** the sync sensor records the provider's state of an opened results pull request ([Run keys, retries and the results pull request sync]).
@@ -64,7 +64,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 ## A results pull request closed without merging is final
 
 1. Run a task to `OPENED`. In Gitea close the results pull request without merging.
-2. Wait one sync interval. Then reopen it in Gitea and wait two more.
+2. Wait one tick and its run. Then reopen it in Gitea and wait two more ticks.
 
 - **Expected:** the result goes `CLOSED`, then stays `CLOSED` after the reopen (a reopened pull request is not followed). The task stays `SUCCESS`.
 - **Rule:** `CLOSED` is final; the sync reads only `PUSHED` and `OPENED` results ([Run keys, retries and the results pull request sync]; [State transition tables for triggers, tasks and result steps; 409 on a refused move]).
@@ -75,11 +75,11 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 ## A results pull request deleted on the provider stays at its last step
 
 1. Run a task to `OPENED`. If your Gitea allows it, delete the results pull request or the branch.
-2. Wait three sync intervals. Check `fncli sensor-status` for the sync sensor.
+2. Wait three ticks. Check `fncli sensor-status` for the sync sensor.
 
-- **Expected:** the result stays `OPENED`; it is not guessed `CLOSED`. The sync keeps skipping it without failing the other results.
+- **Expected:** the result stays `OPENED`; it is not guessed `CLOSED`. The sensor keeps skipping it, launches no run for it, and does not fail the other results.
 - **Rule:** a 404 is logged and skipped, never guessed `CLOSED` ([Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_results_pull_request_sync.py` (`test_a_deleted_pull_request_is_skipped_and_the_others_still_synced`); it misses a real provider.
+- **Automated by:** Partly automated: `dagster/app/tests/test_results_pull_request_sync.py` (`test_a_deleted_pull_request_is_skipped_and_the_others_still_launch`); it misses a real provider.
 - [ ] Pass
 - [ ] Fail — notes:
 

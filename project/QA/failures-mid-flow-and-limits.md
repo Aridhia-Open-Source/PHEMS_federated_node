@@ -71,9 +71,9 @@ Check: this may leave a `SUCCESS` task with no result. Record what you see.
 
 1. Run a task to `OPENED`. Scale Gitea to zero for three intervals. Scale it up. Merge the results pull request.
 
-- **Expected:** while it is down the sync run fails (a provider error other than 404 fails the run) and the result stays `OPENED`; after it returns the result goes `MERGED`. No result is guessed `CLOSED`.
-- **Rule:** a 404 is skipped; any other provider error fails the run and the next slot retries ([Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_results_pull_request_sync.py` (`test_a_provider_error_other_than_404_fails_the_sync`). It misses a real provider outage.
+- **Expected:** while it is down the sensor tick fails (a provider error other than 404 fails the check, and the tick when no result launches) and the result stays `OPENED`; after it returns the result goes `MERGED`. No result is guessed `CLOSED`.
+- **Rule:** a 404 is skipped; any other provider error fails the check of that result and the next tick retries ([Run keys, retries and the results pull request sync]).
+- **Automated by:** Partly automated: `dagster/app/tests/test_results_pull_request_sync.py` (`test_a_provider_error_other_than_404_fails_the_tick_when_nothing_launches`). It misses a real provider outage.
 - [ ] Pass
 - [ ] Fail — notes:
 
