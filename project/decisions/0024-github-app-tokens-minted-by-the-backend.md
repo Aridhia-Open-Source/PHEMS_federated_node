@@ -1,4 +1,4 @@
-# 0023. Short-lived git tokens, minted by the backend (GitHub App and Gitea OAuth2)
+# 0024. Short-lived git tokens, minted by the backend (GitHub App and Gitea OAuth2)
 
 Status: proposed, not built.
 
