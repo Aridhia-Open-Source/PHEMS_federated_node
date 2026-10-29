@@ -1,6 +1,6 @@
 #!/bin/bash
 
-full_image=${1:-"ghcr.io/aridhia-open-source/federated_node_run:0.0.1"}
+full_image=${1:-"ghcr.io/aridhia-open-source/nexus_api:0.0.1"}
 archive_name="fn.tar"
 
 docker save "$full_image" > "$archive_name"

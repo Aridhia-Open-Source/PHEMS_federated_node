@@ -13,9 +13,9 @@ When a task is created it stores a snapshot (JSON, version 1) of the configurati
 
 It does not hold credentials or secrets (a rotation must reach running work), the trigger repository (the task is pinned to the pull request's merge sha) or the `enabled` and `revoked` flags (those have their own rules, [0008](0008-enabled-revoked-and-soft-delete.md)). The snapshot is the audit record of what produced a result.
 
-**Checks.** The webserver rebuilds the snapshot from the current state and compares it (`helpers/task_config.py`). Only keys present in the stored snapshot are compared, so a field added later, or a task without a snapshot, counts as unchanged.
+**Checks.** nexus-api rebuilds the snapshot from the current state and compares it (`helpers/task_config.py`). Only keys present in the stored snapshot are compared, so a field added later, or a task without a snapshot, counts as unchanged.
 
-- *Before launch:* the Dagster launcher calls `POST /projects/<pid>/tasks/<id>/launch`, whose decision includes the pinned configuration (`GET .../config` shows `current`, `changes`, `config_hash`, `config_snapshot`). A task that is not current is not launched: the webserver sets it to `FAILED` with the changes as `state_cause`, and the launcher carries on with the next task. An error while checking one task leaves it `PENDING` for the next tick and never stops the others; only the rules fail a task.
+- *Before launch:* the Dagster launcher calls `POST /projects/<pid>/tasks/<id>/launch`, whose decision includes the pinned configuration (`GET .../config` shows `current`, `changes`, `config_hash`, `config_snapshot`). A task that is not current is not launched: nexus-api sets it to `FAILED` with the changes as `state_cause`, and the launcher carries on with the next task. An error while checking one task leaves it `PENDING` for the next tick and never stops the others; only the rules fail a task.
 - *Before publishing:* `POST /projects/<pid>/results` for a `SUCCESS` task whose configuration changed creates the result as step `STALE`, state `FAILED`, with an error listing the changes. `STALE` is final, a sibling of `MERGED`, `CLOSED` and `REVOKED`: nothing is delivered.
 - *At delivery,* the results repository id and `target_dir` come from the snapshot, so a deleted or edited project resource does not redirect the push.
 

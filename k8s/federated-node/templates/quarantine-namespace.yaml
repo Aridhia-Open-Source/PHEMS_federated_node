@@ -1,5 +1,5 @@
-{{- /* Where the backend moves the stored value of a disabled secret, so that it cannot be read from the
-       namespace the secret's row names. It needs its own Role: the backend creates, reads, patches (an
+{{- /* Where nexus-api moves the stored value of a disabled secret, so that it cannot be read from the
+       namespace the secret's row names. It needs its own Role: nexus-api creates, reads, patches (an
        interrupted move is overwritten) and deletes secrets here. */}}
 apiVersion: v1
 kind: Namespace
@@ -24,7 +24,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     namespace: {{ .Release.Namespace }}
-    name: secret-backend-handler
+    name: nexus-api
 roleRef:
   kind: Role
   name: {{ .Release.Name }}-quarantine-role

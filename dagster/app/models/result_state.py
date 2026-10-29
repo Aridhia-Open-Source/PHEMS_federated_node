@@ -3,7 +3,7 @@ from enum import Enum
 
 class ResultState(str, Enum):
     """
-    How the delivery of a task's results is going, as the webserver defines it.
+    How the delivery of a task's results is going, as nexus-api defines it.
 
     IN_PROGRESS: the delivery is under way, or not started. A failed one that is re-launched
         is IN_PROGRESS again.

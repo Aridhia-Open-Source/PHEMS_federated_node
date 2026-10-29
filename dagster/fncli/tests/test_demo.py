@@ -342,7 +342,7 @@ def test_repeated_backend_calls_are_shown_once_with_a_count(capsys):
     demo.show_backend_calls([("GET", "/projects/1", 200)] * 3 + [("PATCH", "/projects/1", 200)])
 
     assert capsys.readouterr().out == (
-        "Webserver calls:\n  GET /projects/1 -> 200  x 3\n  PATCH /projects/1 -> 200\n"
+        "nexus-api calls:\n  GET /projects/1 -> 200  x 3\n  PATCH /projects/1 -> 200\n"
     )
 
 

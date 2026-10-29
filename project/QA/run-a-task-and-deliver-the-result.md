@@ -46,7 +46,7 @@ Needs: the dev project set up (`fncli setup-project`) with all sensors running, 
 
 - **Expected:** exactly one result for the task, one branch, one results pull request. No further attempts.
 - **Rule:** the delivery run key is `deliver/<task>/<attempt>` and the result is idempotent per task and repository ([Run keys, retries and the results pull request sync]; [Polymorphic Result, PullRequestResult, a forward-only step and a separate state]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` (a result past `PUSHED` is left alone) and `webserver/tests/test_results_and_delivery.py` (`POST` is idempotent). Restarting the sensors is in [sensors, restarts and catch-up](sensors-restarts-and-catch-up.md).
+- **Automated by:** Partly automated: `dagster/app/tests/test_results_delivery.py` (a result past `PUSHED` is left alone) and `nexus/api/tests/test_results_and_delivery.py` (`POST` is idempotent). Restarting the sensors is in [sensors, restarts and catch-up](sensors-restarts-and-catch-up.md).
 - [ ] Pass
 - [ ] Fail — notes:
 

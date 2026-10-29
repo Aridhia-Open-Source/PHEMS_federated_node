@@ -22,7 +22,7 @@ data:
   DAGSTER_SENSORS_MIN_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.minIntervalSeconds | quote }}
   DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.retryIntervalSeconds | quote }}
   DAGSTER_DELIVERY_MAX_ATTEMPTS: {{ .Values.fnDagster.sensors.deliveryMaxAttempts | quote }}
-  BACKEND_API_URI: {{ include "backendUri" . | quote }}
+  NEXUS_API_URL: {{ include "nexusApiUrl" . | quote }}
   {{- /*
   Pod securityContext for pipes task pods. Only emitted when set - an unset
   runAsUser must stay absent rather than be sent as null, which the API rejects.

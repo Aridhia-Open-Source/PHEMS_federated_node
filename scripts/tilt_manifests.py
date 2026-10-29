@@ -10,10 +10,10 @@ Transformations applied for dev workflow:
   * imagePullPolicy Always -> IfNotPresent, so the kind node uses the image we
     just pushed to the local registry instead of trying to pull it.
 
-  For the backend deployment:
-      - Drop initContainers (dbinit/db-migrations/storage-init). They
-        already ran during the initial `make deploy`, and the DB + results PV
-        persist, so the dev pod only needs the long-running server.
+  For the nexus-api deployment:
+      - Drop initContainers (wait-for-db, db-migrations). They already ran
+        during the initial `make deploy`, and the DB persists, so the dev pod
+        only needs the long-running server.
 
   The dagster user-deployment gets DAGSTER_CURRENT_IMAGE pointed at RUN_IMAGE_TAG. Run
   pods start from that image, not from the one Tilt live-updates, and the Tiltfile's
@@ -22,7 +22,7 @@ Transformations applied for dev workflow:
   The dagster user-deployment keeps the args Helm gave it: the image has no
   entrypoint, so they are the command that Tilt's restart wrapper runs.
 
-Usage: tilt_manifests.py <namespace> <backend-deploy> <dagster-deploy>
+Usage: tilt_manifests.py <namespace> <nexus-api-deploy> <dagster-deploy>
 """
 import json
 import subprocess
@@ -32,10 +32,10 @@ RUN_IMAGE_TAG = "tilt-run"
 
 
 def main():
-    ns, backend, dagster = sys.argv[1], sys.argv[2], sys.argv[3]
+    ns, nexus_api, dagster = sys.argv[1:]
 
     out = subprocess.run(
-        ["kubectl", "get", "deployment", backend, dagster, "-n", ns, "-o", "json"],
+        ["kubectl", "get", "deployment", nexus_api, dagster, "-n", ns, "-o", "json"],
         capture_output=True,
         text=True,
     )
@@ -60,7 +60,7 @@ def main():
                     if env["name"] == "DAGSTER_CURRENT_IMAGE":
                         env["value"] = env["value"].rsplit(":", 1)[0] + ":" + RUN_IMAGE_TAG
 
-        if name == backend:
+        if name == nexus_api:
             spec.pop("initContainers", None)
 
     print(json.dumps({"apiVersion": "v1", "kind": "List", "items": items}))

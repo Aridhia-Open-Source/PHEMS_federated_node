@@ -15,7 +15,7 @@ task, enabling a project with backfill, a results resource switched off before d
 with `--e2e failure_long`.
 
 Not covered by any e2e suite for now: the scenarios that stop and start sensors were removed, and the reconcile sensor is
-expected to make up for sensors being down. Only the webserver and Dagster unit tests cover revoking a result that is already
+expected to make up for sensors being down. Only the nexus-api and Dagster unit tests cover revoking a result that is already
 held, and retrying tasks is not covered (on hold until after beta). These behaviours are therefore not checked end to end (the
 rules are in revoke-and-enabled.md, "May a waiting task launch?" and "May a finished task's result be delivered?"):
 - restarting the ingest sensor does not duplicate pull requests or tasks, also after a trigger resource was revoked and un-revoked;

@@ -2,27 +2,27 @@
 
 What happens when a service goes down part-way through, a token expires or is replaced, several pull requests arrive at once, or a limit is reached. Almost none of this is automated: the unit tests mock the other side, and the end-to-end suites test one lost token and nothing else. Treat every case as a search for a stuck item: a task `PENDING` or `RUNNING` forever, a pull request with no trigger, a `SUCCESS` task with no result, a result that no sensor will pick up.
 
-The sources say the design is "event-driven and reconciling": sensors act on a view of the state that may be stale, every write goes through the state tables, and a failing item costs one run or one log line, not the tick ([Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]; [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]). Where a case says "the sources do not say", write down what you see.
+The sources say the design is "event-driven and reconciling": sensors act on a view of the state that may be stale, every write goes through the state tables, and a failing item costs one run or one log line, not the tick ([Responsibility: nexus-api owns the record and the rules; Dagster carries out decisions]; [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]). Where a case says "the sources do not say", write down what you see.
 
 Needs: `kubectl`, `fncli`, the Dagster UI, the dev project with sensors running. These cases stop and restart services; do them on the test node only, one at a time, and put everything back (`kubectl scale ... --replicas=1`). Deployment names differ per release: list them with `kubectl get deploy -A` (check). A lost or replaced results token is in [task and result state machines](task-and-result-state-machines.md); a lost trigger token is in [failure paths](failure-paths.md).
 
-## The backend is unavailable for a few minutes while the sensors tick
+## nexus-api is unavailable for a few minutes while the sensors tick
 
-1. Merge a watched pull request and, when its task is `RUNNING`, scale the backend deployment to zero. Merge another watched pull request.
+1. Merge a watched pull request and, when its task is `RUNNING`, scale nexus-api deployment to zero. Merge another watched pull request.
 2. Wait five intervals. `fncli sensor-status` and the Dagster UI tick logs.
-3. Scale the backend back up. Wait ten intervals.
+3. Scale nexus-api back up. Wait ten intervals.
 
-- **Expected:** while it is down, ticks fail or skip with an error naming the backend; nothing is created; no sensor stays broken. After step 3 the sensors recover with no manual action, the second pull request is processed once, the first task reaches its final status (the reconcile sensor repairs it if the run-status sensors missed it) and no pull request, trigger or task is duplicated. A launch call that fails leaves its task `PENDING`; the next tick retries it.
+- **Expected:** while it is down, ticks fail or skip with an error naming nexus-api; nothing is created; no sensor stays broken. After step 3 the sensors recover with no manual action, the second pull request is processed once, the first task reaches its final status (the reconcile sensor repairs it if the run-status sensors missed it) and no pull request, trigger or task is duplicated. A launch call that fails leaves its task `PENDING`; the next tick retries it.
 - **Rule:** an error leaves the item for the next tick; the run key makes a repeat harmless ([The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]; [Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_task_launcher.py` (an error leaves the task `PENDING` and is retried), `dagster/app/tests/test_sensor_base.py` (a failing item does not stop the others). They mock the backend; a real outage, with real HTTP errors and a recovering client, is not tested.
+- **Automated by:** Partly automated: `dagster/app/tests/test_task_launcher.py` (an error leaves the task `PENDING` and is retried), `dagster/app/tests/test_sensor_base.py` (a failing item does not stop the others). They mock nexus-api; a real outage, with real HTTP errors and a recovering client, is not tested.
 - [ ] Pass
 - [ ] Fail — notes:
 
-## The backend is unavailable at the moment a task finishes
+## nexus-api is unavailable at the moment a task finishes
 
 Check: this may leave a `SUCCESS` task with no result. Record what you see.
 
-1. Merge a watched pull request. Wait until the task is `RUNNING`. Scale the backend to zero just before it ends (a task that takes about a minute makes this easier).
+1. Merge a watched pull request. Wait until the task is `RUNNING`. Scale nexus-api to zero just before it ends (a task that takes about a minute makes this easier).
 2. Leave it down for three intervals while the run finishes. Scale it back up.
 3. Wait ten intervals. `fncli project-show`; look at the delivery run in the Dagster UI.
 
@@ -37,8 +37,8 @@ Check: this may leave a `SUCCESS` task with no result. Record what you see.
 1. With a task `RUNNING` and a pull request about to be merged, delete the Postgres pod (or scale it to zero for a few minutes). Merge a watched pull request meanwhile.
 2. Bring it back. Wait ten intervals.
 
-- **Expected:** while it is down the webserver returns errors (note which) and the sensors' ticks fail without creating anything. After it returns nothing needs repairing by hand: counts match what was merged, no half-written pull request, task or result (compare `stored_pr_count`, pull requests and tasks), and the pipeline continues.
-- **Rule:** the webserver owns the record; a failed write leaves no partial state ([Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]).
+- **Expected:** while it is down nexus-api returns errors (note which) and the sensors' ticks fail without creating anything. After it returns nothing needs repairing by hand: counts match what was merged, no half-written pull request, task or result (compare `stored_pr_count`, pull requests and tasks), and the pipeline continues.
+- **Rule:** nexus-api owns the record; a failed write leaves no partial state ([Responsibility: nexus-api owns the record and the rules; Dagster carries out decisions]).
 - **Automated by:** Manual only.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -117,7 +117,7 @@ Check: the sources do not say what a killed delivery leaves behind.
 Needs a short token life: the chart value `token.life` (seconds). Lower it on the test node, redeploy, and put it back afterwards.
 
 1. With a short life (for example a few minutes), keep the sensors running for several times that life and merge a watched pull request after each expiry.
-2. Watch `fncli sensor-status` and the backend logs for authentication errors.
+2. Watch `fncli sensor-status` and nexus-api logs for authentication errors.
 3. Start a task that outlives one token life and let it deliver.
 
 - **Expected:** after each expiry the Dagster client refreshes its token (on a 401, 403 or 429, with a back-off) and ticks go on succeeding; each pull request is processed once; a long task and its delivery complete. Record any tick that fails with an authentication error before recovering.
@@ -145,7 +145,7 @@ Needs a short token life: the chart value `token.life` (seconds). Lower it on th
 
 - **Expected:** the stored count and the pull request count are each up by five, the task count is up by five, each pull request has exactly one trigger and one task, no duplicate, no `REJECTED`. Five results. Pull requests merged in the same second keep a stable order (merge time, then number).
 - **Rule:** a pull request is unique by repository and number and by repository, base branch and merge commit; one task per trigger; the cursor orders by `(merged_at, number)` ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_ingest_fans_out_and_is_idempotent`, the cursor and merge-commit tests) test a batch posted at once; `dagster/app/tests/test_ingest_job.py` the batching. Real parallel merges and parallel runs are not tested.
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_ingest_fans_out_and_is_idempotent`, the cursor and merge-commit tests) test a batch posted at once; `dagster/app/tests/test_ingest_job.py` the batching. Real parallel merges and parallel runs are not tested.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -181,7 +181,7 @@ Needs an image that sleeps for a long time, or a spec with an image that cannot 
 [Generic Secret model and SecretProvider; per-repository tokens]: ../decisions/0007-secrets-and-secret-providers.md
 [GitAPI protocol and GitAPIFactory over Gitea and GitHub]: ../decisions/0010-git-api-protocol-and-factory.md
 [Pull requests stored once per repository, fanned out to project resources, with cursors]: ../decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md
-[Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]: ../decisions/0021-webserver-owns-the-record-and-the-rules.md
+[Responsibility: nexus-api owns the record and the rules; Dagster carries out decisions]: ../decisions/0021-nexus-api-owns-the-record-and-the-rules.md
 [Results delivered as a pushed branch plus a results pull request]: ../decisions/0013-results-delivered-as-branch-and-pull-request.md
 [Run keys, retries and the results pull request sync]: ../decisions/0015-run-keys-retries-and-results-pr-sync.md
 [Task status is written by the run-status sensors and the reconcile sensor]: ../decisions/0003-task-status-written-by-run-status-sensors.md

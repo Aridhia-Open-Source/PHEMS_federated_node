@@ -13,7 +13,7 @@ Access to a global resource ([0006](0006-global-resources-and-project-resources.
 
 Revoking sets only `revoked`, never `enabled`, so a re-grant clears `revoked` and restores the previous state without overriding a manual disable. Revoking affects only that resource; the rest of the project keeps running, and the project health check reports it. Revoke takes effect immediately and is not blocked by work in flight. Only administrators set `revoked`, on every route that has it; the pipeline's System user can never revoke or un-revoke.
 
-Both flags exist at two levels. A global resource (dataset, trigger repository, results repository, git provider) has its own `enabled` and `revoked`; a secret has `enabled` only. A project has them, and so has each project resource. A project resource is **active** when its global resource (and, for a repository, its provider) and the project resource are enabled and not revoked. A project resource accepts triggers only if its project is also enabled and not revoked. Global flags are read live. "Active" is the usable-now test, which the webserver applies when it decides a launch ([0021](0021-webserver-owns-the-record-and-the-rules.md)); the blocked test (`revoked_resources`) looks only at `revoked` and `deleted_at`. The full tables, what each state does to each kind of work, and the flows are in [revoke-and-enabled.md](../../docs/architecture/revoke-and-enabled.md).
+Both flags exist at two levels. A global resource (dataset, trigger repository, results repository, git provider) has its own `enabled` and `revoked`; a secret has `enabled` only. A project has them, and so has each project resource. A project resource is **active** when its global resource (and, for a repository, its provider) and the project resource are enabled and not revoked. A project resource accepts triggers only if its project is also enabled and not revoked. Global flags are read live. "Active" is the usable-now test, which nexus-api applies when it decides a launch ([0021](0021-nexus-api-owns-the-record-and-the-rules.md)); the blocked test (`revoked_resources`) looks only at `revoked` and `deleted_at`. The full tables, what each state does to each kind of work, and the flows are in [revoke-and-enabled.md](../../docs/architecture/revoke-and-enabled.md).
 
 ### What switching off and revoking do
 
@@ -32,7 +32,7 @@ Switching off stops new work and work in flight finishes once it is back on. Rev
 - `REJECTED` is final for a trigger: no request moves it back ([0005](0005-state-transition-tables.md)).
 - A project has one flag, `enabled`, and no lock. A new project is disabled, so its results repository is assigned before it is enabled. A disabled or revoked project gets no new triggers, and a task is refused (409) whether it comes from a pull request or from the API; one shared check (`require_accepts_tasks`) applies both. A trigger that exists when its project is disabled stays `UNKNOWN` and gets its task once the project is enabled and not revoked. A disabled project's `PENDING` tasks wait. Enabling it skips the gap by default; `"backfill": true` creates the missed triggers instead.
 - A delivery already past the results check, and a running task, are not stopped by a revoke.
-- The check that a project accepts tasks and the task insert are separate steps, so a task can be created just as the project is disabled. This follows from the event-driven design ([0021](0021-webserver-owns-the-record-and-the-rules.md)): at worst the task runs against a setup that has just changed and fails or is not delivered, nothing is lost and other projects are unaffected.
+- The check that a project accepts tasks and the task insert are separate steps, so a task can be created just as the project is disabled. This follows from the event-driven design ([0021](0021-nexus-api-owns-the-record-and-the-rules.md)): at worst the task runs against a setup that has just changed and fails or is not delivered, nothing is lost and other projects are unaffected.
 
 ### Soft delete
 
@@ -45,7 +45,7 @@ Switching off stops new work and work in flight finishes once it is back on. Rev
 
 ### Who owns what
 
-The webserver owns the business record, the rules, audit and compliance; Dagster holds operational history (runs). Dagster calls the webserver's API. The webserver also has `/dagster/sensors` routes that call Dagster, kept as an operational convenience. The pipeline stays event driven: sensors react to the webserver's state, so waiting costs nothing.
+nexus-api owns the business record, the rules, audit and compliance; Dagster holds operational history (runs). Dagster calls nexus-api's API. nexus-api also has `/dagster/sensors` routes that call Dagster, kept as an operational convenience. The pipeline stays event driven: sensors react to nexus-api's state, so waiting costs nothing.
 
 ## Consequences
 
