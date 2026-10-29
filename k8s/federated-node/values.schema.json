@@ -285,6 +285,23 @@
         "taskReview": {
             "$ref": "#/definitions/taskReview"
         },
+        "taskNetworkPolicy": {
+            "type": "object",
+            "description": "Network access of task pods. The tasks namespace denies all ingress, and all egress except DNS and datasetEgress",
+            "properties": {
+                "dns": {
+                    "type": "array",
+                    "description": "NetworkPolicy peers task pods may send DNS lookups to (UDP and TCP 53). Defaults to kube-dns in kube-system"
+                },
+                "datasetEgress": {
+                    "type": "array",
+                    "description": "NetworkPolicy egress rules for the dataset databases task pods may reach. Every rule needs both `to` and `ports`. Empty by default: a task that needs a database times out on connect",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
+        },
         "firstUserSecret": {
             "type": "object",
             "required": [

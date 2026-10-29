@@ -25,7 +25,7 @@ One Helm chart, `k8s/federated-node`, installs:
 | Traefik + Gateway API routes | release namespace | Optional subchart. Serves nexus-api and Keycloak on `host` |
 | cert-manager | `fn-certmanager` | Optional subchart, for certificate renewal |
 | Gitea | release namespace | Optional, `gitea.enabled`. A git host for development only |
-| Task pods | `tasks` | Created per task by Dagster |
+| Task pods | `tasks` | Created per task by Dagster. A NetworkPolicy leaves them DNS and their dataset database only |
 | Quarantine | `fn-quarantine` | Holds the value of a disabled secret |
 
 The components and the network between them are drawn in [docs/architecture/flows.md](docs/architecture/flows.md#components-and-network).
@@ -83,12 +83,14 @@ Run these from the repo root.
 
    | What | Where |
    |---|---|
-   | Backend API | http://localhost:5000 |
+   | Backend API | http://localhost:5000 (docs at `/docs`) |
    | Dagster UI | http://localhost:3000 |
    | Gitea | http://localhost:4000 |
    | Keycloak | http://localhost:8080 |
    | Postgres | `localhost:5432` |
    | Tilt dashboard | http://localhost:10350 |
+
+   The `dagster-reload` resource prints this list in the Tilt log once the Dagster code location has loaded, and again after each reload.
 
 7. Check it works. Log in with the first user. `/login` takes form fields, not JSON, and returns a bearer token.
 
@@ -107,7 +109,8 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 
 | You change | What happens |
 |---|---|
-| `nexus/api/app/`, `dagster/app/` | Files are synced and the process restarts |
+| `nexus/api/app/`, `dagster/app/` | Files are synced and the process restarts. For Dagster, `dagster-reload` then reloads the code location once the new code server is serving |
+| `dagster/fncli/`, `dagster/app/tests/`, docs under `dagster/` | Nothing: the code server and run pods don't use them |
 | `requirements.txt`, `setup.py`, `alembic.ini`, migrations | The image is rebuilt |
 | The chart (`k8s/federated-node`) | Run `make upgrade` (helm upgrade, then restarts the app deployments) |
 
@@ -152,6 +155,7 @@ Production is the same chart with different values: an external Postgres, Traefi
 - A PostgreSQL server the cluster can reach, with an admin login. The FN needs its own databases on it, not your research data. The chart creates them (see [Databases](#databases)).
 - A hostname for the node, and a TLS certificate for it (or cert-manager).
 - `ReadWriteMany` shared storage: Azure Files, AWS EFS, NFS, or a local path (single node only). Dagster task pods and the run pods write results to the same volume, so ReadWriteOnce disks do not work.
+- A CNI that enforces NetworkPolicy (Calico, Cilium or your cloud's network policy add-on; kind's default does). The chart denies a task pod all traffic but DNS and its dataset database, and on a CNI that ignores NetworkPolicy that does nothing.
 - Outbound HTTPS to `ghcr.io` (images), to your git host (GitHub: `api.github.com`) and to wherever your analytics images live.
 
 ### 2. Install the CRDs, once per cluster
@@ -370,7 +374,7 @@ kubectl label namespace keycloak       pod-security.kubernetes.io/enforce=restri
 kubectl label namespace tasks          pod-security.kubernetes.io/enforce=baseline
 ```
 
-The chart creates a `ClusterRole` for nexus-api (pods, PVs, PVCs, jobs, secrets: it creates storage and task pods per task), so the user running `helm install` must be allowed to create cluster roles. Task network isolation is not built yet ([ADR 0022](project/decisions/0022-task-isolation.md)).
+The chart creates a `ClusterRole` for the backend (pods, PVs, PVCs, jobs, secrets: it creates storage and task pods per task), so the user running `helm install` must be allowed to create cluster roles. The chart also creates a NetworkPolicy in the tasks namespace: no ingress, and egress only to DNS and to the databases you list in `taskNetworkPolicy.datasetEgress`, by address or by namespace and pod label ([ADR 0022](project/decisions/0022-task-isolation.md)). The list is empty by default, so a task that needs a dataset database times out on connect until you add it. The tasks namespace must hold nothing but task pods: the chart refuses to render if `global.namespaces.tasks` is the release or Keycloak namespace.
 
 ## Upgrade, uninstall, reinstall
 
