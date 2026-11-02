@@ -10,6 +10,7 @@ from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.pull_request_trigger import PullRequestTrigger, TaskTrigger, TriggerRepositoryRef
 from app.models.result_state import ResultState
+from app.models.run_record import RunNode, RunProject, RunRecord, RunResults, RunTask, RunTrigger
 from app.models.results_repository import ProjectResultsRepository, ResultsRepository
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
