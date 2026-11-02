@@ -21,7 +21,7 @@ from app.delivery import git_push
 from app.definitions.sensors.base import artifacts_volume_tags
 from app.delivery.results import ResultsDelivery
 from app.models import (
-    GitProvider, GitToken, Project, PullRequestResult, ResultsRepository, Task, TaskTrigger,
+    GitProvider, GitToken, Project, PullRequestResult, ResultsRepository, RunRecord, Task, TaskTrigger,
     TriggerRepositoryRef,
 )
 from app.tests.conftest import SAMPLE_SECRET
@@ -174,6 +174,8 @@ def test_success_pushes_a_branch_with_the_layout_and_records_pushed_then_opened(
             "delivered_at": ANY,
         },
     }
+    # run.json matches its model, and so the schema made from it
+    RunRecord.model_validate_json((out / "run.json").read_text())
     assert not (out / "metadata.json").exists()
 
 

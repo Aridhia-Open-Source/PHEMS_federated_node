@@ -7,7 +7,6 @@ hand, and resumes from where it stopped.
 results_pull_request_sync_sensor only heals a pull request opened but not recorded.
 """
 
-import json
 import tempfile
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -19,7 +18,8 @@ from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.delivery import git_push
 from app.models import (
-    PullRequestResultStep, ResultsRepository, ResultState, Task, TaskTrigger, TriggerRepositoryRef,
+    PullRequestResultStep, ResultsRepository, ResultState, RunNode, RunProject, RunRecord, RunResults, RunTask,
+    RunTrigger, Task, TaskTrigger, TriggerRepositoryRef,
 )
 
 ZIP_NAME = "results.zip"
@@ -196,21 +196,22 @@ class ResultsDelivery:
             zip_path.replace(out_dir / ZIP_NAME)
             # The spec file as it was merged, not re-serialised
             (out_dir / SPEC_NAME).write_bytes(pull_request.spec_raw.encode())
-            (out_dir / RUN_NAME).write_text(json.dumps({
-                "node": {"id": self.config.node_id},
-                "project": {"id": task.project_id, "name": task.project_name},
-                "trigger": {
-                    "repository_uri": trigger_repository.uri,
-                    "pr_number": pull_request.number,
-                    "merge_commit_sha": pull_request.merge_commit_sha,
-                },
-                "task": {"id": task.id, "name": task.name, "executor_id": run_id, "dataset": task.dataset_name},
-                "results": {
-                    "zip_size_bytes": zip_size,
-                    "file_count": file_count,
-                    "delivered_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                },
-            }, indent=2) + "\n")
+            run = RunRecord(
+                node=RunNode(id=self.config.node_id),
+                project=RunProject(id=task.project_id, name=task.project_name),
+                trigger=RunTrigger(
+                    repository_uri=trigger_repository.uri,
+                    pr_number=pull_request.number,
+                    merge_commit_sha=pull_request.merge_commit_sha,
+                ),
+                task=RunTask(id=task.id, name=task.name, executor_id=run_id, dataset=task.dataset_name),
+                results=RunResults(
+                    zip_size_bytes=zip_size,
+                    file_count=file_count,
+                    delivered_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                ),
+            )
+            (out_dir / RUN_NAME).write_text(run.model_dump_json(indent=2) + "\n")
 
             return branch, git_push.commit_and_push(clone_dir, message, env), base_branch
 
