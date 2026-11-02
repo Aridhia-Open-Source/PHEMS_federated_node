@@ -78,7 +78,6 @@ TASK_COMPUTE_MAX_CPU = os.environ["TASK_COMPUTE_MAX_CPU"]
 TASK_COMPUTE_MAX_MEMORY = os.environ["TASK_COMPUTE_MAX_MEMORY"]
 TASK_COMPUTE_DEFAULT_LIMIT_CPU = os.environ["TASK_COMPUTE_DEFAULT_LIMIT_CPU"]
 TASK_COMPUTE_DEFAULT_LIMIT_MEMORY = os.environ["TASK_COMPUTE_DEFAULT_LIMIT_MEMORY"]
-TASK_REVIEW = os.getenv("TASK_REVIEW")
 ENABLE_IMAGE_WHITELIST = os.getenv("ENABLE_IMAGE_WHITELIST", "false").lower() == "true"
 
 # The longest state_cause the launch endpoint stores when it fails a task

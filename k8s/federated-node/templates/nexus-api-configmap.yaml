@@ -34,9 +34,6 @@ data:
   TASK_COMPUTE_MAX_MEMORY: {{ .Values.taskCompute.max.memory | quote }}
   TASK_COMPUTE_DEFAULT_LIMIT_CPU: {{ .Values.taskCompute.default.limits.cpu | quote }}
   TASK_COMPUTE_DEFAULT_LIMIT_MEMORY: {{ .Values.taskCompute.default.limits.memory | quote }}
-{{- if .Values.taskReview }}
-  TASK_REVIEW: enabled
-{{- end }}
 {{- if .Values.db.enforceSSL }}
   DB_SSL: "?sslmode=require"
 {{- end }}

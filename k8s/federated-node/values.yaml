@@ -127,8 +127,6 @@ db:
     # keycloak:
     # dagster:
 
-taskReview: false
-
 # Task pods run partner images that hold a dataset's credentials, so the tasks namespace
 # (global.namespaces.tasks) denies all ingress, and all egress except what is listed here.
 # Only enforced by a CNI that enforces NetworkPolicy. See templates/task-network-policy.yaml.

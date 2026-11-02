@@ -30,7 +30,6 @@ taskNetworkPolicy:
           port: 5432
 
 # Optional, all off by default:
-# taskReview: true           # tasks need approval before they run
 # smoketests: true           # `helm test` creates and deletes real db/keycloak rows
 
 host: phems-federatednode.net

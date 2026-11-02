@@ -22,7 +22,6 @@ integrations:
     - https://phems-federatednode.net
 
 smoketests: true
-taskReview: true
 
 host: phems-federatednode.net
 nodeId: test-node

@@ -279,7 +279,7 @@ Things that are easy to get wrong:
 - **`fnDagster.db` is removed** and the chart fails if you set it. Dagster's database name and user come from `dagster.postgresql.postgresqlDatabase` and `postgresqlUsername`.
 - **`namespaces` lives under `global`** (`global.namespaces.keycloak`, `.tasks`, `.quarantine`). A top-level `namespaces` fails the render.
 - **Datasets** are not configured here. Register them through the API (`/global/datasets`). For a development dataset database, see [experiments/README.md](experiments/README.md).
-- Optional: `taskReview: true` makes tasks wait for approval before they run, and `smoketests: true` lets `helm test` create and delete real rows.
+- Optional: `smoketests: true` lets `helm test` create and delete real rows.
 
 Every value, with comments, is in [k8s/federated-node/values.yaml](k8s/federated-node/values.yaml), and the chart's own README is [k8s/federated-node/README.md](k8s/federated-node/README.md).
 
