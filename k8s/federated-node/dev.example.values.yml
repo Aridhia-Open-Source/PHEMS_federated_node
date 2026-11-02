@@ -15,7 +15,6 @@ local_development: true      # http instead of https, in-cluster test URLs
 create_db_deployment: true   # run Postgres in the cluster instead of a managed one
 
 # Optional, all off by default:
-# taskReview: true           # tasks need approval before they run
 # smoketests: true           # `helm test` creates and deletes real db/keycloak rows
 
 host: phems-federatednode.net

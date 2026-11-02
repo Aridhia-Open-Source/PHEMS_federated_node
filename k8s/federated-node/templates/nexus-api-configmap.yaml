@@ -29,9 +29,6 @@ data:
   DAGSTER_WEBSERVER_URI: {{ include "dagsterWebserverUri" . | quote }}
 {{- end }}
   PUBLIC_URL: {{ .Values.host }}
-{{- if .Values.taskReview }}
-  TASK_REVIEW: enabled
-{{- end }}
 {{- if .Values.db.enforceSSL }}
   DB_SSL: "?sslmode=require"
 {{- end }}

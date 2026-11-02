@@ -124,8 +124,6 @@ db:
     # keycloak:
     # dagster:
 
-taskReview: false
-
 # firstUserSecret:
   # name:
   # passKey:

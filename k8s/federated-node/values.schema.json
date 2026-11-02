@@ -11,10 +11,6 @@
                 "null"
             ]
         },
-        "taskReview": {
-            "type": "boolean",
-            "default": false
-        },
         "capacity": {
             "type": "string",
             "description": "How much to reserve for tasks, defaults to 10Gi. Other possible units are Mi, Ti, Ki",
@@ -281,9 +277,6 @@
                     "description": "Create the per-role password Secrets. False when something else owns them (External Secrets, SealedSecrets, Vault): the chart expects them to exist and never needs their value at render time, which is what makes it safe under ArgoCD"
                 }
             }
-        },
-        "taskReview": {
-            "$ref": "#/definitions/taskReview"
         },
         "firstUserSecret": {
             "type": "object",
