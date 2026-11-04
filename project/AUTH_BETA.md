@@ -1,6 +1,6 @@
 # Auth MVP plan: user / admin / system
 
-Research only. No code changed. Paths are in `webserver/app/` unless stated. Line numbers are from `moonshot/shared-resources` (read at 95d61117 plus the working tree).
+Research only. No code changed. Paths are in `nexus/api/app/` unless stated. Line numbers are from `moonshot/shared-resources` (read at 95d61117 plus the working tree).
 
 ## Short answer
 

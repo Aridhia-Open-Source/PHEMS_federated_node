@@ -12,7 +12,7 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 
 - **Expected:** the stored count goes up by one; the project's pull request count and task count do not change.
 - **Rule:** a project resource gets a trigger only when the pull request's base branch equals the project resource's `base_branch` ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_base_branch_default_override_and_case`, `test_file_matching_against_watch_dir`). No end-to-end group covers a base branch.
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_base_branch_default_override_and_case`, `test_file_matching_against_watch_dir`). No end-to-end group covers a base branch.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -25,7 +25,7 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 
 - **Expected:** neither pull request gets a trigger. Both are stored.
 - **Rule:** a trigger needs a file the pull request adds, ending in `.json`, under `watch_dir` ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_a_trigger_lists_its_spec_files`, `test_file_matching_against_watch_dir`). No end-to-end group covers a modified file or another extension.
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_a_trigger_lists_its_spec_files`, `test_file_matching_against_watch_dir`). No end-to-end group covers a modified file or another extension.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -48,7 +48,7 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 
 - **Expected:** step 1: the trigger is `REJECTED` with a cause; no task. Step 2: a task. Step 3: its spec has the project's default dataset.
 - **Rule:** the dataset a spec names must be one assigned to the project and active; with none named the default is used ([TaskSpec, and a Task derived from spec and trigger]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_unusable_dataset_rejects_the_pr`, `test_dataset_default_and_case_insensitive_override`). Switching the dataset off is in [enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md). They miss the live evaluate run.
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_unusable_dataset_rejects_the_pr`, `test_dataset_default_and_case_insensitive_override`). Switching the dataset off is in [enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md). They miss the live evaluate run.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -75,7 +75,7 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 
 - **Expected:** step 3: no pull requests and no tasks for the new project, although the pull request is stored. Step 5: only the new pull request has a trigger and a task there.
 - **Rule:** a new project resource's cursor is the latest stored pull request (or the project resource's creation time); history before it is not replayed ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_cursor_rule_assign_first_then_ingest`, `test_cursor_with_nothing_stored_is_resource_creation_time`). The end-to-end second-project group assigns the resources before it merges.
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_cursor_rule_assign_first_then_ingest`, `test_cursor_with_nothing_stored_is_resource_creation_time`). The end-to-end second-project group assigns the resources before it merges.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -89,7 +89,7 @@ This is a probe listed in the end-to-end README, not a pass or fail there.
 
 - **Expected:** the stored count goes up by 101 (the run posts batches of at most 100, oldest first). No pull request is skipped or stored twice.
 - **Rule:** ingest posts in batches of 100 and the cursor moves only when a batch is stored ([The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_ingest_job.py` (batches of at most 100, oldest first) and `webserver/tests/test_pull_requests_and_tasks.py` (`test_batch_limit`); they miss a real provider's paging.
+- **Automated by:** Partly automated: `dagster/app/tests/test_ingest_job.py` (batches of at most 100, oldest first) and `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_batch_limit`); they miss a real provider's paging.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -101,7 +101,7 @@ This is a probe listed in the end-to-end README, not a pass or fail there.
 
 - **Expected:** the counts are unchanged and no tick fails. Posting the same pull requests again changes nothing: the stored numbers come back as `existing`.
 - **Rule:** the store is idempotent (unique on repository and number, and on repository, base branch and merge commit) ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (`test_ingest_fans_out_and_is_idempotent`, `test_posting_the_same_pull_request_again_changes_nothing`) and the "nothing happens" waits of the end-to-end failure suite. Restarts are in [sensors, restarts and catch-up](sensors-restarts-and-catch-up.md).
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_ingest_fans_out_and_is_idempotent`, `test_posting_the_same_pull_request_again_changes_nothing`) and the "nothing happens" waits of the end-to-end failure suite. Restarts are in [sensors, restarts and catch-up](sensors-restarts-and-catch-up.md).
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -115,7 +115,7 @@ Optional; do it only if you can produce a fast-forward merge to two base branche
 
 - **Expected:** both pull requests are stored, and each project's resource gets a trigger only for the pull request on its own base branch. A pull request that repeats a merge commit already stored on the same base branch under a new number is skipped (a warning naming both numbers) and does not fail the batch.
 - **Rule:** one commit on one base branch belongs to one pull request ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: `webserver/tests/test_pull_requests_and_tasks.py` (the two tests on a merge commit on two base branches and on a repeated merge commit); they miss a real merge.
+- **Automated by:** Partly automated: `nexus/api/tests/test_pull_requests_and_tasks.py` (the two tests on a merge commit on two base branches and on a repeated merge commit); they miss a real merge.
 - [ ] Pass
 - [ ] Fail — notes:
 

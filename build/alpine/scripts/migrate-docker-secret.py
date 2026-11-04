@@ -13,7 +13,7 @@ from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000")
+NEXUS_API_URL = os.getenv("NEXUS_API_URL", "http://localhost:5000")
 ADMIN_USER = os.getenv("KEYCLOAK_ADMIN")
 ADMIN_PASS = os.getenv("KEYCLOAK_ADMIN_PASSWORD")
 BACKEND_NAMESPACE = os.getenv("DEFAULT_NAMESPACE", "qcfederatednode")
@@ -22,7 +22,7 @@ TASK_NAMESPACE = os.getenv("TASK_NAMESPACE", "tasks")
 # Ready check on backend
 for i in range(10):
   try:
-    hc_resp = requests.get(f"{BACKEND_URL}/health_check")
+    hc_resp = requests.get(f"{NEXUS_API_URL}/health_check")
     if hc_resp.ok:
       break
   except requests.exceptions.ConnectionError:
@@ -32,7 +32,7 @@ for i in range(10):
 # Login as admin - Wait 10 seconds between retries. The keycloak init job relies on both kc pods to be up
 for i in range(10):
   login_resp = requests.post(
-    f"{BACKEND_URL}/login",
+    f"{NEXUS_API_URL}/login",
     data={
       "username": ADMIN_USER,
       "password": ADMIN_PASS,
@@ -50,7 +50,7 @@ bearer_token = login_resp.json()["token"]
 
 # Get list of registries
 reg_resp = requests.get(
-  f"{BACKEND_URL}/global/registries",
+  f"{NEXUS_API_URL}/global/registries",
   headers={"Content-Type": "application/x-www-form-urlencoded", "Authorization": f"Bearer {bearer_token}"}
 )
 if not reg_resp.ok:

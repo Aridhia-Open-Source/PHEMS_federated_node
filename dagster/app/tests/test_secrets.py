@@ -2,9 +2,10 @@ import base64
 from unittest.mock import MagicMock, patch
 
 import pytest
+from kubernetes.client.exceptions import ApiException
 
 from app.models import Secret, SecretProviderType
-from app.secrets import K8sSecretProvider, SecretProvider, read_secret_value
+from app.secrets import K8sSecretProvider, SecretProvider, TaskSecret, read_secret_value
 from app.tests.conftest import SAMPLE_SECRET
 
 
@@ -42,6 +43,44 @@ class TestK8sSecretProvider:
 
         with pytest.raises(RuntimeError):
             K8sSecretProvider().get("nope", "fn", "TOKEN")
+
+
+class TestTaskSecret:
+    def test_creates_the_secret_on_entering_and_deletes_it_on_leaving(self, core_api):
+        with TaskSecret("task-7", "tasks", {"USERNAME": "u", "PASSWORD": "p"}) as secret:
+            assert secret.name == "task-7"
+            body = core_api.create_namespaced_secret.call_args.args[1]
+            assert core_api.create_namespaced_secret.call_args.args[0] == "tasks"
+            assert body.metadata.name == "task-7"
+            assert body.string_data == {"USERNAME": "u", "PASSWORD": "p"}
+            core_api.delete_namespaced_secret.assert_not_called()
+
+        core_api.delete_namespaced_secret.assert_called_once_with("task-7", "tasks")
+
+    def test_deletes_the_secret_when_the_block_fails(self, core_api):
+        with pytest.raises(RuntimeError):
+            with TaskSecret("task-7", "tasks", {"PASSWORD": "p"}):
+                raise RuntimeError("pod failed")
+
+        core_api.delete_namespaced_secret.assert_called_once_with("task-7", "tasks")
+
+    def test_replaces_a_secret_a_dead_run_left_behind(self, core_api):
+        core_api.create_namespaced_secret.side_effect = [ApiException(status=409), None]
+
+        with TaskSecret("task-7", "tasks", {"PASSWORD": "p"}):
+            assert core_api.create_namespaced_secret.call_count == 2
+            core_api.delete_namespaced_secret.assert_called_once_with("task-7", "tasks")
+
+        assert core_api.delete_namespaced_secret.call_count == 2
+
+    def test_any_other_create_failure_is_raised_and_nothing_is_deleted(self, core_api):
+        core_api.create_namespaced_secret.side_effect = ApiException(status=403)
+
+        with pytest.raises(ApiException):
+            with TaskSecret("task-7", "tasks", {"PASSWORD": "p"}):
+                pass
+
+        core_api.delete_namespaced_secret.assert_not_called()
 
 
 class TestSecretProvider:

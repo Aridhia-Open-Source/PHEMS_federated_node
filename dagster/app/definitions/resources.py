@@ -19,9 +19,9 @@ def backend_api(context) -> BackendAPI:
     return BackendAPI(session=session)
 
 
-@dg.resource
+@dg.resource(required_resource_keys={"backend_api"})
 def git_apis(context) -> GitAPIFactory:
-    return GitAPIFactory()
+    return GitAPIFactory(context.resources.backend_api)
 
 
 RESOURCES = {

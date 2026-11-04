@@ -4,12 +4,12 @@
 # This script is for local development purposes.
 # It aims to automate the port exposure of keycloak and db internal
 # and sets the KEYCLOAK_SECRET and KEYCLOAK_ADMIN_PASSWORD in the
-# dev.env file. This can be used to run the webserver with the debugger.
+# dev.env file. This can be used to run nexus-api with the debugger.
 #
-# Optional arg: .env file location. Defaults to <project>/webserver/dev.env
+# Optional arg: .env file location. Defaults to <project>/nexus/api/dev.env
 ###
 
-DEV_ENV_FILE=webserver/dev.env
+DEV_ENV_FILE=nexus/api/dev.env
 if [[ -n $1 ]]; then
     DEV_ENV_FILE=$1
 fi

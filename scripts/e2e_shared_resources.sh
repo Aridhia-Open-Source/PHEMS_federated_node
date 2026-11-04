@@ -7,9 +7,9 @@
 #   SKIP_TASKS=1 scripts/e2e_shared_resources.sh   stop after the PRs are evaluated and tasks exist (no run needed)
 #
 # Needs (see dagster/fncli/README.md and EXAMPLES.md): kubectl on context kind-fn, `make deploy` done, `tilt up` green
-# with the port-forwards running (backend :5000, Gitea :4000, Dagster :3000), fncli installed with pipx, .dev.env present.
+# with the port-forwards running (nexus-api :5000, Gitea :4000, Dagster :3000), fncli installed with pipx, .dev.env present.
 #
-# The webserver pytest suite is not run by this script.
+# The nexus-api pytest suite is not run by this script.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -26,7 +26,7 @@ step "Preflight"
 [[ "$(kubectl config current-context)" == "kind-fn" ]] || { echo "kubectl context must be kind-fn"; exit 2; }
 [[ -x "$PY" ]] || { echo "fncli not found in pipx: pipx install --force --editable './dagster[cli]'"; exit 2; }
 fncli hello-world >/dev/null || { echo "fncli does not run"; exit 2; }
-curl -fsS -o /dev/null localhost:5000/ready 2>/dev/null || curl -sS -o /dev/null localhost:5000 || { echo "backend not on :5000 (tilt port-forwards?)"; exit 2; }
+curl -fsS -o /dev/null localhost:5000/ready 2>/dev/null || curl -sS -o /dev/null localhost:5000 || { echo "nexus-api not on :5000 (tilt port-forwards?)"; exit 2; }
 curl -sS -o /dev/null localhost:4000 || { echo "Gitea not on :4000"; exit 2; }
 curl -sS -o /dev/null localhost:3000 || { echo "Dagster not on :3000"; exit 2; }
 

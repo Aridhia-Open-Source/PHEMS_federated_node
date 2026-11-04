@@ -1,0 +1,37 @@
+{{- /*
+Task pods run partner images that hold a dataset's credentials, so the tasks namespace is shut
+in: nothing may reach a task pod, and a task pod reaches only DNS and the dataset database
+(taskNetworkPolicy in values.yaml). Without this Kubernetes lets a task reach the backend,
+Keycloak, Postgres, Gitea, the Kubernetes API and the cloud metadata endpoint.
+Dagster needs no path to the pod: pipes starts it and reads its logs through the Kubernetes API.
+
+The policy selects every pod in the tasks namespace rather than a label. Task pods carry only
+Dagster's common labels (pipes.py passes none of its own), and a selector that missed them
+would leave them open. That is only right while the namespace holds nothing but task pods,
+which is what the check below enforces.
+
+A NetworkPolicy does nothing on a CNI that does not enforce it.
+*/ -}}
+{{- $namespace := include "tasks_namespace" . -}}
+{{- if has $namespace (list .Release.Namespace (include "kc_namespace" .)) }}
+  {{ fail (printf "global.namespaces.tasks is %q, the namespace of the node's own pods. The task network policy denies all traffic for every pod in the tasks namespace, so tasks need a namespace of their own." $namespace) }}
+{{- end }}
+{{- $dns := dict "to" .Values.taskNetworkPolicy.dns "ports" (list (dict "protocol" "UDP" "port" 53) (dict "protocol" "TCP" "port" 53)) }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-task-network-policy
+  namespace: {{ $namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+  {{- range prepend .Values.taskNetworkPolicy.datasetEgress $dns }}
+  {{- /* A rule without `to` or without `ports` allows every destination or every port */}}
+  {{- if not (and .to .ports) }}
+    {{ fail (printf "taskNetworkPolicy needs both `to` and `ports` in every rule, got: %s" (toJson .)) }}
+  {{- end }}
+    - {{ toYaml . | indent 6 | trim }}
+  {{- end }}

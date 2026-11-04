@@ -17,6 +17,7 @@ source .dev.env
 if command -v tilt &> /dev/null && pgrep -f "tilt up" > /dev/null; then
   echo "=== Terminating tilt session ==="
   tilt down
+  pkill -f "tilt up"
 fi
 
 cd k8s/federated-node
@@ -33,7 +34,7 @@ helm upgrade \
 
 # Only the app deployments, not Keycloak and the Postgres instances too.
 kubectl rollout restart -n "$NAMESPACE" \
-  deployment/backend \
+  deployment/nexus-api \
   "deployment/${RELEASE_NAME}-${DAGSTER_USER_DEPLOYMENT:-dagster-fn}" \
   "deployment/${RELEASE_NAME}-dagster-daemon" \
   "deployment/${RELEASE_NAME}-dagster-webserver"

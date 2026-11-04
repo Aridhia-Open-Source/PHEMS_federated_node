@@ -25,7 +25,7 @@ The Common API provides the structure of the API calls, Keycloak is used for tok
 | 1b   | The task pod is created and the results are saved in the storage account                                                                             |
 | 2    | On /results calls, if the task pod is on completed status, a job is created.                                                                         |
 | 3    | The job's pod will have the 2 storage environments mounted. It fetches the tasks result folder and zips it                                           |
-| 4    | The webserver reads the zip contents from the live job pod and saves it in its own storage account environment.                                      |
+| 4    | The nexus-api reads the zip contents from the live job pod and saves it in its own storage account environment.                                      |
 | 5    | The resulting archive is returned to the end user                                                                                                    |
 
 Licences for the component projects can be found [here](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/sub-licenses).
@@ -34,7 +34,7 @@ Licences for the component projects can be found [here](https://github.com/Aridh
 
 ### Dependency Management
 
-Python dependencies are declared in `pyproject.toml` files within each component directory (e.g. `webserver/`, `build/alpine/`, `build/kc-init/`). Locked `requirements.txt` files are generated from these using [pip-tools](https://pip-tools.readthedocs.io/) via the `pip_compile` Makefile target.
+Python dependencies are declared in `pyproject.toml` files within each component directory (e.g. `nexus/api/`, `build/alpine/`, `build/kc-init/`). Locked `requirements.txt` files are generated from these using [pip-tools](https://pip-tools.readthedocs.io/) via the `pip_compile` Makefile target.
 
 #### Prerequisites
 
@@ -49,8 +49,8 @@ python -m pip install pip-tools
 Run `make pip_compile` with the target component directory as an argument:
 
 ```bash
-# Lock dependencies for the webserver
-make pip_compile webserver
+# Lock dependencies for nexus/api
+make pip_compile nexus/api
 
 # Lock dependencies for a build component
 make pip_compile build/kc-init
@@ -59,7 +59,7 @@ make pip_compile build/kc-init
 By default this writes `requirements.txt` in the given directory. To write to a different output file, pass it as a second positional argument:
 
 ```bash
-make pip_compile webserver requirements-dev.txt
+make pip_compile nexus/api requirements-dev.txt
 ```
 
 Any additional flags supported by `pip-compile` can be appended after the directory (and optional output file) arguments.
@@ -71,7 +71,7 @@ To view the default flags see `scripts/pip-compile.sh`.
 2. Re-run `make pip_compile <dir>` to regenerate the locked `requirements.txt`.
 3. Commit both `pyproject.toml` and `requirements.txt`.
 
-Use `~=` (compatible-release) specifiers in `pyproject.toml` to constrain the minor version while allowing patch updates, e.g. `"flask~=3.1.3"`. The locked `requirements.txt` pins exact versions with hashes for reproducible installs.
+Use `~=` (compatible-release) specifiers in `pyproject.toml` to constrain the minor version while allowing patch updates, e.g. `"fastapi~=0.162.0"`. The locked `requirements.txt` pins exact versions with hashes for reproducible installs.
 
 ### Linting
 

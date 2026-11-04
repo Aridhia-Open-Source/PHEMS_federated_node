@@ -1,4 +1,4 @@
-suite: Backend and code server resources and probes
+suite: nexus-api and code server resources and probes
 release:
   namespace: federatednode
   name: federatednode
@@ -15,8 +15,8 @@ set:
       delivery_repo: https://github.com/org/repo
       resultsDir: mgmt/results
 tests:
-  - it: sets backend resources from values
-    template: backend-deployment.yaml
+  - it: sets nexus-api resources from values
+    template: nexus-api-deployment.yaml
     asserts:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
@@ -28,8 +28,8 @@ tests:
           path: spec.template.spec.containers[0].resources.limits.memory
           value: 1Gi
 
-  - it: lets backend resources be overridden
-    template: backend-deployment.yaml
+  - it: lets nexus-api resources be overridden
+    template: nexus-api-deployment.yaml
     set:
       federatedNode:
         resources:

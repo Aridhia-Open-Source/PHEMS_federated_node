@@ -25,13 +25,19 @@ The necessary values are:
 |db|manageRolesAndDatabases|Create and maintain each component's database, role and grants (default `true`). False means they already exist: no superuser is needed, no passwords are generated, and one secret per role is required instead|
 |db.secret|name/key|Where the superuser password lives. Generated when `create_db_deployment` is true; yours when Postgres is external; unused when `manageRolesAndDatabases` is false|
 |db|passwords|Optional explicit role passwords, for renders that cannot reach the cluster (ArgoCD, `helm diff`)|
-|backend.db|name/user/secret|Backend database, role and password secret|
+|nexus.api|image/tag/replicas/port|The nexus-api image, replicas and port. It serves `/` and its init container runs the database migrations|
+|nexus.api|url|In-cluster URL Dagster, fncli and the smoke tests use to reach nexus-api (default `http://nexus-api.<namespace>.svc:<port>`)|
+|nexus.api.db|name/user/secret|nexus-api database, role and password secret (default `fn_nexus`, `fn_nexus`, `nexus-db`)|
 |keycloak.db|name/user/secret|Keycloak database, role and password secret|
 |-|-|-|
 |token|life|Duration in seconds for tokens|
 |-|-|-|
+|taskNetworkPolicy|datasetEgress|Where task pods may reach their dataset database, as NetworkPolicy egress rules (`to` and `ports`), by address or by namespace and pod label. Empty by default: task pods then reach DNS only, and a task that needs a database times out on connect. Needs a CNI that enforces NetworkPolicy|
+|taskNetworkPolicy|dns|Where task pods may send DNS lookups (UDP and TCP 53), as NetworkPolicy peers. Defaults to kube-dns in `kube-system`|
+|-|-|-|
 |integrations|domains|The list of third party host that can reach the Federated Node. Otherwise these will be blocked by CSP policies. This will not affect direct user API usage.|
 |host|The URL where the FN will be hosted at|
+|nodeId|Required. Names this node (hospital) in the results it delivers (`run.json`, `node.id`)|
 |tls|secretName|Secret name where the SSL certificate is. Defaults to `tls` if the `tls` section is set|
 
 ### Existing secrets
@@ -48,10 +54,33 @@ What you have to create yourself, in the release namespace:
 - azure storage credentials, and the tls cert, where those apply
 
 With `db.manageRolesAndDatabases: false` the chart creates no databases or roles and needs no admin
-login at all; instead each role's password becomes a secret you supply (`backend.db.secret`,
+login at all; instead each role's password becomes a secret you supply (`nexus.api.db.secret`,
 `keycloak.db.secret` and `global.postgresqlSecretName`). Install once and the chart will print the
 exact DDL and `kubectl` commands for your own database and role names, and a `db-check` hook verifies
 the credentials before anything else is installed.
+
+### Secrets namespace
+Project secrets (dataset credentials, git tokens) are stored in their own namespace,
+`global.namespaces.secrets` (default `fn-secrets`), which the chart creates. The release namespace holds
+none of them. Dagster's service accounts can read only that namespace, and the backend only that one,
+the quarantine and the tasks namespaces. A task gets its dataset credentials from a Secret of its own
+(`task-<task_id>`) in the tasks namespace, which is deleted when the task ends.
+
+**Upgrading** a node that has secrets from before this change: their rows still name the release
+namespace, which Dagster and the backend can no longer read, so tasks and repository checks that use
+them fail with `forbidden`. Write each one again with all its values, which stores it in the secrets
+namespace and updates its row:
+
+```sh
+curl -X PATCH "$FN_URL/global/secrets/<label>" -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"values": {"USERNAME": "...", "PASSWORD": "..."}}'
+```
+
+Enable any disabled secret **before** upgrading: until its row is written again, a secret from before
+this change cannot be enabled, rotated or deleted, and its health check errors. Re-write them after.
+
+On a dev cluster, run `fncli experiment setup` (or tear down and deploy) instead. Then delete the old
+copy: `kubectl delete secret fn-secret-<label> -n <release namespace>`.
 
 ## Gateway API CRD update
 ```sh

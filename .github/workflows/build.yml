@@ -127,7 +127,7 @@ jobs:
         run: |
           make pylint
 
-      # Runs even if the webserver lint fails, so both reports land in one run.
+      # Runs even if the nexus-api lint fails, so both reports land in one run.
       - name: Run pylint (dagster)
         if: ${{ !cancelled() }}
         run: |
@@ -175,18 +175,18 @@ jobs:
           make helm_tests
 
       - name: Run Python Tests
-        working-directory: webserver
+        working-directory: nexus/api
         run: |
-          make tests_ci
+          ./run_tests.sh ci
 
       - name: Run Dagster Tests
         run: |
           make tests_dagster
 
       - name: Run Keycloak Integration Tests
-        working-directory: webserver
+        working-directory: nexus/api
         run: |
-          make tests_integration
+          ./run_integration_tests.sh
 
       - uses: irongut/CodeCoverageSummary@v1.3.0
         name: Code Coverage Summary Report
@@ -194,7 +194,7 @@ jobs:
           filename: artifacts/coverage.xml
           fail_below_min: true
           thresholds: '60 80'
-  build-flask-image:
+  build-nexus-api-image:
     needs:
       - init
       - tests
@@ -202,8 +202,8 @@ jobs:
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
       TAG: ${{ needs.init.outputs.tag }}
-      IMAGE: federated_node_run
-      BUILD_PATH: webserver
+      IMAGE: nexus_api
+      BUILD_PATH: nexus/api
       HASH_SUFFIX: false
       DOCKER_ACR: ${{ vars.DOCKER_CR }}
     secrets:
@@ -281,7 +281,7 @@ jobs:
           RC_TAG: ${{ needs.init.outputs.rc_tag }}
           TAG: ${{ needs.init.outputs.tag }}
         run: |
-          for image in federated_node_run federated_keycloak alpine keycloak_initializer dagster_fn; do
+          for image in nexus_api federated_keycloak alpine keycloak_initializer dagster_fn; do
             repo="${REGISTRY}/${OWNER,,}/${image}"
             docker buildx imagetools create -t "${repo}:${TAG}" "${repo}:${RC_TAG}"
           done
@@ -290,7 +290,7 @@ jobs:
     needs:
       - init
       - promote
-      - build-flask-image
+      - build-nexus-api-image
       - build-keycloak-image
       - build-alpine-image
       - build-kc-init-image

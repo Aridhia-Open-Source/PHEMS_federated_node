@@ -6,7 +6,7 @@ The state of a results pull request is written by two independent actors: the de
 
 ## Decision
 
-**Sync reconciler.** `results_pull_request_sync_sensor` launches `sync_results_pull_requests_job` when there are `PUSHED` or `OPENED` results and no run of it is in flight (run key `sync-results-prs/<slot>`). The op, per result: `PUSHED` looks up the pull request by branch and records number, url and step if found; `OPENED` fetches it and records `MERGED` or `CLOSED` when changed. A 404 is logged and skipped (not guessed `CLOSED`). The backend filters the results by step; the sync does not filter them again by state. The repository of a result is resolved by id, through an inactive project resource too ([0006](0006-global-resources-and-project-resources.md)). The sync heals only a pull request that was opened, merged or closed but not recorded.
+**Sync reconciler.** `results_pull_request_sync_sensor` reads the provider itself, as the ingest sensor does, and launches `sync_results_pull_requests_job` once per result whose pull request differs from what it records, unless a run for that result is in flight (run key `sync-result/<result>/<step>/<slot>`, step being the one the result moves to). `PUSHED` looks up the pull request by branch: found, the result gets its number, url and step. `OPENED` fetches it: `MERGED` or `CLOSED`, the result gets that step. A result with no change gets no run, so an open pull request starts no pod. The run only patches the result with what the sensor found (run config). A 404 is logged and skipped (not guessed `CLOSED`). The backend filters the results by step; the sync does not filter them again by state. The repository of a result is resolved by id, through an inactive project resource too ([0006](0006-global-resources-and-project-resources.md)). The sync heals only a pull request that was opened, merged or closed but not recorded.
 
 **State plus slot.** `run_key(kind, item_id, state)` in `sensors/base.py` gives `kind/item_id/state/slot`, with `slot = int(time.time() // retry interval)` (a part that is `None` is left out). A new state gives a new key at once. A failed run with an unchanged state is retried once per retry interval, when the slot moves on.
 
@@ -15,7 +15,7 @@ The state of a results pull request is written by two independent actors: the de
 **Who uses it.**
 - Ingest: `ingest/<repo>/<pr_cursor>/<slot>`.
 - Evaluate: `evaluate/<project>/<repo>/<newest UNKNOWN PR number>/<slot>`.
-- Results PR sync: `sync-results-prs/<slot>`.
+- Results PR sync: `sync-result/<result>/<step>/<slot>`.
 - Delivery retry: `deliver-retry/<result>/<slot>`.
 
 The git and delivery sensors share `LaunchingSensor` ([0014](0014-dagster-pipeline-ops-sensors-and-retries.md)).

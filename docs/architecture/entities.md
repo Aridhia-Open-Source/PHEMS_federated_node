@@ -1,6 +1,6 @@
 # Entities and state machines
 
-The final backend schema (`webserver/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0004](../../project/decisions/0004-polymorphic-result-and-forward-only-state.md), [0005](../../project/decisions/0005-state-transition-tables.md) (the state tables behind the three diagrams below), [0006](../../project/decisions/0006-global-resources-and-project-resources.md), [0008](../../project/decisions/0008-enabled-revoked-and-soft-delete.md), [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
+The final backend schema (`nexus/api/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0004](../../project/decisions/0004-polymorphic-result-and-forward-only-state.md), [0005](../../project/decisions/0005-state-transition-tables.md) (the state tables behind the three diagrams below), [0006](../../project/decisions/0006-global-resources-and-project-resources.md), [0008](../../project/decisions/0008-enabled-revoked-and-soft-delete.md), [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
 
 Not drawn: `audit`, `registries`, `whitelisted_images`, `catalogues`, `dictionaries`, `dars` (disconnected, [0017](../../project/decisions/0017-authorization-detached-from-dar-and-keycloak.md)) and `results_backends` (present in the baseline, unused by the pipeline).
 
@@ -146,6 +146,10 @@ erDiagram
         string image
         int dataset_id FK "optional"
         json env
+        json compute "CPU and memory requests and limits the spec gave"
+        json tags "copied onto the run"
+        json config "optional, the file the task reads"
+        json metadata "optional, the client's own"
     }
     results {
         int id PK

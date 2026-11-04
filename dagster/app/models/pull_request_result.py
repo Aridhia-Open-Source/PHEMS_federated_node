@@ -7,7 +7,7 @@ from app.models.result_state import ResultState
 class PullRequestResult(BaseModel):
     """
     The delivery of one task's results to one results repository by a pull request we open,
-    not the merged PullRequestTrigger we watch. The webserver's Result of type PR.
+    not the merged PullRequestTrigger we watch. nexus-api's Result of type PR.
     """
     model_config = ConfigDict(extra="allow")
 
