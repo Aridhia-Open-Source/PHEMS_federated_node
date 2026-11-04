@@ -2,6 +2,9 @@ import { useState, type FormEvent } from "react";
 import { api } from "../../api/client";
 import { setToken } from "../../api/auth";
 import { showToast } from "../../shared/toast";
+import { Button, Field, Icon, Input } from "@/ui";
+import { BareLayout } from "@/shell/BareLayout";
+import { shellMessages } from "@/shell/messages";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -23,15 +26,38 @@ export default function Login() {
     setBusy(false);
     const token = (data as { token?: string } | undefined)?.token;
     if (token) setToken(token);
-    else if (data) showToast("Login response had no token");
+    else if (data) showToast(shellMessages.login.noToken);
   };
 
   return (
-    <form className="form login" onSubmit={submit}>
-      <h1>Federated Node admin</h1>
-      <label><span>Username</span><input value={username} onChange={(e) => setUsername(e.target.value)} required /></label>
-      <label><span>Password</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
-      <button type="submit" disabled={busy}>Log in</button>
-    </form>
+    <BareLayout title={shellMessages.login.title} description={shellMessages.login.description}>
+      <form onSubmit={submit} className="flex flex-col gap-6">
+        <Field label={shellMessages.login.username} htmlFor="username" tone="onBlue">
+          <Input
+            id="username"
+            tone="onBlue"
+            autoComplete="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+        </Field>
+        <Field label={shellMessages.login.password} htmlFor="password" tone="onBlue">
+          <Input
+            id="password"
+            tone="onBlue"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </Field>
+        <Button type="submit" size="lg" onBlue busy={busy} className="self-start">
+          <Icon name="signIn" aria-hidden />
+          {shellMessages.login.action}
+        </Button>
+      </form>
+    </BareLayout>
   );
 }

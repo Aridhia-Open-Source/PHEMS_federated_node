@@ -3,7 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
     <title>Federated Node admin</title>
+    <script>
+      // Sets the theme class before first paint. Same key and rule as src/shell/theme.ts.
+      (function () {
+        var choice = null;
+        try {
+          choice = localStorage.getItem("fn-theme");
+        } catch (e) {}
+        var dark = choice ? choice === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+        if (dark) document.documentElement.classList.add("dark");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
