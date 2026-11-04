@@ -112,10 +112,6 @@
                 "ui": {
                     "type": "object",
                     "properties": {
-                        "enabled": {
-                            "type": "boolean",
-                            "default": false
-                        },
                         "replicas": {
                             "type": "integer",
                             "default": 1

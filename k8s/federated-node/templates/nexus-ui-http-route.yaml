@@ -1,4 +1,4 @@
-{{- if and .Values.nexus.ui.enabled .Values.traefik.enabled }}
+{{- if .Values.traefik.enabled }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

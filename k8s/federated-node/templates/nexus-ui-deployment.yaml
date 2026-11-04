@@ -1,4 +1,3 @@
-{{- if .Values.nexus.ui.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,4 +38,3 @@ spec:
               port: http
           resources:
             {{- toYaml .Values.nexus.ui.resources | nindent 12 }}
-{{- end }}

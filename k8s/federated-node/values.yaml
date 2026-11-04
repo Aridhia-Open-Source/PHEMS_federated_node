@@ -25,7 +25,6 @@ nexus:
         name: nexus-db
         key: password
   ui:
-    enabled: false
     image: ghcr.io/aridhia-open-source/federated_node_nexus_ui
     tag:
     replicas: 1
