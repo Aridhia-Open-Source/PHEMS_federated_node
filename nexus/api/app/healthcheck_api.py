@@ -4,10 +4,11 @@ returned includes a secret's value. Each resource has one check, run for the glo
 resource and for a project's resource for it (which adds the project resource's state, and a 404 if the
 project has none); the roll-ups are built from the same per-resource functions. Whatever
 reads the database or the cluster happens in the request (the prepare_* functions), and
-only the network calls run in the threads.
+only the network calls run in the threads (a repository's check first gets its token, in the request).
 - GET /global/healthcheck, every global resource of the four kinds
 - GET /global/datasets/<dataset_id>/healthcheck, can the node connect to its database
-- GET /global/secrets/<label>/healthcheck, is it in its store with the keys its users need
+- GET /global/secrets/<label>/healthcheck, is it in its store with the keys its users need (a git
+  credential is any complete set of keys: see helpers/git_tokens.py)
 - GET /global/providers/<provider_id>/healthcheck, does the git provider's API answer
 - GET /global/repositories/triggers/<repository_id>/healthcheck
 - GET /global/repositories/results/<repository_id>/healthcheck
@@ -28,6 +29,7 @@ from app.dtos.healthcheck import (
 )
 from app.dtos.project import HealthCheckDTO, ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
 from app.helpers.exceptions import DBRecordNotFoundError
+from app.helpers.git_tokens import missing_credential_keys
 from app.helpers.wrappers import require_scope
 from app.models.dataset import Dataset
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
@@ -116,17 +118,25 @@ def prepare_dataset_health(dataset: Dataset) -> Callable[[], DatasetHealthDTO]:
     return run
 
 
+def _missing_keys(secret: Secret, keys: list[str]) -> set[str]:
+    """
+    What the secret's users need and it lacks: a dataset's USERNAME and PASSWORD, and for a repository the nearest
+    complete git credential (a GitHub App, a Gitea OAuth2 application or a TOKEN), none if it holds one.
+    """
+    missing = set()
+    if secret.datasets:
+        missing |= set(Dataset.SECRET_KEYS) - set(keys)
+    if secret.trigger_repositories or secret.results_repositories:
+        missing |= missing_credential_keys(keys)
+    return missing
+
+
 def prepare_secret_health(secret: Secret) -> Callable[[], SecretHealthDTO]:
     """
     A global secret: is it in its store, with the keys its datasets and repositories read.
     A secret nothing uses needs no particular key. A disabled one is reported as not readable
     (secret_missing, saying it is disabled) without looking in the store, its value being in quarantine.
     """
-    expected = set()
-    if secret.datasets:
-        expected |= set(Dataset.SECRET_KEYS)
-    if secret.trigger_repositories or secret.results_repositories:
-        expected |= set(GitRepositoryMixin.SECRET_KEYS)
     if not secret.enabled:
         # Its value is in quarantine, out of reach on purpose: not read
         keys = []
@@ -136,16 +146,16 @@ def prepare_secret_health(secret: Secret) -> Callable[[], SecretHealthDTO]:
         if keys is None:
             check = ConnectionCheck(ConnectionStatus.SECRET_MISSING, f"Secret {secret.label} is not in its store")
             keys = []
-        elif expected - set(keys):
+        elif missing := _missing_keys(secret, keys):
             check = ConnectionCheck(
-                ConnectionStatus.SECRET_MISSING, f"Secret {secret.label} has no {', '.join(sorted(expected - set(keys)))}"
+                ConnectionStatus.SECRET_MISSING, f"Secret {secret.label} has no {', '.join(sorted(missing))}"
             )
         else:
             check = ConnectionCheck(ConnectionStatus.OK, "OK")
     health = SecretHealthDTO(
         label=secret.label, provider=secret.provider, enabled=secret.enabled,
         status=check.status.value, health_check=_health_check(check),
-        keys=sorted(keys), missing_keys=sorted(expected - set(keys)),
+        keys=sorted(keys), missing_keys=sorted(_missing_keys(secret, keys)),
     )
     return lambda: health
 

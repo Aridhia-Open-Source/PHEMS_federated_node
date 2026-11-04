@@ -157,7 +157,7 @@ class TestUnknownFieldsAreKept:
 
     def test_a_task(self):
         task = Task(
-            id=1, name="t", spec={"image": "i", "env": {}}, attempt=1, requested_by="u", project_id=1, trigger_id=2,
+            id=1, name="t", spec={"image": "i", "env": {}}, attempt=1, requested_by="u", project_id=1, project_name="p", trigger_id=2,
             added_later="x",
         )
 

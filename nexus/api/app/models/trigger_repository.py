@@ -12,6 +12,10 @@ from app.models.git_repository import GitRepositoryMixin
 class TriggerRepository(SoftDeleteMixin, GitRepositoryMixin, db.Model, BaseModel):
     __tablename__ = 'trigger_repositories'
 
+    # What its git tokens may do. The cache of minted tokens is keyed by repository id and permission, so a trigger and
+    # a results repository sharing a secret never share a token
+    TOKEN_PERMISSION = "read"
+
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
 
     # Turned on or off for the whole node, whatever the project resources say

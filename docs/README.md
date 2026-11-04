@@ -29,7 +29,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0019](../project/decisions/0019-gitea-port-4000-and-localhost-forward.md) | Gitea on port 4000, localhost forward | In-cluster versus host URL translation. |
 | [0020](../project/decisions/0020-tilt-dev-loop.md) | Tilt dev loop | Dev only; the chart does not depend on it. |
 | [0021](../project/decisions/0021-nexus-api-owns-the-record-and-the-rules.md) | nexus-api owns the record and the rules | Dagster asks and acts; the launcher fails or launches as the config answer says. |
-| [0022](../project/decisions/0022-task-isolation.md) | Task isolation: storage, secrets, namespace and network | Each part separates what is built from what is decided and not built (#536); NetworkPolicy is not built. |
+| [0022](../project/decisions/0022-task-isolation.md) | Task isolation: storage, secrets, namespace and network | Each part separates what is built from what is decided and not built (#536); the NetworkPolicy is built. |
 | [0023](../project/decisions/0023-fastapi-replaces-flask.md) | FastAPI replaces Flask: nexus-api owns the deploy, the migrations and the names | One baseline migration, regenerated from the models; the extras were left out on purpose (open questions). |
 
 ## Other docs by topic

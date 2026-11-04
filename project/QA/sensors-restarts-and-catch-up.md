@@ -105,8 +105,8 @@ Check, and record the outcome as a finding if the result never appears.
 2. `fncli merge-results-pr --number <n>`. Wait three intervals: the result is still `OPENED`.
 3. `fncli start-sensor --group delivery`.
 
-- **Expected:** within a sync interval the result is `MERGED`, with the merge fields.
-- **Rule:** each sync run reads the `PUSHED` and `OPENED` results again, so a result is checked until it is merged or closed ([Run keys, retries and the results pull request sync]).
+- **Expected:** within a tick and its run the result is `MERGED`, with the merge fields.
+- **Rule:** each tick reads the `PUSHED` and `OPENED` results and their pull requests again, so a result is checked until it is merged or closed ([Run keys, retries and the results pull request sync]).
 - **Automated by:** Partly automated: `dagster/app/tests/test_results_pull_request_sync.py`. No stopped sensor on a live node.
 - [ ] Pass
 - [ ] Fail — notes:

@@ -227,13 +227,26 @@ How often they tick (`fnDagster.sensors.minIntervalSeconds`, default 30 s) and h
    ```json
    {
      "spec": {
-       "name": "first-task",
-       "image": "ghcr.io/your-org/your-analytics-image:1.0"
-     }
+       "image": "ghcr.io/your-org/your-analytics-image:1.0",
+       "dataset": "my-dataset",
+       "env": {"MY_VAR": "value"},
+       "tags": {"team": "analytics"},
+       "config": {"epochs": 3},
+       "compute": {"requests": {"cpu": "500m", "memory": "1Gi"}, "limits": {"cpu": "2", "memory": "4Gi"}}
+     },
+     "metadata": {"ticket": "ABC-1"}
    }
    ```
 
-   `image` is required. `env`, `params`, `dataset` and `resources` are optional. Any other field makes the pull request `REJECTED`. The rules are in [ADR 0002](project/decisions/0002-task-spec-and-derivation.md).
+   Only `spec` and `metadata` are allowed at the top level, and `spec` is required. In `spec`, `image` is required; `dataset`, `env`, `tags`, `config` and `compute` are optional. Any other field, in either place, makes the pull request `REJECTED`.
+   - `env` keys can't be `ARTIFACT_PATH`, `CDM_SCHEMA`, `WRITE_SCHEMA`, `DB_USERNAME`, `DB_PASSWORD`, `CONNECTION_STRING` or `CONFIG_PATH`, or start with `DAGSTER_` or `KUBERNETES_`, in any letter case: the run sets those itself.
+   - `tags` are text to text, copied onto the task's run. A key is 1 to 63 letters, digits, `_`, `.` or `-` (so no `/`), otherwise the pull request is rejected.
+   - `config` is a JSON object the task reads as a file. Its contents are not checked.
+   - `compute` asks for CPU and memory: `requests` and `limits`, each with an optional `cpu` and `memory` (`500m`, `2`, `512Mi`, `4Gi`). A limit can't be lower than its request, nothing can be over the node max, and a request without a limit of its own can't be over the default limit. Without it the task namespace's defaults apply. The max and the defaults are the chart's `taskCompute` values (`taskCompute.max` and `taskCompute.default`).
+   - `metadata` is yours: any JSON, not checked, kept with the task.
+   - The task is named `<project name>:PR#<pull request number>`.
+
+   The rules are in [ADR 0002](project/decisions/0002-task-spec-and-derivation.md).
 2. Open a pull request into the base branch and **merge it**. Only merged pull requests are read.
 3. Wait a few sensor intervals, then look:
 
@@ -242,7 +255,7 @@ How often they tick (`fnDagster.sensors.minIntervalSeconds`, default 30 s) and h
    ```
 
    The task goes pending, queued, running, then success. The Dagster UI shows the run and its logs under **Runs**.
-4. A pull request appears in the results repository, with `results.zip`, `spec.json` and `metadata.json` on a branch under `target_dir`. Merge it to close the loop: the sync sensor then records the result as merged.
+4. A pull request appears in the results repository, with `results.zip`, `spec.json` (the pull request's spec file, as merged) and `run.json` (node, project, trigger, task and delivery details) on a branch under `target_dir`. Merge it to close the loop: the sync sensor then records the result as merged.
 
 ## Using fncli
 

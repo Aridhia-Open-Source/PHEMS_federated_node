@@ -2,7 +2,7 @@ import dagster as dg
 
 from app.backend import BackendAPI
 from app.definitions.run_config import build_run_config
-from app.definitions.sensors.base import BaseSensor
+from app.definitions.sensors.base import BaseSensor, artifacts_volume_tags
 from app.models import Task, TaskStatus
 
 
@@ -46,6 +46,9 @@ class TaskLauncherSensor(BaseSensor):
         the backend sends. On "fail" the backend has already moved the task to FAILED with the cause, so it returns
         None, as it does for a task that is no longer PENDING. The rules are the backend's (see its decide_launch);
         none are checked here. A manual retry launches a failed task once the cause is gone. Any error is raised.
+
+        The run's tags are the system ones, under fn/, and the spec's own tags, each under user/ so that a spec
+        can never set or shadow a system tag, or one of Dagster's.
         """
         decision = self.backend_api.launch_task(task.project_id, task.id)
         if decision is None:
@@ -57,10 +60,12 @@ class TaskLauncherSensor(BaseSensor):
         return dg.RunRequest(
             run_key=f"task/{decision.task.id}/{decision.task.attempt}",
             tags={
-                "trigger": "task",
-                "task_id": str(decision.task.id),
-                "attempt": str(decision.task.attempt),
-                "project_id": str(task.project_id),
+                **{f"user/{key}": value for key, value in decision.task.spec.tags.items()},
+                "fn/trigger": "task",
+                "fn/task_id": str(decision.task.id),
+                "fn/attempt": str(decision.task.attempt),
+                "fn/project_id": str(task.project_id),
+                **artifacts_volume_tags(),
             },
             run_config=build_run_config(decision.task.spec, decision.dataset),
         )

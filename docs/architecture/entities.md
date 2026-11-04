@@ -146,6 +146,10 @@ erDiagram
         string image
         int dataset_id FK "optional"
         json env
+        json compute "CPU and memory requests and limits the spec gave"
+        json tags "copied onto the run"
+        json config "optional, the file the task reads"
+        json metadata "optional, the client's own"
     }
     results {
         int id PK

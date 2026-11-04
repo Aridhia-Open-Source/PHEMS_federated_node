@@ -7,7 +7,7 @@ mechanics are in [README.md](README.md).
 
 ## Today: by hand
 
-Needs the dev cluster up with Tilt (or the port-forwards for backend 5000, Gitea 4000 and
+Needs the dev cluster up with Tilt (or the port-forwards for nexus-api 5000, Gitea 4000 and
 Dagster 3000), `fncli` on PATH, and `.dev.env` at the repo root. Run everything from the repo
 root. If `make experiments` says "No such command", reinstall fncli from this checkout:
 `pipx install --force --editable './dagster[cli]'`.

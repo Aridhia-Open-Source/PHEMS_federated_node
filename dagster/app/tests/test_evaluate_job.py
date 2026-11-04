@@ -48,6 +48,21 @@ def test_a_ready_pr_sends_its_spec_file_and_patches_nothing():
     backend_api.patch_pull_request.assert_not_called()
 
 
+def test_the_git_client_is_built_for_the_trigger_repository_and_the_project_of_the_pr():
+    backend_api = MagicMock()
+    git_api = MagicMock()
+    git_api.get_file_contents.return_value = SPEC_FILE
+    git_apis = MagicMock()
+    git_apis.for_repository.return_value = git_api
+    context = dg.build_op_context(resources={"backend_api": backend_api, "git_apis": git_apis})
+
+    evaluate_pull_request(context, pull_request())
+
+    git_apis.for_repository.assert_called_once_with(
+        backend_api.get_project_trigger_repository.return_value.trigger_repository, 4
+    )
+
+
 def test_a_pr_without_a_spec_file_is_patched_as_rejected():
     backend_api = run_evaluate(spec_files=[])
 

@@ -23,13 +23,16 @@ tilt up
 Once everything is deployed, Tilt automatically watches and reloads:
 - `nexus/api/app/` → nexus-api code changes (instant reload)
 - `nexus/api/requirements.txt`, `setup.py`, `alembic.ini` → Full rebuild
-- `dagster/app/` → User code changes (instant reload)
+- `dagster/app/` → User code changes (the process restarts, then `dagster-reload` makes sure the Dagster code location is loaded again; if it logs an error, look at the code server pod log)
+- `dagster/fncli/`, tests and docs → no rebuild
 - `dagster/requirements.txt`, `setup.py` → Full rebuild
 
 ### Access services
-- **nexus-api**: http://localhost:5000
+- **nexus-api docs**: http://localhost:5000/docs
 - **Dagster UI**: http://localhost:3000
 - **Tilt Dashboard**: http://localhost:10350
+
+The `dagster-reload` resource prints this list in the Tilt log once the Dagster code location has loaded, and again after each reload. To add a URL, put `DEV_URLS.append(('Name', 'http://localhost:PORT'))` next to the port-forward in the `Tiltfile`, above the last section.
 
 ### View logs
 ```bash

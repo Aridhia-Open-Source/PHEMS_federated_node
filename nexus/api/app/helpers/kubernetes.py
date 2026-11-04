@@ -75,3 +75,17 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
                     except ApiException as exc:
                         raise KubernetesException(exc.body) from exc
         return body
+
+    def patch_secret_data(self, name:str, namespace:str, values:dict[str, str]) -> None:
+        """
+        Sets the given keys of an existing secret and leaves every other key as it is.
+        A strategic merge patch of `data` with no resourceVersion: it never replaces
+        the secret, and it cannot conflict with another write to it. For writers that
+        own a few keys of a secret whose other keys belong to someone else (the git
+        token cache in a repository's secret). It does not create the secret.
+        """
+        body = {'data': {key: self.encode_secret_value(value) for key, value in values.items()}}
+        try:
+            self.patch_namespaced_secret(name, namespace, body=body)
+        except ApiException as e:
+            raise KubernetesException(e.body) from e

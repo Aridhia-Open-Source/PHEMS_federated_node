@@ -197,7 +197,7 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         lambda t: f"{t.status}, attempt {t.attempt}",
     )
     run = report.check(
-        f"Task {pr.task_id} has a Dagster run: runs tagged task_id={pr.task_id}",
+        f"Task {pr.task_id} has a Dagster run: runs tagged fn/task_id={pr.task_id}",
         lambda: require(dagster_api.get_task_run(pr.task_id), "run"),
         lambda r: f"{r['runId']}, {r['status']}",
     )
@@ -220,9 +220,9 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         f"task {task.executor_run_id}, run {run['runId']}",
     )
     report.record(
-        str(task.attempt) == tags.get("attempt"),
+        str(task.attempt) == tags.get("fn/attempt"),
         "Task attempt matches the run's attempt tag",
-        f"task {task.attempt}, run {tags.get('attempt')}",
+        f"task {task.attempt}, run {tags.get('fn/attempt')}",
     )
     if expected != "QUEUED":
         report.record(task.started_at is not None, "Task has started_at", str(task.started_at))

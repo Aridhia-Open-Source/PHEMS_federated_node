@@ -19,7 +19,9 @@ cd "$DIR"
 echo "Building $IMAGE_REF:$TAG"
 
 # Always build latest
+# TARGET picks a Dockerfile stage (e.g. TARGET=dev); unset builds the last stage.
 docker build --progress=plain \
+  ${TARGET:+--target "$TARGET"} \
   -t "$IMAGE_REF:latest" \
   -t "$IMAGE_REF:$TAG" \
   .

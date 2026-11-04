@@ -113,15 +113,17 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: binds the rotation ServiceAccount to a secrets role
+  - it: limits the rotation job to patching the credential Secrets in the namespaces it touches
     template: templates/keycloak-rotation-rbac.yaml
     set:
       keycloak:
         credentialRotation:
           enabled: true
+      dagster:
+        enabled: true
     asserts:
       - hasDocuments:
-          count: 3
+          count: 5
       - isKind:
           of: ServiceAccount
         documentIndex: 0
@@ -129,9 +131,42 @@ tests:
           path: metadata.name
           value: keycloak-credential-rotator
         documentIndex: 0
+      ## Namespaced Roles, never a ClusterRole: one in the release namespace, one in keycloak
+      - isKind:
+          of: Role
+        documentIndex: 1
       - equal:
-          path: rules[0].resources
-          value: ["secrets"]
+          path: metadata.namespace
+          value: federatednode
+        documentIndex: 1
+      - equal:
+          path: metadata.namespace
+          value: keycloak
+        documentIndex: 3
+      - equal:
+          path: rules
+          value:
+            - apiGroups: [""]
+              resources: ["secrets"]
+              resourceNames: ["kc-secrets", "dagster-keycloak-creds"]
+              verbs: ["patch"]
+        documentIndex: 1
+      - isKind:
+          of: RoleBinding
+        documentIndex: 2
+
+  - it: leaves the Dagster credential Secret out of the rotation Role when Dagster is off
+    template: templates/keycloak-rotation-rbac.yaml
+    set:
+      keycloak:
+        credentialRotation:
+          enabled: true
+      dagster:
+        enabled: false
+    asserts:
+      - equal:
+          path: rules[0].resourceNames
+          value: ["kc-secrets"]
         documentIndex: 1
 
   ## === CronJob ===

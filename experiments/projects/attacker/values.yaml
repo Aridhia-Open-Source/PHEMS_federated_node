@@ -1,0 +1,9 @@
+# The attacker's database in the experiments chart. The name is also the dataset's name in the
+# node, whose secret label is <name>-dataset-creds - a DNS name, so '-' rather than '_'.
+dbs:
+  attacker:
+    name: attacker-db
+    user: attacker_user
+    secret:
+      name: db-datasets-attacker
+      key: password

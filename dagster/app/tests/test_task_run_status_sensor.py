@@ -15,7 +15,7 @@ from app.definitions.sensors.task import (
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
 from app.tests.conftest import make_dagster_run, make_success_event
 
-TAGS = {"trigger": "task", "task_id": "9", "attempt": "1", "project_id": "3"}
+TAGS = {"fn/trigger": "task", "fn/task_id": "9", "fn/attempt": "1", "fn/project_id": "3"}
 START_TIME = 1699999990.0
 END_TIME = 1700000000.0
 
@@ -109,7 +109,7 @@ def test_registered_sensor_patches_for_task_runs(backend_api, dagster_instance, 
 
 
 def test_registered_sensor_ignores_runs_of_other_triggers(backend_api, dagster_instance):
-    run = make_dagster_run(tags={"trigger": "manual"}).with_status(dg.DagsterRunStatus.SUCCESS)
+    run = make_dagster_run(tags={"fn/trigger": "manual"}).with_status(dg.DagsterRunStatus.SUCCESS)
 
     task_success_sensor(context_for(run, dagster_instance))
 
@@ -139,7 +139,7 @@ def test_any_other_backend_error_raises():
         sensor_for(dg.DagsterRunStatus.STARTED, backend_api=backend_api)()
 
 
-DELIVERY_TAGS = {"trigger": "delivery", "delivery_task_id": "7"}
+DELIVERY_TAGS = {"fn/trigger": "delivery", "fn/delivery_task_id": "7"}
 
 
 @pytest.mark.parametrize("sensor", [

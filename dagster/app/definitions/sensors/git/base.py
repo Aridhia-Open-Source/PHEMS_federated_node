@@ -8,7 +8,6 @@ from app.definitions.sensors.base import BaseSensor
 from app.gitea import GiteaAPI, GiteaClient
 from app.github import GithubAPI, GithubClient
 from app.models import ResultsRepository, TriggerRepository
-from app.secrets import read_secret_value
 
 
 class GitAPI(Protocol):
@@ -33,12 +32,18 @@ class GitAPI(Protocol):
 
 class GitAPIFactory:
     """
-    Builds the api client for a repository from its provider's type and API URI and the token in
-    the secret it names, so every repository authenticates as itself.
+    Builds the api client for a repository from its provider's type and API URI and a short-lived token
+    the backend mints for it, so every repository authenticates as itself. The token is asked for when the
+    client is built: build it just before the calls that need it, not at the start of a long run.
     """
 
-    def for_repository(self, repo: TriggerRepository | ResultsRepository) -> GitAPI:
-        token = read_secret_value(repo.secret, "TOKEN")
+    def __init__(self, backend_api: BackendAPI):
+        self.backend_api = backend_api
+
+    def for_repository(self, repo: TriggerRepository | ResultsRepository, project_id: int | None = None) -> GitAPI:
+        """The client for a repository. project_id names the project the work is for, None for the repository as a whole."""
+        kind = "trigger" if isinstance(repo, TriggerRepository) else "results"
+        token = self.backend_api.get_repository_token(kind, repo.id, project_id).token
         match repo.provider.type:
             case "github":
                 return GithubAPI(GithubClient(token=token, base_uri=repo.provider.api_uri))

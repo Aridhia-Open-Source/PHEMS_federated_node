@@ -35,7 +35,7 @@ class PullRequestEvaluateSensor(LaunchingSensor, GitSensor):
         return f"Evaluation of repo {item.trigger_repository.id} of project {item.project_id}"
 
     def tags(self, item: ProjectTriggerRepository) -> dict[str, str]:
-        return {"repo_id": str(item.trigger_repository.id), "project_id": str(item.project_id)}
+        return {"fn/repo_id": str(item.trigger_repository.id), "fn/project_id": str(item.project_id)}
 
     def ready(self, item: ProjectTriggerRepository) -> bool:
         """Whether the project resource has UNKNOWN PRs, noting the newest one's number for the run key."""

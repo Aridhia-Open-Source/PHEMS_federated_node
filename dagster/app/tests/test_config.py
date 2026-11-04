@@ -3,6 +3,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.config import (
+    ArtifactsVolumeConfig,
     BackendConfig,
     PipesSecurityContextConfig,
     ResultsDeliveryConfig,
@@ -14,12 +15,12 @@ from app.config import (
 def clean_env(monkeypatch):
     for key in (
         "NEXUS_API_URL", "DAGSTER_KC_USER", "DAGSTER_KC_PASSWORD",
-        "DAGSTER_ARTIFACT_MOUNT_PATH", "GH_RESULTS_DIR", "GH_TOKEN",
+        "DAGSTER_ARTIFACT_MOUNT_PATH", "DAGSTER_ARTIFACTS_PVC_NAME", "GH_RESULTS_DIR", "GH_TOKEN",
         "GH_API_URI", "GH_DELIVERY_REPO", "GH_DELIVERY_BASE_BRANCH",
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
         "DAGSTER_PIPES_RUN_AS_GROUP", "DAGSTER_PIPES_SUPPLEMENTAL_GROUPS",
         "DAGSTER_SENSORS_INITIAL_STATUS", "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS",
-        "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "DAGSTER_DELIVERY_MAX_ATTEMPTS", "RESULTS_MAX_ZIP_BYTES",
+        "DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS", "DAGSTER_DELIVERY_MAX_ATTEMPTS", "RESULTS_MAX_ZIP_BYTES", "NODE_ID",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -122,14 +123,58 @@ class TestPipesSecurityContext:
         assert "supplementalGroups" not in PipesSecurityContextConfig().to_pod_security_context()
 
 
+    def test_the_container_is_locked_down_whatever_the_pod_identity(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_PIPES_RUN_AS_USER", "1001")
+
+        assert PipesSecurityContextConfig().to_container_security_context() == {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["ALL"]},
+            "seccompProfile": {"type": "RuntimeDefault"},
+            "runAsNonRoot": True,
+        }
+
+
+class TestArtifactsVolumeConfig:
+    def test_values_come_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACTS_PVC_NAME", "claim")
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+
+        config = ArtifactsVolumeConfig()
+
+        assert (config.pvc_name, config.mount_path) == ("claim", "/artifacts")
+
+    def test_a_missing_value_is_rejected(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+
+        with pytest.raises(ValueError):
+            ArtifactsVolumeConfig()
+
+
 class TestResultsDeliveryConfig:
     def test_the_zip_cap_is_10_mib_by_default(self, monkeypatch):
         monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        monkeypatch.setenv("NODE_ID", "node-1")
 
         assert ResultsDeliveryConfig().max_zip_bytes == 10 * 1024 * 1024
 
     def test_the_zip_cap_comes_from_the_environment(self, monkeypatch):
         monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        monkeypatch.setenv("NODE_ID", "node-1")
         monkeypatch.setenv("RESULTS_MAX_ZIP_BYTES", "2048")
 
         assert ResultsDeliveryConfig().max_zip_bytes == 2048
+
+    def test_the_node_id_comes_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        monkeypatch.setenv("NODE_ID", "node-1")
+
+        assert ResultsDeliveryConfig().node_id == "node-1"
+
+    @pytest.mark.parametrize("node_id", [None, ""])
+    def test_a_missing_or_empty_node_id_is_rejected(self, monkeypatch, node_id):
+        monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/artifacts")
+        if node_id is not None:
+            monkeypatch.setenv("NODE_ID", node_id)
+
+        with pytest.raises(ValidationError):
+            ResultsDeliveryConfig()

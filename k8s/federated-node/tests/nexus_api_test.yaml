@@ -126,7 +126,7 @@ tests:
         documentIndex: 1
       - equal:
           path: roleRef.name
-          value: federatednode-nexus-api-role
+          value: federatednode-nexus-api-registry-role
         documentIndex: 1
       - equal:
           path: metadata.name

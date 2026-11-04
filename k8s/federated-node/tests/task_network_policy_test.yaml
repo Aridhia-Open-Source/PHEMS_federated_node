@@ -1,0 +1,162 @@
+suite: Task pod network policy
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+templates:
+  - task-network-policy.yaml
+tests:
+  - it: denies all ingress and egress for every pod in the tasks namespace
+    asserts:
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: metadata.namespace
+          value: tasks
+      - equal:
+          path: spec.podSelector
+          value: {}
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+            - Egress
+      - notExists:
+          path: spec.ingress
+
+  - it: allows only DNS by default
+    asserts:
+      - lengthEqual:
+          path: spec.egress
+          count: 1
+      - equal:
+          path: spec.egress[0]
+          value:
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-system
+                podSelector:
+                  matchLabels:
+                    k8s-app: kube-dns
+            ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+
+  - it: follows global.namespaces.tasks
+    set:
+      global:
+        namespaces:
+          tasks: partner-tasks
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: partner-tasks
+
+  - it: lets the DNS destination be replaced
+    set:
+      taskNetworkPolicy:
+        dns:
+          - ipBlock:
+              cidr: 169.254.20.10/32
+    asserts:
+      - equal:
+          path: spec.egress[0].to
+          value:
+            - ipBlock:
+                cidr: 169.254.20.10/32
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
+
+  - it: adds each dataset database after DNS, by address or by pod
+    set:
+      taskNetworkPolicy:
+        datasetEgress:
+          - to:
+              - ipBlock:
+                  cidr: 10.20.30.0/28
+            ports:
+              - protocol: TCP
+                port: 1433
+          - to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: experiments
+                podSelector:
+                  matchLabels:
+                    app: experiments-postgres
+            ports:
+              - protocol: TCP
+                port: 5432
+    asserts:
+      - lengthEqual:
+          path: spec.egress
+          count: 3
+      - equal:
+          path: spec.egress[1]
+          value:
+            to:
+              - ipBlock:
+                  cidr: 10.20.30.0/28
+            ports:
+              - protocol: TCP
+                port: 1433
+      - equal:
+          path: spec.egress[2].to[0].podSelector.matchLabels
+          value:
+            app: experiments-postgres
+      - equal:
+          path: spec.egress[2].ports[0].port
+          value: 5432
+
+  - it: fails when the tasks namespace is the release namespace
+    set:
+      global:
+        namespaces:
+          tasks: federatednode
+    asserts:
+      - failedTemplate:
+          errorPattern: the namespace of the node's own pods
+
+  - it: fails when the tasks namespace is the Keycloak namespace
+    set:
+      global:
+        namespaces:
+          tasks: keycloak
+    asserts:
+      - failedTemplate:
+          errorPattern: the namespace of the node's own pods
+
+  - it: fails on a dataset rule without a destination
+    set:
+      taskNetworkPolicy:
+        datasetEgress:
+          - ports:
+              - protocol: TCP
+                port: 5432
+    asserts:
+      - failedTemplate:
+          errorPattern: needs both `to` and `ports`
+
+  - it: fails on a dataset rule without ports
+    set:
+      taskNetworkPolicy:
+        datasetEgress:
+          - to:
+              - ipBlock:
+                  cidr: 10.20.30.0/28
+    asserts:
+      - failedTemplate:
+          errorPattern: needs both `to` and `ports`
+
+  - it: fails on an empty DNS destination
+    set:
+      taskNetworkPolicy:
+        dns: []
+    asserts:
+      - failedTemplate:
+          errorPattern: needs both `to` and `ports`

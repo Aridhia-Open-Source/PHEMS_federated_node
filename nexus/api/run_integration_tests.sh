@@ -28,7 +28,7 @@ export KEYCLOAK_SERVICE_USER=fn-service KEYCLOAK_SERVICE_PASSWORD=servicepass1
 export KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2
 export KEYCLOAK_TOKEN_LIFE=3600 KEYCLOAK_LOGLEVEL=INFO
 export PYTHONPATH=/app
-export DEFAULT_NAMESPACE=default TASK_NAMESPACE=tasks KEYCLOAK_NAMESPACE=keycloak
+export SECRETS_NAMESPACE=fn-secrets TASK_NAMESPACE=tasks KEYCLOAK_NAMESPACE=keycloak
 export PUBLIC_URL=localhost:5000
 
 # Where steps leave each kc-init run's output for the steps that assert across runs.

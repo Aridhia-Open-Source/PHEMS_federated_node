@@ -21,7 +21,7 @@ flowchart TD
     H -->|"PATCH /projects/{project_id}/tasks/id"| T[Task status mirrors the run]
     G -->|"run SUCCESS"| J[task_results_delivery_sensor]
     J -->|"RunRequest deliver/task/attempt"| K[deliver_results_job]
-    K -->|"zip, spec.json, metadata.json pushed to a branch"| L[result PUSHED]
+    K -->|"zip, spec.json, run.json pushed to a branch"| L[result PUSHED]
     K -->|"PR from branch into default branch"| M[result OPENED]
     M --> N[results_pull_request_sync_sensor]
     L --> N
@@ -89,7 +89,7 @@ sequenceDiagram
     DG->>K8s: k8s_pipes_job starts the task pod
     DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS
     DG->>BE: POST /projects/<id>/results (task, global results repository id)
-    DG->>Git: clone results repository, push branch with results.zip, spec.json, metadata.json
+    DG->>Git: clone results repository, push branch with results.zip, spec.json, run.json
     DG->>BE: PATCH result PUSHED, then OPENED (number, url)
     DG->>Git: open PR from branch
     Dev->>CLI: merge-results-pr
@@ -168,6 +168,6 @@ The 12 sensors have `default_status=STOPPED` (`fnDagster.sensors.initialStatus`)
 | `task_results_delivery_sensor` | run-status sensor (SUCCESS) on `k8s_pipes_job` | succeeded task runs | `deliver_results_job`, key `deliver/<task>/<attempt>`, tags `trigger=delivery`, `delivery_task_id` | `sensors/task/delivery.py` |
 | `results_delivery_retry_sensor` | sensor | results in state FAILED at a non-final step, project resource active, fewer than `DAGSTER_DELIVERY_MAX_ATTEMPTS` (5) attempts | `deliver_results_job`, key `deliver-retry/<result>/<slot>`, same tags as the delivery sensor, unless one is in flight | `sensors/task/delivery.py` |
 | `deliver_results_job` | job (run pod) | artifacts volume, task, the project's results repository assignment | branch, results PR, result PUSHED then OPENED | `delivery/results.py`, `git_push.py` |
-| `results_pull_request_sync_sensor` | sensor | results PUSHED or OPENED (inactive assignments still resolve) | `sync_results_pull_requests_job` unless in flight | `sensors/task/pull_request_sync.py` |
-| `sync_results_pull_requests_job` | job | provider PR state | result OPENED, MERGED or CLOSED, number, url, merge fields | `sensors/task/pull_request_sync.py` |
+| `results_pull_request_sync_sensor` | sensor | results PUSHED or OPENED (inactive assignments still resolve) and their provider pull requests | `sync_results_pull_requests_job` per result whose pull request changed, unless in flight | `sensors/task/pull_request_sync.py` |
+| `sync_results_pull_requests_job` | job | the patch the sensor found (run config) | result OPENED, MERGED or CLOSED, number, url, merge fields | `sensors/task/pull_request_sync.py` |
 | `noop_job` | job | nothing | smoke test of the code location and run launcher | `definitions/jobs.py` |

@@ -13,7 +13,7 @@ from fncli.backend import FncliBackendAPI
 from app.config import EnvConfig
 from app.git_uri import normalise_repo_uri
 from app.github import GH_API_BASE_URL, GithubAPI, GithubClient
-from fncli.gitea import GiteaAdminAPI, GiteaAdminClient
+from fncli.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaWebClient
 from fncli.k8s import get_k8s_secret
 from app.utils import BackendAdapter, BackendSession
 
@@ -39,8 +39,12 @@ class GiteaConfig(EnvConfig):
     namespace: str = Field(default="", alias="NAMESPACE")
 
     @property
+    def gitea_host_uri(self) -> str:
+        return to_host_url(self.gitea_url)
+
+    @property
     def gitea_host_api_uri(self) -> str:
-        return to_host_url(f"{self.gitea_url}/api/v1")
+        return f"{self.gitea_host_uri}/api/v1"
 
 
 class DagsterConfig(EnvConfig):
@@ -69,8 +73,12 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     # gitea, or github for an existing GitHub repo. Not GIT_PROVIDER, which .dev.env sets for
     # other tools.
     git_provider: str = Field(default="gitea", alias="TEST_GIT_PROVIDER")
-    # GitHub only: fncli cannot mint a token there, so both repos use this one.
+    # GitHub only: fncli cannot mint a token there, so both repos use these. A GitHub App
+    # (all three) wins over GH_TOKEN as what the secret holds; GH_TOKEN is still what fncli's own GitHub calls use.
     github_token: str = Field(default="", alias="GH_TOKEN", validate_default=False)
+    github_app_id: str = Field(default="", alias="GH_APP_ID", validate_default=False)
+    github_installation_id: str = Field(default="", alias="GH_INSTALLATION_ID", validate_default=False)
+    github_private_key: str = Field(default="", alias="GH_PRIVATE_KEY", validate_default=False)
     token_scope: ClassVar[str]
 
     @property
@@ -155,14 +163,12 @@ entity_option = click.option(
 
 
 def build_gitea_api(config: GiteaConfig) -> GiteaAdminAPI:
+    password = get_k8s_secret(secret_name="gitea-admin", namespace=config.namespace, key="password")
     client = GiteaAdminClient(
-        username=config.gitea_admin_user,
-        password=get_k8s_secret(
-            secret_name="gitea-admin", namespace=config.namespace, key="password"
-        ),
-        base_uri=config.gitea_host_api_uri,
+        username=config.gitea_admin_user, password=password, base_uri=config.gitea_host_api_uri
     )
-    return GiteaAdminAPI(client, config.gitea_admin_user)
+    web = GiteaWebClient(config.gitea_admin_user, password, base_uri=config.gitea_host_uri)
+    return GiteaAdminAPI(client, config.gitea_admin_user, web)
 
 
 def build_git_api(config: RepoConfig) -> GiteaAdminAPI | GithubAPI:
