@@ -178,6 +178,13 @@ local_resource(
 )
 DEV_URLS.append(('Gitea', 'http://localhost:4000'))
 
+local_resource(
+  'nexus-ui-port-forward',
+  serve_cmd=port_forward_cmd('nexus-ui', NAMESPACE, '8088:80'),
+  labels=['infrastructure'],
+)
+DEV_URLS.append(('nexus UI (deployed)', 'http://localhost:8088/nexus-ui/'))
+
 # The experiments chart's database, in its own namespace and release rather than the node's.
 # Waits quietly until `fncli experiment up` has created it.
 local_resource(
