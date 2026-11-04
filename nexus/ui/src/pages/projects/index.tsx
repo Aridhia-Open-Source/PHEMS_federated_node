@@ -2,13 +2,19 @@
 // (project-resources, project-health, project-triggers, project-tasks, project-results); each gets projectId.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { LinkTabs, PageHeader, type NavItem } from "@/ui";
+import { shellMessages } from "@/shell/messages";
+import { renderLink } from "@/shell/RouterLink";
 import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
 import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
+import { BackLink } from "../../shared/BackLink";
+import { Loading } from "../../shared/Loading";
+import { NewButton } from "../../shared/NewButton";
 import ProjectResources from "../project-resources";
 import ProjectHealth from "../project-health";
 import ProjectTriggers from "../project-triggers";
@@ -17,6 +23,7 @@ import ProjectResults from "../project-results";
 
 type Project = Schemas["ProjectDTO"];
 const KEY = ["projects"];
+const m = shellMessages.pages.projects;
 
 const createFields: Field[] = [
   { name: "name", required: true },
@@ -56,8 +63,7 @@ function ProjectList() {
   });
   return (
     <section>
-      <h1>Projects</h1>
-      <Link to="new" className="button">New project</Link>
+      <PageHeader title={m.title} actions={<NewButton>{m.new}</NewButton>} />
       <ResourceTable<Project>
         data={data}
         onPage={setPage}
@@ -66,7 +72,7 @@ function ProjectList() {
           { header: "Name", cell: (p) => <Link to={String(p.id)}>{p.name}</Link> },
           { header: "Description", cell: (p) => p.description },
           { header: "Enabled", cell: (p) => (
-            <EnabledToggle enabled={p.enabled} onChange={(enabled) => setEnabled.mutate({ project_id: p.id, enabled })} />
+            <EnabledToggle hideLabel enabled={p.enabled} onChange={(enabled) => setEnabled.mutate({ project_id: p.id, enabled })} />
           ) },
           { header: "Created", cell: (p) => p.created_at },
           { header: "", cell: (p) => <DeleteButton what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
@@ -89,12 +95,20 @@ function ProjectCreate() {
   });
   return (
     <section>
-      <h1>New project</h1>
-      <p>Projects start disabled. Assign repositories, datasets and secrets, then enable it.</p>
+      <BackLink to=".." what={m.back} />
+      <PageHeader title={m.new} description={m.newIntro} />
       <DtoForm fields={createFields} submitLabel="Create" busy={create.isPending} onSubmit={(b) => create.mutate(b)} />
     </section>
   );
 }
+
+// The detail page's tabs; each is a route below the project
+const tabs = (id: number): NavItem[] => [
+  { id: "overview", label: m.tabs.overview, to: `/projects/${id}` },
+  ...(["resources", "health", "triggers", "tasks", "results"] as const).map((tab) => ({
+    id: tab, label: m.tabs[tab], to: `/projects/${id}/${tab}`,
+  })),
+];
 
 function ProjectDetail() {
   const id = Number(useParams().id);
@@ -103,21 +117,19 @@ function ProjectDetail() {
     queryFn: () => call(api.GET("/projects/{project_id}", { params: { path: { project_id: id } } })),
   });
   const setEnabled = useSetEnabled(id);
-  if (!data) return <p>Loading…</p>;
+  const section = useParams()["*"]!.split("/")[0];
+  if (!data) return <Loading />;
   return (
     <section>
-      <p><Link to="..">← Projects</Link></p>
-      <h1>Project {data.name}</h1>
-      <EnabledToggle enabled={data.enabled} busy={setEnabled.isPending}
-        onChange={(enabled) => setEnabled.mutate({ project_id: id, enabled })} />
-      <nav className="tabs">
-        <NavLink to="" end>Overview</NavLink>
-        <NavLink to="resources">Resources</NavLink>
-        <NavLink to="health">Healthcheck</NavLink>
-        <NavLink to="triggers">Triggers</NavLink>
-        <NavLink to="tasks">Tasks</NavLink>
-        <NavLink to="results">Results</NavLink>
-      </nav>
+      <BackLink to=".." what={m.back} />
+      <PageHeader
+        title={m.detail(data.name)}
+        actions={
+          <EnabledToggle enabled={data.enabled} busy={setEnabled.isPending}
+            onChange={(enabled) => setEnabled.mutate({ project_id: id, enabled })} />
+        }
+      />
+      <LinkTabs label={m.tabsLabel} items={tabs(id)} activeId={section || "overview"} renderLink={renderLink} />
       <Routes>
         <Route index element={<Json value={data} />} />
         <Route path="resources/*" element={<ProjectResources projectId={id} />} />

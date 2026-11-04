@@ -3,12 +3,18 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Route, Routes, useParams } from "react-router-dom";
+import { Button, SectionHeading } from "@/ui";
+import { shellMessages } from "@/shell/messages";
 import { api, call, quietApi, type Page, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
+import { BackLink } from "../../shared/BackLink";
+import { Loading } from "../../shared/Loading";
+import { StatusBadge } from "../../shared/StatusBadge";
 import { pullRequestPath, taskPath } from "../../shared/projectResources";
 
 type Task = Schemas["TaskDTO"];
+const m = shellMessages.pages.tasks;
 
 export default function ProjectTasks({ projectId }: { projectId: number }) {
   return (
@@ -47,8 +53,8 @@ function TaskList({ projectId }: { projectId: number }) {
   });
   return (
     <section>
-      <h2>Tasks</h2>
       <ResourceTable<Task>
+        title={m.title}
         data={data}
         onPage={setPage}
         rowKey={(t) => t.id}
@@ -56,7 +62,7 @@ function TaskList({ projectId }: { projectId: number }) {
         columns={[
           { header: "Id", cell: (t) => <Link to={taskPath(projectId, t.id)}>{t.id}</Link> },
           { header: "Name", cell: (t) => t.name },
-          { header: "Status", cell: (t) => t.status },
+          { header: "Status", cell: (t) => (t.status ? <StatusBadge status={t.status} /> : null) },
           { header: "Trigger", cell: (t) => <TaskTrigger projectId={projectId} taskId={t.id} /> },
           { header: "Attempt", cell: (t) => t.attempt },
           { header: "Started", cell: (t) => t.started_at },
@@ -88,20 +94,20 @@ function TaskDetail({ projectId }: { projectId: number }) {
     queryFn: () => call(api.GET("/projects/{project_id}/tasks/{task_id}/logs", { params: { path } })),
     enabled: false,
   });
-  if (!data) return <p>Loading…</p>;
+  if (!data) return <Loading />;
   return (
     <section>
-      <p><Link to={`/projects/${projectId}/tasks`}>← Tasks</Link></p>
-      <h2>Task {taskId}: {data.name}</h2>
-      <p>Pull request: <TaskTrigger projectId={projectId} taskId={taskId} /></p>
+      <BackLink to={`/projects/${projectId}/tasks`} what={m.back} />
+      <SectionHeading>{m.detail(taskId, data.name)}</SectionHeading>
+      <p className="mb-6">{m.pullRequest} <TaskTrigger projectId={projectId} taskId={taskId} /></p>
       <Json value={data} />
-      <h3>Config</h3>
-      {config.data !== undefined ? <Json value={config.data} /> : <p>Loading…</p>}
-      <h3>Results</h3>
-      {results.data !== undefined ? <Json value={results.data} /> : <p>Loading…</p>}
-      <h3>Logs</h3>
-      <button onClick={() => logs.refetch()} disabled={logs.isFetching}>Load logs</button>
-      {logs.data !== undefined && <Json value={logs.data} />}
+      <SectionHeading level={3}>{m.config}</SectionHeading>
+      {config.data !== undefined ? <Json value={config.data} /> : <Loading />}
+      <SectionHeading level={3}>{m.results}</SectionHeading>
+      {results.data !== undefined ? <Json value={results.data} /> : <Loading />}
+      <SectionHeading level={3}>{m.logs}</SectionHeading>
+      <Button variant="secondary" busy={logs.isFetching} onClick={() => logs.refetch()}>{m.loadLogs}</Button>
+      {logs.data !== undefined && <div className="mt-6"><Json value={logs.data} /></div>}
     </section>
   );
 }

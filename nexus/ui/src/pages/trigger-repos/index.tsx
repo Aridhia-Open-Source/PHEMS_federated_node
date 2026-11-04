@@ -2,6 +2,8 @@
 // healthcheck, edit and the projects using it. Pull requests live under a project's Triggers tab.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { PageHeader, SectionHeading } from "@/ui";
+import { shellMessages } from "@/shell/messages";
 import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
@@ -10,6 +12,13 @@ import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
 import { RevokeButton } from "../../shared/RevokeButton";
 import { TriggerUsedBy } from "../../shared/UsedBy";
+import { BackLink } from "../../shared/BackLink";
+import { Healthcheck } from "../../shared/Healthcheck";
+import { Loading } from "../../shared/Loading";
+import { NewButton } from "../../shared/NewButton";
+import { StatusBadge } from "../../shared/StatusBadge";
+
+const m = shellMessages.pages.triggerRepos;
 
 type Repo = Schemas["TriggerRepositoryDTO"];
 const KEY = ["trigger-repos"];
@@ -79,8 +88,7 @@ function RepoList() {
   const remove = useRemove();
   return (
     <section>
-      <h1>Trigger repositories</h1>
-      <Link to="new" className="button">New trigger repository</Link>
+      <PageHeader title={m.title} actions={<NewButton>{m.new}</NewButton>} />
       <ResourceTable<Repo>
         data={data}
         rowKey={(r) => r.id}
@@ -90,17 +98,17 @@ function RepoList() {
           { header: "Provider", cell: (r) => r.provider.name },
           { header: "Secret", cell: (r) => r.secret.label },
           { header: "Cursor", cell: (r) => r.pr_cursor },
-          { header: "Revoked", cell: (r) => (r.revoked ? "yes" : "") },
+          { header: "Revoked", cell: (r) => (r.revoked ? <StatusBadge status="revoked" /> : null) },
           { header: "Enabled", cell: (r) => (
-            <EnabledToggle enabled={r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id, enabled })} />
+            <EnabledToggle hideLabel enabled={r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id, enabled })} />
           ) },
           { header: "", cell: (r) => (
-            <>
+            <span className="flex gap-2">
               <RevokeButton revoked={r.revoked} what={r.repo_path}
-                onChange={(revoked) => revoke.mutate({ id: r.id, revoked })} />{" "}
+                onChange={(revoked) => revoke.mutate({ id: r.id, revoked })} />
               <DeleteButton what={r.repo_path} allowForce
                 onConfirm={(force) => remove.mutate({ id: r.id, force })} />
-            </>
+            </span>
           ) },
         ]}
       />
@@ -114,10 +122,10 @@ function RepoCreate() {
   const providers = useProviders();
   const secrets = useSecretLabels();
   const fields: Field[] = [
-    { name: "provider_id", label: "provider", type: "select", required: true,
+    { name: "provider_id", label: "Provider", type: "select", required: true,
       options: providers.data?.map(providerOption) ?? [] },
     { name: "repo_path", required: true, help: "owner/name on the provider" },
-    { name: "secret_label", label: "secret", type: "select", required: true,
+    { name: "secret_label", label: "Secret", type: "select", required: true,
       options: secrets.data?.map((s: Schemas["SecretDTO"]) => s.label) ?? [] },
     { name: "enabled", type: "checkbox" },
   ];
@@ -133,8 +141,8 @@ function RepoCreate() {
   });
   return (
     <section>
-      <p><Link to="..">← Trigger repositories</Link></p>
-      <h1>New trigger repository</h1>
+      <BackLink to=".." what={m.back} />
+      <PageHeader title={m.new} />
       <DtoForm fields={fields} initial={{ enabled: true }} submitLabel="Create"
         busy={create.isPending} onSubmit={(b) => create.mutate(b)} />
     </section>
@@ -166,26 +174,30 @@ function RepoDetail() {
   });
   const revoke = useSetRevoked();
   const remove = useRemove(() => nav(".."));
-  if (!data) return <p>Loading…</p>;
+  if (!data) return <Loading />;
   const editFields: Field[] = [
-    { name: "provider_id", label: "provider", type: "select", required: true,
+    { name: "provider_id", label: "Provider", type: "select", required: true,
       options: providers.data?.map(providerOption) ?? [] },
-    { name: "secret_label", label: "secret", type: "select", required: true,
+    { name: "secret_label", label: "Secret", type: "select", required: true,
       options: secrets.data?.map((s: Schemas["SecretDTO"]) => s.label) ?? [] },
     { name: "enabled", type: "checkbox" },
   ];
   return (
     <section>
-      <p><Link to="..">← Trigger repositories</Link></p>
-      <h1>Trigger repository {data.repo_path}</h1>
-      <p>
-        <RevokeButton revoked={data.revoked} what={data.repo_path}
-          onChange={(revoked) => revoke.mutate({ id, revoked })} />{" "}
-        <DeleteButton what={data.repo_path} allowForce
-          onConfirm={(force) => remove.mutate({ id, force })} />
-      </p>
+      <BackLink to=".." what={m.back} />
+      <PageHeader
+        title={m.detail(data.repo_path)}
+        actions={
+          <>
+            <RevokeButton revoked={data.revoked} what={data.repo_path}
+              onChange={(revoked) => revoke.mutate({ id, revoked })} />
+            <DeleteButton what={data.repo_path} allowForce
+              onConfirm={(force) => remove.mutate({ id, force })} />
+          </>
+        }
+      />
       <Json value={data} />
-      <h2>Edit</h2>
+      <SectionHeading>{shellMessages.pages.edit}</SectionHeading>
       {providers.data && secrets.data && (
         <DtoForm key={JSON.stringify(data)} fields={editFields} submitLabel="Update" busy={update.isPending}
           initial={{
@@ -195,9 +207,7 @@ function RepoDetail() {
           }}
           onSubmit={(b) => update.mutate(b)} />
       )}
-      <h2>Healthcheck</h2>
-      <button onClick={() => health.refetch()}>Run healthcheck</button>
-      {health.data !== undefined && <Json value={health.data} />}
+      <Healthcheck query={health} />
       <TriggerUsedBy id={id} />
     </section>
   );

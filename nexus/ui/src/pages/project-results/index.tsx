@@ -1,11 +1,17 @@
 // Project results (read-only): list of results, click one for its detail.
 import { useQuery } from "@tanstack/react-query";
 import { Link, Route, Routes, useParams } from "react-router-dom";
+import { SectionHeading } from "@/ui";
+import { shellMessages } from "@/shell/messages";
 import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
+import { BackLink } from "../../shared/BackLink";
+import { Loading } from "../../shared/Loading";
+import { StatusBadge } from "../../shared/StatusBadge";
 
 type Result = Schemas["PullRequestResultDTO"];
+const m = shellMessages.pages.results;
 
 export default function ProjectResults({ projectId }: { projectId: number }) {
   return (
@@ -23,8 +29,8 @@ function ResultList({ projectId }: { projectId: number }) {
   });
   return (
     <section>
-      <h2>Results</h2>
       <ResourceTable<Result>
+        title={m.title}
         data={data}
         rowKey={(r) => r.id}
         empty="No results yet"
@@ -33,7 +39,7 @@ function ResultList({ projectId }: { projectId: number }) {
           { header: "Task", cell: (r) => r.task_id },
           { header: "Type", cell: (r) => r.type },
           { header: "Step", cell: (r) => r.step },
-          { header: "State", cell: (r) => r.state },
+          { header: "State", cell: (r) => <StatusBadge status={r.state} /> },
           { header: "Attempts", cell: (r) => r.attempts },
           { header: "Error", cell: (r) => r.error },
           { header: "Pull request", cell: (r) => (r.url ? <a href={r.url} target="_blank" rel="noreferrer">{r.number ?? r.url}</a> : "") },
@@ -55,9 +61,9 @@ function ResultDetail({ projectId }: { projectId: number }) {
   });
   return (
     <section>
-      <p><Link to="..">← Results</Link></p>
-      <h2>Result {resultId}</h2>
-      {data ? <Json value={data} /> : <p>Loading…</p>}
+      <BackLink to=".." what={m.back} />
+      <SectionHeading>{m.detail(resultId)}</SectionHeading>
+      {data ? <Json value={data} /> : <Loading />}
     </section>
   );
 }

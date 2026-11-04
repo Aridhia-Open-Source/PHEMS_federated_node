@@ -19,6 +19,7 @@ export interface DataTableProps<T> {
   /** Says what is missing when there are no rows. */
   emptyTitle: string;
   actionsLabel?: string;
+  className?: string;
 }
 
 /**
@@ -33,9 +34,10 @@ export function DataTable<T>({
   title,
   emptyTitle,
   actionsLabel = messages.dataTable.actions,
+  className,
 }: DataTableProps<T>) {
   return (
-    <section className="mb-10 filter-(--shadow-section)">
+    <section className={cn("mb-10 filter-(--shadow-section)", className)}>
       {title ? (
         <h2 className="inline-block rounded-t-[10px] bg-brand px-6 py-4 text-[1.1em] leading-tight font-bold text-white">
           {title}

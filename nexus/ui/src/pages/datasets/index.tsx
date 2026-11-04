@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { PageHeader } from "@/ui";
+import { shellMessages } from "@/shell/messages";
 import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
@@ -9,6 +11,12 @@ import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
 import { DatasetUsedBy } from "../../shared/UsedBy";
+import { BackLink } from "../../shared/BackLink";
+import { Healthcheck } from "../../shared/Healthcheck";
+import { Loading } from "../../shared/Loading";
+import { NewButton } from "../../shared/NewButton";
+
+const m = shellMessages.pages.datasets;
 
 type Dataset = Schemas["DatasetDTO"];
 const KEY = ["datasets"];
@@ -59,8 +67,7 @@ function DatasetList() {
   const remove = useRemove();
   return (
     <section>
-      <h1>Datasets</h1>
-      <Link to="new" className="button">New dataset</Link>
+      <PageHeader title={m.title} actions={<NewButton>{m.new}</NewButton>} />
       <ResourceTable<Dataset>
         data={data}
         onPage={setPage}
@@ -71,7 +78,7 @@ function DatasetList() {
           { header: "Type", cell: (d) => d.type },
           { header: "Secret", cell: (d) => d.secret.label },
           { header: "Enabled", cell: (d) => (
-            <EnabledToggle enabled={d.enabled} onChange={(enabled) => setEnabled.mutate({ id: d.id, enabled })} />
+            <EnabledToggle hideLabel enabled={d.enabled} onChange={(enabled) => setEnabled.mutate({ id: d.id, enabled })} />
           ) },
           { header: "", cell: (d) => (
             <DeleteButton what={d.name} allowForce onConfirm={(force) => remove.mutate({ id: d.id, force })} />
@@ -92,7 +99,7 @@ function DatasetCreate() {
     { name: "port", type: "number", required: true },
     {
       name: "secret_label",
-      label: "credentials secret",
+      label: "Credentials secret",
       type: "select",
       options: (secrets.data ?? []).map((s) => s.label),
       required: true,
@@ -116,8 +123,8 @@ function DatasetCreate() {
   });
   return (
     <section>
-      <p><Link to="..">← Datasets</Link></p>
-      <h1>New dataset</h1>
+      <BackLink to=".." what={m.back} />
+      <PageHeader title={m.new} />
       <DtoForm fields={fields} initial={{ enabled: true }} submitLabel="Create"
         busy={create.isPending} onSubmit={(b) => create.mutate(b)} />
     </section>
@@ -138,19 +145,21 @@ function DatasetDetail() {
   });
   const setEnabled = useSetEnabled();
   const remove = useRemove(() => nav(".."));
-  if (!data) return <p>Loading…</p>;
+  if (!data) return <Loading />;
   return (
     <section>
-      <p><Link to="..">← Datasets</Link></p>
-      <h1>Dataset {data.name}</h1>
-      <p>
-        <EnabledToggle enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />{" "}
-        <DeleteButton what={data.name} allowForce onConfirm={(force) => remove.mutate({ id, force })} />
-      </p>
+      <BackLink to=".." what={m.back} />
+      <PageHeader
+        title={m.detail(data.name)}
+        actions={
+          <>
+            <EnabledToggle enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />
+            <DeleteButton what={data.name} allowForce onConfirm={(force) => remove.mutate({ id, force })} />
+          </>
+        }
+      />
       <Json value={data} />
-      <h2>Healthcheck</h2>
-      <button onClick={() => health.refetch()}>Run healthcheck</button>
-      {health.data !== undefined && <Json value={health.data} />}
+      <Healthcheck query={health} />
       <DatasetUsedBy id={id} />
     </section>
   );

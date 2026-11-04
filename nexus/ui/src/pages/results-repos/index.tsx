@@ -1,6 +1,8 @@
 // Results repositories: list, create, enable toggle, revoke/restore, delete (force), detail + healthcheck.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { PageHeader, SectionHeading } from "@/ui";
+import { shellMessages } from "@/shell/messages";
 import { api, call, type Schemas } from "../../api/client";
 import { RevokeButton } from "../../shared/RevokeButton";
 import { ResourceTable } from "../../shared/ResourceTable";
@@ -9,6 +11,13 @@ import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
 import { ResultsUsedBy } from "../../shared/UsedBy";
+import { BackLink } from "../../shared/BackLink";
+import { Healthcheck } from "../../shared/Healthcheck";
+import { Loading } from "../../shared/Loading";
+import { NewButton } from "../../shared/NewButton";
+import { StatusBadge } from "../../shared/StatusBadge";
+
+const m = shellMessages.pages.resultsRepos;
 
 type Repo = Schemas["ResultsRepositoryDTO"];
 type Provider = Schemas["GitProviderDTO"];
@@ -81,8 +90,7 @@ function RepoList() {
   const { setEnabled, revoke, remove } = useRepoActions();
   return (
     <section>
-      <h1>Results repositories</h1>
-      <Link to="new" className="button">New results repository</Link>
+      <PageHeader title={m.title} actions={<NewButton>{m.new}</NewButton>} />
       <ResourceTable<Repo>
         data={data}
         rowKey={(r) => r.id}
@@ -91,15 +99,15 @@ function RepoList() {
           { header: "Provider", cell: (r) => r.provider.name },
           { header: "Secret", cell: (r) => r.secret.label },
           { header: "Enabled", cell: (r) => (
-            <EnabledToggle enabled={r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id, enabled })} />
+            <EnabledToggle hideLabel enabled={r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id, enabled })} />
           ) },
-          { header: "Revoked", cell: (r) => (r.revoked ? "yes" : "") },
+          { header: "Revoked", cell: (r) => (r.revoked ? <StatusBadge status="revoked" /> : null) },
           { header: "", cell: (r) => (
-            <RevokeButton revoked={r.revoked} what={r.repo_path}
-              onChange={(revoked) => revoke.mutate({ id: r.id, revoked })} />
-          ) },
-          { header: " ", cell: (r) => (
-            <DeleteButton what={r.repo_path} allowForce onConfirm={(force) => remove.mutate({ id: r.id, force })} />
+            <span className="flex gap-2">
+              <RevokeButton revoked={r.revoked} what={r.repo_path}
+                onChange={(revoked) => revoke.mutate({ id: r.id, revoked })} />
+              <DeleteButton what={r.repo_path} allowForce onConfirm={(force) => remove.mutate({ id: r.id, force })} />
+            </span>
           ) },
         ]}
       />
@@ -121,18 +129,18 @@ function RepoCreate() {
       nav(`../${r.id}`);
     },
   });
-  if (!opts.ready) return <p>Loading…</p>;
+  if (!opts.ready) return <Loading />;
   const fields: Field[] = [
-    { name: "provider_id", label: "provider", type: "select", options: opts.providers, required: true },
+    { name: "provider_id", label: "Provider", type: "select", options: opts.providers, required: true },
     { name: "repo_path", required: true, help: "owner/name on the provider" },
-    { name: "secret_label", label: "secret", type: "select", options: opts.secrets, required: true,
+    { name: "secret_label", label: "Secret", type: "select", options: opts.secrets, required: true,
       help: "The secret holding the provider token" },
     { name: "enabled", type: "checkbox" },
   ];
   return (
     <section>
-      <p><Link to="..">← Results repositories</Link></p>
-      <h1>New results repository</h1>
+      <BackLink to=".." what={m.back} />
+      <PageHeader title={m.new} />
       <DtoForm fields={fields} initial={{ enabled: true }} submitLabel="Create"
         busy={create.isPending} onSubmit={(b) => create.mutate(b)} />
     </section>
@@ -162,25 +170,29 @@ function RepoDetail() {
     queryFn: () => call(api.GET("/global/repositories/results/{repository_id}/healthcheck", { params: { path: { repository_id: id } } })),
     enabled: false,
   });
-  if (!data || !opts.ready) return <p>Loading…</p>;
+  if (!data || !opts.ready) return <Loading />;
   const fields: Field[] = [
-    { name: "provider_id", label: "provider", type: "select", options: opts.providers, required: true },
-    { name: "secret_label", label: "secret", type: "select", options: opts.secrets, required: true },
+    { name: "provider_id", label: "Provider", type: "select", options: opts.providers, required: true },
+    { name: "secret_label", label: "Secret", type: "select", options: opts.secrets, required: true },
     { name: "enabled", type: "checkbox" },
   ];
   return (
     <section>
-      <p><Link to="..">← Results repositories</Link></p>
-      <h1>Results repository {data.repo_path}</h1>
+      <BackLink to=".." what={m.back} />
+      <PageHeader
+        title={m.detail(data.repo_path)}
+        actions={
+          <>
+            <EnabledToggle enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />
+            <RevokeButton revoked={data.revoked} what={data.repo_path}
+              onChange={(revoked) => revoke.mutate({ id, revoked })} />
+            <DeleteButton what={data.repo_path} allowForce
+              onConfirm={(force) => remove.mutate({ id, force })} />
+          </>
+        }
+      />
       <Json value={data} />
-      <p>
-        <EnabledToggle enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />{" "}
-        <RevokeButton revoked={data.revoked} what={data.repo_path}
-          onChange={(revoked) => revoke.mutate({ id, revoked })} />{" "}
-        <DeleteButton what={data.repo_path} allowForce
-          onConfirm={(force) => remove.mutate({ id, force })} />
-      </p>
-      <h2>Edit</h2>
+      <SectionHeading>{shellMessages.pages.edit}</SectionHeading>
       <DtoForm key={JSON.stringify(data)} fields={fields} submitLabel="Update" busy={update.isPending}
         initial={{
           provider_id: data.provider ? providerOption(data.provider) : "",
@@ -188,9 +200,7 @@ function RepoDetail() {
           enabled: data.enabled,
         }}
         onSubmit={(b) => update.mutate(b)} />
-      <h2>Healthcheck</h2>
-      <button onClick={() => health.refetch()}>Run healthcheck</button>
-      {health.data !== undefined && <Json value={health.data} />}
+      <Healthcheck query={health} />
       <ResultsUsedBy id={id} />
     </section>
   );

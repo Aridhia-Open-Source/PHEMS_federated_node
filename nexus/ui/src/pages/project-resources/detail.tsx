@@ -5,12 +5,21 @@
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
+import { Button, DetailField, DetailSection, Icon, PageHeader, SectionHeading } from "@/ui";
+import { shellMessages } from "@/shell/messages";
 import { api, call } from "../../api/client";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
+import { BackLink } from "../../shared/BackLink";
+import { Healthcheck } from "../../shared/Healthcheck";
+import { Loading } from "../../shared/Loading";
+import { StateBadges } from "../../shared/StatusBadge";
+import { sentence } from "../../shared/text";
+
+const m = shellMessages.pages.resourceDetail;
 import { PullRequestList } from "../project-triggers";
 import {
-  datasetResource, globalPath, resourceKey, resourcesPath, resultsResource, secretResource, stateText,
+  datasetResource, globalPath, resourceKey, resourcesPath, resultsResource, secretResource,
   triggerResource, type Flags, type Kind,
 } from "../../shared/projectResources";
 
@@ -36,31 +45,32 @@ function ResourceView(p: ViewProps) {
     queryFn: p.health,
     enabled: false,
   });
-  if (!p.resource) return <p>Loading…</p>;
+  if (!p.resource) return <Loading />;
   return (
     <section>
-      <p><Link to={resourcesPath(p.projectId)}>← Resources</Link></p>
-      <h2>{p.title}</h2>
-      <p>
-        <EnabledToggle enabled={p.resource.enabled} busy={p.busy} onChange={p.onToggle} />{" "}
-        State: {stateText(p.resource)}
-      </p>
-      <p><Link to={globalPath(p.kind, p.id)}>Global resource</Link></p>
-      <h3>Settings</h3>
-      <table className="table">
-        <tbody>
-          {Object.entries(p.settings).map(([k, v]) => (
-            <tr key={k}><th>{k}</th><td>{show(v)}</td></tr>
-          ))}
-        </tbody>
-      </table>
-      <details>
-        <summary>Raw response</summary>
+      <BackLink to={resourcesPath(p.projectId)} what={m.back} />
+      <PageHeader
+        title={p.title}
+        actions={
+          <>
+            <EnabledToggle enabled={p.resource.enabled} busy={p.busy} onChange={p.onToggle} />
+            <Button asChild variant="secondary" size="sm">
+              <Link to={globalPath(p.kind, p.id)}>{m.global}<Icon name="next" size="sm" /></Link>
+            </Button>
+          </>
+        }
+      />
+      <DetailSection title={m.settings}>
+        <DetailField label={m.state}><StateBadges flags={p.resource} /></DetailField>
+        {Object.entries(p.settings).map(([k, v]) => (
+          <DetailField key={k} label={sentence(k)}>{show(v)}</DetailField>
+        ))}
+      </DetailSection>
+      <details className="mb-10">
+        <summary className="mb-4 cursor-pointer font-semibold text-blue">{m.raw}</summary>
         <Json value={p.resource} />
       </details>
-      <h3>Healthcheck</h3>
-      <button onClick={() => health.refetch()} disabled={health.isFetching}>Run healthcheck</button>
-      {health.data !== undefined && <Json value={health.data} />}
+      <Healthcheck query={health} />
       {p.children}
     </section>
   );
@@ -102,7 +112,7 @@ export function TriggerResourcePage({ projectId }: { projectId: number }) {
         params: { path },
       }))}
     >
-      <h3>Pull requests</h3>
+      <SectionHeading>{m.pullRequests}</SectionHeading>
       <PullRequestList projectId={projectId} repositoryId={id} />
     </ResourceView>
   );

@@ -45,7 +45,6 @@ export default function ProjectResources({ projectId }: { projectId: number }) {
 function ResourceList({ projectId }: { projectId: number }) {
   return (
     <div>
-      <h1>Resources</h1>
       <TriggerResources projectId={projectId} />
       <ResultsResources projectId={projectId} />
       <DatasetResources projectId={projectId} />
