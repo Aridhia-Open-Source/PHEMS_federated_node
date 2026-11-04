@@ -7,6 +7,8 @@
 
 As a technical partner of the project Aridhia has developed the Federated Node an open source component for running federated tasks.
 
+- [Setting up git apps](SETUP_GIT_APPS.md): GitHub App and Gitea OAuth credentials for repositories.
+
 ## Project
 
 The Federated Node is based on three existing open source projects:
