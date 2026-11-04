@@ -16,6 +16,12 @@ def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
     return base64.b64decode(secret.data[key].encode()).decode()
 
 
+def remove_k8s_secret_keys(secret_name: str, namespace: str, keys: list[str]):
+    """Remove keys from a Kubernetes secret and leave the others as they are."""
+    load_kube_config()
+    client.CoreV1Api().patch_namespaced_secret(secret_name, namespace, {"data": {key: None for key in keys}})
+
+
 CODE_SERVER_CONTAINER = "dagster-code-server"
 ENV_CONFIGMAP = "dagster-env-config"
 
