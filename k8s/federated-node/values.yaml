@@ -8,6 +8,7 @@
 dagsterHome: /opt/dagster/home
 
 # nexus-api (nexus/api): the Federated Node API. Its db-migrations init container owns the schema.
+# nexus.ui: its admin UI (nexus/ui), proxying /nexus-ui/api to nexus-api.
 nexus:
   api:
     image: ghcr.io/aridhia-open-source/nexus_api
@@ -23,6 +24,18 @@ nexus:
       secret:
         name: nexus-db
         key: password
+  ui:
+    enabled: false
+    image: ghcr.io/aridhia-open-source/federated_node_nexus_ui
+    tag:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 128Mi
 
 keycloak:
   image: ghcr.io/aridhia-open-source/federated_keycloak

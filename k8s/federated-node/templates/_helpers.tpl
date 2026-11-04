@@ -33,6 +33,10 @@ Create chart name and version as used by the chart label.
 {{- define "nexus-api-image" -}}
 {{ printf "%s:%s" (.Values.nexus.api.image) ((.Values.nexus.api.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}
+
+{{- define "nexus-ui-image" -}}
+{{ printf "%s:%s" (.Values.nexus.ui.image) ((.Values.nexus.ui.tag) | default (include "image-tag" . | trim)) }}
+{{- end }}
 {{- define "fn-alpine" -}}
 {{ printf "%s:%s" (.Values.alpine.image) ((.Values.alpine.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}

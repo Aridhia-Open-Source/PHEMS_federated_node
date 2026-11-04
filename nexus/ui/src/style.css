@@ -1,0 +1,24 @@
+body { margin: 0; font-family: system-ui, sans-serif; font-size: 14px; background: #fafafa; color: #222; }
+.layout { display: flex; min-height: 100vh; }
+.sidebar { display: flex; flex-direction: column; gap: 6px; width: 200px; padding: 16px; background: #23303f; }
+.sidebar strong, .sidebar a { color: #fff; text-decoration: none; }
+.sidebar a.active { font-weight: bold; text-decoration: underline; }
+main { flex: 1; padding: 16px 24px; overflow-x: auto; }
+.table { border-collapse: collapse; margin: 12px 0; width: 100%; background: #fff; }
+.table th, .table td { border: 1px solid #ddd; padding: 4px 8px; text-align: left; vertical-align: top; }
+.pager { display: flex; gap: 8px; align-items: center; }
+.form { display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
+.form label { display: flex; flex-direction: column; gap: 2px; }
+.form small { color: #666; }
+.login { margin: 80px auto; }
+.button, button { display: inline-block; padding: 4px 10px; border: 1px solid #888; border-radius: 3px; background: #fff; color: #222; text-decoration: none; cursor: pointer; font: inherit; }
+button.danger { border-color: #b00; color: #b00; }
+.confirm { display: inline-flex; gap: 6px; align-items: center; }
+.tabs { display: flex; gap: 12px; margin: 12px 0; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
+.tabs a.active { font-weight: bold; }
+.json { background: #f0f0f0; padding: 8px; overflow-x: auto; }
+.error { color: #b00; }
+.toasts { position: fixed; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 6px; z-index: 10; max-width: 420px; }
+.toast { padding: 8px 12px; border-radius: 3px; cursor: pointer; color: #fff; }
+.toast-error { background: #b00; }
+.toast-info { background: #246; }
