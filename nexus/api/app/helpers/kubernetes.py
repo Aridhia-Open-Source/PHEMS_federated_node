@@ -45,9 +45,10 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
 
         overwrite decides what an already existing secret means. Left off, it is kept:
         a create that lost a race should not clobber the winner. Turned on, the values
-        passed here win, for callers that are the authority on the content - a secret
-        that survives what it describes otherwise goes on serving credentials that no
-        longer work.
+        passed here win and are all it holds, for callers that are the authority on the
+        content - a secret that survives what it describes otherwise goes on serving
+        credentials that no longer work, and so do the keys a merge leaves behind (the
+        cached git tokens of the credentials being replaced).
         """
         body = client.V1Secret()
         body.api_version = 'v1'
@@ -71,7 +72,14 @@ class KubernetesClient(KubernetesBase, client.CoreV1Api):
                     try:
                         # PATCH, not PUT: the backend role grants `patch` on secrets but
                         # not `update`, so replace_namespaced_secret is always a 403.
-                        self.patch_namespaced_secret(name, ns, body=body, pretty='true')
+                        # `$patch: replace` makes `data` exactly the values; a plain merge
+                        # would keep every key they leave out.
+                        replacement = {
+                            'metadata': body.metadata,
+                            'type': body.type,
+                            'data': {'$patch': 'replace', **body.data},
+                        }
+                        self.patch_namespaced_secret(name, ns, body=replacement, pretty='true')
                     except ApiException as exc:
                         raise KubernetesException(exc.body) from exc
         return body

@@ -43,7 +43,10 @@ def store(k8s_client, global_secret) -> dict:
         data[(namespace, body.metadata["name"])] = dict(body.data)
 
     def patch(name, namespace, body, **kwargs):
-        data[(namespace, name)] = {**data.get((namespace, name), {}), **body.data}
+        # A strategic merge patch of `data`, where `$patch: replace` makes it the whole map
+        changed = dict(body["data"])
+        kept = {} if changed.pop("$patch", None) == "replace" else data.get((namespace, name), {})
+        data[(namespace, name)] = {**kept, **changed}
 
     def delete(name, namespace, **kwargs):
         if (namespace, name) not in data:
@@ -57,6 +60,10 @@ def store(k8s_client, global_secret) -> dict:
     global_secret.namespace = NS
     db.session.commit()
     return data
+
+
+def encoded(values: dict[str, str]) -> dict[str, str]:
+    return {key: base64.b64encode(value.encode()).decode() for key, value in values.items()}
 
 
 def secret_row() -> Secret:
@@ -167,6 +174,16 @@ def test_a_disabled_secret_cannot_be_rotated_unless_the_request_enables_it(clien
 
     assert patch(client, admin_headers, values={"TOKEN": "n"}, enabled=True).status_code == 200
     assert store == {(NS, KEY): {"TOKEN": base64.b64encode(b"n").decode()}}
+
+
+def test_rotating_replaces_the_stored_values_so_a_cached_git_token_goes_with_the_old_credential(
+        client, admin_headers, store):
+    store[(NS, KEY)] = {
+        **encoded({"CLIENT_ID": "old", "REFRESH_TOKEN": "old"}),
+        **encoded({"CACHED_TOKEN_2_read": "stale", "CACHED_TOKEN_2_read_EXPIRES_AT": "2099-01-01T00:00:00+00:00"}),
+    }
+    assert patch(client, admin_headers, values={"CLIENT_ID": "new", "REFRESH_TOKEN": "new"}).status_code == 200
+    assert store == {(NS, KEY): encoded({"CLIENT_ID": "new", "REFRESH_TOKEN": "new"})}
 
 
 def test_rotating_and_disabling_in_one_request_leaves_the_new_value_in_quarantine(client, admin_headers, store):

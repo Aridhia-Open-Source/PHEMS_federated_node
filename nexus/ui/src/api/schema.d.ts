@@ -1242,9 +1242,10 @@ export interface paths {
         head?: never;
         /**
          * Patch Secret
-         * @description PATCH /global/secrets/<label> — set keys on the stored secret, e.g. to rotate a token, and/or turn
-         *     it on or off (enabled). Every repository and dataset that references it, in any project, picks
-         *     the new values up. Admin only. Turning it off also disables every dataset, trigger repository and
+         * @description PATCH /global/secrets/<label> — replace the stored values, e.g. to rotate a token, and/or turn it on
+         *     or off (enabled). The secret then holds exactly these keys, so send every key it needs: any other,
+         *     such as a cached git token, is dropped. Every repository and dataset that references it, in any
+         *     project, picks the new values up. Admin only. Turning it off also disables every dataset, trigger repository and
          *     results repository that uses it, in the same commit; turning it on changes only the secret, those
          *     stay disabled until each is enabled. Turning off a secret that is off already changes nothing else.
          *     Turning it off moves its stored value to the quarantine namespace and turning it on moves it back,

@@ -43,7 +43,8 @@ class TestKubernetesHelper:
     ):
         """
         With overwrite the conflicting secret is replaced, in every namespace, with
-        the values passed in - base64 encoded as the create path encodes them
+        the values passed in - base64 encoded as the create path encodes them. The
+        patch makes `data` exactly those values, so a key left out is dropped
         """
         k8s_client["create_namespaced_secret_mock"].side_effect = ApiException(
             status=409, reason="Conflict"
@@ -58,14 +59,49 @@ class TestKubernetesHelper:
         )
 
         patch_mock = k8s_client["patch_namespaced_secret_mock"]
-        expected = {"PASSWORD": KubernetesClient.encode_secret_value("newpass")}
+        expected = {"$patch": "replace", "PASSWORD": KubernetesClient.encode_secret_value("newpass")}
 
         assert [call.args for call in patch_mock.call_args_list] == [
             ("a-secret", "default"),
             ("a-secret", "tasks")
         ]
         for call in patch_mock.call_args_list:
-            assert call.kwargs["body"].data == expected
+            assert call.kwargs["body"]["data"] == expected
+
+    def test_create_secret_overwrite_drops_the_keys_the_values_leave_out_on_the_wire(
+        self,
+        k8s_config,
+        mocker
+    ):
+        """
+        Through the real client: the create that finds the secret is a POST whose data is the plain
+        values (`$patch` is not a valid key, so it must not be there), and the overwrite after it is
+        a strategic merge PATCH whose data is marked `$patch: replace`, so the keys the values leave
+        out, such as a cached git token, do not survive the rewrite
+        """
+        request = mocker.patch(
+            "kubernetes.client.rest.urllib3.PoolManager.request",
+            side_effect=[
+                Mock(status=409, reason="Conflict", data=b"{}"),
+                Mock(status=200, reason="OK", data=b"{}"),
+            ],
+        )
+
+        KubernetesClient().create_secret(
+            name="a-secret", values={"REFRESH_TOKEN": "new"}, namespaces=["default"], overwrite=True
+        )
+
+        create, patch = request.call_args_list
+        assert create.args[0] == "POST"
+        assert json.loads(create.kwargs["body"])["data"] == {
+            "REFRESH_TOKEN": KubernetesClient.encode_secret_value("new")
+        }
+        assert patch.args[0] == "PATCH"
+        assert patch.args[1].split("?")[0].endswith("/api/v1/namespaces/default/secrets/a-secret")
+        assert patch.kwargs["headers"]["Content-Type"] == "application/strategic-merge-patch+json"
+        assert json.loads(patch.kwargs["body"])["data"] == {
+            "$patch": "replace", "REFRESH_TOKEN": KubernetesClient.encode_secret_value("new")
+        }
 
     def test_create_secret_overwrite_failure_raises(
         self,

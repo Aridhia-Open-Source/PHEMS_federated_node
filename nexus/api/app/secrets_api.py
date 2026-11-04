@@ -218,9 +218,10 @@ def post_secret(body: dict = Body(default_factory=dict)):
 @router.patch('/{label}', response_model=SecretDTO, dependencies=[Depends(require_scope('can_do_admin'))])
 def patch_secret(label: str, body: dict = Body(default_factory=dict)):
     """
-    PATCH /global/secrets/<label> — set keys on the stored secret, e.g. to rotate a token, and/or turn
-    it on or off (enabled). Every repository and dataset that references it, in any project, picks
-    the new values up. Admin only. Turning it off also disables every dataset, trigger repository and
+    PATCH /global/secrets/<label> — replace the stored values, e.g. to rotate a token, and/or turn it on
+    or off (enabled). The secret then holds exactly these keys, so send every key it needs: any other,
+    such as a cached git token, is dropped. Every repository and dataset that references it, in any
+    project, picks the new values up. Admin only. Turning it off also disables every dataset, trigger repository and
     results repository that uses it, in the same commit; turning it on changes only the secret, those
     stay disabled until each is enabled. Turning off a secret that is off already changes nothing else.
     Turning it off moves its stored value to the quarantine namespace and turning it on moves it back,
@@ -251,8 +252,8 @@ def patch_secret(label: str, body: dict = Body(default_factory=dict)):
         store.restore(secret.key, namespace)
     if values:
         # Written to the provider's current namespace, which the row then records. If that has
-        # changed since the secret was created, only these values move: the old copy and any
-        # keys not in this request are left behind, so a namespace move means re-creating it.
+        # changed since the secret was created, only these values move: the old copy is left
+        # behind, so a namespace move means re-creating it.
         namespace = store.namespace
         store.set(secret.key, namespace, values)
     if turning_off:
