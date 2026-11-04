@@ -56,6 +56,7 @@ nexus:
     image: localhost:5001/nexus-api-fn
     tag: &devTag "v1"
   ui:
+    enabled: true
     image: localhost:5001/nexus-ui-fn
     tag: *devTag
 
