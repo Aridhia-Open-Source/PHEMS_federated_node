@@ -9,7 +9,7 @@ const icons: Record<string, IconName> = {
   projects: "orgChart",
   "global/secrets": "lock",
   "global/providers": "switch",
-  "global/repositories/triggers": "transfer",
+  "global/repositories/triggers": "eye",
   "global/repositories/results": "save",
   "global/datasets": "file",
 };

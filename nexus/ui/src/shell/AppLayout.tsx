@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 
 import { AppHeader, AppShell, Button, Icon, NavList, SideMenu, SideMenuDivider } from "@/ui";
@@ -43,15 +43,17 @@ export function AppLayout() {
         title={shellMessages.menuTitle}
         description={shellMessages.menuDescription}
       >
-        {navGroups.map((group) => (
-          <NavList
-            key={group.label}
-            label={group.label}
-            items={group.items}
-            activeId={activeNavId(pathname)}
-            renderLink={renderLink}
-            onNavigate={closeMenu}
-          />
+        {navGroups.map((group, i) => (
+          <Fragment key={group.label}>
+            {i > 0 ? <SideMenuDivider /> : null}
+            <NavList
+              label={group.label}
+              items={group.items}
+              activeId={activeNavId(pathname)}
+              renderLink={renderLink}
+              onNavigate={closeMenu}
+            />
+          </Fragment>
         ))}
         <SideMenuDivider />
         <Button type="button" size="lg" onBlue className="self-start" onClick={logOut}>

@@ -199,6 +199,11 @@ a:where(:not([class])):hover,
   animation: star-ring-turn var(--motion-ambient) linear infinite;
 }
 
+/* Yellow stars at full strength are loud on navy. */
+.dark .star-ring {
+  opacity: 0.55;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .star-ring {
     animation: none !important;
