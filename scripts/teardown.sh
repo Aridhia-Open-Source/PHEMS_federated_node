@@ -12,8 +12,9 @@ FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
 echo "=== Terminating tilt sessions =================================================="
 
 if command -v tilt &> /dev/null; then
-  if pgrep -f "tilt serve" > /dev/null; then
+  if pgrep -f "tilt up" > /dev/null; then
     tilt down
+    pkill -f "tilt up"
     echo "Terminated tilt session"
   else
     echo "No tilt sessions found"

@@ -17,6 +17,7 @@ source .dev.env
 if command -v tilt &> /dev/null && pgrep -f "tilt up" > /dev/null; then
   echo "=== Terminating tilt session ==="
   tilt down
+  pkill -f "tilt up"
 fi
 
 cd k8s/federated-node
