@@ -60,6 +60,13 @@ nexus:
     devServer: true                    # Vite with hot reload; Tilt syncs nexus/ui into it
     image: localhost:5001/nexus-ui-dev-fn
     tag: *devTag
+    resources:                         # Vite needs more than nginx
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
 
 alpine:
   image: localhost:5001/alpine-fn

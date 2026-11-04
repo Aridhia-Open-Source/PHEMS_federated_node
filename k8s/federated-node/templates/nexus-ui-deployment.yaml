@@ -31,6 +31,13 @@ spec:
               value: {{ include "nexusApiUrl" . | quote }}
             - name: VITE_NEXUS_API_URL
               value: {{ include "nexusApiUrl" . | quote }}
+          # The Vite dev server takes a while to start; liveness waits for this.
+          startupProbe:
+            httpGet:
+              path: {{ .Values.nexus.ui.devServer | ternary "/nexus-ui/" "/healthz" }}
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
           readinessProbe:
             httpGet:
               path: {{ .Values.nexus.ui.devServer | ternary "/nexus-ui/" "/healthz" }}
