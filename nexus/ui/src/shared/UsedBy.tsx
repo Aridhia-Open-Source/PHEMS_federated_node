@@ -37,17 +37,19 @@ const settingsText = (s: Record<string, unknown>) =>
 
 function UsedBySection({ rows }: { rows: Row[] | undefined }) {
   return (
-    <ResourceTable<Row>
-      title={shellMessages.widgets.usedBy.title}
-      data={rows}
-      rowKey={(r) => r.project.id}
-      empty={shellMessages.widgets.usedBy.empty}
-      columns={[
-        { header: "Project", cell: (r) => <Link to={r.to}>{r.project.name}</Link> },
-        { header: "State", cell: (r) => <StateBadges flags={r.flags} /> },
-        { header: "Settings", cell: (r) => settingsText(r.settings) },
-      ]}
-    />
+    <div className="mt-10">
+      <ResourceTable<Row>
+        title={shellMessages.widgets.usedBy.title}
+        data={rows}
+        rowKey={(r) => r.project.id}
+        empty={shellMessages.widgets.usedBy.empty}
+        columns={[
+          { header: "Project", cell: (r) => <Link to={r.to}>{r.project.name}</Link> },
+          { header: "State", cell: (r) => <StateBadges flags={r.flags} /> },
+          { header: "Settings", cell: (r) => settingsText(r.settings) },
+        ]}
+      />
+    </div>
   );
 }
 

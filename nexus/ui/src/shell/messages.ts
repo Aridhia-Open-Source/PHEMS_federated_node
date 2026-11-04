@@ -72,7 +72,7 @@ export const shellMessages = {
       raw: "Raw response", pullRequests: "Pull requests",
     },
     triggers: {
-      title: "Triggers", intro: "The project's trigger repositories. Pick one for its pull requests.",
+      intro: "The project's trigger repositories. Pick one for its pull requests.",
       back: "triggers", backToPullRequests: "pull requests",
       pullRequestsOf: (repo: string) => `Pull requests of ${repo}`,
       pullRequest: (number: number) => `Pull request #${number}`,
@@ -80,11 +80,11 @@ export const shellMessages = {
       noTask: "No task yet", stateFilter: "State", allStates: "All",
     },
     tasks: {
-      title: "Tasks", back: "tasks", detail: (id: number, name: string) => `Task ${id}: ${name}`,
+      back: "tasks", detail: (id: number, name: string) => `Task ${id}: ${name}`,
       pullRequest: "Pull request:", config: "Config", results: "Results", logs: "Logs", loadLogs: "Load logs",
     },
     health: { rerun: "Re-run", projectStatus: "Project status:", noResults: " (no results repository assigned)" },
-    results: { title: "Results", back: "results", detail: (id: number) => `Result ${id}` },
+    results: { back: "results", detail: (id: number) => `Result ${id}` },
     projects: {
       title: "Projects", back: "projects", new: "New project", detail: (name: string) => `Project ${name}`,
       newIntro: "Projects start disabled. Assign repositories, datasets and secrets, then enable it.",

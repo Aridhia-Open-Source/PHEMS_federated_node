@@ -37,7 +37,7 @@ export function ResourceSection<T extends Flags>(p: Props<T>) {
   const [picked, setPicked] = useState("");
   const [missing, setMissing] = useState(false);
   return (
-    <section>
+    <section className="mb-16">
       <ResourceTable<T>
         title={p.title}
         data={p.resources}

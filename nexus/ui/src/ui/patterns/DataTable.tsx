@@ -46,7 +46,7 @@ export function DataTable<T>({
       {rows.length === 0 ? (
         <EmptyState compact title={emptyTitle} className={cn(title && "rounded-tl-none")} />
       ) : (
-        <div className={cn("overflow-x-auto rounded-card bg-card", title && "rounded-tl-none")}>
+        <div className={cn("relative overflow-x-auto rounded-card bg-card", title && "rounded-tl-none")}>
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="bg-blue-tint-95 dark:bg-blue-tint-90">
@@ -54,7 +54,7 @@ export function DataTable<T>({
                   <th
                     key={i}
                     scope="col"
-                    className="px-6 py-3 text-[0.8em] leading-snug font-normal tracking-wider whitespace-nowrap text-blue uppercase"
+                    className="px-5 py-3 text-[0.8em] leading-snug font-normal tracking-wider whitespace-nowrap text-blue uppercase"
                   >
                     {c.header || <span className="sr-only">{actionsLabel}</span>}
                   </th>
@@ -65,7 +65,7 @@ export function DataTable<T>({
               {rows.map((row) => (
                 <tr key={rowKey(row)} className="border-t border-blue-tint-95 dark:border-line">
                   {columns.map((c, i) => (
-                    <td key={i} className="px-6 py-4 align-top break-words text-ink">
+                    <td key={i} className="px-5 py-4 align-top break-words text-ink">
                       {c.cell(row)}
                     </td>
                   ))}

@@ -164,16 +164,18 @@ function ProviderUsedBy({ id }: { id: number }) {
         ].filter((r) => r.repo.provider.id === id)
       : undefined;
   return (
-    <ResourceTable<UsedByRow>
-      title={shellMessages.widgets.usedBy.title}
-      data={rows}
-      rowKey={(r) => r.to}
-      empty="No repository uses this provider"
-      columns={[
-        { header: "Kind", cell: (r) => r.kind },
-        { header: "Repository", cell: (r) => <Link to={r.to}>{r.repo.repo_path}</Link> },
-        { header: "Enabled", cell: (r) => <StatusBadge status={r.repo.enabled ? "enabled" : "disabled"} /> },
-      ]}
-    />
+    <div className="mt-10">
+      <ResourceTable<UsedByRow>
+        title={shellMessages.widgets.usedBy.title}
+        data={rows}
+        rowKey={(r) => r.to}
+        empty="No repository uses this provider"
+        columns={[
+          { header: "Kind", cell: (r) => r.kind },
+          { header: "Repository", cell: (r) => <Link to={r.to}>{r.repo.repo_path}</Link> },
+          { header: "Enabled", cell: (r) => <StatusBadge status={r.repo.enabled ? "enabled" : "disabled"} /> },
+        ]}
+      />
+    </div>
   );
 }

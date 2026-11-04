@@ -54,7 +54,6 @@ function TaskList({ projectId }: { projectId: number }) {
   return (
     <section>
       <ResourceTable<Task>
-        title={m.title}
         data={data}
         onPage={setPage}
         rowKey={(t) => t.id}

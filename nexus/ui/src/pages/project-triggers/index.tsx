@@ -41,7 +41,6 @@ function RepoList({ projectId }: { projectId: number }) {
     <section>
       <p className="mb-6 max-w-[72ch]">{m.intro}</p>
       <ResourceTable<RepoResource>
-        title={m.title}
         data={data}
         rowKey={(r) => r.trigger_repository.id}
         columns={[

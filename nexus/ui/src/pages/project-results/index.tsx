@@ -30,7 +30,6 @@ function ResultList({ projectId }: { projectId: number }) {
   return (
     <section>
       <ResourceTable<Result>
-        title={m.title}
         data={data}
         rowKey={(r) => r.id}
         empty="No results yet"
