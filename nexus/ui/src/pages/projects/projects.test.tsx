@@ -1,5 +1,6 @@
 // Smoke tests for the project tabs and the "Used by" sections: the api client is replaced by
 // canned responses keyed by the OpenAPI path, so this checks routing and wiring, not the API.
+import type { ReactElement } from "react";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -70,7 +71,7 @@ vi.mock("../../api/client", async (original) => {
   return { ...actual, api: { GET }, quietApi: { GET } };
 });
 
-function renderAt(path: string, element: JSX.Element, route: string) {
+function renderAt(path: string, element: ReactElement, route: string) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={[path]}>
