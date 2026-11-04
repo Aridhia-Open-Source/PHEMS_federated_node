@@ -8,6 +8,7 @@ import json
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import NamedTuple
 from urllib.parse import parse_qs
 
@@ -16,6 +17,7 @@ import pytest
 import responses
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from kubernetes.client.exceptions import ApiException
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import GitProviderError, InvalidRequest
@@ -25,6 +27,7 @@ from app.models.git_provider import GitProvider
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.trigger_repository import TriggerRepository
+from app.secrets_api import K8sSecretProvider
 
 PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PRIVATE_PEM = PRIVATE_KEY.private_bytes(
@@ -212,6 +215,46 @@ def test_the_patch_writes_only_the_changed_keys(k8s_client, global_secret, globa
     assert set(patch_body(k8s_client, global_secret)["data"]) == {
         f"CACHED_TOKEN_{global_trigger_repo.id}_read", f"CACHED_TOKEN_{global_trigger_repo.id}_read_EXPIRES_AT"
     }
+
+
+def test_a_rewritten_credential_is_not_served_the_cached_token_of_the_old_one(k8s_client, global_secret, gitea_repo):
+    """
+    The Gitea application is replaced and its new credentials are stored: the token cached for the old one must
+    go with it, or Gitea is sent a token it refuses until that expires. The write-back of a new cache is a merge,
+    so the credentials stay.
+    """
+    stored = encoded({**GITEA_KEYS, **cache_of(gitea_repo, "read", "stale", now() + timedelta(hours=1))})
+
+    def patch(name, namespace, body, **kwargs):
+        changed = dict(body["data"])
+        if changed.pop("$patch", None) == "replace":
+            stored.clear()
+        stored.update(changed)
+
+    k8s_client["read_namespaced_secret_mock"].side_effect = lambda name, namespace: SimpleNamespace(data=dict(stored))
+    k8s_client["create_namespaced_secret_mock"].side_effect = ApiException(status=409)
+    k8s_client["patch_namespaced_secret_mock"].side_effect = patch
+
+    K8sSecretProvider().set(
+        global_secret.key,
+        global_secret.namespace,
+        {"CLIENT_ID": "new-id", "CLIENT_SECRET": "new-secret", "REFRESH_TOKEN": "new-refresh"},
+    )
+    assert stored == encoded({"CLIENT_ID": "new-id", "CLIENT_SECRET": "new-secret", "REFRESH_TOKEN": "new-refresh"})
+
+    with responses.RequestsMock() as rsps:
+        rsps.add(responses.POST, "http://gitea:4000/login/oauth/access_token", json={
+            "access_token": "gta_fresh", "token_type": "bearer", "expires_in": 3600, "refresh_token": "next-refresh"
+        })
+        token, expires_at = mint_token(global_secret, gitea_repo, "read")
+        form = parse_qs(rsps.calls[0].request.body)
+
+    assert token == "gta_fresh"
+    assert form["client_id"] == ["new-id"] and form["refresh_token"] == ["new-refresh"]
+    assert stored == encoded({
+        "CLIENT_ID": "new-id", "CLIENT_SECRET": "new-secret", "REFRESH_TOKEN": "next-refresh",
+        **cache_of(gitea_repo, "read", "gta_fresh", expires_at),
+    })
 
 
 # ---------------------------------------------------------------- the routes
