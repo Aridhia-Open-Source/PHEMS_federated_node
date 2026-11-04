@@ -8,7 +8,9 @@ spec, a pull request outside the watched directory and a revoked trigger resourc
 or withdraw it: a revoked project, a trigger resource switched off, a GlobalResource (the trigger repository) switched off or
 revoked, and a Secret switched off. In each of them a pull request is merged while something is off, and none of them may get
 a task. Switching it back on skips the gap, so the pull request still gets no task. The rules are in
-../../../../docs/architecture/revoke-and-enabled.md.
+../../../../docs/architecture/revoke-and-enabled.md. The last group fires concurrent token requests at the trigger repository
+with its cached token cleared: the backend takes no lock, so Gitea must accept several refreshes with one refresh token
+(ADR 0024).
 
 The groups where a task runs to the end or a result is delivered (a second project, a lost token and its recovery, a failing
 task, enabling a project with backfill, a results resource switched off before delivery) are in test_failure_paths_long.py, run
@@ -38,10 +40,16 @@ afterwards unless E2E_TEARDOWN=1.
 All sensors must already be running before the run (`fncli start-sensor --group all`); the run does not start them.
 """
 
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
 import pytest
+from requests import HTTPError
 
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
-from fncli.cmds.common import build_admin_backend_api
+from fncli.cmds.common import TriggerRepoConfig, build_admin_backend_api, build_git_api
+from fncli.cmds.repository import init_gitea_repo
+from fncli.cmds.secret import verify_gitea_accepts_bearer_token
 from fncli.cmds.state import (
     global_set_command,
     resource_set_command,
@@ -60,6 +68,7 @@ from fncli.tests.e2e.conftest import (
     counts,
     create_branch,
     create_pr,
+    logger,
     merge_pr,
     merge_watched_pr,
     pr_of,
@@ -72,6 +81,7 @@ from fncli.tests.e2e.conftest import (
     teardown_step,
     trigger_resource,
 )
+from fncli.k8s import get_k8s_secret, remove_k8s_secret_keys
 
 pytestmark = [pytest.mark.e2e, pytest.mark.e2e_failure]
 
@@ -422,6 +432,79 @@ def test_disabled_secret_resource_active_again(fncli):
 
 def test_disabled_secret_missed_pr_not_replayed(fncli, flow):
     assert_no_new_task(fncli, flow, "disabled_secret_before", "PR merged while the Secret was off, after switching it back on")
+
+
+# --- concurrent token requests refresh the Gitea token without breaking each other ---------------
+
+
+CONCURRENT_REQUESTS = 10
+OAUTH_KEYS = ["CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"]
+
+
+def clear_token_cache(repository) -> str:
+    """Remove the trigger repository's cached read token from its secret, so the next request refreshes. Returns the cache key."""
+    cache_key = f"CACHED_TOKEN_{repository.id}_read"
+    remove_k8s_secret_keys(repository.secret.key, repository.secret.namespace, [cache_key, f"{cache_key}_EXPIRES_AT"])
+    return cache_key
+
+
+def failure_text(error: Exception) -> str:
+    return f"{error!r}: {error.response.text}" if isinstance(error, HTTPError) else repr(error)
+
+
+def assert_gitea_accepts(*tokens: str):
+    config = TriggerRepoConfig()
+    gitea_repo = init_gitea_repo(config, build_git_api(config))
+    for token in tokens:
+        verify_gitea_accepts_bearer_token(config, token, gitea_repo)
+
+
+def test_concurrent_refresh_secret_holds_oauth_credentials(fncli, flow):
+    """Only a secret with Gitea OAuth credentials has a refresh token to race on: with a static TOKEN the group would prove nothing."""
+    flow["refresh_repository"] = fncli.backend_api.find_trigger_repository(TriggerRepoConfig().repo_uri)
+    secret = flow["refresh_repository"].secret
+    for key in OAUTH_KEYS:
+        assert get_k8s_secret(secret.key, secret.namespace, key)
+
+
+def test_concurrent_refresh_all_requests_succeed(fncli, flow):
+    """Ten simultaneous token requests with an empty cache all get a token. Fails if Gitea invalidates used refresh tokens:
+    the backend takes no lock, so every request refreshes with the same stored one and all but the first would be refused."""
+    repository = flow["refresh_repository"]
+    barrier = Barrier(CONCURRENT_REQUESTS)
+
+    def request_token():
+        barrier.wait()
+        return fncli.backend_api.get_repository_token("trigger", repository.id)
+
+    clear_token_cache(repository)
+    with ThreadPoolExecutor(CONCURRENT_REQUESTS) as pool:
+        futures = [pool.submit(request_token) for _ in range(CONCURRENT_REQUESTS)]
+    failures = [failure_text(future.exception()) for future in futures if future.exception()]
+    assert not failures, f"{len(failures)} of {CONCURRENT_REQUESTS} concurrent token requests failed: {failures}"
+    flow["refresh_tokens"] = {future.result().token for future in futures}
+    logger.info(f"{CONCURRENT_REQUESTS} concurrent requests got {len(flow['refresh_tokens'])} distinct tokens")
+
+
+def test_concurrent_refresh_gitea_accepts_every_token(flow):
+    assert_gitea_accepts(*flow["refresh_tokens"])
+
+
+def test_concurrent_refresh_stored_refresh_token_survived(fncli, flow):
+    """With the cache cleared again, one more request gets a token Gitea accepts: the refresh token the race left in the
+    secret still works. Fails if Gitea invalidates used refresh tokens."""
+    repository = flow["refresh_repository"]
+    flow["refresh_cache_key"] = clear_token_cache(repository)
+    flow["refresh_token_after_race"] = fncli.backend_api.get_repository_token("trigger", repository.id).token
+    assert_gitea_accepts(flow["refresh_token_after_race"])
+
+
+def test_concurrent_refresh_secret_still_holds_valid_credentials(flow):
+    """The secret keeps its OAuth credentials and now caches the token the last request got, which Gitea accepted."""
+    secret = flow["refresh_repository"].secret
+    for key in OAUTH_KEYS:
+        assert get_k8s_secret(secret.key, secret.namespace, key)
+    assert get_k8s_secret(secret.key, secret.namespace, flow["refresh_cache_key"]) == flow["refresh_token_after_race"]
 
 
 # --- Teardown ---------------------------------------------------------------------------------

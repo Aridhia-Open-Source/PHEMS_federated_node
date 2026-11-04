@@ -5,7 +5,7 @@ The suites run the real stack (nexus-api, Keycloak, Postgres, Dagster and Gitea 
 | Suite | File | What it covers |
 |---|---|---|
 | `success` | `test_happy_path.py` | A PR in the trigger repository, through ingest, a task and delivery, to a merged results PR; `verify-project` and `verify-repo` pass |
-| `failure` | `test_failure_paths.py` | The quick failure paths, none of which waits for a task to run: invalid spec rejected, unwatched PR creates no trigger, revoked trigger resource; then revoked project, disabled trigger resource, disabled and revoked global resource, disabled secret (a PR merged while each is off gets no task, also after it is switched back on) |
+| `failure` | `test_failure_paths.py` | The quick failure paths, none of which waits for a task to run: invalid spec rejected, unwatched PR creates no trigger, revoked trigger resource; then revoked project, disabled trigger resource, disabled and revoked global resource, disabled secret (a PR merged while each is off gets no task, also after it is switched back on); then concurrent token requests with the cache cleared (Gitea's OAuth refresh with one refresh token must work for all of them) |
 | `failure_long` | `test_failure_paths_long.py` | The long-running failure paths, where a task runs to the end or a result is delivered: second project on the same repository, lost token and recovery, failing task, project enabled with backfill; then work in flight: results resource switched off before delivery (held `FAILED`, delivered by the retry sensor once on) |
 
 Each test is one fncli command or one expected state, in order, on one project. The first failure stops the run and prints the last project snapshot. The "nothing happens" checks wait five sensor ticks.
