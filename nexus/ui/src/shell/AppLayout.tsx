@@ -61,10 +61,7 @@ export function AppLayout() {
           <Icon name="logOut" size="xl" />
         </Button>
       </SideMenu>
-      {/* Pages not yet restyled still rely on the rules in style.css, scoped to this wrapper. */}
-      <div className="legacy">
-        <Outlet />
-      </div>
+      <Outlet />
     </AppShell>
   );
 }
