@@ -58,3 +58,11 @@ export {
   type ToastTone,
 } from "./feedback/Toast";
 export { Banner, type BannerProps, type BannerTone } from "./feedback/Banner";
+export { Checkbox, type CheckboxProps } from "./form/Checkbox";
+export { Toggle, type ToggleProps } from "./form/Toggle";
+export { CodeBlock, type CodeBlockProps } from "./detail/CodeBlock";
+export { DetailField, type DetailFieldProps } from "./detail/DetailField";
+export { DetailSection, type DetailSectionProps } from "./detail/DetailSection";
+export { DataTable, type DataTableColumn, type DataTableProps } from "./patterns/DataTable";
+export { LinkTabs, type LinkTabsProps } from "./layout/LinkTabs";
+export { SectionHeading, type SectionHeadingProps } from "./layout/SectionHeading";

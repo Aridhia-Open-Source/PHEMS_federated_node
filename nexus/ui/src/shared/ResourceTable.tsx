@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
+
+import { Button, DataTable } from "@/ui";
+import { shellMessages } from "@/shell/messages";
+
 import type { Page } from "../api/client";
+import { Loading } from "./Loading";
+
+const m = shellMessages.widgets.table;
 
 export type Column<T> = { header: string; cell: (row: T) => ReactNode };
 
@@ -10,33 +17,35 @@ type Props<T> = {
   onPage?: (page: number) => void;
   rowKey: (row: T) => string | number;
   empty?: string;
+  // The section heading, as a tab on the table
+  title?: string;
 };
 
-export function ResourceTable<T>({ columns, data, onPage, rowKey, empty = "Nothing here yet" }: Props<T>) {
-  if (data === undefined) return <p>Loading…</p>;
+export function ResourceTable<T>({ columns, data, onPage, rowKey, empty = m.empty, title }: Props<T>) {
+  if (data === undefined) return <Loading />;
   const rows = Array.isArray(data) ? data : data.items;
   const page = Array.isArray(data) ? null : data;
   const pages = page ? Math.max(1, Math.ceil(page.total / page.size)) : 1;
+  const pager = page && onPage;
   return (
     <div>
-      <table className="table">
-        <thead>
-          <tr>{columns.map((c) => <th key={c.header}>{c.header}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 && (
-            <tr><td colSpan={columns.length}>{empty}</td></tr>
-          )}
-          {rows.map((r) => (
-            <tr key={rowKey(r)}>{columns.map((c) => <td key={c.header}>{c.cell(r)}</td>)}</tr>
-          ))}
-        </tbody>
-      </table>
-      {page && onPage && (
-        <div className="pager">
-          <button disabled={page.page <= 1} onClick={() => onPage(page.page - 1)}>Previous</button>
-          <span>Page {page.page} of {pages} ({page.total} total)</span>
-          <button disabled={page.page >= pages} onClick={() => onPage(page.page + 1)}>Next</button>
+      <DataTable
+        title={title}
+        columns={columns}
+        rows={rows}
+        rowKey={rowKey}
+        emptyTitle={empty}
+        className={pager ? "mb-4" : undefined}
+      />
+      {pager && (
+        <div className="mb-10 flex flex-wrap items-center gap-4">
+          <Button variant="secondary" size="sm" disabled={page.page <= 1} onClick={() => onPage(page.page - 1)}>
+            {m.previous}
+          </Button>
+          <span className="text-[0.95em] text-ink-3">{m.page(page.page, pages, page.total)}</span>
+          <Button variant="secondary" size="sm" disabled={page.page >= pages} onClick={() => onPage(page.page + 1)}>
+            {m.next}
+          </Button>
         </div>
       )}
     </div>

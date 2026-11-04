@@ -1,6 +1,8 @@
 // Example page: the pattern for a global resource (list, create, edit, delete).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { PageHeader, SectionHeading } from "@/ui";
+import { shellMessages } from "@/shell/messages";
 import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { DtoForm, type Field } from "../../shared/DtoForm";
@@ -8,6 +10,12 @@ import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import { Json } from "../../shared/Json";
 import { SecretUsedBy } from "../../shared/UsedBy";
+import { BackLink } from "../../shared/BackLink";
+import { Healthcheck } from "../../shared/Healthcheck";
+import { Loading } from "../../shared/Loading";
+import { NewButton } from "../../shared/NewButton";
+
+const m = shellMessages.pages.secrets;
 
 type Secret = Schemas["SecretDTO"];
 const KEY = ["secrets"];
@@ -56,8 +64,7 @@ function SecretList() {
   });
   return (
     <section>
-      <h1>Secrets</h1>
-      <Link to="new" className="button">New secret</Link>
+      <PageHeader title={m.title} actions={<NewButton>{m.new}</NewButton>} />
       <ResourceTable<Secret>
         data={data}
         rowKey={(s) => s.id}
@@ -66,7 +73,7 @@ function SecretList() {
           { header: "Description", cell: (s) => s.description },
           { header: "Key", cell: (s) => s.key },
           { header: "Enabled", cell: (s) => (
-            <EnabledToggle enabled={s.enabled} onChange={(enabled) => setEnabled.mutate({ label: s.label, enabled })} />
+            <EnabledToggle hideLabel enabled={s.enabled} onChange={(enabled) => setEnabled.mutate({ label: s.label, enabled })} />
           ) },
           { header: "", cell: (s) => <DeleteButton what={s.label} onConfirm={() => remove.mutate(s.label)} /> },
         ]}
@@ -88,7 +95,8 @@ function SecretCreate() {
   });
   return (
     <section>
-      <h1>New secret</h1>
+      <BackLink to=".." what={m.back} />
+      <PageHeader title={m.new} />
       <DtoForm fields={createFields} initial={{ provider: "K8S", enabled: true }} submitLabel="Create"
         busy={create.isPending} onSubmit={(b) => create.mutate(b)} />
     </section>
@@ -112,17 +120,15 @@ function SecretDetail() {
     queryFn: () => call(api.GET("/global/secrets/{label}/healthcheck", { params: { path: { label } } })),
     enabled: false,
   });
-  if (!data) return <p>Loading…</p>;
+  if (!data) return <Loading />;
   return (
     <section>
-      <p><Link to="..">← Secrets</Link></p>
-      <h1>Secret {label}</h1>
+      <BackLink to=".." what={m.back} />
+      <PageHeader title={m.detail(label)} />
       <Json value={data} />
-      <h2>Set values</h2>
+      <SectionHeading>{m.setValues}</SectionHeading>
       <DtoForm fields={editFields} submitLabel="Update" busy={update.isPending} onSubmit={(b) => update.mutate(b)} />
-      <h2>Healthcheck</h2>
-      <button onClick={() => health.refetch()}>Run healthcheck</button>
-      {health.data !== undefined && <Json value={health.data} />}
+      <Healthcheck query={health} />
       <SecretUsedBy label={label} />
     </section>
   );

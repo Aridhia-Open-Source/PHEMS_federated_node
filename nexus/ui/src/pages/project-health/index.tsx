@@ -2,12 +2,16 @@
 // with status "error" in the body, so nothing here handles HTTP errors.
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { Button, SectionHeading } from "@/ui";
+import { shellMessages } from "@/shell/messages";
 import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
+import { StatusBadge } from "../../shared/StatusBadge";
 import { resourcePath, type Kind } from "../../shared/projectResources";
 
 type Health = Schemas["ProjectHealthDTO"];
+const m = shellMessages.pages.health;
 type Row = {
   kind: string;
   // The kind's route segment and the global repository's id: the project resource's page
@@ -54,11 +58,13 @@ export default function ProjectHealth({ projectId }: { projectId: number }) {
   });
   return (
     <section>
-      <h2>Healthcheck</h2>
-      <button disabled={isFetching} onClick={() => refetch()}>{isFetching ? "Checking…" : "Re-run"}</button>
+      <SectionHeading>{shellMessages.widgets.healthcheck.title}</SectionHeading>
+      <Button variant="secondary" busy={isFetching} onClick={() => refetch()}>{m.rerun}</Button>
       {data && (
         <>
-          <p>Project status: <strong>{data.status}</strong>{data.results_repository ? "" : " (no results repository assigned)"}</p>
+          <p className="my-6 flex flex-wrap items-center gap-2">
+            {m.projectStatus} <StatusBadge status={data.status} />{data.results_repository ? "" : m.noResults}
+          </p>
           <ResourceTable<Row>
             data={rows(data)}
             rowKey={(r) => `${r.kind}-${r.id}`}
@@ -66,14 +72,14 @@ export default function ProjectHealth({ projectId }: { projectId: number }) {
             columns={[
               { header: "Resource", cell: (r) => r.kind },
               { header: "Repository", cell: (r) => <Link to={resourcePath(projectId, r.route, r.id)}>{r.uri}</Link> },
-              { header: "Status", cell: (r) => r.status },
+              { header: "Status", cell: (r) => <StatusBadge status={r.status} /> },
               { header: "Message", cell: (r) => r.message },
               { header: "HTTP", cell: (r) => r.http ?? "" },
               { header: "Latency (ms)", cell: (r) => r.latency ?? "" },
             ]}
           />
-          <details>
-            <summary>Raw response</summary>
+          <details className="mb-10">
+            <summary className="mb-4 cursor-pointer font-semibold text-blue">{shellMessages.pages.resourceDetail.raw}</summary>
             <Json value={data} />
           </details>
         </>

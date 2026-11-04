@@ -16,6 +16,7 @@ export const messages = {
   repeatableList: { add: "Add", remove: "Remove" },
   required: "(required)",
   loading: "Loading…",
+  dataTable: { actions: "Actions" },
   copy: "Copy",
   copied: "Copied",
   copyFailed: "Could not copy",

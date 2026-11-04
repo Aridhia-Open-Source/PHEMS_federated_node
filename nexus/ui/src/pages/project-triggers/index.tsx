@@ -2,14 +2,20 @@
 // (paged) -> one pull request, with a link to its task. The pull request list is also shown
 // on a trigger resource's detail page.
 // Links are absolute (built from projectId) because the nested routes are multi-segment.
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Route, Routes, useParams } from "react-router-dom";
+import { Field, NativeSelect, SectionHeading } from "@/ui";
+import { shellMessages } from "@/shell/messages";
 import { api, call, type Schemas } from "../../api/client";
 import { ResourceTable } from "../../shared/ResourceTable";
 import { Json } from "../../shared/Json";
+import { BackLink } from "../../shared/BackLink";
+import { Loading } from "../../shared/Loading";
+import { StateBadges, StatusBadge } from "../../shared/StatusBadge";
+import { sentence } from "../../shared/text";
 import {
-  pullRequestPath, resourcePath, stateText, taskPath, triggerPath, triggerResource, triggerResources,
+  pullRequestPath, resourcePath, taskPath, triggerPath, triggerResource, triggerResources,
 } from "../../shared/projectResources";
 
 type RepoResource = Schemas["ProjectTriggerRepositoryDTO"];
@@ -17,6 +23,7 @@ type PullRequest = Schemas["PullRequestTriggerDTO"];
 type StateFilter = "UNKNOWN" | "REJECTED" | "YIELDED";
 
 const STATES: StateFilter[] = ["UNKNOWN", "REJECTED", "YIELDED"];
+const m = shellMessages.pages.triggers;
 
 export default function ProjectTriggers({ projectId }: { projectId: number }) {
   return (
@@ -32,8 +39,7 @@ function RepoList({ projectId }: { projectId: number }) {
   const { data } = useQuery(triggerResources(projectId));
   return (
     <section>
-      <h2>Triggers</h2>
-      <p>The project's trigger repositories. Pick one for its pull requests.</p>
+      <p className="mb-6 max-w-[72ch]">{m.intro}</p>
       <ResourceTable<RepoResource>
         data={data}
         rowKey={(r) => r.trigger_repository.id}
@@ -47,10 +53,10 @@ function RepoList({ projectId }: { projectId: number }) {
           { header: "Watch dir", cell: (r) => r.watch_dir },
           { header: "Base branch", cell: (r) => r.base_branch },
           { header: "Pull requests", cell: (r) => r.pr_count },
-          { header: "State", cell: (r) => stateText(r) },
+          { header: "State", cell: (r) => <StateBadges flags={r} /> },
           {
             header: "",
-            cell: (r) => <Link to={resourcePath(projectId, "triggers", r.trigger_repository.id)}>Resource</Link>,
+            cell: (r) => <Link to={resourcePath(projectId, "triggers", r.trigger_repository.id)}>{m.resource}</Link>,
           },
         ]}
       />
@@ -63,9 +69,9 @@ function RepoPullRequests({ projectId }: { projectId: number }) {
   const { data } = useQuery(triggerResource(projectId, repoId));
   return (
     <section>
-      <p><Link to={`/projects/${projectId}/triggers`}>← Triggers</Link></p>
-      <h2>Pull requests of {data?.trigger_repository.repo_path ?? `repository ${repoId}`}</h2>
-      <p><Link to={resourcePath(projectId, "triggers", repoId)}>Project resource</Link></p>
+      <BackLink to={`/projects/${projectId}/triggers`} what={m.back} />
+      <SectionHeading>{m.pullRequestsOf(data?.trigger_repository.repo_path ?? `repository ${repoId}`)}</SectionHeading>
+      <p className="mb-6"><Link to={resourcePath(projectId, "triggers", repoId)}>{m.projectResource}</Link></p>
       <PullRequestList projectId={projectId} repositoryId={repoId} />
     </section>
   );
@@ -74,6 +80,7 @@ function RepoPullRequests({ projectId }: { projectId: number }) {
 // The repository's pull requests as this project sees them: a state filter, paged, each one
 // opening the pull request page.
 export function PullRequestList({ projectId, repositoryId }: { projectId: number; repositoryId: number }) {
+  const filterId = useId();
   const [page, setPage] = useState(1);
   const [state, setState] = useState<StateFilter | "">("");
   const { data } = useQuery({
@@ -90,13 +97,12 @@ export function PullRequestList({ projectId, repositoryId }: { projectId: number
   });
   return (
     <div>
-      <label>
-        State{" "}
-        <select value={state} onChange={(e) => { setState(e.target.value as StateFilter | ""); setPage(1); }}>
-          <option value="">all</option>
-          {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </label>
+      <Field label={m.stateFilter} htmlFor={filterId} className="mb-6 max-w-xs">
+        <NativeSelect id={filterId} value={state} onChange={(e) => { setState(e.target.value as StateFilter | ""); setPage(1); }}>
+          <option value="">{m.allStates}</option>
+          {STATES.map((s) => <option key={s} value={s}>{sentence(s)}</option>)}
+        </NativeSelect>
+      </Field>
       <ResourceTable<PullRequest>
         data={data}
         onPage={setPage}
@@ -110,7 +116,7 @@ export function PullRequestList({ projectId, repositoryId }: { projectId: number
           { header: "Title", cell: (p) => p.title },
           { header: "Raised by", cell: (p) => p.raised_by },
           { header: "Merged at", cell: (p) => p.merged_at },
-          { header: "State", cell: (p) => p.state },
+          { header: "State", cell: (p) => <StatusBadge status={p.state} /> },
           { header: "Cause", cell: (p) => p.state_cause },
           {
             header: "Task",
@@ -136,17 +142,17 @@ function PullRequestDetail({ projectId }: { projectId: number }) {
         }),
       ),
   });
-  if (!data) return <p>Loading…</p>;
+  if (!data) return <Loading />;
   return (
     <section>
-      <p><Link to={triggerPath(projectId, repoId)}>← Pull requests</Link></p>
-      <h2>Pull request #{number}</h2>
+      <BackLink to={triggerPath(projectId, repoId)} what={m.backToPullRequests} />
+      <SectionHeading>{m.pullRequest(number)}</SectionHeading>
       <Json value={data} />
-      <h3>Task</h3>
+      <SectionHeading level={3}>{m.task}</SectionHeading>
       {data.task_id != null ? (
-        <p><Link to={taskPath(projectId, data.task_id)}>Task {data.task_id}</Link></p>
+        <Link to={taskPath(projectId, data.task_id)}>{m.taskLink(data.task_id)}</Link>
       ) : (
-        <p>No task yet</p>
+        <p>{m.noTask}</p>
       )}
     </section>
   );

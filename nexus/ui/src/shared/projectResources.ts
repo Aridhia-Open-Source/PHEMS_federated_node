@@ -27,11 +27,6 @@ export const globalPath = (kind: Kind, id: number | string) =>
     secrets: `/global/secrets/${encodeURIComponent(String(id))}`,
   })[kind];
 
-export const stateText = (r: Flags) =>
-  [r.enabled ? "enabled" : "disabled", r.revoked ? "revoked" : null, r.active ? "active" : "inactive"]
-    .filter(Boolean)
-    .join(", ");
-
 // A project's resources of one kind. The detail query's key extends the list key, so
 // invalidating the list (assign, toggle, unassign) refreshes the detail page too.
 export const triggerResources = (project_id: number) => ({

@@ -5,10 +5,12 @@
 import { useQueries, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, call, type Schemas } from "../api/client";
+import { shellMessages } from "@/shell/messages";
 import { ResourceTable } from "./ResourceTable";
 import {
-  datasetResources, resourcePath, resultsResources, secretResources, stateText, triggerResources, type Flags,
+  datasetResources, resourcePath, resultsResources, secretResources, triggerResources, type Flags,
 } from "./projectResources";
+import { StateBadges } from "./StatusBadge";
 
 type Project = Schemas["ProjectDTO"];
 type Row = { project: Project; to: string; flags: Flags; settings: Record<string, unknown> };
@@ -35,19 +37,19 @@ const settingsText = (s: Record<string, unknown>) =>
 
 function UsedBySection({ rows }: { rows: Row[] | undefined }) {
   return (
-    <section>
-      <h2>Used by</h2>
+    <div className="mt-10">
       <ResourceTable<Row>
+        title={shellMessages.widgets.usedBy.title}
         data={rows}
         rowKey={(r) => r.project.id}
-        empty="No project uses this"
+        empty={shellMessages.widgets.usedBy.empty}
         columns={[
           { header: "Project", cell: (r) => <Link to={r.to}>{r.project.name}</Link> },
-          { header: "State", cell: (r) => stateText(r.flags) },
+          { header: "State", cell: (r) => <StateBadges flags={r.flags} /> },
           { header: "Settings", cell: (r) => settingsText(r.settings) },
         ]}
       />
-    </section>
+    </div>
   );
 }
 
