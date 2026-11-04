@@ -57,7 +57,8 @@ nexus:
     tag: &devTag "v1"
   ui:
     enabled: true
-    image: localhost:5001/nexus-ui-fn
+    devServer: true                    # Vite with hot reload; Tilt syncs nexus/ui into it
+    image: localhost:5001/nexus-ui-dev-fn
     tag: *devTag
 
 alpine:

@@ -116,6 +116,10 @@
                             "type": "boolean",
                             "default": false
                         },
+                        "devServer": {
+                            "type": "boolean",
+                            "default": false
+                        },
                         "replicas": {
                             "type": "integer",
                             "default": 1

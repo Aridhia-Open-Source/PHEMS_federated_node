@@ -25,5 +25,6 @@ done
 # nexus/api and nexus/ui share basenames with other dirs, so they get explicit image names
 ./scripts/build_image.sh nexus/api "$DOCKER_TAG" nexus-api-fn
 ./scripts/build_image.sh nexus/ui "$DOCKER_TAG" nexus-ui-fn
+TARGET=dev ./scripts/build_image.sh nexus/ui "$DOCKER_TAG" nexus-ui-dev-fn
 
 echo "Image builds successful!"

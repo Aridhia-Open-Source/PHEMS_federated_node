@@ -26,6 +26,9 @@ nexus:
         key: password
   ui:
     enabled: false
+    # true runs the Vite dev server (hot reload, image built with --target dev) instead
+    # of nginx. Dev only: set it with the nexus-ui-dev-fn image in dev.values.yaml.
+    devServer: false
     image: ghcr.io/aridhia-open-source/federated_node_nexus_ui
     tag:
     replicas: 1

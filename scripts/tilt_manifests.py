@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Emit the K8s deployment manifests Tilt should manage for live development.
 
-Helm (`make deploy`) owns the real cluster state. Tilt only needs the two
+Helm (`make deploy`) owns the real cluster state. Tilt only needs the
 deployments whose images we rebuild so it can inject freshly built images and
 live_update code into the running containers.
 
@@ -22,7 +22,9 @@ Transformations applied for dev workflow:
   The dagster user-deployment keeps the args Helm gave it: the image has no
   entrypoint, so they are the command that Tilt's restart wrapper runs.
 
-Usage: tilt_manifests.py <namespace> <nexus-api-deploy> <dagster-deploy>
+Usage: tilt_manifests.py <namespace> <nexus-api-deploy> <dagster-deploy> <nexus-ui-deploy>
+
+nexus-ui is optional in the chart (nexus.ui.enabled), so a missing one is skipped.
 """
 import json
 import subprocess
@@ -32,10 +34,11 @@ RUN_IMAGE_TAG = "tilt-run"
 
 
 def main():
-    ns, nexus_api, dagster = sys.argv[1:]
+    ns, nexus_api, dagster, nexus_ui = sys.argv[1:]
 
     out = subprocess.run(
-        ["kubectl", "get", "deployment", nexus_api, dagster, "-n", ns, "-o", "json"],
+        ["kubectl", "get", "deployment", nexus_api, dagster, nexus_ui, "-n", ns,
+         "--ignore-not-found", "-o", "json"],
         capture_output=True,
         text=True,
     )

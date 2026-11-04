@@ -36,7 +36,7 @@ allow_k8s_contexts('kind-fn')
 # K8s resources are managed by Helm via `make deploy`. Tilt needs to know about
 # them to inject the restart wrapper.
 k8s_yaml(local(
-  'python3 scripts/tilt_manifests.py {ns} nexus-api {dagster}'.format(
+  'python3 scripts/tilt_manifests.py {ns} nexus-api {dagster} nexus-ui'.format(
     ns=NAMESPACE,
     dagster=DAGSTER_DEPLOYMENT,
   ),
@@ -128,17 +128,20 @@ local_resource(
 # ==============================================================================
 # NEXUS ADMIN UI
 # ==============================================================================
-# Vite dev server with hot reload of nexus/ui/src, at http://localhost:5173/nexus-ui/.
-# It proxies /nexus-ui/api to nexus-api on 5000.
-local_resource(
-  'nexus-ui',
-  cmd='cd nexus/ui && npm ci',
-  deps=['nexus/ui/package.json', 'nexus/ui/package-lock.json'],
-  serve_cmd='cd nexus/ui && npm run dev -- --strictPort',
-  serve_env={'VITE_NEXUS_API_URL': 'http://localhost:5000'},
-  links=['http://localhost:5173/nexus-ui/'],
-  labels=['dev'],
+# The chart runs the Vite dev server when nexus.ui.devServer is true (dev.values.yaml).
+# Tilt builds that dev image and syncs nexus/ui into it; Vite hot-reloads the page.
+docker_build(
+  '{}/nexus-ui-dev-fn'.format(DOCKER_REGISTRY),
+  'nexus/ui',
+  target='dev',
+  ignore=['node_modules', 'dist'],
+  live_update=[
+    fall_back_on(['nexus/ui/package.json', 'nexus/ui/package-lock.json']),
+    sync('nexus/ui', '/app'),
+  ],
 )
+k8s_resource('nexus-ui', port_forwards=['8088:5173'], labels=['dev'])
+DEV_URLS.append(('nexus UI', 'http://localhost:8088/nexus-ui/'))
 
 # ==============================================================================
 # STATUS HELPERS
@@ -177,13 +180,6 @@ local_resource(
   labels=['infrastructure'],
 )
 DEV_URLS.append(('Gitea', 'http://localhost:4000'))
-
-local_resource(
-  'nexus-ui-port-forward',
-  serve_cmd=port_forward_cmd('nexus-ui', NAMESPACE, '8088:80'),
-  labels=['infrastructure'],
-)
-DEV_URLS.append(('nexus UI (deployed)', 'http://localhost:8088/nexus-ui/'))
 
 # The experiments chart's database, in its own namespace and release rather than the node's.
 # Waits quietly until `fncli experiment up` has created it.
