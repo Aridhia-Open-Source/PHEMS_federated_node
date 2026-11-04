@@ -128,7 +128,7 @@ class K8sPipe:
 
     @property
     def task_secret_name(self) -> str:
-        return f"task-{self.context.run.tags['task_id']}"
+        return f"task-{self.context.dagster_run.tags['fn/task_id']}"
 
     def _launch(self):
         self.log(f"Pipes op starting - {self.image}")

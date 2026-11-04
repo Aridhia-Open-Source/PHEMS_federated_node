@@ -146,7 +146,7 @@ class TestBasePodSpec:
         assert spec["activeDeadlineSeconds"] == 21600
         assert container["volumeMounts"][0]["subPath"] == "run-1"
         assert container["env"][names.index("DB_PASSWORD")]["valueFrom"]["secretKeyRef"] == {
-            "name": "task-7", "key": "PASSWORD"
+            "name": "task-9", "key": "PASSWORD"
         }
         assert names[-3:] == ["DB_USERNAME", "DB_PASSWORD", "CONNECTION_STRING"]
 
@@ -246,10 +246,10 @@ class TestEnvironment:
         secret.assert_not_called()
         names = [e["name"] for e in env]
         assert env[names.index("DB_USERNAME")] == {
-            "name": "DB_USERNAME", "valueFrom": {"secretKeyRef": {"name": "task-7", "key": "USERNAME"}}
+            "name": "DB_USERNAME", "valueFrom": {"secretKeyRef": {"name": "task-9", "key": "USERNAME"}}
         }
         assert env[names.index("DB_PASSWORD")] == {
-            "name": "DB_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "task-7", "key": "PASSWORD"}}
+            "name": "DB_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "task-9", "key": "PASSWORD"}}
         }
 
     def test_connection_string_refers_to_the_secret_variables_defined_before_it(self, pipes_env):
@@ -518,7 +518,7 @@ class TestTaskSecret:
                 patch.object(pipes, "TaskSecret") as task_secret:
             pipe()
 
-        task_secret.assert_called_once_with("task-7", "tasks", {"USERNAME": "user", "PASSWORD": "pass"})
+        task_secret.assert_called_once_with("task-9", "tasks", {"USERNAME": "user", "PASSWORD": "pass"})
         assert seen["entered"] is True
         task_secret.return_value.__exit__.assert_called_once()
 
@@ -536,9 +536,9 @@ class TestTaskSecret:
 
     def test_a_run_without_a_task_id_is_rejected(self, pipes_env):
         pipe = make_pipe(**DATASET_CONFIG)
-        pipe.context.run.tags = {}
+        pipe.context.dagster_run.tags = {}
 
-        with pytest.raises(KeyError, match="task_id"):
+        with pytest.raises(KeyError, match="fn/task_id"):
             pipe.task_secret_name
 
 
