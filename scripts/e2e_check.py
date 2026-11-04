@@ -31,7 +31,7 @@ def snapshot(api, project_name):
     out = {"project": {"id": project.id, "enabled": project.enabled}, "trigger_resources": [], "tasks": []}
     for resource in resources:
         repo_id = resource["trigger_repository"]["id"]
-        prs = get_json(api, f"/projects/{project.id}/repositories/triggers/{repo_id}/pull_requests", per_page=100)
+        prs = get_json(api, f"/projects/{project.id}/repositories/triggers/{repo_id}/pull_requests", size=100)
         out["trigger_resources"].append(
             {
                 "repository_id": repo_id,
@@ -43,7 +43,7 @@ def snapshot(api, project_name):
         )
     out["tasks"] = [
         {k: task.get(k) for k in ("id", "status", "name")}
-        for task in get_json(api, f"/projects/{project.id}/tasks", per_page=100)["tasks"]
+        for task in get_json(api, f"/projects/{project.id}/tasks", size=100)["items"]
     ]
     return out
 

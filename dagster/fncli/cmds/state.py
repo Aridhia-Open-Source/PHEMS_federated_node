@@ -1,6 +1,6 @@
 """
 Commands for the end-to-end suites (tests/e2e/README.md): look at the test project's state, and change the
-state the webserver's rules act on (project enabled and revoked, a project resource's enabled and revoked, a global resource's enabled and revoked),
+state nexus-api's rules act on (project enabled and revoked, a project resource's enabled and revoked, a global resource's enabled and revoked),
 plus a second project on the same global resources. Every write prints the HTTP status and body; `--expect STATUS` asserts
 the status, which is how the suites check the 409 rules. Without it a status of 400 or more is a failure.
 """
@@ -107,9 +107,9 @@ def snapshot(api: FncliBackendAPI, name: str) -> dict:
     trigger_resources = []
     for resource in found["trigger"]:
         repo_id = resource["trigger_repository"]["id"]
-        prs = get(api, f"/projects/{pid}/repositories/triggers/{repo_id}/pull_requests", per_page=100)
+        prs = get(api, f"/projects/{pid}/repositories/triggers/{repo_id}/pull_requests", size=100)
         # Stored once per repository, so also for a resource that gets no trigger (project revoked or disabled)
-        stored = get(api, f"/global/repositories/triggers/{repo_id}/pull_requests", per_page=1)
+        stored = get(api, f"/global/repositories/triggers/{repo_id}/pull_requests", size=1)
         trigger_resources.append(
             {
                 "repository": resource["trigger_repository"].get("uri"),
@@ -144,7 +144,7 @@ def snapshot(api: FncliBackendAPI, name: str) -> dict:
         ],
         "tasks": [
             {k: t.get(k) for k in ("id", "status", "name", "state_cause")}
-            for t in get(api, f"/projects/{pid}/tasks", per_page=100)["tasks"]
+            for t in get(api, f"/projects/{pid}/tasks", size=100)["items"]
         ],
         "results": [
             {k: r.get(k) for k in ("id", "task_id", "step", "state", "number", "url")}

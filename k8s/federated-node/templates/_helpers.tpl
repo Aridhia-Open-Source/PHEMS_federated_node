@@ -30,8 +30,12 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
-{{- define "backend-image" -}}
-{{ printf "%s:%s" (.Values.backend.image) ((.Values.backend.tag) | default (include "image-tag" . | trim)) }}
+{{- define "nexus-api-image" -}}
+{{ printf "%s:%s" (.Values.nexus.api.image) ((.Values.nexus.api.tag) | default (include "image-tag" . | trim)) }}
+{{- end }}
+
+{{- define "nexus-ui-image" -}}
+{{ printf "%s:%s" (.Values.nexus.ui.image) ((.Values.nexus.ui.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}
 {{- define "fn-alpine" -}}
 {{ printf "%s:%s" (.Values.alpine.image) ((.Values.alpine.tag) | default (include "image-tag" . | trim)) }}
@@ -84,12 +88,12 @@ app.kubernetes.io/name: {{ include "federated-node.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{- define "backendDbName" -}}
-  {{ .Values.backend.db.name | quote }}
+{{- define "nexusDbName" -}}
+  {{ .Values.nexus.api.db.name | quote }}
 {{- end -}}
 
-{{- define "backendDbUser" -}}
-  {{ .Values.backend.db.user | quote }}
+{{- define "nexusDbUser" -}}
+  {{ .Values.nexus.api.db.user | quote }}
 {{- end -}}
 
 {{- define "dbKeycloakName" -}}
@@ -177,24 +181,33 @@ securityContext:
 {{- define "quarantine_namespace" -}}
 {{ ((.Values.global).namespaces).quarantine | default "fn-quarantine" }}
 {{- end -}}
+{{- define "secrets_namespace" -}}
+{{ ((.Values.global).namespaces).secrets | default "fn-secrets" }}
+{{- end -}}
+{{- /* The service accounts that store secrets. Emitted as RoleBinding subjects. */ -}}
+{{- define "nexusApiSubjects" -}}
+- kind: ServiceAccount
+  namespace: {{ .Release.Namespace }}
+  name: nexus-api
+{{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.host }}
 {{- else -}}
-http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
+{{ include "nexusApiUrl" . }}
 {{- end -}}
 {{- end }}
 
 {{/*
-The in-cluster URL Dagster uses to reach the FN backend API. Defaults to the
+The in-cluster URL Dagster, fncli and the smoke tests use to reach nexus-api. Defaults to the
 release namespace so the chart is not pinned to a namespace called "fn";
-set backend.uri explicitly to override (e.g. an external hostname).
+set nexus.api.url explicitly to override (e.g. an external hostname).
 */}}
-{{- define "backendUri" -}}
-{{- if .Values.backend.uri -}}
-{{ .Values.backend.uri }}
+{{- define "nexusApiUrl" -}}
+{{- if .Values.nexus.api.url -}}
+{{ .Values.nexus.api.url }}
 {{- else -}}
-http://backend.{{ .Release.Namespace }}.svc:{{ .Values.federatedNode.port }}
+http://nexus-api.{{ .Release.Namespace }}.svc:{{ .Values.nexus.api.port }}
 {{- end -}}
 {{- end }}
 
@@ -229,6 +242,8 @@ are given. Setting them explicitly means a driver change cannot alter them under
 file_mode/dir_mode of 0777 is what makes the volume writable by an analytical image
 running as ANY uid; uid=/gid= are deliberately omitted, since with 0777 they only
 affect how ownership is reported.
+mfsymlinks is deliberately not set: the volume holds partner output, and a symbolic link in it
+could point out of its folder.
 */}}
 {{- define "dagsterArtifactsMountOptions" -}}
 {{- $a := (.Values.fnDagster.artifacts | default dict) -}}
@@ -237,7 +252,6 @@ affect how ownership is reported.
 {{- else if .Values.storage.azure -}}
 - file_mode={{ $a.fileMode | default "0777" }}
 - dir_mode={{ $a.dirMode | default "0777" }}
-- mfsymlinks
 - nosharesock
 - actimeo=30
 {{- else if .Values.storage.nfs -}}

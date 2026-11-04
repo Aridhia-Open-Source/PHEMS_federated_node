@@ -227,13 +227,26 @@ How often they tick (`fnDagster.sensors.minIntervalSeconds`, default 30 s) and h
    ```json
    {
      "spec": {
-       "name": "first-task",
-       "image": "ghcr.io/your-org/your-analytics-image:1.0"
-     }
+       "image": "ghcr.io/your-org/your-analytics-image:1.0",
+       "dataset": "my-dataset",
+       "env": {"MY_VAR": "value"},
+       "tags": {"team": "analytics"},
+       "config": {"epochs": 3},
+       "compute": {"requests": {"cpu": "500m", "memory": "1Gi"}, "limits": {"cpu": "2", "memory": "4Gi"}}
+     },
+     "metadata": {"ticket": "ABC-1"}
    }
    ```
 
-   `image` is required. `env`, `params`, `dataset` and `resources` are optional. Any other field makes the pull request `REJECTED`. The rules are in [ADR 0002](project/decisions/0002-task-spec-and-derivation.md).
+   Only `spec` and `metadata` are allowed at the top level, and `spec` is required. In `spec`, `image` is required; `dataset`, `env`, `tags`, `config` and `compute` are optional. Any other field, in either place, makes the pull request `REJECTED`.
+   - `env` keys can't be `ARTIFACT_PATH`, `CDM_SCHEMA`, `WRITE_SCHEMA`, `DB_USERNAME`, `DB_PASSWORD`, `CONNECTION_STRING` or `CONFIG_PATH`, or start with `DAGSTER_` or `KUBERNETES_`, in any letter case: the run sets those itself.
+   - `tags` are text to text, copied onto the task's run. A key is 1 to 63 letters, digits, `_`, `.` or `-` (so no `/`), otherwise the pull request is rejected.
+   - `config` is a JSON object the task reads as a file. Its contents are not checked.
+   - `compute` asks for CPU and memory: `requests` and `limits`, each with an optional `cpu` and `memory` (`500m`, `2`, `512Mi`, `4Gi`). A limit can't be lower than its request, nothing can be over the node max, and a request without a limit of its own can't be over the default limit. Without it the task namespace's defaults apply. The max and the defaults are the chart's `taskCompute` values (`taskCompute.max` and `taskCompute.default`).
+   - `metadata` is yours: any JSON, not checked, kept with the task.
+   - The task is named `<project name>:PR#<pull request number>`.
+
+   The rules are in [ADR 0002](project/decisions/0002-task-spec-and-derivation.md).
 2. Open a pull request into the base branch and **merge it**. Only merged pull requests are read.
 3. Wait a few sensor intervals, then look:
 
@@ -242,7 +255,7 @@ How often they tick (`fnDagster.sensors.minIntervalSeconds`, default 30 s) and h
    ```
 
    The task goes pending, queued, running, then success. The Dagster UI shows the run and its logs under **Runs**.
-4. A pull request appears in the results repository, with `results.zip`, `spec.json` and `metadata.json` on a branch under `target_dir`. Merge it to close the loop: the sync sensor then records the result as merged.
+4. A pull request appears in the results repository, with `results.zip`, `spec.json` (the pull request's spec file, as merged) and `run.json` (node, project, trigger, task and delivery details) on a branch under `target_dir`. Merge it to close the loop: the sync sensor then records the result as merged.
 
 ## Using fncli
 
@@ -261,9 +274,9 @@ If the shell cannot find `fncli`, run `pipx ensurepath` and open a new terminal.
 
 ### What it needs
 
-- The dev cluster running with Tilt up (`make deploy`, then `tilt up`: [DEPLOYMENT.md](DEPLOYMENT.md#run-it-locally)). That gives the port-forwards: backend `localhost:5000`, Dagster `localhost:3000`, Gitea `localhost:4000`.
+- The dev cluster running with Tilt up (`make deploy`, then `tilt up`: [DEPLOYMENT.md](DEPLOYMENT.md#run-it-locally)). That gives the port-forwards: nexus-api `localhost:5000`, Dagster `localhost:3000`, Gitea `localhost:4000`.
 - `kubectl` pointing at the cluster. fncli reads secrets (the Dagster system login, the Gitea admin password, the first user) from the **current context**, so check `kubectl config current-context` is the cluster you mean.
-- A `.dev.env`, which fncli finds by searching up from your current directory. `.dev.env.example` documents every variable; the ones that matter here are `BACKEND_URL`, `KEYCLOAK_NAMESPACE`, `NAMESPACE`, `GITEA_API_URI`, the `TEST_*` names of the project, repositories and watch directory, and `DEFAULT_PROJECT_DATASET`.
+- A `.dev.env`, which fncli finds by searching up from your current directory. `.dev.env.example` documents every variable; the ones that matter here are `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE`, `NAMESPACE`, `GITEA_API_URI`, the `TEST_*` names of the project, repositories and watch directory, and `DEFAULT_PROJECT_DATASET`.
 
 ### The short way
 
@@ -298,7 +311,7 @@ Group commands chain these: `setup-project` (everything, including the Gitea sid
 
 ### Operating the dev cluster with fncli
 
-These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and talk only to the backend and Dagster. They are written for the dev cluster. On another node they may work if you point `BACKEND_URL` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `make deploy` creates, so on a real node revoke through the API instead.
+These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and talk only to nexus-api and Dagster. They are written for the dev cluster. On another node they may work if you point `NEXUS_API_URL` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `make deploy` creates, so on a real node revoke through the API instead.
 
 | Command | What it does |
 |---|---|

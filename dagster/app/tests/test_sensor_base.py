@@ -2,10 +2,47 @@ from unittest.mock import MagicMock, patch
 
 import dagster as dg
 import pytest
+from dagster_k8s.job import DagsterK8sJobConfig, construct_dagster_k8s_job, get_user_defined_k8s_config
 
 from app.config import SENSOR_RETRY_INTERVAL_SECONDS
 from app.definitions.sensors import base
-from app.definitions.sensors.base import IN_FLIGHT, LaunchingSensor, run_in_flight, run_key
+from app.definitions.sensors.base import IN_FLIGHT, LaunchingSensor, artifacts_volume_tags, run_in_flight, run_key
+
+
+def run_pod(tags):
+    """The pod spec the Dagster K8s launcher builds for a run with these tags, offline."""
+    job_config = DagsterK8sJobConfig(
+        job_image="img", dagster_home="/opt/dagster/home", instance_config_map="cm", postgres_password_secret="pw"
+    )
+    job = construct_dagster_k8s_job(job_config, ["run"], "job", user_defined_k8s_config=get_user_defined_k8s_config(tags))
+    return job.spec.template.spec
+
+
+def mounts(pod):
+    return [(m.name, m.mount_path, m.sub_path, m.read_only) for m in pod.containers[0].volume_mounts]
+
+
+def test_a_task_run_gets_the_whole_artifacts_volume_read_write(artifacts_env):
+    pod = run_pod(artifacts_volume_tags())
+
+    assert [(v.name, v.persistent_volume_claim.claim_name) for v in pod.volumes] == [("artifacts-pvc", "artifacts-pvc")]
+    assert mounts(pod) == [("artifacts-pvc", "/mnt/dagster/artifacts", None, None)]
+
+
+def test_a_delivery_run_gets_only_its_task_runs_folder_read_only(artifacts_env):
+    pod = run_pod(artifacts_volume_tags("run-1"))
+
+    assert mounts(pod) == [("artifacts-pvc", "/mnt/dagster/artifacts/run-1", "run-1", True)]
+
+
+def test_the_volume_tag_follows_the_chart_values(monkeypatch):
+    monkeypatch.setenv("DAGSTER_ARTIFACTS_PVC_NAME", "other-claim")
+    monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/data")
+
+    pod = run_pod(artifacts_volume_tags("run-1"))
+
+    assert [(v.name, v.persistent_volume_claim.claim_name) for v in pod.volumes] == [("other-claim", "other-claim")]
+    assert mounts(pod) == [("other-claim", "/data/run-1", "run-1", True)]
 
 
 def test_the_run_key_has_kind_item_state_and_slot():

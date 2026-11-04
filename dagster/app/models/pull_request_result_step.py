@@ -3,8 +3,8 @@ from enum import Enum
 
 class PullRequestResultStep(str, Enum):
     """
-    The furthest step the delivery of a task's results by pull request has reached, as the
-    webserver defines it. It only moves forward, and the webserver rejects a move back.
+    The furthest step the delivery of a task's results by pull request has reached, as
+    nexus-api defines it. It only moves forward, and nexus-api rejects a move back.
 
     UNKNOWN: the result is recorded, nothing is delivered yet.
     PUSHED: the results are pushed to their branch.

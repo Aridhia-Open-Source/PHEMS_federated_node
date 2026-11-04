@@ -71,7 +71,7 @@ Add `--project QaTwo` to look at the second project.
 3. Make the change the case asks for.
 4. `fncli start-sensor --group launcher` and watch the task.
 
-This is sound because the launcher reads the pending tasks again every tick and the webserver decides at launch.
+This is sound because the launcher reads the pending tasks again every tick and nexus-api decides at launch.
 
 **Make a change while a task is RUNNING or before delivery.** Used by the same two sections.
 
@@ -91,7 +91,7 @@ Notes on the setup:
 ```
 
 - Tick **Pass** or **Fail**. Leave both unticked for a case you did not run, and say why in the notes.
-- A failing case is a finding: this plan reports, it does not fix. Write the case title, the commands you ran, the expected and actual result, and the logs. Always capture `fncli sensor-status`, the output of `fncli project-show`, and the last 200 lines of the backend and the Dagster code server (`kubectl get pods -A | grep -E "backend|dagster"`, then `kubectl logs <pod> --tail=200`).
+- A failing case is a finding: this plan reports, it does not fix. Write the case title, the commands you ran, the expected and actual result, and the logs. Always capture `fncli sensor-status`, the output of `fncli project-show`, and the last 200 lines of nexus-api and the Dagster code server (`kubectl get pods -A | grep -E "backend|dagster"`, then `kubectl logs <pod> --tail=200`).
 - For the cases that ask you to "check" or "record", write what you saw even when you tick Pass.
 
 ## Where to spend the time

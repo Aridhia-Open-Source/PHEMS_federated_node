@@ -1,6 +1,6 @@
 # Tilt Development Guide
 
-Tilt is a local development environment that enables instant reloads for your Dagster code, daemon, and webserver backend without manual rebuilds or restarts.
+Tilt is a local development environment that enables instant reloads for your Dagster code, daemon, and nexus-api without manual rebuilds or restarts.
 
 ## Architecture Overview
 
@@ -23,7 +23,7 @@ Tilt is a local development environment that enables instant reloads for your Da
 │                              ↓                         │
 │  ┌────────────────────────────────────────────────┐   │
 │  │   Kind Kubernetes Cluster (in Docker)          │   │
-│  │  - Webserver Pod (Flask)                       │   │
+│  │  - nexus-api Pod (FastAPI)                      │   │
 │  │  - Dagster Daemon Pod                          │   │
 │  │  - Dagster User Code Pod                       │   │
 │  │  - Dagster Webserver Pod                       │   │
@@ -85,7 +85,7 @@ tilt up
 
 Tilt will:
 - Load the Tiltfile
-- Build Docker images for webserver and Dagster
+- Build Docker images for nexus-api and Dagster
 - Push images to localhost:5001
 - Open the dashboard at http://localhost:10350
 
@@ -103,7 +103,7 @@ kubectl get pods
 ```
 
 Wait for all pods to be Running. Then access:
-- **Backend API docs**: http://localhost:5000/docs
+- **nexus-api docs**: http://localhost:5000/docs
 - **Dagster UI**: http://localhost:3000
 - **Tilt UI**: http://localhost:10350/
 
@@ -118,23 +118,23 @@ Tilt watches specific file patterns and reacts based on what changed:
 #### Python Code (Instant Reload)
 
 ```
-webserver/app/routes.py changes
+nexus/api/app/routes.py changes
     ↓
 Tilt detects change
     ↓
 Syncs file into running container
     ↓
-Flask auto-reloads
+FastAPI auto-reloads
     ↓
 Instant feedback (~1 second)
 ```
 
-Paths: `webserver/app/**/*.py`, `dagster/app/**/*.py`
+Paths: `nexus/api/app/**/*.py`, `dagster/app/**/*.py`
 
 #### Dependencies (Smart Rebuild)
 
 ```
-webserver/requirements.txt changes
+nexus/api/requirements.txt changes
     ↓
 Tilt detects change
     ↓
@@ -164,7 +164,7 @@ All images are tagged with your configured `DOCKER_TAG` from `.dev.env`.
 
 | Service | Image | Port | Watch Paths | Notes |
 |---------|-------|------|-------------|-------|
-| Webserver | `localhost:5001/webserver-fn` | 5000 | `webserver/app/` | Flask app, instant reload |
+| nexus-api | `localhost:5001/nexus-api-fn` | 5000 | `nexus/api/app/` | FastAPI app, instant reload |
 | Dagster User Code | `localhost:5001/dagster-fn` | - | `dagster/app/` | User code, instant reload |
 | Dagster Daemon | `localhost:5001/dagster-fn` | - | `dagster/app/` | Pulled from user code |
 | Dagster UI | `localhost:5001/dagster-fn` | 3000 | `dagster/app/` | Pulled from user code |
@@ -173,15 +173,15 @@ All services are deployed via Helm under namespace `fn` (configurable via `.dev.
 
 ## Development Workflow
 
-### Editing Webserver Code
+### Editing nexus-api Code
 
 ```bash
 # Edit a route
-nano webserver/app/routes.py
+nano nexus/api/app/routes.py
 
 # Tilt detects change (< 1 second)
 # File synced into container
-# Flask reloads automatically
+# FastAPI reloads automatically
 # Visit http://localhost:5000 to see changes
 ```
 
@@ -201,7 +201,7 @@ nano dagster/app/definitions/jobs.py
 
 ```bash
 # Add to requirements
-echo "new-package==1.0.0" >> webserver/requirements.txt
+echo "new-package==1.0.0" >> nexus/api/requirements.txt
 
 # Tilt detects change (< 1 second)
 # Rebuilds Docker image (~20-30 seconds)
@@ -221,8 +221,8 @@ tilt open
 
 **Command Line**:
 ```bash
-# Webserver logs
-kubectl logs -f deployment/backend -n fn
+# nexus-api logs
+kubectl logs -f deployment/nexus-api -n fn
 
 # Dagster daemon logs
 kubectl logs -f deployment/fn-dev-dagster-daemon -n fn
@@ -234,8 +234,8 @@ kubectl logs -f deployment/fn-dev-dagster-user-deployments-dagster-fn -n fn
 ### Force Rebuild a Service
 
 ```bash
-# Rebuild and redeploy webserver
-tilt trigger backend
+# Rebuild and redeploy nexus-api
+tilt trigger nexus-api
 
 # Rebuild and redeploy Dagster
 tilt trigger fn-dev-dagster-user-deployments-dagster-fn
@@ -244,7 +244,7 @@ tilt trigger fn-dev-dagster-user-deployments-dagster-fn
 ### Restart a Pod
 
 ```bash
-kubectl rollout restart deployment/backend -n fn
+kubectl rollout restart deployment/nexus-api -n fn
 kubectl rollout restart deployment/fn-dev-dagster-daemon -n fn
 ```
 
@@ -312,7 +312,7 @@ tilt logs | grep "Port forward"
 
 **Manual workaround**:
 ```bash
-kubectl port-forward service/backend 5000:5000 -n fn
+kubectl port-forward service/nexus-api 5000:5000 -n fn
 ```
 
 ### Complete Reset

@@ -31,7 +31,7 @@ class TaskReconcileSensor(BaseSensor):
         """
         Execute the sensor. Patches a task whose status differs from its run's, and yields a SkipReason.
 
-        The run is found by the tags the launcher gives it: trigger=task, task_id and attempt (the run key
+        The run is found by the tags the launcher gives it: fn/trigger=task, fn/task_id and fn/attempt (the run key
         is task/<id>/<attempt>). The status maps and the fields are the run-status sensors' (see
         TaskRunStatusSensor.task_fields). Left alone: a PENDING task without a run (the launcher owns it),
         a run in a status the task has no counterpart for (e.g. STARTING), and a task that already has the
@@ -50,7 +50,7 @@ class TaskReconcileSensor(BaseSensor):
         runs = self.context.instance.get_runs(
             filters=dg.RunsFilter(
                 job_name=k8s_pipes_job.name,
-                tags={"trigger": "task", "task_id": str(task.id), "attempt": str(task.attempt)},
+                tags={"fn/trigger": "task", "fn/task_id": str(task.id), "fn/attempt": str(task.attempt)},
             ),
             limit=1,
         )

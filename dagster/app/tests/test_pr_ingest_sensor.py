@@ -35,7 +35,7 @@ def fake_git_api(merged_numbers):
 def run(repos, git_apis_by_repo_id, in_flight=()):
     context = MagicMock()
     context.instance.get_runs.side_effect = lambda filters, limit: (
-        [MagicMock()] if filters.tags["repo_id"] in in_flight else []
+        [MagicMock()] if filters.tags["fn/repo_id"] in in_flight else []
     )
     backend_api = MagicMock()
     backend_api.get_pollable_trigger_repositories.return_value = repos
@@ -81,7 +81,7 @@ def test_requests_one_run_per_repository_with_new_prs():
 def test_the_run_is_tagged_as_an_ingest_and_not_a_task():
     results, _ = run([repo(1)], {1: fake_git_api([5])})
 
-    assert results[0].tags == {"trigger": "ingest", "repo_id": "1"}
+    assert results[0].tags == {"fn/trigger": "ingest", "fn/repo_id": "1"}
 
 
 def test_the_run_key_is_the_cursor_and_the_retry_slot():
@@ -118,7 +118,7 @@ def test_the_in_flight_check_filters_on_the_ingest_tags_and_statuses():
 
     filters = context.instance.get_runs.call_args.kwargs["filters"]
     assert filters.job_name == "ingest_pull_requests_job"
-    assert filters.tags == {"trigger": "ingest", "repo_id": "7"}
+    assert filters.tags == {"fn/trigger": "ingest", "fn/repo_id": "7"}
     assert set(filters.statuses) == set(IN_FLIGHT)
 
 

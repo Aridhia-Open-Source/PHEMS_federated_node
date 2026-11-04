@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ###############################################################################
-# Show the Project, global TriggerRepository and the project's assignment (as the backend API
+# Show the Project, global TriggerRepository and the project's assignment (as the nexus-api API
 # currently sees them) for the trigger-repository simulation set up by
 # init_repo.sh.
 ###############################################################################
@@ -16,14 +16,14 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-BACKEND_TOKEN=$(curl -s "$BACKEND_URL/login" \
+BACKEND_TOKEN=$(curl -s "$NEXUS_API_URL/login" \
   --fail-with-body \
   --header "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "username=${KEYCLOAK_SERVICE_USER}" \
   --data-urlencode "password=${KEYCLOAK_SERVICE_PASSWORD}" | jq -r -e '.token')
 
 echo -e "${BLUE}=== Project: $TEST_PROJECT_NAME ===${NC}"
-project=$(curl -sf "$BACKEND_URL/projects" \
+project=$(curl -sf "$NEXUS_API_URL/projects" \
   --header "Authorization: Bearer $BACKEND_TOKEN" \
   | jq --arg name "$TEST_PROJECT_NAME" '.items[] | select(.name == $name)')
 
@@ -36,7 +36,7 @@ fi
 
 echo
 echo -e "${BLUE}=== Trigger repository (global): $GITEA_ADMIN_USER/$TEST_TRIGGER_REPO ===${NC}"
-repo=$(curl -sf "$BACKEND_URL/global/repositories/triggers" \
+repo=$(curl -sf "$NEXUS_API_URL/global/repositories/triggers" \
   --header "Authorization: Bearer $BACKEND_TOKEN" \
   | jq --arg path "$GITEA_ADMIN_USER/$TEST_TRIGGER_REPO" '.[] | select(.repo_path == $path)')
 
@@ -52,7 +52,7 @@ echo -e "${BLUE}=== Project's resource for it ===${NC}"
 if [ -z "${project_id:-}" ] || [ -z "${repo_id:-}" ]; then
   echo "Not found. Run init_repo.sh first."
 else
-  curl -sf "$BACKEND_URL/projects/$project_id/repositories/triggers/$repo_id" \
+  curl -sf "$NEXUS_API_URL/projects/$project_id/repositories/triggers/$repo_id" \
     --header "Authorization: Bearer $BACKEND_TOKEN" | jq .
 fi
 

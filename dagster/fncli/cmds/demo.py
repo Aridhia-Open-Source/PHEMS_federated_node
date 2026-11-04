@@ -78,7 +78,7 @@ def record_backend_calls(calls: list):
 def show_backend_calls(calls: list):
     if not calls:
         return
-    click.echo("Webserver calls:")
+    click.echo("nexus-api calls:")
     for (method, path, status), count in Counter(calls).items():
         click.echo(f"  {method} {path} -> {status}" + (f"  x {count}" if count > 1 else ""))
 

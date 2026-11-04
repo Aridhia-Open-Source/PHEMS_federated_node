@@ -127,7 +127,7 @@ class DagsterAPI:
         return result["instigationState"]["status"]
 
     def get_task_run(self, task_id: int) -> dict | None:
-        """The task's latest run (runId, status, jobName, tags), found by its task_id tag, if it has one."""
-        variables = {"filter": {"tags": [{"key": "task_id", "value": str(task_id)}]}}
+        """The task's latest run (runId, status, jobName, tags), found by its fn/task_id tag, if it has one."""
+        variables = {"filter": {"tags": [{"key": "fn/task_id", "value": str(task_id)}]}}
         results = self.graphql_ok(TASK_RUN, variables, "Runs")["results"]
         return results[0] if results else None

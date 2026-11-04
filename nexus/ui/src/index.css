@@ -1,0 +1,403 @@
+/* Theme: Tailwind plus the shadcn/ui design tokens, pointed at the brand layer at the end
+   of this file. Copied from the EHDS Relay ui package; nexus adds a dark theme (the .dark
+   block after :root), which EHDS does not have. */
+@import "@fontsource/poppins/latin-400.css";
+@import "@fontsource/poppins/latin-500.css";
+@import "@fontsource/poppins/latin-600.css";
+@import "@fontsource/poppins/latin-700.css";
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Dark mode is the .dark class on <html> (set before first paint by the script in index.html). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  /* One spacing step is 4px, written in px so it does not follow the 15px root size:
+     p-8 is 32px, h-10 is 40px, size-11 is 44px. */
+  --spacing: 4px;
+  --font-sans: var(--sans);
+
+  /* Phone layout up to and including 768px wide (media queries read rem at 16px). */
+  --breakpoint-md: 48.0625rem;
+
+  /* Only the brand radii: rounded-card, rounded-field, rounded-modal, rounded-signin. */
+  --radius-*: initial;
+  --radius-card: var(--radius-card);
+  --radius-field: var(--radius-field);
+  --radius-modal: var(--radius-modal);
+  --radius-signin: var(--radius-signin);
+
+  /* Only the brand shadows: shadow-card, shadow-card-hover, shadow-overlay. The record
+     section shadow is a filter, applied with filter-(--shadow-section). */
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-shadow-*: initial;
+  --shadow-card: var(--shadow-card);
+  --shadow-card-hover: var(--shadow-card-hover);
+  --shadow-overlay: var(--shadow-overlay);
+
+  /* Hover and state changes by default; things arriving use duration-(--motion-enter)
+     with ease-(--ease-out). */
+  --default-transition-duration: var(--motion-fast);
+  --default-transition-timing-function: var(--ease-standard);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Brand colours as utilities: bg-blue, text-ink-3, border-line, bg-blue-tint-90 ... */
+  --color-blue: var(--blue);
+  /* The brand blue as a fill (header, menu panel, toasts, cards): the same in both themes,
+     white text on top. --blue is the blue for text, links and focus, and lightens in dark. */
+  --color-brand: var(--brand);
+  --color-brand-shade: var(--brand-shade);
+  --color-brand-error: var(--brand-error);
+  --color-brand-error-shade: var(--brand-error-shade);
+  --color-blue-tint-95: var(--blue-tint-95);
+  --color-blue-tint-90: var(--blue-tint-90);
+  --color-blue-tint-80: var(--blue-tint-80);
+  --color-blue-hint: var(--blue-hint);
+  --color-yellow: var(--yellow);
+  --color-yellow-shade: var(--yellow-shade);
+  --color-required: var(--required);
+  --color-ink: var(--ink);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-error: var(--error);
+  --color-error-on-white: var(--error-on-white);
+  --color-error-bg: var(--error-bg);
+  --color-success: var(--success);
+  --color-success-on-white: var(--success-on-white);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-on-white: var(--warning-on-white);
+  --color-warning-bg: var(--warning-bg);
+  --color-info: var(--info);
+  --color-info-on-white: var(--info-on-white);
+  --color-info-bg: var(--info-bg);
+  --color-code-bg: var(--code-bg);
+  --color-code-text: var(--code-text);
+  --color-code-label: var(--code-label);
+  --color-code-border: var(--code-border);
+  --color-code-control: var(--code-control);
+  --color-scrim: var(--scrim);
+}
+
+html {
+  font-size: 15px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background font-sans text-foreground;
+  }
+  /* Blue outline on white, yellow on blue surfaces (mark a blue surface with data-surface="blue"). */
+  :focus-visible {
+    outline: 3px solid var(--blue);
+    outline-offset: 3px;
+  }
+  [data-surface="blue"] :focus-visible,
+  [data-surface="blue"]:focus-visible {
+    outline-color: var(--yellow);
+  }
+}
+
+/* Inline links: blue on white, yellow on blue, always underlined (dotted, solid on hover).
+   Bare anchors get this; classed ones (buttons, cards, nav) opt in with .link. */
+a:where(:not([class])),
+.link {
+  color: var(--blue);
+  font-weight: 600;
+  text-decoration: underline dotted 2px;
+  text-underline-offset: 3px;
+}
+a:where(:not([class])):hover,
+.link:hover {
+  text-decoration-style: solid;
+}
+[data-surface="blue"] a:where(:not([class])),
+[data-surface="blue"] .link {
+  color: var(--yellow);
+}
+
+/* The loading star spins; with reduced motion it pulses instead. */
+@keyframes star-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes star-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.loading-star {
+  animation: star-spin var(--motion-spin) linear infinite;
+}
+
+/* The browser's arrow is hidden and replaced by a chevron. The colour is written here,
+   as an image cannot read a CSS variable. */
+.native-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'%3E%3Cpath d='M1.5 1.5 7 6.5l5.5-5' fill='none' stroke='%231c2fd4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 14px 8px;
+}
+
+.dark .native-select:not(.native-select-on-blue) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'%3E%3Cpath d='M1.5 1.5 7 6.5l5.5-5' fill='none' stroke='%238a97ff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* The ring of stars behind the sign-in screen: turns once every 140 seconds, and stays
+   still when the person prefers reduced motion. */
+@keyframes star-ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.star-ring {
+  animation: star-ring-turn var(--motion-ambient) linear infinite;
+}
+
+/* Yellow stars at full strength are loud on navy. */
+.dark .star-ring {
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star-ring {
+    animation: none !important;
+  }
+}
+
+/* Reduced motion: no transitions, animations or smooth scrolling. Only the loading star
+   keeps moving, as a gentle pulse, so people can still tell work is in progress. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .loading-star {
+    animation: star-pulse var(--motion-pulse) ease-in-out infinite !important;
+  }
+}
+
+/* Select on a blue surface: underline field with a white chevron. */
+.native-select-on-blue {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 8'%3E%3Cpath d='M1.5 1.5 7 6.5l5.5-5' fill='none' stroke='%23ffffff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right 2px center;
+}
+
+/* Brand layer: change a token here rather than hard-coding a colour in a component. */
+:root {
+  color-scheme: light;
+
+  /* The brand blue as a fill, and its hover shade. Constant across themes. */
+  --brand: #1c2fd4;
+  --brand-shade: #1626b0;
+  /* Destructive button fill (white text) and its hover shade. */
+  --brand-error: #c2007d;
+  --brand-error-shade: #9c0064;
+  /* Blue for text, links, focus rings and outlines on the page surface. */
+  --blue: var(--brand);
+  --blue-tint-95: #f3f4fd;
+  --blue-tint-90: #e8eafb;
+  --blue-tint-80: #d2d5f6;
+  /* Blue at 75% on white: field hints and the due date on cards. */
+  --blue-hint: #5563df;
+  --yellow: #f8f121;
+  --ink: #444444;
+  --ink-3: #6e7084;
+  --line: #dcdfee;
+  --required: #9e9200;
+
+  --error: #ff9edb;
+  --error-on-white: #c2007d;
+  --error-bg: #fbe5f2;
+  --success: #7cf5b0;
+  --success-on-white: #007a4d;
+  --success-bg: #e3f5ec;
+  --warning: #fad0ae;
+  --warning-on-white: #a34a00;
+  --warning-bg: #fceee2;
+  --info: #8fe3ff;
+  --info-on-white: #00668f;
+  --info-bg: #e1f2fa;
+
+  --code-bg: #030938;
+  --code-text: #e8eafb;
+  --code-label: var(--yellow);
+  --code-border: rgb(255 255 255 / 14%);
+  --code-control: rgb(255 255 255 / 35%);
+
+  --sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+
+  --h1-size: 2.2em;
+  --h2-size: 1.75em;
+  --h3-size: 1.3em;
+  --h4-size: 1.2em;
+
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-56: 56px;
+  --space-64: 64px;
+  --space-80: 80px;
+
+  --radius-card: 14px;
+  --radius-field: 12px;
+  --radius-modal: 24px;
+  --radius-signin: 28px;
+
+  --shadow-card: 0 0 6px rgb(20 24 60 / 11%);
+  --shadow-card-hover: 0 0 0 3px var(--blue), 0 0 6px rgb(20 24 60 / 11%);
+  /* A filter, not a box-shadow: the record section's tab and table share one outline. */
+  --shadow-section: drop-shadow(0 0 5px rgb(120 120 120 / 10%));
+  --shadow-overlay: 0 14px 44px rgb(10 14 60 / 24%);
+
+  /* Behind dialogs and the menu panel. */
+  --scrim: rgb(10 14 60 / 40%);
+
+  --motion-fast: 150ms;
+  --motion-enter: 180ms;
+  --motion-spin: 1.1s;
+  --motion-pulse: 1.6s;
+  --motion-ambient: 140s;
+  --ease-standard: ease;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --icon-xs: 14px;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+  --icon-xl: 32px;
+  --icon-display-sm: 56px;
+  --icon-display: 72px;
+
+  /* shadcn variables, pointed at the brand tokens. */
+  --background: #ffffff;
+  --foreground: var(--ink);
+  --card: #ffffff;
+  --card-foreground: var(--ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--ink);
+  --primary: var(--yellow);
+  --primary-foreground: var(--brand);
+  --secondary: var(--blue-tint-90);
+  --secondary-foreground: var(--blue);
+  --muted: var(--blue-tint-95);
+  --muted-foreground: var(--ink-3);
+  --accent: var(--blue-tint-90);
+  --accent-foreground: var(--blue);
+  --destructive: var(--error-on-white);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--blue);
+  --chart-1: var(--blue);
+  --chart-2: var(--blue-hint);
+  --chart-3: var(--blue-tint-80);
+  --chart-4: var(--ink-3);
+  --chart-5: var(--ink);
+  --radius: var(--radius-card);
+  --sidebar: var(--brand);
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: var(--yellow);
+  --sidebar-primary-foreground: var(--brand);
+  --sidebar-accent: var(--brand-shade);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 20%);
+  --sidebar-ring: var(--yellow);
+}
+
+/* Dark theme (nexus addition). Navy surfaces derived from the code panel (#030938), light
+   text, and a lighter blue for text, links and focus that stays above 4.5:1 on every navy
+   surface below. Yellow stays the primary action colour. The brand blue fills (header, menu,
+   toasts, cards) are unchanged, so white text on them is the same as in light. Semantic
+   colours swap roles: the light "on blue" shades become the text colours, with deep tints
+   behind. Must come after :root (same specificity, later wins). */
+.dark {
+  color-scheme: dark;
+
+  --blue: #8a97ff;
+  --blue-tint-95: #101858;
+  --blue-tint-90: #182168;
+  --blue-tint-80: #2b3698;
+  --blue-hint: #7f8be6;
+  --ink: #e8eafb;
+  --ink-3: #a4a9d0;
+  --line: #2a3490;
+  --required: #d8cb2c;
+
+  --error-on-white: #ff9edb;
+  --error-bg: #35102f;
+  --success-on-white: #7cf5b0;
+  --success-bg: #0c3028;
+  --warning-on-white: #fad0ae;
+  --warning-bg: #3a2310;
+  --info-on-white: #8fe3ff;
+  --info-bg: #0b2f45;
+
+  /* Darker than the page so the panel still reads as a recess. */
+  --code-bg: #02051f;
+
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 7%), 0 2px 8px rgb(0 0 0 / 40%);
+  --shadow-card-hover: 0 0 0 3px var(--blue), 0 2px 8px rgb(0 0 0 / 40%);
+  --shadow-section: drop-shadow(0 0 5px rgb(0 0 0 / 40%));
+  --shadow-overlay: 0 14px 44px rgb(0 0 0 / 60%), 0 0 0 1px rgb(255 255 255 / 8%);
+  --scrim: rgb(2 4 24 / 65%);
+
+  --background: #070c36;
+  --card: #0e1552;
+  --popover: #0e1552;
+}

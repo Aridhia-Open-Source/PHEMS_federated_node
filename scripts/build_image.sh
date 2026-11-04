@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="${1:?Usage: build_image.sh <dir> [tag]}"
+DIR="${1:?Usage: build_image.sh <dir> [tag] [image name]}"
 TAG="${2:-latest}"
 REGISTRY="localhost:5001"
 
@@ -11,7 +11,7 @@ if [[ ! -d "$DIR" ]]; then
 fi
 
 BASENAME="$(basename "$DIR")"
-IMAGE_NAME="${BASENAME}-fn"
+IMAGE_NAME="${3:-${BASENAME}-fn}"
 IMAGE_REF="$REGISTRY/$IMAGE_NAME"
 
 cd "$DIR"
@@ -19,7 +19,9 @@ cd "$DIR"
 echo "Building $IMAGE_REF:$TAG"
 
 # Always build latest
+# TARGET picks a Dockerfile stage (e.g. TARGET=dev); unset builds the last stage.
 docker build --progress=plain \
+  ${TARGET:+--target "$TARGET"} \
   -t "$IMAGE_REF:latest" \
   -t "$IMAGE_REF:$TAG" \
   .

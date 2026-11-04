@@ -1,0 +1,35 @@
+{{- /*
+  What nexus-api may do with Secrets, namespace by namespace:
+  - the secrets namespace: store project secrets (secrets-namespace.yaml)
+  - quarantine: hold the value of a disabled secret (quarantine-namespace.yaml)
+  - the tasks namespace, here: registry pull secrets. Their names come from the registry, so
+    no resourceNames.
+  It never lists secrets, and holds nothing in any other namespace.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-nexus-api-registry-role
+  namespace: {{ include "tasks_namespace" . }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-nexus-api-registry-role-binding
+  namespace: {{ include "tasks_namespace" . }}
+subjects:
+{{- include "nexusApiSubjects" . | nindent 2 }}
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-nexus-api-registry-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nexus-api
+  namespace: {{ .Release.Namespace }}

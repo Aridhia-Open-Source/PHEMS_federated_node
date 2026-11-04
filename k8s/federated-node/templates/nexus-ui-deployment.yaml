@@ -1,0 +1,51 @@
+{{- if .Values.nexus.ui.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nexus-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: nexus-ui
+spec:
+  replicas: {{ .Values.nexus.ui.replicas }}
+  selector:
+    matchLabels:
+      app: nexus-ui
+  template:
+    metadata:
+      labels:
+        app: nexus-ui
+    spec:
+      containers:
+        - name: nexus-ui
+          image: {{ template "nexus-ui-image" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.nexus.ui.devServer | ternary 5173 8080 }}
+              protocol: TCP
+          env:
+            # Where nginx (or the Vite dev server's proxy) sends /nexus-ui/api
+            - name: NEXUS_API_URL
+              value: {{ include "nexusApiUrl" . | quote }}
+            - name: VITE_NEXUS_API_URL
+              value: {{ include "nexusApiUrl" . | quote }}
+          # The Vite dev server takes a while to start; liveness waits for this.
+          startupProbe:
+            httpGet:
+              path: {{ .Values.nexus.ui.devServer | ternary "/nexus-ui/" "/healthz" }}
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.nexus.ui.devServer | ternary "/nexus-ui/" "/healthz" }}
+              port: http
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.nexus.ui.devServer | ternary "/nexus-ui/" "/healthz" }}
+              port: http
+          resources:
+            {{- toYaml .Values.nexus.ui.resources | nindent 12 }}
+{{- end }}

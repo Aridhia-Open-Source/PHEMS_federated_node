@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "Compute": {
+      "additionalProperties": false,
+      "description": "The CPU and memory a task asks for. Only what is given is kept, the defaults are the task namespace's.",
+      "properties": {
+        "requests": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputeQuantities"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the task is guaranteed. A request without a limit of its own can't be over the default limit (chart value taskCompute.default.limits)"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputeQuantities"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the task can't go over. A limit can't be lower than its request, and no value in compute can be over the node max (chart value taskCompute.max)"
+        }
+      },
+      "title": "Compute",
+      "type": "object"
+    },
+    "ComputeQuantities": {
+      "additionalProperties": false,
+      "description": "CPU and memory, as Kubernetes quantities.",
+      "properties": {
+        "cpu": {
+          "anyOf": [
+            {
+              "pattern": "^(\\d+m|\\d+(\\.\\d+)?)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "CPU in cores or millicores, e.g. 2, 0.5 or 500m",
+          "title": "Cpu"
+        },
+        "memory": {
+          "anyOf": [
+            {
+              "pattern": "^\\d+(e\\d+|[EPTGM]i?|Ki|k|m)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Memory as a whole number with an optional unit, e.g. 512Mi, 4Gi or 2e9",
+          "title": "Memory"
+        }
+      },
+      "title": "ComputeQuantities",
+      "type": "object"
+    },
+    "PrSpec": {
+      "additionalProperties": false,
+      "description": "What a client may set in the `spec` of a pull request spec file.",
+      "properties": {
+        "image": {
+          "description": "The container image the task runs",
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Image",
+          "type": "string"
+        },
+        "dataset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The name of a dataset the project is assigned and has active. Without it the project's default dataset is used, if it has one",
+          "title": "Dataset"
+        },
+        "env": {
+          "additionalProperties": false,
+          "description": "Environment variables of the task. A name has to match ^[A-Za-z_][A-Za-z0-9_]*$, and can't be ARTIFACT_PATH, CDM_SCHEMA, CONFIG_PATH, CONNECTION_STRING, DB_PASSWORD, DB_USERNAME, WRITE_SCHEMA or start with DAGSTER_ or KUBERNETES_, in any letter case. The env as JSON is at most 32768 bytes",
+          "patternProperties": {
+            "^[A-Za-z_][A-Za-z0-9_]*$": {}
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "tags": {
+          "additionalProperties": false,
+          "description": "Tags copied onto the task's run. A key has to match ^[A-Za-z0-9_.-]{1,63}$, a value is text",
+          "patternProperties": {
+            "^[A-Za-z0-9_.-]{1,63}$": {
+              "type": "string"
+            }
+          },
+          "title": "Tags",
+          "type": "object"
+        },
+        "config": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A JSON object the task reads as a file, at the path in its CONFIG_PATH env. Contents are not checked",
+          "title": "Config"
+        },
+        "compute": {
+          "$ref": "#/$defs/Compute",
+          "description": "The CPU and memory the task asks for. Without it the defaults apply"
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "title": "PrSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A pull request spec file: a JSON object with a `spec` and, optionally, a `metadata`.",
+  "properties": {
+    "spec": {
+      "$ref": "#/$defs/PrSpec",
+      "description": "What the task runs"
+    },
+    "metadata": {
+      "default": null,
+      "description": "The client's own: any JSON value, not validated, kept with the task and delivered with the results. The whole spec file is at most 65536 bytes",
+      "title": "Metadata"
+    }
+  },
+  "required": [
+    "spec"
+  ],
+  "title": "PrSpecFile",
+  "type": "object"
+}

@@ -62,7 +62,7 @@ kubernetesProvider:
 tests:
   - it: HTTP routes are deployed
     templates:
-      - backend-http-route.yaml
+      - nexus-api-http-route.yaml
       - keycloak-http-route.yaml
     asserts:
       - hasDocuments:
@@ -72,7 +72,7 @@ tests:
       - hasDocuments:
           count: 1
           filterAware: true
-        template: backend-http-route.yaml
+        template: nexus-api-http-route.yaml
   - it: traefik subchart is deployed
     template: ../charts/traefik/templates/deployment.yaml
     asserts:
@@ -84,13 +84,13 @@ tests:
       traefik:
         enabled: false
     templates:
-      - backend-http-route.yaml
+      - nexus-api-http-route.yaml
       - keycloak-http-route.yaml
     asserts:
       - hasDocuments:
           count: 0
           filterAware: true
-        template: backend-http-route.yaml
+        template: nexus-api-http-route.yaml
       - hasDocuments:
           count: 0
           filterAware: true
