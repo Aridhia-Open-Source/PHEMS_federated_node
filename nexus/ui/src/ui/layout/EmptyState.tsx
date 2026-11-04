@@ -11,6 +11,7 @@ export interface EmptyStateProps {
   compact?: boolean;
   /** Announce the state when it appears, e.g. a search with no matches. */
   status?: boolean;
+  className?: string;
 }
 
 /** Stands in for a list that has nothing in it: says why, and what to do next. */
@@ -20,6 +21,7 @@ export function EmptyState({
   action,
   compact,
   status,
+  className,
 }: EmptyStateProps) {
   return (
     <div
@@ -29,6 +31,7 @@ export function EmptyState({
       className={cn(
         "rounded-card border-2 border-dashed border-blue-tint-80 bg-card text-center",
         compact ? "px-6 py-8" : "px-6 py-14",
+        className,
       )}
     >
       <Icon
