@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "screenshots": "node scripts/screenshots.mjs",
     "gen:api": "openapi-typescript ../api/openapi.json -o src/api/schema.d.ts --default-non-nullable false"
   },
   "dependencies": {
