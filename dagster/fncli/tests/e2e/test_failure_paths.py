@@ -438,6 +438,7 @@ def test_disabled_secret_missed_pr_not_replayed(fncli, flow):
 
 
 CONCURRENT_REQUESTS = 10
+MAX_ROUNDS = 30  # most rounds have only one request refresh: the others arrive after it has cached its token
 OAUTH_KEYS = ["CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"]
 
 
@@ -467,10 +468,8 @@ def test_concurrent_refresh_secret_holds_oauth_credentials(fncli, flow):
         assert get_k8s_secret(secret.key, secret.namespace, key)
 
 
-def test_concurrent_refresh_all_requests_succeed(fncli, flow):
-    """Ten simultaneous token requests with an empty cache all get a token. Fails if Gitea invalidates used refresh tokens:
-    the backend takes no lock, so every request refreshes with the same stored one and all but the first would be refused."""
-    repository = flow["refresh_repository"]
+def request_concurrently(fncli, repository) -> list:
+    """Clear the cache, then send CONCURRENT_REQUESTS token requests at once. Every one must succeed."""
     barrier = Barrier(CONCURRENT_REQUESTS)
 
     def request_token():
@@ -482,8 +481,25 @@ def test_concurrent_refresh_all_requests_succeed(fncli, flow):
         futures = [pool.submit(request_token) for _ in range(CONCURRENT_REQUESTS)]
     failures = [failure_text(future.exception()) for future in futures if future.exception()]
     assert not failures, f"{len(failures)} of {CONCURRENT_REQUESTS} concurrent token requests failed: {failures}"
-    flow["refresh_tokens"] = {future.result().token for future in futures}
-    logger.info(f"{CONCURRENT_REQUESTS} concurrent requests got {len(flow['refresh_tokens'])} distinct tokens")
+    return [future.result() for future in futures]
+
+
+def test_concurrent_refresh_all_requests_succeed(fncli, flow):
+    """Simultaneous token requests with an empty cache all get a token, in rounds until two of one round refreshed at the
+    same time. Fails if Gitea invalidates used refresh tokens: the backend takes no lock, so those refreshes use the same
+    stored refresh token and the second would be refused."""
+    tokens = set()
+    for round_number in range(1, MAX_ROUNDS + 1):
+        answers = request_concurrently(fncli, flow["refresh_repository"])
+        tokens |= {answer.token for answer in answers}
+        # A request that refreshes stamps its own expires_at; one that finds the cache returns the cached one
+        refreshes = len({answer.expires_at for answer in answers})
+        logger.info(f"Round {round_number}: {CONCURRENT_REQUESTS} concurrent requests, {refreshes} of them refreshed")
+        if refreshes > 1:
+            break
+    else:
+        pytest.fail(f"No two requests refreshed at the same time in {MAX_ROUNDS} rounds, so nothing raced")
+    flow["refresh_tokens"] = tokens
 
 
 def test_concurrent_refresh_gitea_accepts_every_token(flow):
@@ -495,16 +511,17 @@ def test_concurrent_refresh_stored_refresh_token_survived(fncli, flow):
     secret still works. Fails if Gitea invalidates used refresh tokens."""
     repository = flow["refresh_repository"]
     flow["refresh_cache_key"] = clear_token_cache(repository)
-    flow["refresh_token_after_race"] = fncli.backend_api.get_repository_token("trigger", repository.id).token
-    assert_gitea_accepts(flow["refresh_token_after_race"])
+    # The pooled connections have idled for seconds, and nexus-api closes idle ones after 5 s: a POST on one that is closing fails
+    fncli.backend_api.session.close()
+    assert_gitea_accepts(fncli.backend_api.get_repository_token("trigger", repository.id).token)
 
 
 def test_concurrent_refresh_secret_still_holds_valid_credentials(flow):
-    """The secret keeps its OAuth credentials and now caches the token the last request got, which Gitea accepted."""
+    """The secret keeps its OAuth credentials and caches a token Gitea accepts."""
     secret = flow["refresh_repository"].secret
     for key in OAUTH_KEYS:
         assert get_k8s_secret(secret.key, secret.namespace, key)
-    assert get_k8s_secret(secret.key, secret.namespace, flow["refresh_cache_key"]) == flow["refresh_token_after_race"]
+    assert_gitea_accepts(get_k8s_secret(secret.key, secret.namespace, flow["refresh_cache_key"]))
 
 
 # --- Teardown ---------------------------------------------------------------------------------
