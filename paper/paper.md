@@ -111,7 +111,7 @@ Large-scale national programmes such as Australian Genomics further
 highlight the operational and governance coordination required even
 before federated analytics are introduced [@Stark2023]. These
 findings collectively illustrate that while federation is technically
-feasible, its successful implementation demands lightweight,
+feasible, its successful implementation demands
 standards-aligned infrastructure that reduces operational friction and
 lowers the barrier for adoption.
 
@@ -119,7 +119,7 @@ Despite these advances, establishing and maintaining interoperable
 federated networks remains complex. Implementations often require
 substantial local customisation to integrate with existing
 authentication, container orchestration, and registry systems. There is
-therefore a pressing need for an open, reproducible, and lightweight
+therefore a pressing need for an open abnd reproducible
 reference implementation that lowers the barrier for organisations to
 participate in federated research while adhering to the GA4GH Task
 Execution Service (TES) specification.
@@ -132,12 +132,22 @@ capable of executing authorised analytical tasks against local datasets,
 thereby enabling scalable, privacy-preserving, cross-institutional
 collaboration aligned with international standards.
 
-By operationalizing existing specifications rather than creating proprietary approaches, the FN lowers adoption barriers while ensuring interoperability, as demonstrated by deployment across four European countries with heterogeneous infrastructure as described following.
+By operationalizing existing specifications rather than creating proprietary approaches, the FN lowers adoption barriers while supporting interoperability, as illustrated by its use in the PHEMS network described below.
 
 # Research Impact Statement
-The FN is deployed in production across multiple sites within the [PHEMS](https://phems.eu) (Pediatric Hospitals as European drivers for multi-party computation and synthetic data generation) consortium, enabling the first operational federated analytics network spanning currently four pediatric hospitals across Europe. The PHEMS deployment demonstrates impact, with participating institutions actively executing federated queries against real clinical datasets for clinical benchmarking.
+The FN was developed for, and is used within, the [PHEMS](https://phems.eu) (Pediatric Hospitals as European drivers for multi-party computation and synthetic data generation) consortium, a collaboration between four European children's hospitals and industry partners to build a federated
+network for paediatric and rare disease research. Each participating
+hospital deploys an FN in its own environment, while analytical code is
+managed in a shared GitHub organisation; approved changes are pulled into
+each hospital's FN via ArgoCD, so no inbound connections to hospital
+networks are required [@AridhiaPHEMS2025].
 
-The modular design of the FN has enabled integration with existing institutional infrastructure across different technology stacks, demonstrating practical interoperability rather than requiring platform homogeneity. 
+The first test of the core network, in March 2025, ran the PHEMS clinical benchmarking use case on data mapped to the OMOP Common Data Model, using FNs deployed at Great Ormond Street Hospital and Helsinki University Hospital, with results returned either to GitHub or directly to an analysis workspace [@AridhiaPHEMS2025]. Onboarding of the four founding
+hospitals followed [@AridhiaPHEMS2026a], and the network now provides a
+production-ready federated benchmarking capability that allows members to
+compare clinical outcomes [@AridhiaPHEMS2026b]. The network is intended to
+form the basis of the Paediatric Health Data Space, presented publicly in
+2026 [@AridhiaPHEMS2026a; @i4KIDS2026]. 
 
 # Software Design
 The International Covid-19 Data Alliance ([ICODA](https://icoda-research.org/ICODA)) developed the [Federated Data Sharing Common API](https://github.com/federated-data-sharing/common-api) or "Common API" as an open standard for a federated data sharing API, as described elsewhere. The Common API is a constrained implementation of the Global Alliance for Genomics and Health [Task Execution Service](https://www.ga4gh.org/product/task-execution-service-tes/), containing components for meta-data browsing, remote data selection and federated computation.
@@ -160,7 +170,7 @@ HTTPRoutes), with Traefik as the gateway controller; the Helm chart can
 optionally install Traefik itself. Releases before 1.8.0 used
 nginx-ingress instead.
 
-Federated Node deployments are lightweight and use common technologies.
+Federated Node deployments use widely adopted open-source technologies.
 FNs are deployed to a Kubernetes cluster using a Helm chart
 and require a PostgreSQL database, which holds Keycloak's identity data
 and the FN's own records of datasets, registries, containers, tasks and
