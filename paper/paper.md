@@ -297,10 +297,10 @@ R.C. and R.S. designed and developed the software.  S.R., R.B. and D.S provided 
 # AI usage disclosure
 No generative AI coding assistants were used in writing the Federated
 Node code up to version 1.9.0, the version submitted for review. Some
-later changes include fixes suggested by GitHub Copilot Autofix, and
-Claude (Anthropic) has been used to draft design documents on
+later changes included fixes suggested by GitHub Copilot Autofix, and
+Claude (Anthropic) was used to draft design documents on
 development branches. Generative AI tools may also have been used to
-assist with parts of the project documentation. All such changes are
+assist with parts of the project documentation. All such changes were
 reviewed by the development team before being merged.
 
 The original manuscript was written by the authors without AI
