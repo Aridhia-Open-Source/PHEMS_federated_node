@@ -161,31 +161,34 @@ optionally install Traefik itself. Releases before 1.8.0 used
 nginx-ingress instead.
 
 Federated Node deployments are lightweight and use common technologies.
-Federated Nodes are deployed to a Kubernetes cluster and require a
-Postgres database for storing user credentials. A deployed Federated
-Node also needs to be associated with a container registry. This is used
-to store the remote tasks that are run against the data.
+FNs are deployed to a Kubernetes cluster using a Helm chart
+and require a PostgreSQL database, which holds Keycloak's identity data
+and the FN's own records of datasets, registries, containers, tasks and
+audit events. Each Federated Node is also associated with one or more
+configured container registries (for example Azure Container Registry,
+GitHub Container Registry or other Docker-compatible registries), which
+hold the task images that can be run against the data. Task results are
+written to configured persistent storage (local, NFS, Azure Files or AWS
+EFS volumes at the reviewed release).
 
 \autoref{fig:figure1} below describes how a federated task is processed when
 initiated by an authenticated user:
 
 ![Federated task processing.\label{fig:figure1}](image1.png)
 
-- *1a* Before creating the task pod, the FN checks if the docker image
-  needed can be found in the azure container registries associated with
-  the FN.
+- *1a* Before creating the task pod, the FN checks that the requested container image is available in one of the container registries configured for the FN.
 
 - *1b* The task pod is created, and the results are saved in the
-  storage account.
+  condfigured persisten storage.
 
-- *2* On /results calls, if the task pod is on completed status, a job
+- *2* On calls to the `/tasks/{id}/results` endpoint, if the task pod is on completed status, a job
   is created.
 
-- *3* The job’s pod will have the 2 storage environments mounted. It
-  fetches the tasks result folder and zips it.
+- *3* The job’s pod mounts both the task's and the webserver's
+  persistent storage. It fetches the task's results folder and zips it.
 
 - *4* The webserver reads the zip contents from the live job pod and
-  saves it in its own storage account environment.
+  saves it in its own presistent storage.
 
 - *5* The resulting archive is returned to the end user
 
