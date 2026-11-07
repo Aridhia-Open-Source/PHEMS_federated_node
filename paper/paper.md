@@ -295,7 +295,23 @@ rather than listed individually in the author list:
 R.C. and R.S. designed and developed the software.  S.R., R.B. and D.S provided oversight of the project. PHEMS contributed use cases that informed requirements and validation. All authors contributed to the writing and/or review of the manuscript.
 
 # AI usage disclosure
-All code was written by the development team through conventional software engineering practices. Documentation and this manuscript were authored directly by the listed contributors without AI assistance.  Generative AI tools were used as part of the testing and deployment of the AI Federated Task extension. 
+No generative AI coding assistants were used in writing the Federated
+Node code up to version 1.9.0, the version submitted for review. Some
+later changes include fixes suggested by GitHub Copilot Autofix, and
+Claude (Anthropic) has been used to draft design documents on
+development branches. Generative AI tools may also have been used to
+assist with parts of the project documentation. All such changes are
+reviewed by the development team before being merged.
+
+The original manuscript was written by the authors without AI
+assistance. During revision in response to peer review, Claude Opus
+(Anthropic) was used to cross-check the manuscript against the source
+code and reviewer comments, identify inaccurate statements, locate
+public supporting sources, and draft revised wording for several
+sections, including the Research Impact Statement and Software Design.
+The authors reviewed, edited and verified all suggested text against the
+code and the cited sources, made all decisions about content, and take
+full responsibility for the paper.
 
 # Acknowledgements
 This work was supported by the PHEMS project, funded by the European
