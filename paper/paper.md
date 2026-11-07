@@ -51,7 +51,7 @@ bibliography: [paper.bib]
 The Federated Node is an open-source software component for running
 federated analytics. It is based on existing open standards and is
 designed to be easy to deploy, manage and integrate with existing
-infrastructure within data controllers environment for a wide variety of
+infrastructure within data controller's environment for a wide variety of
 data types and use cases. It has been developed for the PHEMS consortium
 and is already deployed at multiple partner sites, forming the basis of
 their federated data sharing network.
@@ -145,7 +145,7 @@ The International Covid-19 Data Alliance ([ICODA](https://icoda-research.org/ICO
 The Federated Node (FN) builds upon this open standard, and provides a
 practical, working implementation of the standard that can be easily
 deployed and operated within federated research networks. The FN packages
-an implemention of the Common API with other open-source components
+an implementation of the Common API with other open-source components
 including:
 
 - The Common API
@@ -194,7 +194,7 @@ ability to initiate federated tasks.
 ## Extension to support AI
 
 The Federated Node AI is a fork of the main FN project. It introduces an
-additional endpoint/ask for submitting prompts to a deployed small
+additional endpoint '/ask' for submitting prompts to a deployed small
 language model (SLM).
 
 In this configuration instead of retrieving analytical code from an
