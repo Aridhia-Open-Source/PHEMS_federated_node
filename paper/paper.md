@@ -126,7 +126,7 @@ Execution Service (TES) specification.
 
 The Federated Node (FN) addresses this need by operationalising the
 ICODA Common API into a deployable, open-source package built from
-widely adopted components (Keycloak, nginx, PostgreSQL, Kubernetes). FN
+widely adopted components (Keycloak, Traefik, PostgreSQL, Kubernetes). FN
 allows institutions to host secure, standards-compliant endpoints
 capable of executing authorised analytical tasks against local datasets,
 thereby enabling scalable, privacy-preserving, cross-institutional
@@ -150,12 +150,15 @@ including:
 
 - The Common API
 - [Keycloak](https://www.keycloak.org/)
-- [nginx](https://nginx.org/)
+- [Traefik](https://traefik.io/), via the Kubernetes [Gateway API](https://gateway-api.sigs.k8s.io/)
 
 The Common API specifies a set of endpoints that provide a framework for organisations that wish to collaborate on federated data sharing and analysis. It provides the structure of the Federated Node API.
 
-Keycloak is used for token and user management, and nginx is used as a
-reverse proxy, to route incoming requests.
+Keycloak is used for token and user management. Incoming requests are
+routed through Kubernetes Gateway API resources (a Gateway and
+HTTPRoutes), with Traefik as the gateway controller; the Helm chart can
+optionally install Traefik itself. Releases before 1.8.0 used
+nginx-ingress instead.
 
 Federated Node deployments are lightweight and use common technologies.
 Federated Nodes are deployed to a Kubernetes cluster and require a
