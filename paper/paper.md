@@ -222,46 +222,15 @@ which case results are released to users only after an administrator
 approves them. These controls operate alongside the hosting
 institution's own Kubernetes RBAC, network and registry access policies.
 
-## Extension to support AI
-
-The Federated Node AI is a fork of the main FN project. It introduces an
-additional endpoint '/ask' for submitting prompts to a deployed small
-language model (SLM).
-
-In this configuration instead of retrieving analytical code from an
-associated container registry the FN is deployed with an LLM or SLM
-hosted in the same environment as the federated data. Authenticated
-users can perform federated analysis by sending prompts to the remote
-SLM, as illustrated below in \autoref{fig:figure2}.
-
-![AI Federated task processing.\label{fig:figure2}](image2.jpeg)
-
-- *1* User submits prompt e.g. Give me a scatter plot for dataset A, with
-    column 1 as X-axis and column 2 as y-axis
-- *2* Federated Node retrieves the data
-- *3* Data and prompt are sent to the SLM
-- *4* Task is complete and results are returned to the user
-
-By default the FN also retains the last 10 interactions between the
-users and the SLM providing context when the user wants the SLM to
-iterate its analysis. Other than these limited additions the FN AI
-retains the design of the standard Federated Node detailed above.
-
-There are obvious benefits to this approach, primarily that it lowers
-the barrier to entry for users with limited coding skills. However, we
-accept that there are significant issues that need to be resolved
-before this approach can be considered secure and scalable and that the
-issues around LLM security and reliability, particularly with regards to
-mathematical reasoning, are well established. This is not to mention the
-costs associated with running these models in the data owners'
-infrastructure. Our underlying assumption is that these problems will be
-resolved by two developments:
-
-1.  Smaller, more specialised, and more efficient language models.
-
-2.  The emergence of mature workflow patterns, including security and
-    output checks, for the use of language models in data analysis to
-    prevent data exfiltration through prompt engineering.
+## Experimental AI extension
+An experimental fork,
+[Federated Node AI](https://github.com/Aridhia-Open-Source/federated_node_ai),
+explores adding an `/ask` endpoint that sends a user's prompt, together
+with data retrieved locally by the FN, to a small language model hosted
+in the same environment as the data. This work is at an early stage, is
+not part of the software described in this paper, and significant
+security and reliability questions would need to be resolved before
+such an approach could be used with sensitive data.
 
 # PHEMS
 
