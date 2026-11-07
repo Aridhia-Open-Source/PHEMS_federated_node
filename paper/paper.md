@@ -120,15 +120,15 @@ Despite these advances, establishing and maintaining interoperable
 federated networks remains complex. Implementations often require
 substantial local customisation to integrate with existing
 authentication, container orchestration, and registry systems. There is
-therefore a pressing need for an open abnd reproducible
+therefore a pressing need for an open and reproducible
 reference implementation that lowers the barrier for organisations to
-participate in federated research while adhering to the GA4GH Task
+participate in federated research while building on the GA4GH Task
 Execution Service (TES) specification.
 
 The Federated Node (FN) addresses this need by operationalising the
 ICODA Common API into a deployable, open-source package built from
 widely adopted components (Keycloak, Traefik, PostgreSQL, Kubernetes). FN
-allows institutions to host secure, standards-compliant endpoints
+allows institutions to host secure, standards-based endpoints
 capable of executing authorised analytical tasks against local datasets,
 thereby enabling scalable, privacy-preserving, cross-institutional
 collaboration aligned with international standards.
@@ -164,6 +164,14 @@ including:
 - [Traefik](https://traefik.io/), via the Kubernetes [Gateway API](https://gateway-api.sigs.k8s.io/)
 
 The Common API specifies a set of endpoints that provide a framework for organisations that wish to collaborate on federated data sharing and analysis. It provides the structure of the Federated Node API.
+
+The FN implements the Common API rather than the full TES specification.
+Its task endpoints follow the TES model (`POST /tasks` to submit a task,
+`GET /tasks` and `GET /tasks/{id}` to list and inspect tasks, and
+`POST /tasks/{id}/cancel` to cancel one), but differ from TES in some
+details, such as the form of the cancel path. The FN also adds endpoints
+that TES does not define, for dataset metadata, container registries,
+audit logs and result review.
 
 Keycloak is used for token and user management. Incoming requests are
 routed through Kubernetes Gateway API resources (a Gateway and
