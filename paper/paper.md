@@ -192,10 +192,16 @@ initiated by an authenticated user:
 
 - *5* The resulting archive is returned to the end user
 
-This architecture gives the data owner full control over what code is
-run against their data, as only scripts stored in the associated
-container registry can be used, and only authenticated users have the
-ability to initiate federated tasks.
+This architecture gives data owners several layers of control over what
+is run against their data and what leaves their environment. Task images
+must be registered with the FN and held in one of its configured
+container registries; users authenticate through Keycloak and need the
+appropriate role and dataset permission to submit tasks; non-admin users
+can only access their own tasks; and task-related API calls are recorded
+in an audit log. Data owners can additionally enable result review, in
+which case results are released to users only after an administrator
+approves them. These controls operate alongside the hosting
+institution's own Kubernetes RBAC, network and registry access policies.
 
 ## Extension to support AI
 
