@@ -233,8 +233,14 @@ security and reliability questions would need to be resolved before
 such an approach could be used with sensitive data.
 
 # PHEMS
-
-Authors from the PHEMS ("Pediatric Hospitals as European drivers for multi-party computation and synthetic data generation capabilities across clinical specialities and data types") project are:
+The following members of the PHEMS ("Pediatric Hospitals as European
+drivers for multi-party computation and synthetic data generation
+capabilities across clinical specialities and data types") consortium
+contributed substantially to this work from their institutions over the
+course of the project, including the use cases, requirements and
+validation for the FN. Because of the size of the consortium, and at its
+request, they are credited collectively through the group author PHEMS
+rather than listed individually in the author list:
 
 - Valts Abols, Children's University Hospital Latvia
 - Lydia Briggs, Great Ormond Street Hospital
