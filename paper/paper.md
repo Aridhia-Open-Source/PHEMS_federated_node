@@ -298,6 +298,10 @@ R.C. and R.S. designed and developed the software.  S.R., R.B. and D.S provided 
 All code was written by the development team through conventional software engineering practices. Documentation and this manuscript were authored directly by the listed contributors without AI assistance.  Generative AI tools were used as part of the testing and deployment of the AI Federated Task extension. 
 
 # Acknowledgements
+This work was supported by the PHEMS project, funded by the European
+Commission (grant agreement 101094195) and UK Research and Innovation
+(grants 10103155 and 10141098).
+
 We would like to thank the following people for their contributions to
 the Federated Node project: Hepzibah Faustina and Marco Luk for their
 assistance testing and deploying the FN; George Eddie, Ross Hannah,
