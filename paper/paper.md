@@ -1,5 +1,6 @@
 ---
-title: 'Federated Node (FN): an open-source implementation of the GA4GH task execution service for building federated research networks'
+title: 'Federated Node (FN): an open-source, GA4GH TES-based service for building federated research networks'
+
 
 tags:
   - federation
