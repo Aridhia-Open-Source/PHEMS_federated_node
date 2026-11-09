@@ -101,37 +101,6 @@ def test_repo_config_is_abstract_about_the_token_scope():
     assert "token_scope" not in vars(RepoConfig)
 
 
-def test_dataset_config_defaults_to_the_dummy_dataset():
-    config = DatasetConfig()
-
-    assert (config.dataset_host, config.dataset_port, config.dataset_type) == (
-        "db-datasets.experiments.svc", 5432, "postgres",
-    )
-    assert (config.dataset_read_schema, config.dataset_write_schema) == ("cdm", "results")
-    assert (config.dataset_username, config.dataset_password) == ("dummy", "dummy")
-
-
-def test_dataset_config_takes_the_study_values_from_the_env(monkeypatch):
-    for key, value in {
-        "CLUSTER_DATASET_HOST": "db-datasets-study.fn.svc",
-        "DATASET_PORT": "5433",
-        "DATASET_TYPE": "mssql",
-        "DATASET_SCHEMA": "omop",
-        "DATASET_SCHEMA_WRITE": "omop_results",
-        "DATASET_USERNAME": "study",
-        "DATASET_PASSWORD": "s3cret",
-    }.items():
-        monkeypatch.setenv(key, value)
-
-    config = DatasetConfig()
-
-    assert (config.dataset_host, config.dataset_port, config.dataset_type) == (
-        "db-datasets-study.fn.svc", 5433, "mssql",
-    )
-    assert (config.dataset_read_schema, config.dataset_write_schema) == ("omop", "omop_results")
-    assert (config.dataset_username, config.dataset_password) == ("study", "s3cret")
-
-
 # The provider and the repo's API client
 
 def test_a_github_com_repo_uri_is_a_github_repo(monkeypatch):
@@ -178,7 +147,7 @@ def test_get_repository_names_the_command_that_registers_a_missing_repository():
     backend_api = MagicMock()
     backend_api.find_trigger_repository.return_value = None
 
-    with pytest.raises(click.ClickException, match="init-backend-trigger-repo"):
+    with pytest.raises(click.ClickException, match="fncli apply"):
         get_repository(TriggerRepoConfig(), backend_api)
 
 

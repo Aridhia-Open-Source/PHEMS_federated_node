@@ -7,15 +7,11 @@ from fncli.cli import cli
 from fncli.cmds import common
 
 EXPECTED_COMMANDS = {
-    "hello-world", "demo", "experiment", "plan",
-    "setup-project", "open-pr", "teardown-project", "setup-backend", "teardown-backend",
-    "setup-gitea", "teardown-gitea", "verify-project", "verify-repo",
-    "init-backend-project", "delete-backend-project", "project-healthcheck",
-    "init-gitea-repo", "delete-gitea-repo", "init-backend-trigger-repo",
-    "init-backend-results-repo", "delete-backend-trigger-repo", "delete-backend-results-repo", "delete-backend-provider",
-    "init-git-secret", "init-dataset-secret", "init-backend-secret", "verify-git-secret",
-    "delete-secret", "delete-gitea-token",
-    "init-backend-dataset", "delete-backend-dataset",
+    "hello-world", "demo", "experiment", "diff", "apply", "delete", "plan",
+    "open-pr", "verify-project", "verify-repo", "verify-git-secret", "project-healthcheck",
+    "project-show", "project-set", "resource-set", "global-set", "secret-set",
+    "simulate-setup", "simulate-run", "simulate-check", "simulate-teardown",
+    "start-sensor", "stop-sensor", "sensor-status",
     "create-gitea-branch", "commit-gitea-file", "create-gitea-pr", "merge-gitea-pr", "merge-results-pr",
 }
 
@@ -24,8 +20,8 @@ def test_every_expected_command_is_registered():
     assert EXPECTED_COMMANDS <= set(cli.commands)
 
 
-def test_there_are_50_commands():
-    assert len(cli.commands) == 50
+def test_there_are_29_commands():
+    assert len(cli.commands) == 29
 
 
 def test_every_command_has_help_text():
