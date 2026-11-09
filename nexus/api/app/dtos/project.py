@@ -40,6 +40,7 @@ class ResultsRepositoryHealthDTO(DTO):
     uri: str
     owned_by_federated_node: bool
     target_dir: str
+    base_branch: str
     status: str
     health_check: HealthCheckDTO
 

@@ -29,7 +29,9 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.dtos.base import page_of
 from app.dtos.dataset import ProjectDatasetDTO
-from app.dtos.results_repository import ProjectResultsRepositoryDTO
+from app.dtos.results_repository import (
+    ProjectResultsRepositoryDTO, ProjectResultsRepositoryPatchRequest, ProjectResultsRepositoryRequest,
+)
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
 from app.helpers.project_state import require_disabled
@@ -362,24 +364,19 @@ def get_project_results_repository(project_id: int, repository_id: int):
 
 @router.put('/{project_id}/repositories/results/{repository_id}', response_model=ProjectResultsRepositoryDTO)
 def put_project_results_repository(
-    project_id: int, repository_id: int, response: Response, body: dict = Body(default_factory=dict)
+    project_id: int, repository_id: int, response: Response, req: ProjectResultsRepositoryRequest
 ):
     """
     PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global
     results repository to the project, which has one, 201, and replaces the project's settings
     if it is assigned already, 200. Assigning needs the project disabled. A change of target_dir
-    is caught by the configuration snapshot of the tasks created before, which then fail
-    instead of delivering there.
-    Body: {"target_dir": "results", "owned_by_federated_node": true, "enabled": true}, the last
-    two are optional.
+    or base_branch is caught by the configuration snapshot of the tasks created before, which then
+    fail instead of delivering there.
+    Body: {"target_dir": "results", "base_branch": "main", "owned_by_federated_node": true, "enabled": true};
+    target_dir and base_branch are required, the last two are optional.
     """
     project = Project.get_by_id(project_id)
-    if not set(body) <= {"target_dir", "owned_by_federated_node", "enabled"} or not body.get("target_dir"):
-        raise InvalidRequest("Provide target_dir and, optionally, owned_by_federated_node and enabled")
-    for field in ("owned_by_federated_node", "enabled"):
-        if not isinstance(body.get(field, True), bool):
-            raise InvalidRequest(f"{field} must be a boolean")
-    target_dir = normalise_dir(body["target_dir"])
+    target_dir = normalise_dir(req.target_dir)
     if not target_dir:
         raise InvalidRequest("target_dir is required")
 
@@ -392,11 +389,12 @@ def put_project_results_repository(
 
     created = resource is None
     if created:
-        resource = ProjectResultsRepository(project.id, repo.id, target_dir)
+        resource = ProjectResultsRepository(project.id, repo.id, target_dir, req.base_branch)
         resource.add(commit=False)
     resource.target_dir = target_dir
-    resource.owned_by_federated_node = body.get("owned_by_federated_node", True)
-    resource.enabled = body.get("enabled", True)
+    resource.base_branch = req.base_branch
+    resource.owned_by_federated_node = req.owned_by_federated_node
+    resource.enabled = req.enabled
     db.session.flush()
     _check_results_loop(resource)
     db.session.commit()
@@ -405,26 +403,25 @@ def put_project_results_repository(
 
 
 @router.patch('/{project_id}/repositories/results/{repository_id}', response_model=ProjectResultsRepositoryDTO)
-def patch_project_results_repository(project_id: int, repository_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def patch_project_results_repository(
+    project_id: int, repository_id: int, req: ProjectResultsRepositoryPatchRequest, caller: Caller = Depends(get_caller)
+):
     """
     PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
-    the project's results go (target_dir, owned_by_federated_node), at any time (the tasks created
+    the project's results go (target_dir, base_branch, owned_by_federated_node), at any time (the tasks created
     before fail instead of delivering to the new place), or turns the project resource on or
     off (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
     resource = _results_resource(project_id, repository_id)
-    fields = {"target_dir", "owned_by_federated_node", "enabled", "revoked"}
-    if not body or not set(body) <= fields:
-        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
-    for field in body.keys() - {"target_dir"}:
-        if not isinstance(body[field], bool):
-            raise InvalidRequest(f"{field} must be a boolean")
+    body = req.model_dump(exclude_unset=True)
+    if not body:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectResultsRepositoryPatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
 
     if "target_dir" in body:
-        target_dir = normalise_dir(body["target_dir"] or "")
+        target_dir = normalise_dir(body["target_dir"])
         if not target_dir:
             raise InvalidRequest("target_dir cannot be empty")
         body["target_dir"] = target_dir

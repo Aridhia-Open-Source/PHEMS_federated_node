@@ -6,6 +6,7 @@ import re
 
 from app.dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
 from app.dtos.project import ProjectDTO
+from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.task import TaskDTO
 from app.models.task import Task
 
@@ -29,6 +30,18 @@ class TestProjectDTO:
         dumped = ProjectDTO.from_model(project).dump()
         assert WIRE_DATETIME.match(dumped["created_at"])
         assert WIRE_DATETIME.match(dumped["updated_at"])
+
+
+class TestProjectResultsRepositoryDTO:
+    def test_fields(self, results_assignment):
+        assert set(ProjectResultsRepositoryDTO.from_model(results_assignment).dump()) == {
+            "project_id", "results_repository", "target_dir", "base_branch", "owned_by_federated_node",
+            "enabled", "revoked", "active",
+        }
+
+    def test_values(self, results_assignment):
+        dumped = ProjectResultsRepositoryDTO.from_model(results_assignment).dump()
+        assert (dumped["target_dir"], dumped["base_branch"]) == ("results", "main")
 
 
 class TestDatasetDTO:

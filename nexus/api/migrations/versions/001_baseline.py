@@ -189,6 +189,7 @@ def upgrade() -> None:
         sa.Column('project_id', sa.Integer(), nullable=False),
         sa.Column('results_repository_id', sa.Integer(), nullable=False),
         sa.Column('target_dir', sa.String(length=4096), nullable=False),
+        sa.Column('base_branch', sa.String(length=256), nullable=False),
         sa.Column('owned_by_federated_node', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('enabled', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),

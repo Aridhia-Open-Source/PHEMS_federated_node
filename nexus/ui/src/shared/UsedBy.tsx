@@ -79,7 +79,11 @@ export function ResultsUsedBy({ id }: { id: number }) {
           project,
           to: resourcePath(project.id, "results", id),
           flags: resource,
-          settings: { target_dir: resource.target_dir, owned_by_federated_node: resource.owned_by_federated_node },
+          settings: {
+            target_dir: resource.target_dir,
+            base_branch: resource.base_branch,
+            owned_by_federated_node: resource.owned_by_federated_node,
+          },
         }))}
     />
   );

@@ -9,7 +9,7 @@ class PullRequestResultStep(str, Enum):
     UNKNOWN: the result is recorded, nothing is delivered yet.
     PUSHED: the results are pushed to their branch.
     OPENED: the pull request from that branch is opened.
-    MERGED: the pull request is merged into the results repository's default branch.
+    MERGED: the pull request is merged into the project's results base branch.
     CLOSED: the pull request is closed without merging.
     REVOKED: the project's results repository was revoked: never delivered, final.
     STALE: the task's configuration changed since the task was created: never delivered, final.

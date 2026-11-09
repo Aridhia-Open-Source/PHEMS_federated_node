@@ -9,7 +9,7 @@ from app.helpers.task_config import build_snapshot, config_changes, diff, snapsh
 from app.models.task import Task
 
 RESULTS = {"repository": "https://github.com/org/results-global", "api_uri": "https://api.github.com",
-           "target_dir": "results/"}
+           "target_dir": "results/", "base_branch": "main"}
 DATASET = {"name": "ds", "host": "h", "port": 5432, "type": "postgres", "read_schema": None, "write_schema": None}
 
 
@@ -32,6 +32,12 @@ def test_diff_lists_changed_fields_readably():
     current = snapshot(results={**RESULTS, "target_dir": "out/"}, dataset={**DATASET, "port": 1})
     assert diff(snapshot(), current) == ["results.target_dir: 'results/' -> 'out/'", "dataset.port: 5432 -> 1"]
     assert diff(snapshot(), snapshot()) == []
+
+
+def test_diff_names_a_changed_base_branch():
+    current = snapshot(results={**RESULTS, "base_branch": "release"})
+    assert diff(snapshot(), current) == ["results.base_branch: 'main' -> 'release'"]
+    assert snapshot_hash(current) != snapshot_hash(snapshot())
 
 
 def test_diff_results_or_dataset_added_or_removed():
@@ -65,7 +71,7 @@ def test_build_snapshot_holds_identity_fields_only(project, global_results_repo,
     snap = build_snapshot(project, global_dataset)
     assert snap["results"] == {
         "repository_id": global_results_repo.id, "repository": global_results_repo.uri, "api_uri": global_results_repo.provider.api_uri,
-        "target_dir": "results",
+        "target_dir": "results", "base_branch": "main",
     }
     assert snap["dataset"] == {
         "name": global_dataset.name, "host": global_dataset.host, "port": global_dataset.port,
@@ -89,6 +95,7 @@ def test_pr_task_is_pinned_at_creation_and_retry_does_not_repin(
     assert created.status_code == 201, created.json()
     task = reload_task(created.json()["id"])
     assert task.config_snapshot["results"]["target_dir"] == "results"
+    assert task.config_snapshot["results"]["base_branch"] == "main"
     assert task.config_hash == snapshot_hash(task.config_snapshot)
     assert created.json()["config_hash"] == task.config_hash and "config_snapshot" not in created.json()
 
@@ -144,6 +151,16 @@ def test_config_is_current_then_stale_after_target_dir_changes(
     assert stale.json()["outcome"] == "fail"
     assert stale.json()["cause"] == (
         "task configuration changed since the task was created: results.target_dir: 'results' -> 'out'")
+
+
+def test_base_branch_change_makes_the_task_stale(
+        client, admin_headers, project, assigned_results_repo, global_results_repo, make_task):
+    task = pinned_task(project, make_task)
+    url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
+    assert client.patch(url, json={"base_branch": "release"}, headers=admin_headers).status_code == 200
+    stale = client.get(config_url(project, task), headers=admin_headers).json()
+    assert stale["current"] is False and stale["outcome"] == "fail"
+    assert stale["changes"] == ["results.base_branch: 'main' -> 'release'"]
 
 
 def test_config_of_a_task_without_a_snapshot_is_current(client, admin_headers, project, make_task):
@@ -360,9 +377,10 @@ def test_edit_of_target_dir_enabled_and_delete_of_an_enabled_project_with_a_task
     url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
     assert project.enabled is True
     assert client.patch(url, json={"target_dir": "out"}, headers=admin_headers).status_code == 200
-    assert client.put(url, json={"target_dir": "again"}, headers=admin_headers).status_code == 200
+    assert client.put(url, json={"target_dir": "again", "base_branch": "main"}, headers=admin_headers).status_code == 200
     assert client.patch(url, json={"enabled": False}, headers=admin_headers).status_code == 200
-    assert client.put(url, json={"target_dir": "again", "enabled": False}, headers=admin_headers).status_code == 200
+    assert client.put(url, json={"target_dir": "again", "base_branch": "main", "enabled": False},
+                      headers=admin_headers).status_code == 200
     assert client.get(url, headers=admin_headers).json()["target_dir"] == "again"
     assert client.delete(url, headers=admin_headers).status_code == 204
     assert client.get(url, headers=admin_headers).status_code == 404

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.dtos.base import DTO
 from app.dtos.git_provider import GitProviderRefDTO
@@ -70,6 +70,32 @@ class ProjectTriggerRepositoryDTO(DTO):
             revoked=obj.revoked,
             active=obj.active,
         )
+
+
+class ProjectTriggerRepositoryRequest(BaseModel):
+    """A project's resource for a global trigger repository as assigned: what it watches, and whether it is on."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    watch_dir: str
+    base_branch: str = Field(min_length=1)
+    enabled: bool = True
+
+
+class ProjectTriggerRepositoryPatchRequest(BaseModel):
+    """The fields of a project's trigger repository resource that can be updated, all optional but never null."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    watch_dir: str | None = None
+    base_branch: str | None = Field(default=None, min_length=1)
+    enabled: bool | None = None
+    revoked: bool | None = None
+
+    @model_validator(mode="after")
+    def not_null(self):
+        nulls = sorted(f for f in self.model_fields_set if getattr(self, f) is None)
+        if nulls:
+            raise ValueError(f"{', '.join(nulls)} cannot be null")
+        return self
 
 
 class PullRequestDTO(DTO):

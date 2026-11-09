@@ -345,7 +345,7 @@ class TestResults:
                 "id": 1, "name": "gitea", "type": "gitea", "uri": "http://h", "api_uri": "http://h/api/v1", "enabled": True,
             },
         },
-        "target_dir": "results", "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
+        "base_branch": "main", "target_dir": "results", "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
     }
 
     def test_a_global_results_repository_is_fetched_by_its_id(self, api, session):

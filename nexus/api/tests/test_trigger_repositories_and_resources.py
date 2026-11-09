@@ -35,7 +35,8 @@ class Ctx:
         self._tail = tail
         self.list_tail = tail.rsplit("/", 1)[0]
         self.glob = f"/global/{tail}"
-        self.put_body = {"trigger": {"watch_dir": "triggers"}, "results": {"target_dir": "results"}}.get(kind, {})
+        self.put_body = {"trigger": {"watch_dir": "triggers", "base_branch": "main"},
+                         "results": {"target_dir": "results", "base_branch": "main"}}.get(kind, {})
 
     def resource(self, pid):
         return f"/projects/{pid}/{self._tail}"
@@ -134,7 +135,7 @@ def test_pollable_filter_follows_the_repository_provider_and_secret_only(
 
     assert ids("?pollable=true") == [T, unassigned.id]  # no project resource and a disabled project are fine
     resource = f"/projects/{project.id}/repositories/triggers/{T}"
-    assert client.put(resource, json={"watch_dir": "t"}, headers=admin_headers).status_code == 201
+    assert client.put(resource, json={"watch_dir": "t", "base_branch": "main"}, headers=admin_headers).status_code == 201
     assert patch(client, admin_headers, resource, {"revoked": True}).status_code == 200
     assert ids("?pollable=true") == [T, unassigned.id]  # a revoked resource does not stop the poll
     global_trigger_repo.enabled = False
@@ -159,7 +160,8 @@ def test_assign_201_lists_and_active_filter(client, admin_headers, project, glob
                      headers=admin_headers)
     assert put.status_code == 201
     assert (put.json()["watch_dir"], put.json()["base_branch"], put.json()["active"]) == ("triggers", "release", True)
-    assert client.put(f"{base}/{other.id}", json={"watch_dir": "t"}, headers=admin_headers).status_code == 201
+    assert client.put(f"{base}/{other.id}", json={"watch_dir": "t", "base_branch": "main"},
+                      headers=admin_headers).status_code == 201
 
     # revoked and disabled resources stay listed, but drop out of ?active=true
     assert patch(client, admin_headers, f"{base}/{other.id}", {"revoked": True}).status_code == 200
@@ -171,10 +173,15 @@ def test_assign_201_lists_and_active_filter(client, admin_headers, project, glob
 
 
 @pytest.mark.parametrize("repo, project_id, body, status", [
-    ("ok", "ok", {}, 400),                          # a resource needs watch_dir
-    ("ok", "ok", {"watch_dir": "x", "bogus": 1}, 400),
-    (999, "ok", {"watch_dir": "x"}, 404),
-    ("ok", 999, {"watch_dir": "x"}, 404),
+    ("ok", "ok", {}, 400),                          # a resource needs watch_dir and base_branch
+    ("ok", "ok", {"watch_dir": "x"}, 400),
+    ("ok", "ok", {"base_branch": "main"}, 400),
+    ("ok", "ok", {"watch_dir": "x", "base_branch": ""}, 400),
+    ("ok", "ok", {"watch_dir": "x", "base_branch": None}, 400),
+    ("ok", "ok", {"watch_dir": "x", "base_branch": 1}, 400),
+    ("ok", "ok", {"watch_dir": "x", "base_branch": "main", "bogus": 1}, 400),
+    (999, "ok", {"watch_dir": "x", "base_branch": "main"}, 404),
+    ("ok", 999, {"watch_dir": "x", "base_branch": "main"}, 404),
 ])
 def test_resource_put_errors(client, admin_headers, project, global_trigger_repo, repo, project_id, body, status):
     repo = global_trigger_repo.id if repo == "ok" else repo
@@ -198,10 +205,19 @@ def test_revoke_is_admin_only(client, admin_headers, post_json_user_header, assi
 
 def test_reassign_put_changes_settings_and_disables(client, admin_headers, assigned_trigger_repo, project):
     url = f"/projects/{assigned_trigger_repo['project_id']}/repositories/triggers/{assigned_trigger_repo['trigger_repository']['id']}"
-    assert client.put(url, json={"watch_dir": "another"}, headers=admin_headers).status_code == 200
-    r = client.put(url, json={"watch_dir": "other", "enabled": False}, headers=admin_headers)
+    assert client.put(url, json={"watch_dir": "another", "base_branch": "main"}, headers=admin_headers).status_code == 200
+    r = client.put(url, json={"watch_dir": "other", "base_branch": "main", "enabled": False}, headers=admin_headers)
     assert r.status_code == 200
     assert r.json()["watch_dir"] == "other" and r.json()["enabled"] is False and r.json()["active"] is False
+
+
+def test_reassign_put_needs_a_base_branch(client, admin_headers, assigned_trigger_repo):
+    url = f"/projects/{assigned_trigger_repo['project_id']}/repositories/triggers/{assigned_trigger_repo['trigger_repository']['id']}"
+    for body in ({"watch_dir": "other"}, {"watch_dir": "other", "base_branch": ""}):
+        assert client.put(url, json=body, headers=admin_headers).status_code == 400, body
+    assert patch(client, admin_headers, url, {"base_branch": ""}).status_code == 400
+    got = get(client, admin_headers, url).json()
+    assert (got["watch_dir"], got["base_branch"]) == ("triggers", "main")
 
 
 # --------------------------------------------------------------------------- lifecycle per resource kind
@@ -287,7 +303,9 @@ def test_revoke_and_unrevoke_semantics(ctx, client, admin_headers, project, make
 
 @pytest.mark.parametrize("kind, body, field, value", [
     ("trigger", {"watch_dir": "other"}, "watch_dir", "other"),
+    ("trigger", {"base_branch": "dev"}, "base_branch", "dev"),
     ("results", {"target_dir": "out"}, "target_dir", "out"),
+    ("results", {"base_branch": "dev"}, "base_branch", "dev"),
 ])
 def test_resource_settings_patch_with_a_task_in_flight(kind, body, field, value, client, admin_headers, project,
                                                         global_trigger_repo, global_results_repo, make_task):
@@ -390,7 +408,7 @@ def test_switching_a_repository_back_on_skips_the_gap(client, admin_headers, sys
     """Pull requests merged before the repository was switched back on (or restored) are stored but get no trigger; later ones do."""
     T = global_trigger_repo.id
     resource = f"/projects/{project.id}/repositories/triggers/{T}"
-    assert client.put(resource, json={"watch_dir": "triggers"}, headers=admin_headers).status_code == 201
+    assert client.put(resource, json={"watch_dir": "triggers", "base_branch": "main"}, headers=admin_headers).status_code == 201
     # Start the resource's cursor far back, so the first pull request is in its scope but for the re-enable
     assignment = ProjectTriggerRepository.query.filter_by(project_id=project.id, trigger_repository_id=T).one()
     assignment.initial_cursor = datetime(2000, 1, 1)
