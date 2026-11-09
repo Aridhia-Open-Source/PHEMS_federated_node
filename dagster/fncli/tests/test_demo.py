@@ -225,6 +225,9 @@ def test_a_step_that_exits_1_stops_the_demo_with_that_code(ran, run_demo, monkey
 
 def test_the_files_names_fill_in_the_steps_text_and_none_of_them_goes_in_the_env(run_demo, monkeypatch):
     seen = {}
+    moved = ("TEST_PROJECT_NAME", "TEST_TRIGGER_REPO", "TEST_RESULTS_REPO", "DEFAULT_PROJECT_DATASET", "NEXUS_API_URL")
+    for name in moved:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(
         demo, "STEPS",
         [Step("t", "project {project}", "fncli x", lambda ctx, demo: seen.update(
@@ -236,7 +239,7 @@ def test_the_files_names_fill_in_the_steps_text_and_none_of_them_goes_in_the_env
 
     assert result.exit_code == 0, result.output
     assert (seen["project"], seen["dataset"]) == ("demo-gitea", "shared")
-    assert not [name for name in seen["env"] if name.startswith("TEST_") or name == "DEFAULT_PROJECT_DATASET"]
+    assert not set(moved) & set(seen["env"])
     assert "Demo project: demo-gitea. Trigger repo: gitea_admin/trigger-repo." in result.output
     assert "project demo-gitea" in result.output
 

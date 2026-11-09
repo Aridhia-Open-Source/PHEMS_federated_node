@@ -56,11 +56,11 @@ The scenarios that stop and start sensors were removed from the suites and will 
 
 ## After a failure
 
-Capture `fncli sensor-status` and the last 200 lines of nexus-api and the Dagster code server (`kubectl get pods -A | grep -E "backend|dagster"`, then `kubectl logs <pod> --tail=200`). `fncli project-show` prints the project's resources, pull requests, tasks and results as JSON.
+Capture `fncli sensor-status` and the last 200 lines of nexus-api and the Dagster code server (`kubectl get pods -A | grep -E "backend|dagster"`, then `kubectl logs <pod> --tail=200`). `fncli project-show --project fn-dev` prints the project's resources, pull requests, tasks and results as JSON.
 
 ## Probes outside the suites
 
 These are worth a manual check, not a pass or fail:
 
 - More than 100 merged PRs behind one cursor: stop ingest, merge 101 watched PRs, start ingest. Ingest posts them in batches of 100, so all are stored.
-- A revoked secret resource: `fncli resource-set secret --revoked true`, then open a PR. Revoked secret resources are not checked when a token is read.
+- A revoked secret resource: `fncli resource-set secret --revoked true --project fn-dev`, then open a PR. Revoked secret resources are not checked when a token is read.

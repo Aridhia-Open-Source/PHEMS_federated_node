@@ -287,7 +287,7 @@ fncli apply -f examples/globals-e2e.yaml      # the global resources of the dev 
 fncli apply -f examples/projects/e2e.yaml     # the dev project
 fncli start-sensor --group all                # start the twelve sensors
 fncli trigger triggers/examples/demo.json --project fn-dev --pr --merge   # open and merge a pull request with a trigger file
-fncli project-show | jq                       # watch it: project resources, pull requests, tasks, results
+fncli project-show --project fn-dev | jq                       # watch it: project resources, pull requests, tasks, results
 fncli delete -f examples/projects/e2e.yaml; fncli delete -f examples/globals-e2e.yaml --all   # delete it all again (dev only; Gitea repos stay)
 ```
 
@@ -366,7 +366,7 @@ A merged pull request is stored once, whatever the number of projects watching t
 | Question | Where to look |
 |---|---|
 | Can everything be reached? | `GET /global/healthcheck`, `GET /projects/<id>/healthcheck`, and per resource `GET /global/datasets/<id>/healthcheck`, `/global/secrets/<label>/healthcheck`, `/global/providers/<id>/healthcheck`, `/global/repositories/triggers/<id>/healthcheck`, `/global/repositories/results/<id>/healthcheck` |
-| What is this project doing? | `fncli project-show`, or `GET /projects/<id>/tasks` |
+| What is this project doing? | `fncli project-show --project NAME`, or `GET /projects/<id>/tasks` |
 | Is a run stuck or failing? | Dagster UI, **Runs**, for the logs of each step |
 | Are the sensors running? | `fncli sensor-status`, or the Dagster UI **Automation** page |
 | Whole-node checklist | [project/QA/deploy-and-health.md](project/QA/deploy-and-health.md) |

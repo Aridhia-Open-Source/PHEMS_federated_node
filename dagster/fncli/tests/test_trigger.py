@@ -84,7 +84,10 @@ def test_the_env_wins_over_the_context_defaults(ran, monkeypatch):
     assert ran["trigger_pr"][0][2] == "from-env"
 
 
-def test_the_node_is_opened_and_its_context_and_client_go_to_the_pull_request_not_the_env(ran, context_file):
+def test_the_node_is_opened_and_its_context_and_client_go_to_the_pull_request_not_the_env(ran, context_file, monkeypatch):
+    for name in ("NEXUS_API_URL", "GITEA_ADMIN_USER"):
+        monkeypatch.delenv(name, raising=False)
+
     invoke("examples/demo.json")
 
     context, api = ran["trigger_pr"][0][:2]

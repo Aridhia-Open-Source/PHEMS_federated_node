@@ -431,6 +431,8 @@ def test_a_failing_command_stops_seed_with_its_exit_status(commands):
 
 def test_run_triggers_the_node_project_and_puts_nothing_in_the_env(steps, monkeypatch):
     monkeypatch.setenv("TEST_PROJECT_NAME", "fn-dev")  # an old .dev.env: not read, not changed
+    for name in ("TEST_TRIGGER_REPO", "TEST_RESULTS_REPO", "DEFAULT_PROJECT_DATASET", "NEXUS_API_URL"):
+        monkeypatch.delenv(name, raising=False)
 
     invoke("run", "x")
 

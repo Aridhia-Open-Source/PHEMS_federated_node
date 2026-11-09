@@ -195,7 +195,7 @@ Also not covered, from the end-to-end README: the Gitea mirror, authentication a
 Probes the end-to-end README lists as worth a manual check, not a pass or fail:
 
 - More than 100 merged pull requests behind one cursor: stop ingest, merge 101 watched pull requests, start ingest. Ingest posts them in batches of 100, so all are stored.
-- A revoked Secret resource: `fncli resource-set secret --revoked true`, then open a pull request. Revoked Secret resources are not checked when a token is read.
+- A revoked Secret resource: `fncli resource-set secret --revoked true --project fn-dev`, then open a pull request. Revoked Secret resources are not checked when a token is read.
 
 ### Checks that have never run on a cluster
 
