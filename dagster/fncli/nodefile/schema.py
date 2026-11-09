@@ -1,11 +1,13 @@
 """
-The node file (DESIGN-node-file.md, section 2): one YAML file that describes a node's desired state, with no
+The node file (DESIGN-node-file.md, section 2): a YAML file that describes part of a node's desired state, with no
 secret values in it. Global resources come first (providers, secrets, repositories, datasets), then the projects,
 which hold only assignments of them. Both levels use the same names: `datasets`, and `repositories` with `triggers`
-and `results`.
+and `results`. A file may hold any of these sections: what it names but does not hold is looked up on the node.
 
-The `node` block says which node the file is for: fncli talks to nothing else, and refuses to run when kubectl points
-at another cluster. Its `env_file` holds the values that secret `env` references read, for that node.
+Which node is not in these files: it is in the context file, bootstrap/context.yaml (ContextFile), whose `node` block is
+the node fncli talks to and nothing else, and it refuses to run when kubectl points at another cluster. Its `env_file`
+holds the values that secret `env` references read, for that node. Its `defaults` say which project and way to
+trigger a task the commands use when not told.
 
 A secret says where fncli reads each value at apply time, never the value. A reference is a mapping with one key:
 
@@ -263,18 +265,31 @@ class GiteaSpec(Strict):
 
 
 class NodeSpec(Strict):
-    """The node the file is for, as this host reaches it"""
+    """The node, as this host reaches it"""
 
     url: str = Field(min_length=1)                      # nexus-api
     kube_context: str = Field(min_length=1)             # where cluster secrets are read from
     keycloak_namespace: str = Field(min_length=1)       # where fncli's login is read from
     gitea_admin_user: str = Field(default="gitea_admin", min_length=1)
-    env_file: Path | None = None                        # found from the node file's directory up, like .dev.env
+    env_file: Path | None = None                        # found from the context file's directory up, like .dev.env
+
+
+class Defaults(Strict):
+    """What the commands use when not told: FNCLI_DEFAULT_PROJECT and FNCLI_DEFAULT_TRIGGER_TYPE win over these"""
+
+    project: str | None = None
+    trigger_type: Literal["pr", "api"] | None = None
+
+
+class ContextFile(Strict):
+    """bootstrap/context.yaml: the node every other file is applied to, and the defaults of the commands"""
+
+    node: NodeSpec
+    defaults: Defaults = Field(default_factory=Defaults)
 
 
 class NodeFile(Strict):
     version: Literal[1]
-    node: NodeSpec
     providers: list[ProviderSpec] = Field(default_factory=list)
     secrets: dict[str, SecretSpec] = Field(default_factory=dict)
     repositories: GlobalRepositories = Field(default_factory=GlobalRepositories)

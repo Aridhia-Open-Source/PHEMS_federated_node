@@ -1,0 +1,17 @@
+# The project of the uc1 experiment, on the global resources of globals-uc1.yaml. It is assigned the dataset
+# uc1-omop by name: the dataset and its secret are in experiments/uc1/dataset.yaml. `fncli experiment setup uc1`
+# applies all three in order and `teardown uc1` deletes them in reverse.
+version: 1
+
+projects:
+  - name: uc1
+    datasets: [uc1-omop]
+    repositories:
+      triggers:
+        - repository: http://gitea.fn.svc:4000/gitea_admin/uc1-trigger-repo
+          watch_dir: specs/
+          base_branch: main
+      results:
+        repository: http://gitea.fn.svc:4000/gitea_admin/uc1-results-repo
+        target_dir: results/
+        base_branch: main

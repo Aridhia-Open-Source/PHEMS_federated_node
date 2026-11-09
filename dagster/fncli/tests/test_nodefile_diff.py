@@ -24,7 +24,6 @@ PROVIDER = "http://gitea.fn.svc:4000"
 def node_data() -> dict:
     return {
         "version": 1,
-        "node": {"url": "http://localhost:5000", "kube_context": "kind-fn", "keycloak_namespace": "keycloak"},
         "providers": [{"name": "gitea-local", "type": "gitea", "uri": PROVIDER, "api_uri": f"{PROVIDER}/api/v1"}],
         "secrets": {
             "trigger-creds": {"gitea_oauth": {"app": "sensor"}},
@@ -410,16 +409,21 @@ def test_limiting_to_a_project_keeps_the_others_as_other_projects():
 DEMO_DATASET = DatasetState(
     "demo-db", "postgres", "db-datasets.experiments.svc", 5432, "cdm", "results", "demo-db-dataset-creds"
 )
+EXAMPLES = ROOT / "bootstrap" / "examples"
+NOT_IN_IMAGE = pytest.mark.skipif(
+    not (EXAMPLES / "globals-gitea.yaml").exists(), reason="the repo's bootstrap/examples files are not in the test image"
+)
 
 
-@pytest.mark.skipif(not (ROOT / "bootstrap" / "examples" / "demo-gitea.yaml").exists(), reason="the repo's bootstrap/examples files are not in the test image")
+@NOT_IN_IMAGE
 def test_the_gitea_demo_against_what_the_env_setup_creates_differs_only_in_the_providers_name():
     """
     Backend-style values as `setup-project` leaves them: normalised uris, no trailing slashes, and the provider named
     <type>-<host> by init_backend_provider. The file names it gitea-local, which the gitea section refers to. The
-    dataset is not in the file: it is on the node from experiments/projects/demo/bootstrap.yaml.
+    dataset is on the node from experiments/demo/dataset.yaml, and the project is in its own file.
     """
-    node = load_node_file(ROOT / "bootstrap" / "examples" / "demo-gitea.yaml")
+    node = load_node_file(EXAMPLES / "globals-gitea.yaml")
+    project = load_node_file(EXAMPLES / "projects" / "demo-gitea.yaml")
     trigger, results = "gitea.fn.svc:4000/gitea_admin/demo-trigger-repo", "gitea.fn.svc:4000/gitea_admin/demo-results-repo"
     state = BackendState(
         providers=[ProviderState("gitea-gitea.fn.svc:4000", "gitea", PROVIDER, f"{PROVIDER}/api/v1")],
@@ -432,18 +436,18 @@ def test_the_gitea_demo_against_what_the_env_setup_creates_differs_only_in_the_p
             [TriggerState(trigger, "specs", "main", True)], ResultsState(results, "results", "main", True),
         )],
     )
-    changes = diff(node, state)
-    changed = [c for c in changes if c.action not in (UNCHANGED, ENSURE)]
+    changed = [c for c in diff(node, state) if c.action not in (UNCHANGED, ENSURE)]
     assert [(c.kind, c.action, [str(f) for f in c.fields]) for c in changed] == [
         ("provider", UPDATE, ["name: gitea-gitea.fn.svc:4000 -> gitea-local"]),
     ]
+    changes = diff(project, state)
+    assert {c.action for c in changes} == {UNCHANGED}
     assert by(changes, "dataset", "demo-db").detail == "on the node, not in this file"
 
 
-@pytest.mark.skipif(not (ROOT / "bootstrap" / "examples" / "demo-github.yaml").exists(), reason="the repo's bootstrap/examples files are not in the test image")
+@NOT_IN_IMAGE
 def test_the_github_demo_against_what_the_env_setup_creates_is_all_unchanged():
     """One repo is both the trigger and the results repository, and the provider has the env setup's default name"""
-    node = load_node_file(ROOT / "bootstrap" / "examples" / "demo-github.yaml")
     repo, provider = "github.com/aridhia-open-source/phems-sandbox", "https://github.com"
     state = BackendState(
         providers=[ProviderState("github-github.com", "github", provider, "https://api.github.com")],
@@ -456,14 +460,16 @@ def test_the_github_demo_against_what_the_env_setup_creates_is_all_unchanged():
             [TriggerState(repo, "mgmt/requests", "main", True)], ResultsState(repo, "mgmt/results", "main", True),
         )],
     )
-    assert {c.action for c in diff(node, state)} == {UNCHANGED}
+    for name in ("globals-github.yaml", "projects/demo-github.yaml"):
+        assert {c.action for c in diff(load_node_file(EXAMPLES / name), state)} == {UNCHANGED}
 
 
-@pytest.mark.skipif(not (ROOT / "bootstrap" / "examples" / "demo-github.yaml").exists(), reason="the repo's bootstrap/examples files are not in the test image")
-def test_the_github_demo_project_is_blocked_until_the_demo_dataset_is_on_the_node():
-    node = load_node_file(ROOT / "bootstrap" / "examples" / "demo-github.yaml")
+@NOT_IN_IMAGE
+def test_the_github_demo_project_is_blocked_until_the_demo_dataset_and_repository_are_on_the_node():
+    node = load_node_file(EXAMPLES / "projects" / "demo-github.yaml")
     empty = BackendState([], set(), [], [], [], [])
 
     project = by(diff(node, empty), "project", "demo-github")
 
-    assert (project.action, project.detail) == (BLOCKED, "dataset demo-db is not in the file or on the node")
+    assert project.action == BLOCKED
+    assert project.detail.startswith("dataset demo-db is not in the file or on the node; trigger repository")

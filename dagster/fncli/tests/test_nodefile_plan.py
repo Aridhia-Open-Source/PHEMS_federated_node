@@ -14,6 +14,22 @@ from fncli.nodefile.diff import BackendState, ProjectState, ResultsState
 from fncli.tests.test_nodefile_diff import node_data, synced_state
 
 EMPTY = BackendState([], set(), [], [], [], [])
+NODE = {"url": "http://localhost:5000", "kube_context": "kind-fn", "keycloak_namespace": "keycloak"}
+
+
+def write_context(tmp_path, monkeypatch, **node):
+    """The context file the commands find through FNCLI_CONTEXT"""
+    path = tmp_path / "context.yaml"
+    path.write_text(yaml.safe_dump({"node": {**NODE, **node}}))
+    monkeypatch.setenv("FNCLI_CONTEXT", str(path))
+    return path
+
+
+@pytest.fixture(autouse=True)
+def context_file(tmp_path, monkeypatch):
+    # Not inside the repo: the cli loads the .dev.env it finds from here up, into this process's env
+    monkeypatch.chdir(tmp_path)
+    return write_context(tmp_path, monkeypatch)
 
 
 @pytest.fixture
@@ -22,8 +38,9 @@ def run_plan(tmp_path, monkeypatch):
     monkeypatch.setattr(nodefile, "current_context", lambda: "kind-fn")
     monkeypatch.setattr(nodefile, "build_backend_api", lambda config: None)
 
-    def run(data, state, *args):
-        path = tmp_path / "node.yaml"
+    def run(data, state, *args, **node):
+        write_context(tmp_path, monkeypatch, **node)
+        path = tmp_path / "plan.yaml"
         path.write_text(yaml.safe_dump(data))
         monkeypatch.setattr(nodefile, "read_state", lambda api: state)
         return CliRunner().invoke(cli, ["plan", "-f", str(path), *args])
@@ -139,7 +156,7 @@ def test_the_file_comes_from_the_option_or_the_env_never_a_search(run_plan, tmp_
     result = CliRunner().invoke(cli, ["plan"])
     assert result.exit_code == 2 and "Missing option '-f' / '--file'" in result.output
 
-    path = tmp_path / "node.yaml"
+    path = tmp_path / "plan.yaml"
     path.write_text(yaml.safe_dump(node_data()))
     monkeypatch.setattr(nodefile, "current_context", lambda: "kind-fn")
     monkeypatch.setattr(nodefile, "build_backend_api", lambda config: None)
@@ -163,27 +180,62 @@ def test_a_file_path_is_also_looked_up_under_bootstrap_from_here_up(tmp_path, mo
     assert result.exit_code == 2 and "foo/nope.yaml not found, as given or under bootstrap/" in result.output
 
 
-def test_a_file_for_another_kubectl_context_is_refused(run_plan):
-    data = node_data()
-    data["node"]["kube_context"] = "client-x"
-    result = run_plan(data, EMPTY)
+def test_a_context_for_another_kubectl_context_is_refused(run_plan):
+    result = run_plan(node_data(), EMPTY, kube_context="client-x")
 
     assert result.exit_code == 1
-    assert "is for kubectl context client-x, but the current one is kind-fn" in result.output
+    assert "context.yaml is for kubectl context client-x, but the current one is kind-fn" in result.output
 
 
-def test_the_env_file_is_found_from_the_node_file_up_and_loaded(run_plan, tmp_path, monkeypatch):
+def test_the_env_file_is_found_from_the_context_file_up_and_loaded(run_plan, tmp_path, monkeypatch):
     monkeypatch.delenv("FN_TEST_FROM_NODE_ENV", raising=False)
     (tmp_path.parent / "node-test.env").write_text("FN_TEST_FROM_NODE_ENV=yes\n")
-    data = node_data()
-    data["node"]["env_file"] = "node-test.env"
-    assert run_plan(data, EMPTY).exit_code == 0
+    assert run_plan(node_data(), EMPTY, env_file="node-test.env").exit_code == 0
     assert os.environ["FN_TEST_FROM_NODE_ENV"] == "yes"
     monkeypatch.delenv("FN_TEST_FROM_NODE_ENV")
 
-    data["node"]["env_file"] = "nope.env"
-    result = run_plan(data, EMPTY)
+    result = run_plan(node_data(), EMPTY, env_file="nope.env")
     assert result.exit_code == 1 and "node.env_file nope.env not found" in result.output
+
+
+def test_the_context_is_the_option_the_env_or_bootstrap_context_yaml_from_here_up(tmp_path, monkeypatch):
+    plan_file = tmp_path / "plan.yaml"
+    plan_file.write_text(yaml.safe_dump(node_data()))
+    (tmp_path / "bootstrap").mkdir()
+    (tmp_path / "dagster").mkdir()
+    monkeypatch.chdir(tmp_path / "dagster")
+    monkeypatch.delenv("FNCLI_CONTEXT")
+    monkeypatch.setattr(nodefile, "current_context", lambda: "kind-fn")
+    monkeypatch.setattr(nodefile, "build_backend_api", lambda config: None)
+    monkeypatch.setattr(nodefile, "read_state", lambda api: EMPTY)
+
+    result = CliRunner().invoke(cli, ["plan", "-f", str(plan_file)])
+    assert result.exit_code == 2
+    assert "context.yaml not found, as given or under bootstrap/ from here up" in result.output
+    assert "cp bootstrap/examples/context.yaml bootstrap/context.yaml" in result.output
+
+    (tmp_path / "bootstrap" / "context.yaml").write_text(yaml.safe_dump({"node": NODE}))
+    assert CliRunner().invoke(cli, ["plan", "-f", str(plan_file)]).exit_code == 0
+
+    (tmp_path / "bootstrap" / "other.yaml").write_text(yaml.safe_dump({"node": {**NODE, "url": "http://other:5000"}}))
+    result = CliRunner().invoke(cli, ["plan", "-f", str(plan_file), "--context", "other.yaml"])
+    assert result.output.splitlines()[0] == "Node http://other:5000, kubectl context kind-fn"
+    monkeypatch.setenv("FNCLI_CONTEXT", "other.yaml")
+    assert CliRunner().invoke(cli, ["plan", "-f", str(plan_file)]).output.startswith("Node http://other:5000")
+
+
+def test_a_gitea_repository_of_another_owner_than_the_contexts_admin_user_is_refused(run_plan):
+    data = node_data()
+    data["repositories"]["triggers"][0]["uri"] = "http://gitea.fn.svc:4000/someone/trigger-repo"
+    data["projects"][0]["repositories"]["triggers"][0]["repository"] = "http://gitea.fn.svc:4000/someone/trigger-repo"
+
+    result = run_plan(data, EMPTY)
+    assert result.exit_code == 1
+    assert "is owned by someone, not the Gitea admin user gitea_admin" in result.output
+    assert run_plan(data, EMPTY, gitea_admin_user="someone").exit_code == 1  # the results repo is gitea_admin's
+    data["repositories"]["results"][0]["uri"] = "http://gitea.fn.svc:4000/someone/results-repo"
+    data["projects"][0]["repositories"]["results"]["repository"] = "http://gitea.fn.svc:4000/someone/results-repo"
+    assert run_plan(data, EMPTY, gitea_admin_user="someone").exit_code == 0
 
 
 def test_the_backend_clients_info_logs_stay_out_of_the_plan_and_the_level_is_restored_after(tmp_path, monkeypatch, caplog):
@@ -191,7 +243,7 @@ def test_the_backend_clients_info_logs_stay_out_of_the_plan_and_the_level_is_res
         logging.getLogger("app.backend").info("Fetching projects")
         return EMPTY
 
-    path = tmp_path / "node.yaml"
+    path = tmp_path / "plan.yaml"
     path.write_text(yaml.safe_dump(node_data()))
     monkeypatch.setattr(nodefile, "current_context", lambda: "kind-fn")
     monkeypatch.setattr(nodefile, "build_backend_api", lambda config: None)

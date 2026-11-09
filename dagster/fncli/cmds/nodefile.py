@@ -1,9 +1,9 @@
 """
-Commands that work from a node file (fncli/DESIGN-node-file.md), named as kubectl's are. `diff` is read-only: what
-applying the file would change. `apply` prints the same, asks, then carries it out in dependency order, stopping at the
+Commands that work from a node file (fncli/DESIGN-node-file.md), named as kubectl's are. The node they work on is in
+bootstrap/context.yaml (or --context FILE), not in the node file. `diff` is read-only: what applying the file would change. `apply` prints the same, asks, then carries it out in dependency order, stopping at the
 first backend error. `delete` deletes what the file describes, in reverse order, skipping what the backend refuses. None
 ever prints a secret value, only whether the source of each one is set or missing. All first check that kubectl points at
-the cluster of the file's node, because fncli reads the cluster's secrets from whatever context is current.
+the cluster of the node, because fncli reads the cluster's secrets from whatever context is current.
 """
 
 import logging
@@ -17,12 +17,14 @@ import requests
 from dotenv import load_dotenv
 
 from fncli.backend import FncliBackendAPI
-from fncli.cmds.common import BackendConfig, GiteaConfig, build_backend_api, build_gitea_api
+from fncli.cmds.common import BackendConfig, GiteaConfig, build_backend_api, build_gitea_api, find_under
 from fncli.k8s import current_context
 from fncli.nodefile.apply import Applier, describe_error, missing_sources, needs_gitea, to_do, with_rotations
 from fncli.nodefile.delete import DELETE, Remover, deletions, refusal
 from fncli.nodefile.diff import BLOCKED, CONFIRM, CREATE, ENSURE, UNCHANGED, UPDATE, BackendState, Change, count, diff
-from fncli.nodefile.loader import check_sources, limit_to_project, load_node_file
+from fncli.nodefile.loader import (
+    Context, check_gitea_owners, check_sources, fail, limit_to_project, load_context, load_node_file,
+)
 from fncli.nodefile.schema import NodeFile
 from fncli.nodefile.state import read_state
 
@@ -79,21 +81,32 @@ def render_plan(node: NodeFile, changes: list[Change]) -> str:
 
 
 def resolve_node_file(ctx, param, value: Path) -> Path:
-    """The path as given, else the same path under the nearest bootstrap/ directory from here up"""
-    if value.is_file():
-        return value
-    for directory in (Path.cwd(), *Path.cwd().parents):
-        candidate = directory / "bootstrap" / value
-        if candidate.is_file():
-            return candidate
-    raise click.BadParameter(f"{value} not found, as given or under bootstrap/")
+    return find_under("bootstrap", value)
+
+
+def resolve_context(ctx, param, value: Path) -> Context:
+    return load_context(find_under(
+        "bootstrap", value,
+        ". Make your own: cp bootstrap/examples/context.yaml bootstrap/context.yaml (edit it), or give --context FILE",
+    ))
 
 
 def node_file_option(command):
     return click.option(
         "-f", "--file", "node_file", envvar="FNCLI_NODE_FILE", required=True,
         type=click.Path(dir_okay=False, path_type=Path), callback=resolve_node_file,
-        help="The node file (FNCLI_NODE_FILE): a path, or one relative to the repo's bootstrap/, e.g. examples/demo-github.yaml.",
+        help="The node file (FNCLI_NODE_FILE): a path, or one relative to the repo's bootstrap/, e.g. "
+        "examples/globals-github.yaml. It holds any of providers, secrets, repositories, datasets, projects; "
+        "what it names and does not hold must be on the node.",
+    )(command)
+
+
+def context_option(command):
+    return click.option(
+        "--context", "context", envvar="FNCLI_CONTEXT", default="context.yaml", show_default=True,
+        type=click.Path(dir_okay=False, path_type=Path), callback=resolve_context,
+        help="The context file (FNCLI_CONTEXT): the node's url, kubectl context and env file, and the defaults. "
+        "A path, or one relative to the repo's bootstrap/, found from here up.",
     )(command)
 
 
@@ -103,33 +116,62 @@ def project_option(command):
     )(command)
 
 
-def open_node(node_file: Path, project: str | None) -> tuple[NodeFile, FncliBackendAPI]:
+def open_target(context: Context) -> FncliBackendAPI:
     """
-    The node file, limited to the project if one is given, and a backend client for its node. Refuses unless kubectl
-    points at the node's cluster, loads the node's env file, and says which node it is first.
+    A backend client for the context's node. Refuses unless kubectl points at the node's cluster, loads the node's env
+    file, and says which node it is first.
     """
-    node = load_node_file(node_file)
-    target = node.node
-    if current_context() != target.kube_context:
+    node = context.node
+    if current_context() != node.kube_context:
         raise click.ClickException(
-            f"{node_file} is for kubectl context {target.kube_context}, but the current one is {current_context()}. "
-            f"Switch with: kubectl config use-context {target.kube_context}"
+            f"{context.path} is for kubectl context {node.kube_context}, but the current one is {current_context()}. "
+            f"Switch with: kubectl config use-context {node.kube_context}"
         )
-    if target.env_file:
-        if not target.env_file.is_file():
-            raise click.ClickException(f"node.env_file {target.env_file} not found from {node_file} up")
-        load_dotenv(target.env_file, override=True)
+    if node.env_file:
+        if not node.env_file.is_file():
+            raise click.ClickException(f"node.env_file {node.env_file} not found from {context.path} up")
+        load_dotenv(node.env_file, override=True)
     # By alias: given by field name next to the same variable in the env, pydantic rejects the field name as extra.
-    config = BackendConfig(NEXUS_API_URL=target.url, KEYCLOAK_NAMESPACE=target.keycloak_namespace)
-    click.echo(f"Node {target.url}, kubectl context {target.kube_context}\n")
+    config = BackendConfig(NEXUS_API_URL=node.url, KEYCLOAK_NAMESPACE=node.keycloak_namespace)
+    click.echo(f"Node {node.url}, kubectl context {node.kube_context}\n")
+    return build_backend_api(config)
+
+
+def context_env(context: Context) -> dict[str, str]:
+    """What the commands that read the env instead of the context (the step commands) need to reach the node"""
+    return {
+        "NEXUS_API_URL": context.node.url,
+        "KEYCLOAK_NAMESPACE": context.node.keycloak_namespace,
+        "GITEA_ADMIN_USER": context.node.gitea_admin_user,
+    }
+
+
+def announce_defaults(context: Context, used: list[str]):
+    """The first line of a command that took something from the defaults, so the wrong project is never used silently"""
+    if used:
+        click.echo(f"Using the defaults of {context.path}: {', '.join(used)}")
+
+
+def open_node(context: Context, node_file: Path, project: str | None) -> tuple[NodeFile, FncliBackendAPI]:
+    """
+    The node file, limited to the project if one is given, and a backend client for the context's node (open_target).
+    The file's Gitea repositories must be the node's Gitea admin user's.
+    """
+    api = open_target(context)
+    node = load_node_file(node_file)
+    problems = check_gitea_owners(node, context.node.gitea_admin_user)
+    if problems:
+        fail(node_file, problems)
     if project:
         node = limit_to_project(node, project)
-    return node, build_backend_api(config)
+    return node, api
 
 
-def read_plan(node_file: Path, project: str | None) -> tuple[NodeFile, FncliBackendAPI, BackendState, list[Change]]:
+def read_plan(
+    context: Context, node_file: Path, project: str | None
+) -> tuple[NodeFile, FncliBackendAPI, BackendState, list[Change]]:
     """The node file, the backend client and state it was compared with, and what applying the file would change"""
-    node, api = open_node(node_file, project)
+    node, api = open_node(context, node_file, project)
     with quiet_backend_logs():
         state = read_state(api)
     return node, api, state, diff(node, state)
@@ -137,10 +179,11 @@ def read_plan(node_file: Path, project: str | None) -> tuple[NodeFile, FncliBack
 
 @click.command("diff")
 @node_file_option
+@context_option
 @project_option
-def diff_command(node_file, project):
+def diff_command(node_file, context, project):
     """Show what applying a node file would change on the node. Read-only, and it never prints a secret value."""
-    node, _, _, changes = read_plan(node_file, project)
+    node, _, _, changes = read_plan(context, node_file, project)
     click.echo(render_plan(node, changes))
 
 
@@ -205,9 +248,9 @@ def report_blocked(blocked: list[Change]):
     raise click.exceptions.Exit(1)
 
 
-def apply_node_file(node_file: Path, project: str | None, yes: bool, rotate: tuple[str, ...] = ()):
+def apply_node_file(context: Context, node_file: Path, project: str | None, yes: bool, rotate: tuple[str, ...] = ()):
     """What `fncli apply` does: print the diff, ask unless yes, carry it out, exit 1 if something is left for a person"""
-    node, api, state, changes = read_plan(node_file, project)
+    node, api, state, changes = read_plan(context, node_file, project)
     changes = with_rotations(node, changes, rotate)
     click.echo(render_plan(node, changes))
     missing = missing_sources(node, changes)
@@ -221,7 +264,7 @@ def apply_node_file(node_file: Path, project: str | None, yes: bool, rotate: tup
         click.echo("\nNothing to do.")
         report_blocked(blocked)
         return
-    gitea = build_gitea_api(GiteaConfig(GITEA_ADMIN_USER=node.node.gitea_admin_user)) if needs_gitea(node, todo) else None
+    gitea = build_gitea_api(GiteaConfig(GITEA_ADMIN_USER=context.node.gitea_admin_user)) if needs_gitea(node, todo) else None
     # Ensuring Gitea repositories alone writes nothing to the node and is safe to repeat, so it does not ask
     if not yes and any(change.action != ENSURE for change in todo):
         live = [change.name for change in todo if change.action == CONFIRM]
@@ -237,6 +280,7 @@ def apply_node_file(node_file: Path, project: str | None, yes: bool, rotate: tup
 
 @click.command("apply")
 @node_file_option
+@context_option
 @project_option
 @click.option("-y", "--yes", is_flag=True, help="Do not ask before applying.")
 @click.option(
@@ -244,7 +288,7 @@ def apply_node_file(node_file: Path, project: str | None, yes: bool, rotate: tup
     help="Also rewrite this secret, though it exists (repeatable), and for a Gitea OAuth one, authorise its app again. "
     "Otherwise a secret is only written when missing.",
 )
-def apply_command(node_file, project, yes, rotate):
+def apply_command(node_file, context, project, yes, rotate):
     """
     Make the node match a node file: print the diff, ask, then carry it out in dependency order (secrets, providers,
     repositories, datasets, projects). It stops at the first backend error and says what was done and what was not. A
@@ -252,7 +296,7 @@ def apply_command(node_file, project, yes, rotate):
     mentions. A change the backend refuses (a swapped results repository, another default dataset) is skipped with its
     manual steps, and apply exits 1. Nothing is deleted (see delete). Never prints a secret value.
     """
-    apply_node_file(node_file, project, yes, rotate)
+    apply_node_file(context, node_file, project, yes, rotate)
 
 
 def delete_from_node(node: NodeFile, api: FncliBackendAPI, with_globals: bool, yes: bool):
@@ -282,18 +326,19 @@ def delete_from_node(node: NodeFile, api: FncliBackendAPI, with_globals: bool, y
         raise click.exceptions.Exit(1)
 
 
-def delete_node_file(node_file: Path, with_globals: bool, yes: bool):
-    delete_from_node(*open_node(node_file, None), with_globals, yes)
+def delete_node_file(context: Context, node_file: Path, with_globals: bool, yes: bool):
+    delete_from_node(*open_node(context, node_file, None), with_globals, yes)
 
 
 @click.command("delete")
 @node_file_option
+@context_option
 @click.option(
     "--all", "with_globals", is_flag=True,
     help="Also delete the global resources the file describes: repositories and datasets, then secrets and providers.",
 )
 @click.option("-y", "--yes", is_flag=True, help="Do not ask before deleting.")
-def delete_command(node_file, with_globals, yes):
+def delete_command(node_file, context, with_globals, yes):
     """
     Delete the projects a node file describes from the node, with their assignments. With --all, also the global
     repositories and datasets it describes, then the secrets (with their stored values) and the providers. Only what
@@ -301,7 +346,7 @@ def delete_command(node_file, with_globals, yes):
     the backend's message, and delete exits 1. A provider that repositories outside the file are on is kept. Gitea
     repositories and OAuth apps that fncli created are left in place.
     """
-    delete_node_file(node_file, with_globals, yes)
+    delete_node_file(context, node_file, with_globals, yes)
 
 
 COMMANDS = [diff_command, plan_command, apply_command, delete_command]

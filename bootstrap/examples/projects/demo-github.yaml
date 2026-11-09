@@ -1,0 +1,20 @@
+# The project of the GitHub demo, and what it is assigned: the repository is in globals-github.yaml, the dataset
+# demo-db is in experiments/demo/dataset.yaml. Apply those first:
+#   fncli experiment up; fncli experiment seed demo; fncli experiment setup demo      (the dataset)
+#   fncli apply -f examples/globals-github.yaml                                        (the repository)
+#   fncli apply -f examples/projects/demo-github.yaml
+#   fncli demo -f examples/projects/demo-github.yaml
+version: 1
+
+projects:
+  - name: demo-github
+    datasets: [demo-db]                            # on the node already, see above
+    repositories:
+      triggers:
+        - repository: https://github.com/Aridhia-Open-Source/phems-sandbox
+          watch_dir: mgmt/requests/
+          base_branch: main
+      results:
+        repository: https://github.com/Aridhia-Open-Source/phems-sandbox
+        target_dir: mgmt/results/
+        base_branch: main

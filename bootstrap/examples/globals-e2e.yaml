@@ -1,17 +1,13 @@
-# Node file for the dev project the end-to-end suites and scripts/e2e_shared_resources.sh use, replacing the TEST_* values
-# of .dev.env.example. The same values: the fn-dev project, its two Gitea repos, a stand-in dataset. No secret values.
-#   fncli diff  -f bootstrap/examples/e2e.yaml
-#   fncli apply -f bootstrap/examples/e2e.yaml
-#   fncli delete -f bootstrap/examples/e2e.yaml --all
-# The commands that open pull requests and check the project (open-pr, verify-project, project-set, ...) still read the
-# same names from .dev.env (TEST_PROJECT_NAME, TEST_TRIGGER_REPO, ...): keep them equal to this file.
+# Global resources for the dev project the end-to-end suites and scripts/e2e_shared_resources.sh use, replacing the TEST_*
+# values of .dev.env.example: its provider, two Gitea repos, OAuth-app secrets and a stand-in dataset. The project is in
+# projects/e2e.yaml. No secret values. The e2e suites run these against bootstrap/examples/context.yaml.
+#   fncli apply -f examples/globals-e2e.yaml
+#   fncli apply -f examples/projects/e2e.yaml
+#   fncli delete -f examples/projects/e2e.yaml; fncli delete -f examples/globals-e2e.yaml --all
+# The step commands (verify-project, project-set, ...) still read the same names from .dev.env (TEST_PROJECT_NAME,
+# TEST_TRIGGER_REPO, ...): keep them equal to these files.
 # Names: lowercase letters, digits, '-' and '.' only, because they become Secret labels.
 version: 1
-
-node:
-  url: http://localhost:5000                       # nexus-api (the Tilt port-forward)
-  kube_context: kind-fn
-  keycloak_namespace: keycloak
 
 providers:
   - name: gitea-local                              # the same name in every file for this Gitea, or applying one renames it for the others
@@ -47,19 +43,6 @@ datasets:                                          # dataset names are unique ac
     read_schema: cdm
     write_schema: results
     secret: dev-dataset-dataset-creds
-
-projects:
-  - name: fn-dev
-    datasets: [dev-dataset]
-    repositories:
-      triggers:
-        - repository: http://gitea.fn.svc:4000/gitea_admin/fn-trigger-repo
-          watch_dir: specs/
-          base_branch: main
-      results:
-        repository: http://gitea.fn.svc:4000/gitea_admin/fn-results-repo
-        target_dir: results/
-        base_branch: main
 
 gitea:
   provider: gitea-local

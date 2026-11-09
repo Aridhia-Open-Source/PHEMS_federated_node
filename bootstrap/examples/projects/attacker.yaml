@@ -1,0 +1,17 @@
+# The project of the attacker experiment, on the global resources of globals-attacker.yaml. It is assigned the dataset
+# attacker-db by name: the dataset and its secret are in experiments/attacker/dataset.yaml. `fncli experiment setup attacker`
+# applies all three in order and `teardown attacker` deletes them in reverse.
+version: 1
+
+projects:
+  - name: attacker
+    datasets: [attacker-db]
+    repositories:
+      triggers:
+        - repository: http://gitea.fn.svc:4000/gitea_admin/attacker-trigger-repo
+          watch_dir: specs/
+          base_branch: main
+      results:
+        repository: http://gitea.fn.svc:4000/gitea_admin/attacker-results-repo
+        target_dir: results/
+        base_branch: main

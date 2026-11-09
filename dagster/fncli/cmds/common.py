@@ -4,6 +4,7 @@ APIs built from it.
 """
 
 import subprocess
+from pathlib import Path
 from typing import ClassVar
 from urllib.parse import urlparse
 
@@ -34,6 +35,17 @@ def to_host_url(url: str) -> str:
     if not host or not host.endswith(IN_CLUSTER_SUFFIX):
         return url
     return url.replace(host, "localhost", 1)
+
+
+def find_under(directory: str, value: Path, hint: str = "") -> Path:
+    """The path as given, else the same path under the nearest `directory`/ from here up (bootstrap/, triggers/)"""
+    if value.is_file():
+        return value
+    for parent in (Path.cwd(), *Path.cwd().parents):
+        candidate = parent / directory / value
+        if candidate.is_file():
+            return candidate
+    raise click.BadParameter(f"{value} not found, as given or under {directory}/ from here up{hint}")
 
 
 class GiteaConfig(EnvConfig):

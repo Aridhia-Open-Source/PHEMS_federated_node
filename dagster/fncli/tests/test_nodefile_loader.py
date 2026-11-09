@@ -9,7 +9,9 @@ import yaml
 from kubernetes.client.exceptions import ApiException
 
 from fncli.nodefile import loader
-from fncli.nodefile.loader import GENERATED, MISSING, SET, check_sources, limit_to_project, load_node_file
+from fncli.nodefile.loader import (
+    GENERATED, MISSING, SET, check_gitea_owners, check_sources, limit_to_project, load_context, load_node_file,
+)
 from fncli.nodefile.schema import NodeFile, dirs_overlap, normalise_dir
 
 ADMIN = "gitea_admin"
@@ -21,7 +23,6 @@ RESULTS = "http://gitea.fn.svc:4000/gitea_admin/results-repo"
 def node_data() -> dict:
     return {
         "version": 1,
-        "node": {"url": "http://localhost:5000", "kube_context": "kind-fn", "keycloak_namespace": "keycloak"},
         "providers": [{
             "name": "gitea-local", "type": "gitea",
             "uri": "http://gitea.fn.svc:4000", "api_uri": "http://gitea.fn.svc:4000/api/v1",
@@ -135,7 +136,7 @@ def test_all_problems_are_listed_at_once(tmp_path):
     message = problems_of(tmp_path, data)
     assert "has 3 problems" in message
     assert "trigger repository gitea.fn.svc:4000/gitea_admin/trigger-repo is listed twice" in message
-    assert "repositories.results[0]: no provider for the host of unknown.example/gitea_admin/results-repo" in message
+    assert "repositories.results[0]: no provider for the host of unknown.example/gitea_admin/results-repo in this file" in message
     assert "dataset shared is listed twice" in message
 
 
@@ -171,11 +172,33 @@ def test_base_branch_must_be_set_and_watch_dir_not_empty(tmp_path):
     assert "watch_dir must name a directory, not the whole repository" in message
 
 
-def test_a_gitea_repository_must_be_under_the_admin_user(tmp_path):
+def test_a_gitea_repository_must_be_under_the_admin_user_of_the_context(tmp_path):
     data = node_data()
     data["repositories"]["triggers"][0]["uri"] = "http://gitea.fn.svc:4000/someone/trigger-repo"
     data["projects"][0]["repositories"]["triggers"][0]["repository"] = "http://gitea.fn.svc:4000/someone/trigger-repo"
-    assert "is owned by someone, not the Gitea admin user gitea_admin" in problems_of(tmp_path, data)
+    node = load(tmp_path, data)
+
+    assert check_gitea_owners(node, "gitea_admin") == [
+        "repositories.triggers[0]: gitea.fn.svc:4000/someone/trigger-repo is owned by someone, "
+        "not the Gitea admin user gitea_admin"
+    ]
+    assert [problem.split(":")[0] for problem in check_gitea_owners(node, "Someone")] == ["repositories.results[0]"]
+
+
+def test_a_node_file_holds_no_node_block(tmp_path):
+    data = node_data()
+    data["node"] = {"url": "http://localhost:5000", "kube_context": "kind-fn", "keycloak_namespace": "keycloak"}
+
+    assert "node: Extra inputs are not permitted" in problems_of(tmp_path, data)
+
+
+def test_a_file_may_hold_any_subset_of_the_sections(tmp_path):
+    data = node_data()
+    only_projects = {"version": 1, "projects": data["projects"]}
+    only_globals = {key: value for key, value in data.items() if key != "projects"}
+
+    assert load(tmp_path, only_projects).projects[0].name == "alpha"
+    assert load(tmp_path, only_globals).projects == []
 
 
 def test_a_github_repository_may_be_under_any_owner(tmp_path):
@@ -340,9 +363,106 @@ def test_a_gitea_oauth_secret_has_no_values_to_check(tmp_path):
     assert check_sources(load(tmp_path, node_data()).secrets["trigger-creds"]) == []
 
 
-@pytest.mark.skipif(not (ROOT / "bootstrap" / "examples" / "demo-gitea.yaml").exists(), reason="the repo's bootstrap/examples files are not in the test image")
-@pytest.mark.parametrize("name", ["demo-gitea.yaml", "demo-github.yaml"])
-def test_the_demo_files_load(name):
-    node = load_node_file(ROOT / "bootstrap" / "examples" / name)
-    assert len(node.projects) == 1
-    assert "hunter" not in (ROOT / "bootstrap" / "examples" / name).read_text()
+EXAMPLES = ROOT / "bootstrap" / "examples"
+NOT_IN_IMAGE = pytest.mark.skipif(
+    not (EXAMPLES / "globals-gitea.yaml").exists(), reason="the repo's bootstrap/examples files are not in the test image"
+)
+
+
+@NOT_IN_IMAGE
+@pytest.mark.parametrize("name", sorted(path.relative_to(EXAMPLES).as_posix() for path in EXAMPLES.rglob("*.yaml") if path.name != "context.yaml"))
+def test_every_committed_example_loads_and_holds_no_secret_value(name):
+    node = load_node_file(EXAMPLES / name)
+    assert (len(node.projects) > 0) == name.startswith("projects/")
+    assert "hunter" not in (EXAMPLES / name).read_text()
+
+
+@NOT_IN_IMAGE
+def test_every_committed_project_resolves_against_the_committed_global_files_and_datasets():
+    """The split is right: what a project names is in some globals file, or in an experiment's dataset.yaml"""
+    globals_ = [load_node_file(path) for path in EXAMPLES.glob("globals-*.yaml")]
+    datasets = [load_node_file(path) for path in (ROOT / "experiments").glob("*/dataset.yaml")]
+    held = {
+        "dataset": {d.name for node in globals_ + datasets for d in node.datasets},
+        "trigger": {r.uri for node in globals_ for r in node.repositories.triggers},
+        "results": {r.uri for node in globals_ for r in node.repositories.results},
+    }
+    for path in (EXAMPLES / "projects").glob("*.yaml"):
+        for project in load_node_file(path).projects:
+            assert set(project.datasets) <= held["dataset"], path
+            assert {t.repository for t in project.repositories.triggers} <= held["trigger"], path
+            assert project.repositories.results.repository in held["results"], path
+
+
+def context_text(extra: str = "") -> str:
+    return (
+        "node:\n  url: http://localhost:5000\n  kube_context: kind-fn\n  keycloak_namespace: keycloak\n"
+        "  env_file: .ctx.env\n" + extra
+    )
+
+
+@pytest.fixture
+def no_default_env(monkeypatch):
+    monkeypatch.delenv("FNCLI_DEFAULT_PROJECT", raising=False)
+    monkeypatch.delenv("FNCLI_DEFAULT_TRIGGER_TYPE", raising=False)
+
+
+def test_a_context_has_the_node_and_optional_defaults_and_finds_its_env_file_upwards(tmp_path, no_default_env):
+    (tmp_path / ".ctx.env").write_text("")
+    folder = tmp_path / "bootstrap"
+    folder.mkdir()
+    path = folder / "context.yaml"
+    path.write_text(context_text("defaults:\n  project: demo-gitea\n  trigger_type: pr\n"))
+
+    context = load_context(path)
+
+    assert context.path == path
+    assert (context.node.url, context.node.kube_context, context.node.gitea_admin_user) == (
+        "http://localhost:5000", "kind-fn", "gitea_admin"
+    )
+    assert context.node.env_file == tmp_path / ".ctx.env"
+    assert (context.defaults.project, context.defaults.trigger_type) == ("demo-gitea", "pr")
+
+
+def test_a_context_without_defaults_has_none(tmp_path, no_default_env):
+    path = tmp_path / "context.yaml"
+    path.write_text(context_text())
+
+    assert load_context(path).defaults.project is None and load_context(path).defaults.trigger_type is None
+
+
+def test_the_env_wins_over_the_defaults_of_the_context_file(tmp_path, monkeypatch, no_default_env):
+    path = tmp_path / "context.yaml"
+    path.write_text(context_text("defaults:\n  project: from-file\n  trigger_type: pr\n"))
+    monkeypatch.setenv("FNCLI_DEFAULT_PROJECT", "from-env")
+    monkeypatch.setenv("FNCLI_DEFAULT_TRIGGER_TYPE", "api")
+
+    defaults = load_context(path).defaults
+
+    assert (defaults.project, defaults.trigger_type) == ("from-env", "api")
+
+
+def test_a_default_trigger_type_that_is_not_one_is_refused(tmp_path, monkeypatch, no_default_env):
+    path = tmp_path / "context.yaml"
+    path.write_text(context_text())
+    monkeypatch.setenv("FNCLI_DEFAULT_TRIGGER_TYPE", "carrier-pigeon")
+
+    with pytest.raises(click.ClickException, match="must be one of pr, api, not carrier-pigeon"):
+        load_context(path)
+
+
+def test_a_context_refuses_unknown_keys_and_needs_the_node(tmp_path):
+    path = tmp_path / "context.yaml"
+    path.write_text("defaults:\n  project: x\n  colour: red\n")
+
+    with pytest.raises(click.ClickException) as error:
+        load_context(path)
+
+    assert "node: Field required" in error.value.message and "defaults.colour: Extra inputs are not permitted" in error.value.message
+
+
+@NOT_IN_IMAGE
+def test_the_example_context_loads(no_default_env):
+    context = load_context(EXAMPLES / "context.yaml")
+
+    assert context.node.kube_context == "kind-fn" and context.defaults.project == "demo-gitea"
