@@ -97,9 +97,9 @@ fncli stops the reconcile sensor together with the run-status sensors (`--group 
 
 Takes several retry intervals (60 seconds each by default; five attempts by default).
 
-1. Merge a watched pull request. While the task runs: `fncli delete-gitea-token --entity results` (the results token is lost).
+1. Merge a watched pull request. While the task runs: TODO(fncli): delete the results Gitea token (the results token is lost).
 2. Wait for the result. Watch `fncli project-show` results and the Dagster UI for `deliver-retry` runs, for at least six retry intervals. Note `attempts` (`GET /projects/<pid>/results/<id>`).
-3. `fncli init-git-secret --entity results` and `fncli verify-git-secret --entity results`. Wait three more intervals.
+3. `fncli apply -f examples/e2e.yaml --rotate results -y` and `fncli verify-git-secret --entity results`. Wait three more intervals.
 
 - **Expected:** the result is `FAILED` with an error each attempt, its step unchanged, `attempts` going up by one per try, one try per retry interval at most. After the maximum (five by default) the sensor stops launching. The task stays `SUCCESS`. After step 3 the result is still not delivered on its own: it stays `FAILED` until `attempts` is reset by hand (`PATCH` the result) or the delivery job is run again. Nothing alerts anyone.
 - **Rule:** a delivery with the maximum failed attempts is not retried; it stays `FAILED` until relaunched by hand ([Run keys, retries and the results pull request sync]). The missing alert is an open question in [Enabled, revoked and soft delete].
@@ -109,7 +109,7 @@ Takes several retry intervals (60 seconds each by default; five attempts by defa
 
 ## A delivery recovers if the token is restored within the attempts
 
-1. As in the previous case, but restore the token (`fncli init-git-secret --entity results`) after the first or second failed attempt.
+1. As in the previous case, but restore the token (`fncli apply -f examples/e2e.yaml --rotate results -y`) after the first or second failed attempt.
 
 - **Expected:** the next retry delivers: the branch is pushed, the pull request opened, step `OPENED`, state `DELIVERED`, `error` cleared, `attempts` counted. Exactly one results pull request.
 - **Rule:** the retry resumes from the step reached and clears the error on success ([Results delivered as a pushed branch plus a results pull request]; [Run keys, retries and the results pull request sync]).

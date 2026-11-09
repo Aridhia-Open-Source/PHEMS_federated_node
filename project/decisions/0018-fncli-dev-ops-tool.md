@@ -14,6 +14,10 @@ Setting up a project (backend project, secrets, git provider, trigger and result
 - fncli is a second package in `dagster/pyproject.toml` (the `cli` extra) and imports the backend, Gitea and model code from `dagster/app`; there are no copies. What only the CLI needs lives in `dagster/fncli` as subclasses or small modules.
 - Limited tests (the CLI wiring and commands, and an end-to-end suite); no coverage of a live cluster in the unit tests.
 
+## Update (2026-11-09)
+
+fncli now offers `diff`, `apply -f <bootstrap-file> [--rotate <label>] [-y]` and `delete -f <bootstrap-file> [--all] [-y]` commands that read node files from `bootstrap/` and orchestrate all setup and teardown operations at once. This replaces the previous `setup-project`, `teardown-project` and `init-`/`delete-` commands. Still dev/demo only.
+
 ## Alternatives considered
 
 - **Make targets and shell scripts:** not composable or testable.

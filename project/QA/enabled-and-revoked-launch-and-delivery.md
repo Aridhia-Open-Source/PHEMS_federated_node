@@ -233,7 +233,7 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 Use scratch GlobalResources or the second project. Destructive: not on the main test project.
 
 1. Task `RUNNING`; `DELETE` its project's results resource (or force-delete the scratch ResultsRepository). Wait for the result.
-2. Task `PENDING` (launcher stopped) in the second project; `fncli second-project-teardown QaTwo`. Start the launcher. Look for the task and its results.
+2. Task `PENDING` (launcher stopped) in the second project; `fncli delete -f examples/e2e-second-projects.yaml -y`. Start the launcher. Look for the task and its results.
 
 - **Expected:** step 1: the result is `REVOKED` (final), because a deleted project resource counts as revoked; the results route reads the deleted project resource on purpose. Step 2: the project is hidden (404); its `PENDING` tasks are never launched and never failed; asking for its results is a 404 and nothing is delivered.
 - **Rule:** deleting sets `deleted_at` and `revoked`; a deleted project is hidden ([Enabled, revoked and soft delete]).

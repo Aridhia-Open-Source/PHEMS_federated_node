@@ -30,7 +30,7 @@ failure from a node one.
 | `up` | helm upgrade of the `experiments` release: Postgres, database `uc1-omop`, role `uc1_omop_user`, generated password | namespace `experiments` |
 | `build` | `docker build experiments/sources/uc1`, push to the kind registry | host Docker |
 | `seed` | checks the release is up, loads the synthetic OMOP data over `kubectl exec` (recreating its schemas) | namespace `experiments` |
-| `setup` | checks the release is up, then `fncli setup-project`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | backend + Gitea |
+| `setup` | checks the release is up, then `fncli apply -f bootstrap/examples/experiments/uc1.yaml -y`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | backend + Gitea |
 | `run` | starts the sensors, opens and merges a spec PR, watches the task and the results PR | Gitea + Dagster |
 
 A full run takes about 8 minutes, nearly all of it in the R cohort building. The data is
@@ -39,8 +39,8 @@ small (832 patients); the time goes on the many small queries the R packages run
 ### Tear down and redeploy
 
 ```bash
-fncli experiment teardown uc1   # remove project "uc1", its global resources and Gitea repos
-fncli experiment down           # or: teardown every experiment, then uninstall the release
+fncli delete -f bootstrap/examples/experiments/uc1.yaml -y   # remove project "uc1", its global resources and Gitea repos
+fncli experiment down           # or: uninstall the release
 fncli experiment up             # back again (the database files survive `down`)
 fncli experiment setup uc1      # `seed uc1` too if you wiped the data
 fncli experiment run uc1        # `build uc1` first only if the source changed

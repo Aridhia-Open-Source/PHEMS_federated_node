@@ -152,7 +152,7 @@ dagster/.venv/bin/python -m pytest dagster --e2e failure -v -x -p no:cacheprovid
 
 The success suite runs first, then the failure suite. Within a suite the tests run in file order.
 
-**Success suite** (`test_happy_path.py`): clear leftovers, `setup-project` steps, `verify-project`; then branch, commit a watched spec, open and merge the pull request; the pull request is ingested (UNKNOWN) and YIELDED with a task; the task is created, QUEUED, RUNNING, SUCCESS; a result exists, reaches PUSHED (delivery) and OPENED (the results PR sensor opens the pull request); the results pull request is merged with `merge-results-pr`; the result is MERGED; `verify-project` and `verify-repo --tail 1` pass; teardown (only with `E2E_TEARDOWN=1`).
+**Success suite** (`test_happy_path.py`): clear leftovers, `fncli apply -f examples/e2e.yaml -y` steps, `verify-project`; then branch, commit a watched spec, open and merge the pull request; the pull request is ingested (UNKNOWN) and YIELDED with a task; the task is created, QUEUED, RUNNING, SUCCESS; a result exists, reaches PUSHED (delivery) and OPENED (the results PR sensor opens the pull request); the results pull request is merged with `merge-results-pr`; the result is MERGED; `verify-project` and `verify-repo --tail 1` pass; teardown (only with `E2E_TEARDOWN=1`).
 
 **Failure suite** (`test_failure_paths.py`): the admin login check; clear leftovers (including the second project) and set up; the project starts empty; then these groups, in this order:
 
