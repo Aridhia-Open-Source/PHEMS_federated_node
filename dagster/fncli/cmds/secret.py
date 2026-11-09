@@ -8,7 +8,7 @@ import logging
 
 import click
 
-from fncli.cmds.common import RepoConfig, build_git_api, entity_option
+from fncli.cmds.common import RepoConfig, build_git_api, build_gitea_api, entity_option
 from fncli.cmds.repository import backend_source_options, load_repo_config
 from fncli.backend import FncliBackendAPI
 from app.gitea import GiteaAPI, GiteaClient
@@ -90,4 +90,27 @@ def verify_git_secret_command(entity, from_backend, project):
     logger.info(f"The {config.git_provider} provider accepted the token for {config.repo_path}")
 
 
-COMMANDS = [verify_git_secret_command]
+@click.command("delete-gitea-token")
+@entity_option
+@backend_source_options
+def delete_gitea_token_command(entity, from_backend, project):
+    """
+    Delete the Gitea token and OAuth2 application (with the tokens it issued) of a repo's secret. For QA: it breaks
+    the repo's credentials on purpose; `fncli apply --rotate <label>` makes new ones.
+    """
+    config = load_repo_config(entity, from_backend, project)
+    if config.is_github:
+        logger.info("Not deleting the GitHub credentials: they are the GitHub App's, not ones fncli minted")
+        return
+    gitea_api = build_gitea_api(config)
+    if gitea_api.delete_token(config.token_name):
+        logger.info(f"Deleted Gitea token {config.token_name!r}")
+    else:
+        logger.info(f"Gitea token {config.token_name!r} does not exist")
+    if gitea_api.delete_oauth_app(config.token_name):
+        logger.info(f"Deleted Gitea OAuth2 application {config.token_name!r}")
+    else:
+        logger.info(f"Gitea OAuth2 application {config.token_name!r} does not exist")
+
+
+COMMANDS = [verify_git_secret_command, delete_gitea_token_command]

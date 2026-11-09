@@ -97,7 +97,7 @@ fncli stops the reconcile sensor together with the run-status sensors (`--group 
 
 Takes several retry intervals (60 seconds each by default; five attempts by default).
 
-1. Merge a watched pull request. While the task runs: TODO(fncli): delete the results Gitea token (the results token is lost).
+1. Merge a watched pull request. While the task runs: `fncli delete-gitea-token --entity results` (the results token is lost).
 2. Wait for the result. Watch `fncli project-show` results and the Dagster UI for `deliver-retry` runs, for at least six retry intervals. Note `attempts` (`GET /projects/<pid>/results/<id>`).
 3. `fncli apply -f examples/e2e.yaml --rotate results -y` and `fncli verify-git-secret --entity results`. Wait three more intervals.
 

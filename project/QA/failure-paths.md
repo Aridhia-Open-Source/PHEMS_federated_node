@@ -30,7 +30,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 ## A lost trigger-repository token fails clearly, and the missed pull request is processed on recovery
 
 1. Wait for tasks to finish. Note the counts.
-2. TODO(fncli): delete the trigger Gitea token.
+2. `fncli delete-gitea-token --entity trigger`.
 3. `fncli open-pr --kind watched --merge`. Wait five intervals; note the counts.
 4. `fncli sensor-status`, and the Dagster UI tick log of `git_pull_request_ingest_sensor`.
 5. `fncli project-healthcheck`.
