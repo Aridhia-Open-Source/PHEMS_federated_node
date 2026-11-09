@@ -40,7 +40,7 @@ Everything lives in the cluster's Gitea, so nothing outside is needed.
 fncli diff  -f examples/globals-gitea.yaml          # preview: the provider, the two repos, their OAuth secrets
 fncli apply -f examples/globals-gitea.yaml          # creates them, the Gitea repos included
 fncli apply -f examples/projects/demo-gitea.yaml    # the project and its assignments (uses demo-db)
-fncli demo examples/demo.json                       # the guided pull request walk
+fncli demo -f examples/projects/demo-gitea.yaml     # the guided pull request walk
 ```
 
 ## 3b. GitHub demo
@@ -51,14 +51,14 @@ Needs a GitHub App installed on your repo ([SETUP_GIT_APPS.md](SETUP_GIT_APPS.md
 fncli diff  -f examples/globals-github.yaml
 fncli apply -f examples/globals-github.yaml
 fncli apply -f examples/projects/demo-github.yaml
-fncli demo examples/demo.json                       # with defaults.project: demo-github
+fncli demo -f examples/projects/demo-github.yaml    # with defaults.project: demo-github
 ```
 
 ## Again, and other triggers
 
-- Run `fncli demo examples/demo.json` again for another pull request; nothing needs resetting.
-- `examples/demo-failing.json` makes the task fail on purpose, to see the failure path.
-- Without the guided checks: `fncli trigger examples/demo.json` opens the pull request directly.
+- Run `fncli demo -f examples/projects/demo-gitea.yaml` again for another pull request; nothing needs resetting.
+- `fncli demo -f examples/projects/demo-gitea.yaml examples/demo-failing.json` makes the task fail on purpose, to see the failure path.
+- Without the guided checks: `fncli trigger --pr examples/demo.json` opens the pull request directly.
 - A different project or route than the context's defaults: `--project NAME`, `--pr`.
 
 ## Clean up
