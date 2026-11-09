@@ -16,7 +16,7 @@ Setting up a project (backend project, secrets, git provider, trigger and result
 
 ## Update (2026-11-09)
 
-fncli now offers `diff`, `apply -f <bootstrap-file> [--rotate <label>] [-y]` and `delete -f <bootstrap-file> [--all] [-y]` commands that read node files from `bootstrap/` and orchestrate all setup and teardown operations at once. This replaces the previous `setup-project`, `teardown-project` and `init-`/`delete-` commands. Still dev/demo only.
+fncli now offers `diff`, `apply -f <bootstrap-file> [--rotate <label>] [-y]` and `delete -f <bootstrap-file> [--all] [-y]` commands that read node files from `bootstrap/` and orchestrate all setup and teardown operations at once. This replaces the previous `setup-project`, `teardown-project` and `init-`/`delete-` commands. Still dev/demo only. See also [0025](0025-fncli-bootstrap-files-diff-apply-delete.md) to [0030](0030-fncli-demo-only-walks-the-pull-request-process.md).
 
 ## Alternatives considered
 
