@@ -4,7 +4,7 @@
 #   cp dev.example.values.yml dev.values.yaml    # dev.values.yaml is gitignored
 #   ./scripts/cluster.sh up && make deploy
 #
-# Images come from the kind registry at localhost:5001 (scripts/build_all_images.sh).
+# Images come from the kind registry at localhost:5001 (docker-bake.hcl).
 # Everything else comes from values.yaml, including every database password:
 #
 #   make show-db-passwords
