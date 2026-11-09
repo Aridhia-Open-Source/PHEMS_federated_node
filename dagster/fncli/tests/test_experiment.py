@@ -18,7 +18,7 @@ from fncli.cmds.experiment import (
     Database, ExperimentConfig, check_dataset, experiment_group, load_database, load_project,
 )
 from fncli.nodefile.loader import load_node_file
-from fncli.tests.test_nodefile_diff import node_data, synced_state
+from fncli.tests.test_nodefile_diff import node_data
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENTS = REPO_ROOT / "experiments"
@@ -101,8 +101,6 @@ def repo(tmp_path, monkeypatch):
     monkeypatch.setenv("FN_DATA_DIR", str(tmp_path / "data"))
     for key in ("FULL", "DEV_ENV", "RUN_TIMEOUT"):
         monkeypatch.delenv(key, raising=False)
-    # What .dev.env gives the dev project: an experiment must not run in it
-    monkeypatch.setenv("TEST_PROJECT_NAME", "fn-dev")
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -154,7 +152,7 @@ def steps(monkeypatch):
 
         return run
 
-    def trigger_pr(project, path, **options):
+    def trigger_pr(context, api, project, path, **options):
         # The file is a temporary one: note what it held
         steps.append(("trigger-pr", {"project": project, "trigger": json.loads(path.read_text()), **options}, dict(os.environ)))
 
@@ -163,7 +161,6 @@ def steps(monkeypatch):
     monkeypatch.setattr(experiment, "start_sensor_command", step("start-sensor"))
     monkeypatch.setattr(experiment, "trigger_pr", trigger_pr)
     monkeypatch.setattr(experiment, "open_target", lambda context: FakeApi())
-    monkeypatch.setattr(experiment, "read_state", lambda api: synced_state())
     monkeypatch.setattr(
         experiment, "get_k8s_secret", lambda secret_name, namespace, key: f"{secret_name}/{namespace}/{key}"
     )
@@ -178,11 +175,12 @@ def invoke(*args):
 
 def test_the_project_env_wins_over_the_shell_and_the_rest_of_the_env_is_left_alone(monkeypatch):
     monkeypatch.setenv("RUN_TIMEOUT", "5")
+    monkeypatch.setenv("NAMESPACE", "fn")
 
     config = load_project("x")
 
     assert os.environ["RUN_TIMEOUT"] == "60"
-    assert os.environ["TEST_PROJECT_NAME"] == "fn-dev"
+    assert os.environ["NAMESPACE"] == "fn"
     assert config.run_timeout == 60
     assert config.dev_env == {}
 
@@ -431,15 +429,15 @@ def test_a_failing_command_stops_seed_with_its_exit_status(commands):
     assert result.exit_code == 3
 
 
-def test_run_takes_the_names_of_the_pull_request_from_the_node_project_not_the_dev_env(steps):
+def test_run_triggers_the_node_project_and_puts_nothing_in_the_env(steps, monkeypatch):
+    monkeypatch.setenv("TEST_PROJECT_NAME", "fn-dev")  # an old .dev.env: not read, not changed
+
     invoke("run", "x")
 
-    env = steps[1][2]
-    assert env["TEST_PROJECT_NAME"] == "exp"
-    assert env["TEST_TRIGGER_REPO"] == "trigger-repo"
-    assert env["TEST_RESULTS_REPO"] == "results-repo"
-    assert env["DEFAULT_PROJECT_DATASET"] == "x-db"
-    assert env["NEXUS_API_URL"] == NODE["url"]
+    _, options, env = steps[1]
+    assert options["project"] == "exp"
+    assert env["TEST_PROJECT_NAME"] == "fn-dev"
+    assert not {"TEST_TRIGGER_REPO", "TEST_RESULTS_REPO", "DEFAULT_PROJECT_DATASET", "NEXUS_API_URL"} & set(env)
 
 
 def test_run_starts_the_sensors_then_triggers_the_project_with_the_trigger_file_and_dev_env(steps, monkeypatch):

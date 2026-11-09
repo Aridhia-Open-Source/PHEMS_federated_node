@@ -116,10 +116,16 @@ def project_option(command):
     )(command)
 
 
-def open_target(context: Context) -> FncliBackendAPI:
+def step_project_option(command):
+    return click.option(
+        "--project", default=None, help="The project to work on. Default: the context's defaults.project.",
+    )(command)
+
+
+def open_target(context: Context, err: bool = False) -> FncliBackendAPI:
     """
     A backend client for the context's node. Refuses unless kubectl points at the node's cluster, loads the node's env
-    file, and says which node it is first.
+    file, and says which node it is first (on stderr with err, for a command whose output is piped).
     """
     node = context.node
     if current_context() != node.kube_context:
@@ -131,25 +137,35 @@ def open_target(context: Context) -> FncliBackendAPI:
         if not node.env_file.is_file():
             raise click.ClickException(f"node.env_file {node.env_file} not found from {context.path} up")
         load_dotenv(node.env_file, override=True)
-    # By alias: given by field name next to the same variable in the env, pydantic rejects the field name as extra.
-    config = BackendConfig(NEXUS_API_URL=node.url, KEYCLOAK_NAMESPACE=node.keycloak_namespace)
-    click.echo(f"Node {node.url}, kubectl context {node.kube_context}\n")
-    return build_backend_api(config)
+    click.echo(f"Node {node.url}, kubectl context {node.kube_context}\n", err=err)
+    return build_backend_api(BackendConfig(node=node))
 
 
-def context_env(context: Context) -> dict[str, str]:
-    """What the commands that read the env instead of the context (the step commands) need to reach the node"""
-    return {
-        "NEXUS_API_URL": context.node.url,
-        "KEYCLOAK_NAMESPACE": context.node.keycloak_namespace,
-        "GITEA_ADMIN_USER": context.node.gitea_admin_user,
-    }
-
-
-def announce_defaults(context: Context, used: list[str]):
+def announce_defaults(context: Context, used: list[str], err: bool = False):
     """The first line of a command that took something from the defaults, so the wrong project is never used silently"""
     if used:
-        click.echo(f"Using the defaults of {context.path}: {', '.join(used)}")
+        click.echo(f"Using the defaults of {context.path}: {', '.join(used)}", err=err)
+
+
+def step_target(context: Context, project: str | None, err: bool = False) -> tuple[str, FncliBackendAPI]:
+    """
+    What a step command (verify-project, project-set, open-pr, ...) works on: the project, from --project else the
+    context's defaults.project (the first line says so), and a backend client for the context's node (open_target).
+    Everything else it needs, the project's repositories and datasets, it reads from the node. With err the lines it
+    prints go to stderr, for a command whose output is piped.
+    """
+    if project is None:
+        project = context.defaults.project
+        if project is None:
+            raise click.UsageError(f"Give --project, or set defaults.project in {context.path}")
+        announce_defaults(context, [f"project {project}"], err)
+    return project, open_target(context, err)
+
+
+def gitea_config(context: Context, node: NodeFile) -> GiteaConfig:
+    """The Gitea the node file's `gitea` section names: its provider's uri, which is reached through the port-forward"""
+    provider = next(p for p in node.providers if p.resolved_name == node.gitea.provider)
+    return GiteaConfig(node=context.node, gitea_url=provider.uri)
 
 
 def open_node(context: Context, node_file: Path, project: str | None) -> tuple[NodeFile, FncliBackendAPI]:
@@ -264,7 +280,7 @@ def apply_node_file(context: Context, node_file: Path, project: str | None, yes:
         click.echo("\nNothing to do.")
         report_blocked(blocked)
         return
-    gitea = build_gitea_api(GiteaConfig(GITEA_ADMIN_USER=context.node.gitea_admin_user)) if needs_gitea(node, todo) else None
+    gitea = build_gitea_api(gitea_config(context, node)) if needs_gitea(node, todo) else None
     # Ensuring Gitea repositories alone writes nothing to the node and is safe to repeat, so it does not ask
     if not yes and any(change.action != ENSURE for change in todo):
         live = [change.name for change in todo if change.action == CONFIRM]

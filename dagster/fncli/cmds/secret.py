@@ -9,7 +9,8 @@ import logging
 import click
 
 from fncli.cmds.common import RepoConfig, build_git_api, build_gitea_api, entity_option
-from fncli.cmds.repository import backend_source_options, load_repo_config
+from fncli.cmds.nodefile import context_option, step_project_option
+from fncli.cmds.repository import step_repo_config
 from fncli.backend import FncliBackendAPI
 from app.gitea import GiteaAPI, GiteaClient
 from fncli.gitea import GiteaAdminAPI
@@ -82,23 +83,25 @@ def verify_gitea_accepts_bearer_token(config: RepoConfig, token: str, gitea_repo
 
 @click.command("verify-git-secret")
 @entity_option
-@backend_source_options
-def verify_git_secret_command(entity, from_backend, project):
-    """Check the backend can mint a token from the repo's secret and the provider accepts it."""
-    config = load_repo_config(entity, from_backend, project)
+@context_option
+@step_project_option
+def verify_git_secret_command(entity, context, project):
+    """Check the backend can mint a token from the project's repo's secret and the provider accepts it."""
+    config = step_repo_config(entity, context, project)
     build_git_api(config).get_default_branch(config.repo_path)  # any read does: it fails if the provider rejects the token
     logger.info(f"The {config.git_provider} provider accepted the token for {config.repo_path}")
 
 
 @click.command("delete-gitea-token")
 @entity_option
-@backend_source_options
-def delete_gitea_token_command(entity, from_backend, project):
+@context_option
+@step_project_option
+def delete_gitea_token_command(entity, context, project):
     """
     Delete the Gitea token and OAuth2 application (with the tokens it issued) of a repo's secret. For QA: it breaks
     the repo's credentials on purpose; `fncli apply --rotate <label>` makes new ones.
     """
-    config = load_repo_config(entity, from_backend, project)
+    config = step_repo_config(entity, context, project)
     if config.is_github:
         logger.info("Not deleting the GitHub credentials: they are the GitHub App's, not ones fncli minted")
         return

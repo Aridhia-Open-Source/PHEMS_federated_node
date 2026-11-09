@@ -4,12 +4,11 @@
 nothing itself: it first builds the plan `fncli diff` shows and stops unless the node already matches the file. The
 file holds only the project: the global resources it names (repositories, ...) and the dataset are already on the
 node, made by `fncli apply -f examples/globals-*.yaml` and `fncli experiment setup demo`. The steps (checks, pull
-request, task, results) are the step commands, run in this process. They read the demo's names from the env, which the
-demo sets from the file and the node's records.
+request, task, results) are the step commands, run in this process with the demo's context and project; they read the
+project's repositories and dataset from the node, not from the env.
 """
 
 import json
-import os
 import time
 from collections import Counter
 from contextlib import contextmanager
@@ -22,18 +21,19 @@ import requests
 
 from app.utils import BackendSession
 from fncli.backend import FncliBackendAPI, repo_path_of
-from fncli.cmds.common import DagsterConfig, RepoConfig, ResultsRepoConfig, TriggerRepoConfig, to_host_url
+from fncli.cmds.common import DagsterConfig, RepoConfig, to_host_url
 from fncli.cmds.nodefile import (
-    announce_defaults, context_env, context_option, node_file_option, open_node, quiet_backend_logs, render_change,
+    announce_defaults, context_option, node_file_option, open_node, quiet_backend_logs, render_change,
 )
 from fncli.cmds.pr import DEFAULT_TRIGGER_FILE, merge_results_pr_command, resolve_trigger
 from fncli.cmds.project import project_healthcheck_command
+from fncli.cmds.repository import load_repo_config
 from fncli.cmds.secret import verify_git_secret_command
 from fncli.cmds.state import get, snapshot
 from fncli.cmds.trigger import trigger_pr
 from fncli.cmds.verify import Links, verify_project_command, verify_repo_command
 from fncli.nodefile import lookup
-from fncli.nodefile.diff import ENSURE, UNCHANGED, BackendState, ProviderState, diff
+from fncli.nodefile.diff import ENSURE, UNCHANGED, BackendState, diff
 from fncli.nodefile.loader import Context, limit_to_project, load_node_file
 from fncli.nodefile.schema import NodeFile, ProjectSpec
 from fncli.nodefile.state import read_state
@@ -86,6 +86,7 @@ def as_json(name: str, value) -> str:
 class Demo:
     """What the steps work on: the node file's one project, with the global resources it references"""
 
+    context: Context
     node_file: Path
     trigger_file: Path
     node: NodeFile
@@ -95,42 +96,6 @@ class Demo:
     def read_state(self) -> BackendState:
         with quiet_backend_logs():
             return read_state(self.api)
-
-
-def provider_of(state: BackendState, uri: str) -> ProviderState:
-    """The node's provider of a repository (normalised uri): a project file holds no providers"""
-    repository = next(repo for repo in state.trigger_repositories + state.results_repositories if repo.uri == uri)
-    return next(provider for provider in state.providers if provider.uri == repository.provider)
-
-
-def repository_uri(state: BackendState, uri: str) -> str:
-    """A repository's uri with its scheme, from its provider: the file keeps them without, and the env configs need it"""
-    return f"{provider_of(state, uri).uri}/{repo_path_of(uri)}"
-
-
-def step_env(context: Context, project: ProjectSpec, state: BackendState) -> dict[str, str]:
-    """
-    What the step commands (checks, project-set) read from the env instead of from a node file: the node's
-    addresses, and the project with its first trigger and results repositories and first dataset. GITEA_API_URI is
-    never empty: those configs insist on it, and a GitHub-only node has no Gitea to give it.
-    """
-    trigger = project.repositories.triggers[0]
-    results = project.repositories.results
-    gitea = next((p for p in state.providers if p.type == "gitea"), provider_of(state, trigger.repository))
-    return {
-        **context_env(context),
-        "GITEA_API_URI": gitea.api_uri,
-        "TEST_PROJECT_NAME": project.name,
-        "TEST_TRIGGER_REPO": repo_path_of(trigger.repository).split("/")[1],
-        "TEST_TRIGGER_REPO_URI": repository_uri(state, trigger.repository),
-        "TEST_TRIGGER_REPO_WATCH_DIR": trigger.watch_dir,
-        "TEST_TRIGGER_REPO_BASE_BRANCH": trigger.base_branch,
-        "TEST_RESULTS_REPO": repo_path_of(results.repository).split("/")[1],
-        "TEST_RESULTS_REPO_URI": repository_uri(state, results.repository),
-        "TEST_RESULTS_TARGET_DIR": results.target_dir,
-        "TEST_RESULTS_REPO_BASE_BRANCH": results.base_branch,
-        "DEFAULT_PROJECT_DATASET": project.datasets[0],
-    }
 
 
 def step_names(demo: Demo) -> dict[str, str]:
@@ -157,11 +122,16 @@ def show_dataset(demo, state):
     return as_json("dataset", dataset.model_dump(mode="json"))
 
 
-def result_lines(result: dict) -> list[str]:
+def repo_config(demo: Demo, entity: str) -> RepoConfig:
+    """The config of the project's trigger or results repository, as the node has it"""
+    return load_repo_config(entity, demo.context, demo.project.name, demo.api)
+
+
+def result_lines(demo: Demo, result: dict) -> list[str]:
     """A result's branch and pull request in the git host, then the record."""
     lines = []
     if result["branch"]:
-        config = ResultsRepoConfig()
+        config = repo_config(demo, "results")
         branch_page = "/tree/" if config.is_github else "/src/branch/"
         lines.append(f"Open: {gitea_repo_url(config, branch_page + result['branch'])}")
     if result["url"]:
@@ -172,7 +142,7 @@ def result_lines(result: dict) -> list[str]:
 def show_pull_request(demo, state):
     """The newest trigger pull request, its task and run, and the task's results: a link, then the record."""
     api = demo.api
-    config = TriggerRepoConfig()
+    config = repo_config(demo, "trigger")
     links = Links(config.web_url, DagsterConfig().dagster_url, config.repo_path, config.pulls_page)
     project_id = state["project"]["id"]
     pull_requests = [pr for resource in state["trigger_resources"] for pr in resource["pull_requests"]]
@@ -185,13 +155,13 @@ def show_pull_request(demo, state):
             lines.append(f"Open: {links.run(run['runId'])}")
         lines.append(as_json("task", task))
         for result in get(api, f"/projects/{project_id}/tasks/{task['id']}/results"):
-            lines += result_lines(result)
+            lines += result_lines(demo, result)
     return "\n".join(lines)
 
 
 def show_results_pr(demo, state):
     result = get(demo.api, f"/projects/{state['project']['id']}/results/{state['results'][0]['id']}")
-    return "\n".join(result_lines(result))
+    return "\n".join(result_lines(demo, result))
 
 
 class Wait(NamedTuple):
@@ -218,8 +188,8 @@ class Step(NamedTuple):
 
 
 def command_step(command: click.Command, **options) -> Callable[[click.Context, Demo], None]:
-    """A step that is one of the step commands, which read their names from the env"""
-    return lambda ctx, demo: ctx.invoke(command, **options)
+    """A step that is one of the step commands, which take the context and the project and read the rest from the node"""
+    return lambda ctx, demo: ctx.invoke(command, context=demo.context, project=demo.project.name, **options)
 
 
 def check_dataset(ctx, demo):
@@ -253,12 +223,15 @@ def require_applied(demo: Demo, state: BackendState):
 
 def trigger_by_pr(ctx, demo):
     """The trigger file in a pull request into the project's trigger repository, merged, and watched through to the results"""
-    trigger_pr(demo.project.name, demo.trigger_file, merge=True, watch=True, timeout=300)
+    trigger_pr(demo.context, demo.api, demo.project.name, demo.trigger_file, merge=True, watch=True, timeout=300)
 
 
 def merge_results_pr(ctx, demo):
     """The project's first results pull request, looked up when the step runs"""
-    ctx.invoke(merge_results_pr_command, number=snapshot(demo.api, demo.project.name)["results"][0]["number"])
+    ctx.invoke(
+        merge_results_pr_command, number=snapshot(demo.api, demo.project.name)["results"][0]["number"],
+        context=demo.context, project=demo.project.name,
+    )
 
 
 STEPS = [
@@ -275,20 +248,20 @@ STEPS = [
         "Check the git host accepts the trigger token",
         "Read-only. Asks the backend for a token for the trigger repo and calls the git host with it, as the "
         "sensor will.",
-        "fncli verify-git-secret --entity trigger",
+        "fncli verify-git-secret --entity trigger --project {project}",
         command_step(verify_git_secret_command, entity="trigger"),
     ),
     Step(
         "Check the git host accepts the results token",
         "Read-only, same for the results repo.",
-        "fncli verify-git-secret --entity results",
+        "fncli verify-git-secret --entity results --project {project}",
         command_step(verify_git_secret_command, entity="results"),
     ),
     Step(
         "Project healthcheck",
         "Read-only. The backend reaches each repository with its stored token. Exits 1 unless "
         "the status is ok.",
-        "fncli project-healthcheck",
+        "fncli project-healthcheck --project {project}",
         command_step(project_healthcheck_command),
     ),
     Step(
@@ -304,7 +277,7 @@ STEPS = [
         "Merge the results pull request",
         "Merges the PR the task's results were delivered in. The sync sensor records it "
         "as MERGED within about a minute.",
-        "fncli merge-results-pr --number \"$(fncli project-show | jq '.results[0].number')\"",
+        "fncli merge-results-pr --project {project} --number \"$(fncli project-show --project {project} | jq '.results[0].number')\"",
         merge_results_pr,
         # The results sync sensor records the merge on one of its ticks
         wait_for=Wait(
@@ -317,14 +290,14 @@ STEPS = [
     Step(
         "Check the project",
         "Read-only report: one line per check (ok, FAIL or SKIP).",
-        "fncli verify-project",
+        "fncli verify-project --project {project}",
         command_step(verify_project_command),
     ),
     Step(
         "Check every merged pull request ran",
         "Read-only. For each pull request: the task, the Dagster run, and the results delivery "
         "all agree.",
-        "fncli verify-repo",
+        "fncli verify-repo --project {project}",
         command_step(verify_repo_command),
     ),
 ]
@@ -427,11 +400,8 @@ def demo_command(ctx, trigger_file, node_file, context, project, yes_to_all, fro
             f"Dataset {', '.join(absent)} is not on the node. Make it first: make experiments deploy, make experiments "
             "seed demo, fncli experiment setup demo"
         )
-    demo = Demo(node_file, trigger_file, node, api, spec)
-    state = demo.read_state()
-    require_applied(demo, state)
-    # After open_node: it has loaded the node's env file over the env, and the demo's names must win over that
-    os.environ.update(step_env(context, spec, state))
+    demo = Demo(context, node_file, trigger_file, node, api, spec)
+    require_applied(demo, demo.read_state())
     names = step_names(demo)
     click.echo(
         "Demo project: {project}. Trigger repo: {trigger_repo}. Results repo: {results_repo}. "

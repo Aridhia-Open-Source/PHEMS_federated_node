@@ -36,7 +36,7 @@ class FakeApi:
 
 @pytest.fixture(autouse=True)
 def restore_env():
-    """The demo sets the file's names in the env: put them back after each test."""
+    """The commands load the node's env file over the env: put it back after each test."""
     with patch.dict(os.environ):
         yield
 
@@ -223,19 +223,20 @@ def test_a_step_that_exits_1_stops_the_demo_with_that_code(ran, run_demo, monkey
     assert "Done." not in result.output
 
 
-def test_the_files_names_win_over_the_env_and_fill_in_the_steps_text(run_demo, monkeypatch):
+def test_the_files_names_fill_in_the_steps_text_and_none_of_them_goes_in_the_env(run_demo, monkeypatch):
     seen = {}
-    monkeypatch.setenv("TEST_PROJECT_NAME", "from-dev-env")
     monkeypatch.setattr(
         demo, "STEPS",
-        [Step("t", "project {project}", "fncli x", lambda ctx, demo: seen.update(os.environ))],
+        [Step("t", "project {project}", "fncli x", lambda ctx, demo: seen.update(
+            project=demo.project.name, dataset=demo.project.datasets[0], env=dict(os.environ)
+        ))],
     )
 
     result = run_demo("--yes")
 
     assert result.exit_code == 0, result.output
-    assert seen["TEST_PROJECT_NAME"] == "demo-gitea"
-    assert seen["DEFAULT_PROJECT_DATASET"] == "shared"
+    assert (seen["project"], seen["dataset"]) == ("demo-gitea", "shared")
+    assert not [name for name in seen["env"] if name.startswith("TEST_") or name == "DEFAULT_PROJECT_DATASET"]
     assert "Demo project: demo-gitea. Trigger repo: gitea_admin/trigger-repo." in result.output
     assert "project demo-gitea" in result.output
 
@@ -369,9 +370,13 @@ def test_the_pull_request_step_triggers_the_demo_project_by_pr_with_the_trigger_
     calls = []
     monkeypatch.setattr(demo, "trigger_pr", lambda *args, **options: calls.append((args, options)))
 
-    demo.trigger_by_pr(None, SimpleNamespace(project=SimpleNamespace(name="demo-gitea"), trigger_file=Path("t.json")))
+    demo.trigger_by_pr(None, SimpleNamespace(
+        context="the context", api="the api", project=SimpleNamespace(name="demo-gitea"), trigger_file=Path("t.json")
+    ))
 
-    assert calls == [(("demo-gitea", Path("t.json")), {"merge": True, "watch": True, "timeout": 300})]
+    assert calls == [
+        (("the context", "the api", "demo-gitea", Path("t.json")), {"merge": True, "watch": True, "timeout": 300})
+    ]
 
 
 class FakeState:
@@ -446,9 +451,11 @@ def test_merge_results_pr_gets_the_number_of_the_first_results_pr(ran, monkeypat
     monkeypatch.setattr(demo, "merge_results_pr_command", recorder(ran, "merge-results-pr"))
 
     with click.Context(click.Command("demo")) as ctx:
-        demo.merge_results_pr(ctx, SimpleNamespace(api="the api", project=SimpleNamespace(name="demo-gitea")))
+        demo.merge_results_pr(
+            ctx, SimpleNamespace(context="the context", api="the api", project=SimpleNamespace(name="demo-gitea"))
+        )
 
-    assert ran == [("merge-results-pr", {"number": 7})]
+    assert ran == [("merge-results-pr", {"number": 7, "context": "the context", "project": "demo-gitea"})]
 
 
 def test_the_steps_are_the_checks_and_the_pull_request_walk_in_order():
@@ -483,7 +490,7 @@ def test_every_step_shows_the_command_it_runs():
 def test_every_text_and_command_fills_in_from_the_demo_files(name):
     path = EXAMPLES / "projects" / f"{name}.yaml"
     node = limit_to_project(load_node_file(path), name)
-    values = step_names(Demo(path, Path("triggers/examples/demo.json"), node, None, node.projects[0]))
+    values = step_names(Demo("the context", path, Path("triggers/examples/demo.json"), node, None, node.projects[0]))
 
     for step in demo.STEPS:
         assert step.text.format_map(values) and step.line.format_map(values)

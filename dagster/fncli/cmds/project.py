@@ -8,7 +8,8 @@ import logging
 
 import click
 
-from fncli.cmds.common import ProjectConfig, build_backend_api
+from fncli.cmds.common import ProjectConfig
+from fncli.cmds.nodefile import context_option, step_project_option, step_target
 from fncli.backend import FncliBackendAPI
 from app.models import Project
 
@@ -36,20 +37,22 @@ def find_project(config: ProjectConfig, backend_api: FncliBackendAPI) -> Project
     return project
 
 
-def get_project_healthcheck(config: ProjectConfig, backend_api: FncliBackendAPI) -> dict:
-    project = backend_api.find_project(config.project_name)
+def get_project_healthcheck(project_name: str, backend_api: FncliBackendAPI) -> dict:
+    project = backend_api.find_project(project_name)
     if project is None:
         raise click.ClickException(
-            f"Project {config.project_name} not found, run fncli apply first"
+            f"Project {project_name} not found, run fncli apply first"
         )
     return backend_api.get_project_healthcheck(project.id)
 
 
 @click.command("project-healthcheck")
-def project_healthcheck_command():
-    """Print the backend's healthcheck for the test project, as JSON. Exits 1 unless it is ok."""
-    config = ProjectConfig()
-    health = get_project_healthcheck(config, build_backend_api(config))
+@context_option
+@step_project_option
+def project_healthcheck_command(context, project):
+    """Print the backend's healthcheck for the project, as JSON. Exits 1 unless it is ok."""
+    name, backend_api = step_target(context, project)
+    health = get_project_healthcheck(name, backend_api)
     click.echo(json.dumps(health, indent=2))
     if health["status"] != "ok":
         raise click.exceptions.Exit(1)

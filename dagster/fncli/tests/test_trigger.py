@@ -10,8 +10,8 @@ import pytest
 import yaml
 
 from fncli.cmds import pr, trigger
-from fncli.cmds.common import TriggerRepoConfig
 from fncli.cmds.trigger import trigger_command
+from fncli.tests.conftest import trigger_config
 
 TRIGGER = {"spec": {"image": "busybox:1", "env": {"A": "1"}}}
 NODE = {"url": "http://nexus:5000", "kube_context": "kind-fn", "keycloak_namespace": "keycloak", "gitea_admin_user": "boss"}
@@ -56,7 +56,7 @@ def test_with_no_flags_it_uses_the_default_project_and_way_and_says_so_on_the_fi
     assert result.exit_code == 0, result.output
     assert result.output.splitlines()[0] == f"Using the defaults of {context_file}: project demo-gitea, via pr"
     args, options = ran["trigger_pr"]
-    assert args == ("demo-gitea", tmp_path / "triggers" / "examples" / "demo.json", False, False, 300)
+    assert args[2:] == ("demo-gitea", tmp_path / "triggers" / "examples" / "demo.json", False, False, 300)
 
 
 def test_flags_beat_the_defaults_and_nothing_is_said(ran):
@@ -64,7 +64,7 @@ def test_flags_beat_the_defaults_and_nothing_is_said(ran):
 
     assert result.exit_code == 0, result.output
     assert "Using the defaults" not in result.output
-    assert ran["trigger_pr"][0][0] == "other" and ran["trigger_pr"][0][2:] == (True, True, 9)
+    assert ran["trigger_pr"][0][2] == "other" and ran["trigger_pr"][0][4:] == (True, True, 9)
 
 
 def test_only_what_came_from_a_default_is_named(ran, context_file):
@@ -81,15 +81,17 @@ def test_the_env_wins_over_the_context_defaults(ran, monkeypatch):
     result = invoke("examples/demo.json")
 
     assert result.output.splitlines()[0].endswith(": project from-env, via pr")
-    assert ran["trigger_pr"][0][0] == "from-env"
+    assert ran["trigger_pr"][0][2] == "from-env"
 
 
-def test_the_node_is_opened_and_its_addresses_are_put_in_the_env_for_the_step_commands(ran):
+def test_the_node_is_opened_and_its_context_and_client_go_to_the_pull_request_not_the_env(ran, context_file):
     invoke("examples/demo.json")
 
-    assert os.environ["NEXUS_API_URL"] == "http://nexus:5000"
-    assert os.environ["KEYCLOAK_NAMESPACE"] == "keycloak"
-    assert os.environ["GITEA_ADMIN_USER"] == "boss"
+    context, api = ran["trigger_pr"][0][:2]
+    assert ran["opened"] == context_file
+    assert context.node.url == "http://nexus:5000" and context.node.gitea_admin_user == "boss"
+    assert api == context_file  # what open_target returned
+    assert "NEXUS_API_URL" not in os.environ and "GITEA_ADMIN_USER" not in os.environ
 
 
 def test_api_is_reserved_and_says_it_is_not_built(ran):
@@ -134,11 +136,9 @@ def test_the_pull_request_is_the_trigger_file_into_the_projects_record_from_the_
     monkeypatch.setattr(pr, "build_researcher_git_api", lambda config: researcher)
     loaded = []
 
-    def load_repo_config(entity, from_backend, project):
-        loaded.append((entity, from_backend, project))
-        return TriggerRepoConfig(
-            TEST_TRIGGER_REPO="trigger-x", TEST_TRIGGER_REPO_WATCH_DIR="in/", TEST_TRIGGER_REPO_BASE_BRANCH="release"
-        )
+    def load_repo_config(entity, context, project, backend_api):
+        loaded.append((entity, context, project, backend_api))
+        return trigger_config(repo="trigger-x", watch_dir="in/", base_branch="release")
 
     monkeypatch.setattr(trigger, "load_repo_config", load_repo_config)
     watched = []
@@ -146,9 +146,9 @@ def test_the_pull_request_is_the_trigger_file_into_the_projects_record_from_the_
     path = tmp_path / "t.json"
     path.write_text(json.dumps(TRIGGER))
 
-    trigger.trigger_pr("demo-gitea", path, merge=True, watch=True, timeout=30)
+    trigger.trigger_pr("the context", "the api", "demo-gitea", path, merge=True, watch=True, timeout=30)
 
-    assert loaded == [("trigger", True, "demo-gitea")]
+    assert loaded == [("trigger", "the context", "demo-gitea", "the api")]
     researcher.create_branch.assert_called_once()
     assert researcher.create_branch.call_args.args[0] == "gitea_admin/trigger-x"
     assert researcher.create_branch.call_args.args[2] == "release"
@@ -164,14 +164,13 @@ def test_without_merge_the_pull_request_is_only_opened(monkeypatch, tmp_path):
     researcher = MagicMock()
     researcher.create_pull_request.return_value = {"number": 6, "html_url": "http://git/pulls/6"}
     monkeypatch.setattr(pr, "build_researcher_git_api", lambda config: researcher)
-    monkeypatch.setattr(trigger, "load_repo_config", lambda *args, **options: TriggerRepoConfig(
-            TEST_TRIGGER_REPO="t", TEST_TRIGGER_REPO_WATCH_DIR="in/", TEST_TRIGGER_REPO_BASE_BRANCH="main"
-        ),
+    monkeypatch.setattr(
+        trigger, "load_repo_config", lambda *args, **options: trigger_config(repo="t", watch_dir="in/", base_branch="main")
     )
     path = tmp_path / "t.json"
     path.write_text(json.dumps(TRIGGER))
 
-    trigger.trigger_pr("demo-gitea", path, merge=False, watch=False, timeout=30)
+    trigger.trigger_pr("the context", "the api", "demo-gitea", path, merge=False, watch=False, timeout=30)
 
     researcher.create_pull_request.assert_called_once()
     researcher.merge_pull_request.assert_not_called()

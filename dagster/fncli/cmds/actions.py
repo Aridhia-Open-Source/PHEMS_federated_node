@@ -1,5 +1,5 @@
 """
-`open-pr` opens a PR of a given kind in the trigger repo named by the env (TEST_*), chained from the step commands in
+`open-pr` opens a PR of a given kind in the project's trigger repo, chained from the step commands in
 cmds/pr.py: what the end-to-end checks (scripts/e2e_shared_resources.sh) use for the kinds the sensor must ignore or
 reject. To trigger a project's task with a trigger file, use `fncli trigger` (cmds/trigger.py). The project's setup and
 teardown are `fncli apply` and `fncli delete` (cmds/nodefile.py).
@@ -7,7 +7,7 @@ teardown are `fncli apply` and `fncli delete` (cmds/nodefile.py).
 
 import click
 
-from fncli.cmds.common import TriggerRepoConfig
+from fncli.cmds.nodefile import context_option, step_project_option
 from fncli.cmds.pr import (
     KINDS,
     commit_file,
@@ -20,6 +20,7 @@ from fncli.cmds.pr import (
     trigger_option,
     watch_option,
 )
+from fncli.cmds.repository import step_repo_config
 
 
 @click.command("open-pr")
@@ -28,9 +29,11 @@ from fncli.cmds.pr import (
 @trigger_option
 @watch_option
 @timeout_option
-def open_pr_command(kind, merge, trigger_file, watch, timeout):
-    """Open a PR in the trigger repo named by the env: branch, file, PR, and with --merge the merge."""
-    config = TriggerRepoConfig()
+@context_option
+@step_project_option
+def open_pr_command(kind, merge, trigger_file, watch, timeout, context, project):
+    """Open a PR in the project's trigger repo: branch, file, PR, and with --merge the merge."""
+    config = step_repo_config("trigger", context, project)
     branch = new_branch_name()
     create_branch(config, branch)
     commit_file(config, branch, kind, load_trigger(trigger_file))

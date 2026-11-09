@@ -23,14 +23,12 @@ from dotenv import find_dotenv, load_dotenv
 from pydantic import Field
 
 from app.config import EnvConfig
-from fncli.cmds.demo import step_env
-from fncli.cmds.nodefile import apply_node_file, context_option, delete_node_file, open_target, quiet_backend_logs
+from fncli.cmds.nodefile import apply_node_file, context_option, delete_node_file, open_target
 from fncli.cmds.sensor import start_sensor_command
 from fncli.cmds.trigger import trigger_pr
 from fncli.k8s import get_k8s_secret
 from fncli.nodefile.loader import Context, load_node_file
 from fncli.nodefile.schema import K8sSecretRef, NodeFile
-from fncli.nodefile.state import read_state
 
 logger = logging.getLogger("experiment")
 
@@ -296,10 +294,6 @@ def run_command(ctx, name, context, local):
     api = open_target(context)
     if api.find_project(spec.name) is None:
         raise click.ClickException(f"Project {spec.name} is not on the node: run `fncli experiment setup {name}` first")
-    with quiet_backend_logs():
-        state = read_state(api)
-    # The pull request's names are the node project's, not whatever .dev.env has for the dev project
-    os.environ.update(step_env(context, spec, state))
     ctx.invoke(start_sensor_command, group="all", name=None)
     env = task_env(config)
     logger.info(f"Task env: {json.dumps(env)}")
@@ -307,7 +301,7 @@ def run_command(ctx, name, context, local):
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "trigger.json"
         path.write_text(json.dumps(trigger))
-        trigger_pr(spec.name, path, merge=True, watch=True, timeout=config.run_timeout)
+        trigger_pr(context, api, spec.name, path, merge=True, watch=True, timeout=config.run_timeout)
 
 
 def run_local(name: str, config: ExperimentConfig, image: str):

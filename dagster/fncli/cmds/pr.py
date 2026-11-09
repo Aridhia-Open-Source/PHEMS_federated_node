@@ -19,14 +19,15 @@ import requests
 
 from fncli.cmds.common import (
     DagsterConfig,
-    ResultsRepoConfig,
     TriggerRepoConfig,
     build_backend_api,
     build_git_api,
     build_researcher_git_api,
     find_under,
 )
+from fncli.cmds.nodefile import context_option, step_project_option
 from fncli.cmds.project import find_project
+from fncli.cmds.repository import step_repo_config
 from fncli.cmds.sensor import SENSORS
 from fncli.cmds.verify import RUN_TO_TASK_STATUS, Links, Report, delivered, is_push_only, require, verify_task
 from app.models import TriggerState
@@ -78,17 +79,6 @@ branch_option = click.option(
 )
 
 
-def get_pr_base_branch(config: TriggerRepoConfig) -> str:
-    """The branch a PR goes into: TEST_TRIGGER_REPO_BASE_BRANCH, else the one the project's trigger repository record watches."""
-    if config.base_branch:
-        return config.base_branch
-    backend_api = build_backend_api(config)
-    project = require(backend_api.find_project(config.project_name), f"Project {config.project_name}")
-    return require(
-        backend_api.find_repository(config.repo_uri, project.id), f"Trigger repository {config.repo_uri} in the project"
-    ).base_branch
-
-
 def new_branch_name() -> str:
     """Unique per run, so every command can be re-run, even twice in one second."""
     return f"pr-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(3)}"
@@ -109,7 +99,7 @@ def file_for(config: TriggerRepoConfig, branch: str, kind: str, trigger: dict) -
 
 
 def create_branch(config: TriggerRepoConfig, branch: str):
-    build_researcher_git_api(config).create_branch(config.repo_path, branch, get_pr_base_branch(config))
+    build_researcher_git_api(config).create_branch(config.repo_path, branch, config.base_branch)
     logger.info(f"Created branch {branch}")
 
 
@@ -125,7 +115,7 @@ def create_pr(config: TriggerRepoConfig, branch: str, kind: str) -> dict:
     pr = build_researcher_git_api(config).create_pull_request(
         config.repo_path,
         head_branch=branch,
-        base_branch=get_pr_base_branch(config),
+        base_branch=config.base_branch,
         title=f"{kind} {branch}",
         body=f"A {kind} pull request, opened by fncli",
     )
@@ -135,26 +125,32 @@ def create_pr(config: TriggerRepoConfig, branch: str, kind: str) -> dict:
 
 @click.command("create-gitea-branch")
 @click.option("--branch", default=None, help="Branch name. Default: unique, from the time.")
-def create_gitea_branch_command(branch):
-    """Create a branch off the trigger repo's base branch."""
-    create_branch(TriggerRepoConfig(), branch or new_branch_name())
+@context_option
+@step_project_option
+def create_gitea_branch_command(branch, context, project):
+    """Create a branch off the project's trigger repo's base branch."""
+    create_branch(step_repo_config("trigger", context, project), branch or new_branch_name())
 
 
 @click.command("commit-gitea-file")
 @branch_option
 @click.option("--kind", type=click.Choice(KINDS), default="watched", show_default=True)
 @trigger_option
-def commit_gitea_file_command(branch, kind, trigger_file):
+@context_option
+@step_project_option
+def commit_gitea_file_command(branch, kind, trigger_file, context, project):
     """Commit one new file to the branch, of a kind that decides what the sensor does. A watched one is the trigger file."""
-    commit_file(TriggerRepoConfig(), branch, kind, load_trigger(trigger_file))
+    commit_file(step_repo_config("trigger", context, project), branch, kind, load_trigger(trigger_file))
 
 
 @click.command("create-gitea-pr")
 @branch_option
 @click.option("--kind", type=click.Choice(KINDS), default="watched", show_default=True)
-def create_gitea_pr_command(branch, kind):
-    """Open a PR from the branch into the trigger repo's base branch."""
-    return create_pr(TriggerRepoConfig(), branch, kind)
+@context_option
+@step_project_option
+def create_gitea_pr_command(branch, kind, context, project):
+    """Open a PR from the branch into the project's trigger repo's base branch."""
+    return create_pr(step_repo_config("trigger", context, project), branch, kind)
 
 
 def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
@@ -284,16 +280,20 @@ def merge_pr(config: TriggerRepoConfig, number: int, watch: bool, timeout: int):
 @click.option("--number", required=True, type=int, help="The PR's number.")
 @watch_option
 @timeout_option
-def merge_gitea_pr_command(number, watch, timeout):
-    """Merge a PR in the trigger repo, which is what makes the sensor pick it up."""
-    merge_pr(TriggerRepoConfig(), number, watch, timeout)
+@context_option
+@step_project_option
+def merge_gitea_pr_command(number, watch, timeout, context, project):
+    """Merge a PR in the project's trigger repo, which is what makes the sensor pick it up."""
+    merge_pr(step_repo_config("trigger", context, project), number, watch, timeout)
 
 
 @click.command("merge-results-pr")
 @click.option("--number", required=True, type=int, help="The results PR's number.")
-def merge_results_pr_command(number):
-    """Merge a results PR in the results repo, which the sync sensor then records as MERGED."""
-    config = ResultsRepoConfig()
+@context_option
+@step_project_option
+def merge_results_pr_command(number, context, project):
+    """Merge a results PR in the project's results repo, which the sync sensor then records as MERGED."""
+    config = step_repo_config("results", context, project)
     build_git_api(config).merge_pull_request(config.repo_path, number)
     logger.info(f"Merged results PR #{number}")
 

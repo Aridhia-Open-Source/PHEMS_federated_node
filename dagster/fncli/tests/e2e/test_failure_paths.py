@@ -46,7 +46,7 @@ from threading import Barrier
 import pytest
 from requests import HTTPError
 
-from fncli.cmds.common import TriggerRepoConfig, build_admin_backend_api, build_gitea_api
+from fncli.cmds.common import build_admin_backend_api, build_gitea_api
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.secret import verify_gitea_accepts_bearer_token
 from fncli.cmds.state import (
@@ -125,7 +125,7 @@ def test_setup(fncli, step):
 
 
 def test_verify_project_after_setup(fncli):
-    fncli.run("verify-project")
+    fncli.run("verify-project", *fncli.step_args)
 
 
 def test_project_starts_empty(fncli):
@@ -452,8 +452,8 @@ def failure_text(error: Exception) -> str:
     return f"{error!r}: {error.response.text}" if isinstance(error, HTTPError) else repr(error)
 
 
-def assert_gitea_accepts(*tokens: str):
-    config = TriggerRepoConfig()
+def assert_gitea_accepts(fncli, *tokens: str):
+    config = fncli.repo_config("trigger")
     gitea_repo = init_gitea_repo(config, build_gitea_api(config))
     for token in tokens:
         verify_gitea_accepts_bearer_token(config, token, gitea_repo)
@@ -461,7 +461,7 @@ def assert_gitea_accepts(*tokens: str):
 
 def test_concurrent_refresh_secret_holds_oauth_credentials(fncli, flow):
     """Only a secret with Gitea OAuth credentials has a refresh token to race on: with a static TOKEN the group would prove nothing."""
-    flow["refresh_repository"] = fncli.backend_api.find_trigger_repository(TriggerRepoConfig().repo_uri)
+    flow["refresh_repository"] = fncli.backend_api.find_trigger_repository(fncli.repo_config("trigger").repo_uri)
     secret = flow["refresh_repository"].secret
     for key in OAUTH_KEYS:
         assert get_k8s_secret(secret.key, secret.namespace, key)
@@ -501,8 +501,8 @@ def test_concurrent_refresh_all_requests_succeed(fncli, flow):
     flow["refresh_tokens"] = tokens
 
 
-def test_concurrent_refresh_gitea_accepts_every_token(flow):
-    assert_gitea_accepts(*flow["refresh_tokens"])
+def test_concurrent_refresh_gitea_accepts_every_token(fncli, flow):
+    assert_gitea_accepts(fncli, *flow["refresh_tokens"])
 
 
 def test_concurrent_refresh_stored_refresh_token_survived(fncli, flow):
@@ -512,15 +512,15 @@ def test_concurrent_refresh_stored_refresh_token_survived(fncli, flow):
     flow["refresh_cache_key"] = clear_token_cache(repository)
     # The pooled connections have idled for seconds, and nexus-api closes idle ones after 5 s: a POST on one that is closing fails
     fncli.backend_api.session.close()
-    assert_gitea_accepts(fncli.backend_api.get_repository_token("trigger", repository.id).token)
+    assert_gitea_accepts(fncli, fncli.backend_api.get_repository_token("trigger", repository.id).token)
 
 
-def test_concurrent_refresh_secret_still_holds_valid_credentials(flow):
+def test_concurrent_refresh_secret_still_holds_valid_credentials(fncli, flow):
     """The secret keeps its OAuth credentials and caches a token Gitea accepts."""
     secret = flow["refresh_repository"].secret
     for key in OAUTH_KEYS:
         assert get_k8s_secret(secret.key, secret.namespace, key)
-    assert_gitea_accepts(get_k8s_secret(secret.key, secret.namespace, flow["refresh_cache_key"]))
+    assert_gitea_accepts(fncli, get_k8s_secret(secret.key, secret.namespace, flow["refresh_cache_key"]))
 
 
 # --- Teardown ---------------------------------------------------------------------------------

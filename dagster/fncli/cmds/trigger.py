@@ -6,12 +6,11 @@ By API (--api, not built yet) the same file would be sent to the task API. Chain
 The project's setup and teardown are `fncli apply` and `fncli delete` (cmds/nodefile.py).
 """
 
-import os
 from pathlib import Path
 
 import click
 
-from fncli.cmds.nodefile import announce_defaults, context_env, context_option, open_target
+from fncli.cmds.nodefile import announce_defaults, context_option, open_target
 from fncli.cmds.pr import (
     commit_file,
     create_branch,
@@ -24,14 +23,18 @@ from fncli.cmds.pr import (
     watch_option,
 )
 from fncli.cmds.repository import load_repo_config
+from fncli.backend import FncliBackendAPI
+from fncli.nodefile.loader import Context
 
 
-def trigger_pr(project: str, trigger_file: Path, merge: bool, watch: bool, timeout: int):
+def trigger_pr(
+    context: Context, backend_api: FncliBackendAPI, project: str, trigger_file: Path, merge: bool, watch: bool, timeout: int
+):
     """
     A branch, the trigger file under the watch directory of the project's trigger repository, a PR, and with merge the
-    merge. The repository is the project's record in the backend. Reads the node's addresses from the env (context_env).
+    merge. The repository is the project's record in the node, read with backend_api.
     """
-    config = load_repo_config("trigger", from_backend=True, project=project)
+    config = load_repo_config("trigger", context, project, backend_api)
     trigger = load_trigger(trigger_file)
     branch = new_branch_name()
     create_branch(config, branch)
@@ -72,9 +75,7 @@ def trigger_command(trigger_file, context, project, pr, api, merge, watch, timeo
     ])
     if way == "api":
         raise click.ClickException("--api is not built yet: the task API takes a different body than a trigger file")
-    open_target(context)
-    os.environ.update(context_env(context))
-    trigger_pr(project, trigger_file, merge, watch, timeout)
+    trigger_pr(context, open_target(context), project, trigger_file, merge, watch, timeout)
 
 
 COMMANDS = [trigger_command]

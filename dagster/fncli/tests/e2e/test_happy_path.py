@@ -62,7 +62,7 @@ def test_setup(fncli, step):
 
 
 def test_verify_project_after_setup(fncli):
-    fncli.run("verify-project")
+    fncli.run("verify-project", *fncli.step_args)
 
 
 def test_create_gitea_branch(fncli, flow):
@@ -148,11 +148,11 @@ def test_result_merged(fncli, flow):
 
 
 def test_verify_project_at_end(fncli):
-    fncli.run("verify-project")
+    fncli.run("verify-project", *fncli.step_args)
 
 
 def test_verify_repo(fncli):
-    fncli.run("verify-repo", "--tail", "1")
+    fncli.run("verify-repo", "--tail", "1", *fncli.step_args)
 
 
 @pytest.mark.parametrize("step", TEARDOWN_STEPS)

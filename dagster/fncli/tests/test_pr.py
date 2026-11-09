@@ -10,8 +10,8 @@ import pytest
 import requests
 
 from fncli.cmds import pr
-from fncli.cmds.common import TriggerRepoConfig
 from fncli.cmds.pr import KINDS, file_for, load_trigger, new_branch_name
+from fncli.tests.conftest import NODE, results_config, trigger_config
 from app.models import TriggerState
 
 TRIGGER = {"spec": {"image": "busybox:1"}}
@@ -19,7 +19,15 @@ TRIGGER = {"spec": {"image": "busybox:1"}}
 
 @pytest.fixture
 def config():
-    return TriggerRepoConfig()
+    return trigger_config()
+
+
+@pytest.fixture
+def step(monkeypatch, context_file):
+    """What the step commands read from the node, faked: the project's repository configs (change them in the test)"""
+    configs = {"trigger": trigger_config(), "results": results_config()}
+    monkeypatch.setattr(pr, "step_repo_config", lambda entity, context, project: configs[entity])
+    return configs
 
 
 @pytest.fixture(autouse=True)
@@ -92,7 +100,7 @@ def test_unwatched_file_is_outside_the_watch_dir(config):
 
 
 def test_repo_path_is_the_admin_user_and_repo():
-    assert TriggerRepoConfig(gitea_admin_user="admin").repo_path == "admin/trigger"
+    assert trigger_config(node=NODE.model_copy(update={"gitea_admin_user": "admin"})).repo_path == "admin/trigger"
 
 
 def test_branch_names_are_prefixed_with_the_time_and_a_random_suffix():
@@ -183,7 +191,7 @@ def watch(monkeypatch):
         monkeypatch.setattr(pr, "find_project", lambda config, api: SimpleNamespace(id=1))
         monkeypatch.setattr(pr, "POLL_SECONDS", 0)
         try:
-            pr.watch_pr(TriggerRepoConfig(), 5, timeout)
+            pr.watch_pr(trigger_config(), 5, timeout)
         except click.exceptions.Exit as exit:
             return exit.exit_code
         return 0
@@ -328,7 +336,7 @@ def test_watch_gives_up_after_too_many_connection_errors(watch, caplog):
     assert f"{pr.MAX_CONNECTION_ERRORS} connection errors in a row" in caplog.text
 
 
-def test_merge_results_pr_merges_in_the_results_repo(monkeypatch):
+def test_merge_results_pr_merges_in_the_results_repo(monkeypatch, step):
     merged = []
 
     class FakeGitea:
@@ -336,7 +344,7 @@ def test_merge_results_pr_merges_in_the_results_repo(monkeypatch):
             merged.append((repo_path, number))
 
     monkeypatch.setattr(pr, "build_git_api", lambda config: FakeGitea())
-    monkeypatch.setenv("TEST_RESULTS_REPO", "results-demo-repo")
+    step["results"] = results_config(repo="results-demo-repo")
     result = CliRunner().invoke(pr.merge_results_pr_command, ["--number", "3"])
     assert result.exit_code == 0
     assert merged == [("gitea_admin/results-demo-repo", 3)]
@@ -352,7 +360,7 @@ def test_a_failing_file_is_a_valid_spec_whose_task_exits_non_zero(config):
 
 
 @pytest.fixture
-def researcher(monkeypatch):
+def researcher(monkeypatch, step):
     """The researcher's client, which the trigger repo's writes must use: never the node's (a token the backend mints)."""
     researcher = MagicMock()
     monkeypatch.setattr(pr, "build_researcher_git_api", lambda config: researcher)
@@ -360,8 +368,8 @@ def researcher(monkeypatch):
     return researcher
 
 
-def test_create_branch_is_the_researchers_off_the_base_branch_in_the_env(researcher, monkeypatch):
-    monkeypatch.setenv("TEST_TRIGGER_REPO_BASE_BRANCH", "release")
+def test_create_branch_is_the_researchers_off_the_base_branch_of_the_projects_record(researcher, step):
+    step["trigger"] = trigger_config(base_branch="release")
 
     result = CliRunner().invoke(pr.create_gitea_branch_command, ["--branch", "b1"])
 
@@ -386,8 +394,8 @@ def test_commit_file_takes_a_trigger_file_by_option(researcher, triggers):
     assert json.loads(researcher.create_file.call_args.args[2]) == {"spec": {"image": "mine"}}
 
 
-def test_create_pr_is_the_researchers_into_the_base_branch_in_the_env(researcher, monkeypatch):
-    monkeypatch.setenv("TEST_TRIGGER_REPO_BASE_BRANCH", "release")
+def test_create_pr_is_the_researchers_into_the_base_branch_of_the_projects_record(researcher, step):
+    step["trigger"] = trigger_config(base_branch="release")
     researcher.create_pull_request.return_value = {"number": 4, "html_url": "http://gitea/pulls/4"}
 
     result = CliRunner().invoke(pr.create_gitea_pr_command, ["--branch", "b1"])
@@ -395,18 +403,6 @@ def test_create_pr_is_the_researchers_into_the_base_branch_in_the_env(researcher
     assert result.exit_code == 0, result.output
     assert researcher.create_pull_request.call_args.kwargs["head_branch"] == "b1"
     assert researcher.create_pull_request.call_args.kwargs["base_branch"] == "release"
-
-
-def test_without_the_env_var_the_pr_base_branch_is_the_one_the_projects_assignment_watches(monkeypatch):
-    monkeypatch.delenv("TEST_TRIGGER_REPO_BASE_BRANCH", raising=False)
-    backend_api = MagicMock()
-    backend_api.find_repository.return_value = SimpleNamespace(base_branch="develop")
-    monkeypatch.setattr(pr, "build_backend_api", lambda config: backend_api)
-
-    assert pr.get_pr_base_branch(TriggerRepoConfig()) == "develop"
-    backend_api.find_repository.assert_called_once_with(
-        "http://gitea.fn.svc:3000/gitea_admin/trigger", backend_api.find_project.return_value.id
-    )
 
 
 def test_merge_gitea_pr_is_the_researchers(researcher):

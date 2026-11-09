@@ -1,5 +1,6 @@
 """
-Fixtures and helpers for the end-to-end tests. Run against a live dev cluster with `.dev.env` present:
+Fixtures and helpers for the end-to-end tests. Run against a live dev cluster with `.dev.env` present (the node is bootstrap/examples/context.yaml, the project the one in
+bootstrap/examples/projects/e2e.yaml, whatever bootstrap/context.yaml says):
 
     pytest dagster --e2e -v               # all of them: the happy path, the failure paths, the long failure paths
     pytest dagster --e2e success -v       # the happy path only
@@ -23,7 +24,8 @@ from dotenv import find_dotenv, load_dotenv
 
 from fncli.backend import repo_path_of
 from fncli.cli import cli
-from fncli.cmds.common import DagsterConfig, GiteaConfig, ProjectConfig, build_backend_api, build_gitea_api
+from fncli.cmds.common import DagsterConfig, NamespaceConfig, ProjectConfig, build_backend_api, build_gitea_api
+from fncli.cmds.nodefile import gitea_config
 from fncli.cmds.pr import (
     commit_gitea_file_command,
     create_gitea_branch_command,
@@ -32,6 +34,7 @@ from fncli.cmds.pr import (
     new_branch_name,
 )
 from fncli.cmds.project import project_healthcheck_command
+from fncli.cmds.repository import load_repo_config
 from fncli.cmds.secret import verify_git_secret_command
 from fncli.cmds.state import snapshot
 from fncli.k8s import (
@@ -88,7 +91,7 @@ def delete_node(fncli):
 def delete_gitea_leftovers(fncli):
     """What `fncli delete` leaves in Gitea: the repositories and the OAuth apps the node file names, so a run starts on fresh ones."""
     node = load_node_file(GLOBALS_FILE)
-    gitea = build_gitea_api(GiteaConfig(GITEA_ADMIN_USER=load_context(CONTEXT_FILE).node.gitea_admin_user))
+    gitea = build_gitea_api(gitea_config(load_context(CONTEXT_FILE), node))
     for repository in node.repositories.triggers + node.repositories.results:
         gitea.delete_repo(repo_path_of(repository.uri).split("/")[1])
     for secret in node.secrets.values():
@@ -182,7 +185,7 @@ APP_DEFAULT_INTERVAL = 30  # seconds: what the sensors use when the cluster's co
 def tick_seconds() -> float:
     """The shortest interval of a sensor tick, as the cluster has it configured."""
     load_dotenv(find_dotenv(".dev.env", usecwd=True))
-    value = get_configmap_value(ENV_CONFIGMAP, GiteaConfig().namespace, INTERVAL_KEY)
+    value = get_configmap_value(ENV_CONFIGMAP, NamespaceConfig().namespace, INTERVAL_KEY)
     return float(value) if value else APP_DEFAULT_INTERVAL
 
 
@@ -193,7 +196,7 @@ def set_sensor_interval(seconds: int, retry_seconds: int) -> tuple[str | None, s
     STOPPED unless the chart says otherwise), so start them again afterwards.
     """
     load_dotenv(find_dotenv(".dev.env", usecwd=True))  # the autouse fast_sensors fixture runs before the fncli fixture loads it
-    namespace = GiteaConfig().namespace
+    namespace = NamespaceConfig().namespace
     previous = get_configmap_value(ENV_CONFIGMAP, namespace, INTERVAL_KEY)
     logger.info(f"Setting the sensor interval to {seconds}s (was {previous}) and restarting the code server")
     previous_retry = get_configmap_value(ENV_CONFIGMAP, namespace, RETRY_INTERVAL_KEY)
@@ -274,12 +277,28 @@ def wait_for(predicate, timeout: float, describe: str, interval: float = POLL_SE
 
 
 class Fncli:
-    """The fncli commands and the project snapshot, against the live cluster."""
+    """The fncli commands and the project snapshot, against the live cluster: the dev project of PROJECT_FILE, on the
+    node of CONTEXT_FILE. A step command is given that context and project, which `fncli` would otherwise take from the
+    context file it finds, and its defaults."""
 
     def __init__(self):
         load_dotenv(find_dotenv(".dev.env", usecwd=True))
-        self.config = ProjectConfig()
+        self.context = load_context(CONTEXT_FILE)
+        self.project = load_node_file(PROJECT_FILE).projects[0].name
+        self.config = ProjectConfig(node=self.context.node, project_name=self.project)
         self.backend_api = build_backend_api(self.config)
+        # For fncli.run of a step command (verify-project, ...)
+        self.step_args = ["--context", str(CONTEXT_FILE), "--project", self.project]
+
+    def repo_config(self, entity: str):
+        """The config of the dev project's trigger or results repository, as the node has it"""
+        return load_repo_config(entity, self.context, self.project, self.backend_api)
+
+    def with_node(self, command, options: dict) -> dict:
+        """The command's options, given the context and the dev project if it takes them and they are not given"""
+        names = {param.name for param in command.params}
+        node = {"context": self.context, "project": self.project}
+        return {**{name: value for name, value in node.items() if name in names}, **options}
 
     def run(self, *args: str):
         """Run an fncli command as the CLI would, its output going straight to the terminal."""
@@ -291,7 +310,7 @@ class Fncli:
         """Run one command with its options, the unset ones at their defaults, and return what it returns. A non-zero exit fails the test."""
         with click.Context(command) as ctx:
             try:
-                return ctx.invoke(command, **options)
+                return ctx.invoke(command, **self.with_node(command, options))
             except click.exceptions.Exit as exit_:
                 if exit_.exit_code:
                     pytest.fail(f"fncli {command.name} {options} exited {exit_.exit_code}")
@@ -300,14 +319,14 @@ class Fncli:
         """Run one command and return its exit code, for the tests that expect a failure."""
         with click.Context(command) as ctx:
             try:
-                ctx.invoke(command, **options)
+                ctx.invoke(command, **self.with_node(command, options))
             except click.exceptions.Exit as exit_:
                 return exit_.exit_code
         return 0
 
     def snapshot(self, project: str | None = None) -> dict:
-        """The snapshot of the test project, or of another one by name."""
-        return snapshot(self.backend_api, project or self.config.project_name)
+        """The snapshot of the dev project, or of another one by name."""
+        return snapshot(self.backend_api, project or self.project)
 
     def wait_for_state(self, what: str, timeout: float, check, project: str | None = None, interval: float = POLL_SECONDS):
         """Poll the project snapshot until check(snapshot) is truthy and return that. On timeout the failure carries the last snapshot of PRs, tasks and results."""

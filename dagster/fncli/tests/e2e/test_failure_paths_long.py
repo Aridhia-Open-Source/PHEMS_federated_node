@@ -111,7 +111,7 @@ def test_setup(fncli, step):
 
 
 def test_verify_project_after_setup(fncli):
-    fncli.run("verify-project")
+    fncli.run("verify-project", *fncli.step_args)
 
 
 def test_project_starts_empty(fncli):
