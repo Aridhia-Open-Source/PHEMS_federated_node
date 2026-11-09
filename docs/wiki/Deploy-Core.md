@@ -1,0 +1,242 @@
+# Deploy: Core
+
+This guide installs the Federated Node 2.x on a cluster you already have. It covers the steps common to **all platforms**. Work through [Prerequisites](./Prerequisites) first.
+
+The platform guides ([Azure](./1.x-Deploy-Azure), [AWS](./1.x-Deploy-AWS), [GCP](./1.x-Deploy-GCP) and [On-Premises](./1.x-Deploy-On-Premises)) were written for 1.x and have not been checked for 2.x. Their storage, ingress and TLS sections may still help, but where they disagree with this page, follow this page. Do not reuse a 1.x values file: the 2.x chart has different values (`db.*`, `nodeId`, `dagster`), and no upgrade path from 1.x is documented.
+
+
+## 1. Add the Helm repository
+
+```sh
+helm repo add federated-node https://aridhia-open-source.github.io/PHEMS_federated_node
+helm repo update
+helm search repo federated-node --devel --versions
+```
+
+The 2.x line is published as pre-releases, so it only shows with `--devel`. Pick the newest `2.0.0-...` entry and pin it with `--version` in step 5.
+
+Leave `default_image_tag` unset. Every image tag then follows the chart's `appVersion`, so the chart and the images always move together.
+
+
+## 2. Install the CRDs
+
+If you use the chart's Traefik, install the Gateway API and Traefik CRDs once per cluster. See [Prerequisites](./Prerequisites#install-the-gateway-api-and-traefik-crds).
+
+
+## 3. Create the namespace and the secrets you must provide
+
+```sh
+kubectl create namespace federated-node
+```
+
+The chart creates every database password, the Keycloak credentials and the Dagster login for you, and puts them in the namespaces that need them. These are the ones it cannot invent:
+
+| Secret | Key | When | What it is |
+|---|---|---|---|
+| `postgres-superuser` | `password` | Postgres is external and `db.manageRolesAndDatabases` is true (the default) | Password of `db.superuser` on your server |
+| the secret named by `firstUserSecret.name` | the key in `firstUserSecret.passKey` | Always | Password of the first admin user. The chart copies it to the Keycloak namespace |
+| `tls` (or the name in `tls.secretName`) | `tls.crt`, `tls.key` | No cert-manager | The certificate for `host`, full chain |
+| the Azure storage secret | `azurestorageaccountname`, `azurestorageaccountkey` | `storage.azure` | The chart copies it to the tasks namespace |
+
+```sh
+kubectl create secret generic postgres-superuser -n federated-node \
+  --from-literal=password='<postgres admin password>'
+
+kubectl create secret generic fn-first-user -n federated-node \
+  --from-literal=password='<admin password you will log in with>'
+
+kubectl create secret tls tls -n federated-node \
+  --cert server.crt --key server.key
+```
+
+Git and dataset credentials are **not** Helm secrets. You register them through the API after the install, as global secrets.
+
+
+## 4. Write your values file
+
+Start from this example, then add the storage block for your platform. It renders cleanly with `helm template`.
+
+```yaml
+# The public hostname. Needs a DNS record pointing at Traefik, and a certificate.
+host: fn.your-institution.example.com
+
+# Names this node (hospital) in the results it delivers (run.json, node.id). Required.
+nodeId: your-institution
+
+# One external Postgres server shared by every component.
+db:
+  host: &dbHost postgres.your-institution.example.com
+  port: 5432
+  # The admin login the *-db-init jobs use to create each database and role.
+  # Managed Postgres has no role called "postgres" (Azure, RDS, Cloud SQL): set yours.
+  superuser: fn_admin
+  enforceSSL: true
+  secret:
+    name: postgres-superuser     # the secret from step 3
+    key: password
+
+# The first admin user. Its password is the secret from step 3.
+firstUserSecret:
+  name: fn-first-user
+  passKey: password
+  email: admin@your-institution.example.com
+  firstName: Admin
+  lastName: User
+
+# Shared storage for results. Use ONE of azure, aws, nfs, local (see below).
+storage:
+  capacity: 50Gi
+  nfs:
+    provisioner: nfs.csi.k8s.io
+    url: 192.168.1.100
+    path: /exports/federated-node
+
+# Ingress. The chart's own Traefik, with the Gateway API.
+traefik:
+  enabled: true
+
+tls:
+  secretName: tls
+
+# Origins allowed to call the API from a browser (CSP).
+integrations:
+  domains:
+    - https://fn.your-institution.example.com
+
+# Dagster is off by default and has to be switched on.
+dagster:
+  enabled: true
+  postgresql:
+    # Must equal db.host. Helm cannot template a subchart value, so it is written
+    # twice (the anchor keeps them together). The chart fails to render if they differ.
+    postgresqlHost: *dbHost
+    # Needed when db.enforceSSL is true, and the chart insists on it:
+    postgresqlParams:
+      sslmode: require
+```
+
+Things that are easy to get wrong:
+
+- **`nodeId` is required.** The chart fails without it.
+- **`dagster.enabled` is false by default.** Without it nothing polls git and no task runs.
+- **`fnDagster.db` is removed** and the chart fails if you set it. Dagster's database name and user come from `dagster.postgresql.postgresqlDatabase` and `postgresqlUsername`.
+- **`namespaces` lives under `global`** (`global.namespaces.keycloak`, `.tasks`, `.quarantine`). A top-level `namespaces` fails the render.
+- **Datasets are not configured here.** Register them through the API.
+- **Task CPU and memory** come from `taskCompute.default` and `taskCompute.max`. A task spec that asks for more than the max is rejected.
+- Optional: `smoketests: true` lets `helm test` create and delete real rows.
+
+Every value, with comments, is in the chart's [values.yaml](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/k8s/federated-node/values.yaml). There is no 2.x values reference page yet.
+
+### Shared storage
+
+Set exactly one backend under `storage`. The same volume class is used for task results and for Dagster's artifacts.
+
+| Platform | Values | Also needs |
+|---|---|---|
+| Azure Files (AKS) | `on_aks: true`, `storage.azure.secretName`, `storage.azure.shareName` | The file share exists already, plus the storage secret |
+| AWS EFS (EKS) | `on_eks: true`, `storage.aws.fileSystemId`, optional `accessPointId` | The EFS CSI driver |
+| NFS | `storage.nfs.url`, `.path`, `.provisioner` | The export is writable by uid 1000: `chown 1000:1000` and `chmod 775` |
+| Local path | `storage.local.path`, `.dbpath`, `.artifacts` | Single node only; the pods are pinned to the node that holds the data |
+
+Set `storage.nfs.provisioner` (for example `nfs.csi.k8s.io`) even without that driver installed: the chart writes it into the artifacts StorageClass, which is invalid empty.
+
+### TLS
+
+Either create the `tls` secret yourself (step 3), or let cert-manager renew it: `cert-manager.enabled: true` plus `certs.azure.*` or `certs.aws` for DNS-01. For another CA, run cert-manager yourself and point `tls.secretName` at the secret it produces.
+
+### Databases
+
+By default the chart manages the databases: three init jobs connect as `db.superuser` and create `backend`, `keycloak_db` and `dagster` with their own roles and generated passwords. Re-running them is harmless.
+
+If a DBA owns the databases and you have no admin login, set `db.manageRolesAndDatabases: false`. The chart then needs no superuser, creates nothing, and each role's password becomes a secret you supply. Install once and it prints the exact SQL and `kubectl` commands for your names. A `db-check` hook verifies the roles before anything else installs.
+
+For ArgoCD, `helm diff`, External Secrets or Vault, set `db.createPasswordSecrets: false` and let that tool own the password secrets. The chart reads them at runtime and never needs the value at render time. The [ArgoCD page](./1.x-Installing-ArgoCD) was written for 1.x and has not been checked for 2.x.
+
+### Let tasks reach their dataset
+
+The chart puts a NetworkPolicy in the tasks namespace: no traffic in, and out only to DNS and to the databases you list. The list is empty by default, so **a task whose dataset database is not listed times out when it connects**. List each dataset database, by address or by namespace and pod label:
+
+```yaml
+taskNetworkPolicy:
+  datasetEgress:
+    - to:
+        - ipBlock:
+            cidr: 10.20.30.40/32      # your dataset database
+      ports:
+        - protocol: TCP
+          port: 5432
+```
+
+A rule needs both `to` and `ports`, or the chart refuses to render. The policy only works if your cluster's network plugin enforces NetworkPolicy.
+
+
+## 5. Install
+
+Check the file renders first. This needs no cluster:
+
+```sh
+helm template federatednode federated-node/federated-node \
+  --devel --version <VERSION> -f values.yaml --namespace federated-node > /dev/null
+```
+
+Then install. The release name is `federatednode` throughout the docs, and some service names derive from it (`federatednode-dagster-webserver`), so keep it.
+
+```sh
+helm upgrade --install federatednode federated-node/federated-node \
+  --devel --version <VERSION> \
+  -f values.yaml \
+  --namespace federated-node \
+  --timeout 15m
+```
+
+The install reads the live cluster, so missing CRDs and missing secrets fail it at the start with a message that says what to create. Fix it and run the same command again.
+
+
+## 6. Check it
+
+Follow [Post-deploy testing](./Post-Deploy-Testing). All Dagster sensors start **stopped**, so nothing runs until you set up a project and start them ([Operations](./Operations#start-the-sensors)).
+
+> **Never publish the Dagster UI.** It has no login of its own. Anyone who can reach it can start, cancel and read runs. The chart creates no route for it on purpose: reach it with a port-forward, and treat that access as cluster access.
+
+
+## 7. Cluster hardening
+
+The FN pods run non-root, with no privilege escalation and all capabilities dropped. They fit the `restricted` Pod Security Standard. The `tasks` namespace runs whatever analytics images researchers supply, so use `baseline` there unless you control them all:
+
+```sh
+kubectl label namespace federated-node pod-security.kubernetes.io/enforce=restricted
+kubectl label namespace keycloak       pod-security.kubernetes.io/enforce=restricted
+kubectl label namespace tasks          pod-security.kubernetes.io/enforce=baseline
+```
+
+The chart creates a `ClusterRole` for the backend, so the user running `helm install` must be allowed to create cluster roles. The tasks namespace must hold nothing but task pods: the chart refuses to render if `global.namespaces.tasks` is the release or Keycloak namespace.
+
+
+## Upgrade, uninstall, reinstall
+
+**Upgrade** with the same command as the install and a new `--version`. Passwords are reused, and nexus-api applies database migrations itself (an init container runs them before it starts).
+
+```sh
+helm repo update
+helm upgrade --install federatednode federated-node/federated-node \
+  --devel --version <NEW_VERSION> -f values.yaml -n federated-node --timeout 15m
+```
+
+**Uninstall** with `helm uninstall federatednode -n federated-node`. Helm does not remove what the hooks created: the generated password secrets (label `federatednode.com/generated-password=true`), the init jobs, the dataset credential secrets nexus-api wrote, and the data behind the Postgres volume if the chart ran the database.
+
+**Reinstall onto the same external database server** works: the init jobs set each role's password to the newly generated one, and the databases and their data are still there. Drop the databases first if you want a clean start.
+
+
+## Chart versions
+
+CI builds the images and packages the chart on every push, and the branch decides the version suffix:
+
+| Branch | Chart and image version | Use |
+|---|---|---|
+| a release tag | `2.0.0` | Production |
+| `main` | `2.0.0-rc.N` | Release candidate |
+| `develop` | `2.0.0-beta.N` | Integration |
+| `dagster-main` | `2.0.0-dagster-beta.N` | The Dagster line before it joins `main` |
+| `dagster-develop` | `2.0.0-dagster-alpha.N` | Earliest builds of that line |
+
+Use `--devel` for anything with a suffix. The full install guide is the repo's [DEPLOYMENT.md](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/DEPLOYMENT.md).
