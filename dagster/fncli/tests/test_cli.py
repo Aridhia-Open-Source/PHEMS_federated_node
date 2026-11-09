@@ -1,4 +1,7 @@
+import os
+
 import click
+from click.testing import CliRunner
 
 from fncli.cli import cli
 from fncli.cmds import common
@@ -51,3 +54,24 @@ def test_each_entity_has_its_own_token_name_and_scope():
     assert trigger.token_scope == "read:repository"
     assert results.token_scope == "write:repository"
     assert trigger.model_fields["token_name"].default != results.model_fields["token_name"].default
+
+
+def test_env_file_option_wins_over_dev_env_and_the_shell(tmp_path, monkeypatch):
+    (tmp_path / ".dev.env").write_text("FNCLI_TEST_VALUE=dev\n")
+    (tmp_path / ".other.env").write_text("FNCLI_TEST_VALUE=other\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FNCLI_TEST_VALUE", "shell")
+
+    result = CliRunner().invoke(cli, ["--env-file", ".other.env", "hello-world"])
+
+    assert result.exit_code == 0, result.output
+    assert os.environ["FNCLI_TEST_VALUE"] == "other"
+
+
+def test_a_missing_env_file_is_a_clean_error(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(cli, ["--env-file", ".nope.env", "hello-world"])
+
+    assert result.exit_code == 1
+    assert ".nope.env not found" in result.output

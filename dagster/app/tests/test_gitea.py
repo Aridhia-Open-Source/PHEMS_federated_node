@@ -2,6 +2,7 @@ import base64
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
 from app.gitea import GiteaAPI, GiteaClient
 
@@ -179,3 +180,24 @@ class TestBranchPullRequests:
         assert client.request.call_args.kwargs["json"] == {
             "title": "T", "body": "B", "head": "feature", "base": "main",
         }
+
+
+class TestMergePullRequest:
+    def test_retries_while_gitea_computes_mergeability(self, api, client, monkeypatch):
+        monkeypatch.setattr("app.gitea.time.sleep", lambda seconds: None)
+        busy = requests.HTTPError(response=MagicMock(status_code=405))
+        client.request.side_effect = [busy, response({})]
+
+        api.merge_pull_request("org/repo", 3)
+
+        assert client.request.call_count == 2
+        assert client.request.call_args.args == ("POST", "repos/org/repo/pulls/3/merge")
+        assert client.request.call_args.kwargs["json"] == {"Do": "merge"}
+
+    def test_raises_any_other_error_at_once(self, api, client):
+        client.request.side_effect = requests.HTTPError(response=MagicMock(status_code=409))
+
+        with pytest.raises(requests.HTTPError):
+            api.merge_pull_request("org/repo", 3)
+
+        assert client.request.call_count == 1
