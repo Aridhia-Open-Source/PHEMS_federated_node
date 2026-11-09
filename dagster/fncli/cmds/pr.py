@@ -6,6 +6,7 @@ that ties the steps together: the file and the PR title are derived from it.
 
 import json
 import logging
+import posixpath
 import secrets
 import time
 from datetime import datetime, timezone
@@ -95,7 +96,7 @@ def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
     if kind == "invalid":
         # The backend's TaskSpecRequest forbids unknown fields
         spec["unknown_field"] = True
-    return f"{config.watch_dir}{branch}.json", json.dumps({"spec": spec}, indent=2) + "\n"
+    return posixpath.join(config.watch_dir, f"{branch}.json"), json.dumps({"spec": spec}, indent=2) + "\n"
 
 
 @click.command("create-gitea-branch")
