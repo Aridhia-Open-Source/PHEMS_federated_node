@@ -10,7 +10,7 @@ postgres:
     name: db-datasets-superuser
     key: password
 
-# One entry per experiment, from experiments/projects/<name>/values.yaml:
+# One entry per experiment, from experiments/<name>/values.yaml:
 #   study:
 #     name: study-omop          database, and the dataset's name in the node
 #     user: study_omop_user

@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import click
 from click.testing import CliRunner
 import pytest
+import yaml
 
 from app.utils import BackendSession, BaseSession
 from fncli.cmds import demo
@@ -50,17 +51,52 @@ def node_state(monkeypatch):
 
 
 @pytest.fixture
-def node_file(tmp_path, monkeypatch, node_state):
-    """A node file for the demo whose dataset is not in it, and the node it was opened on, which has the dataset"""
+def context_file(tmp_path, monkeypatch):
+    """The context file the commands find through FNCLI_CONTEXT, and the triggers/ folder with the default trigger file"""
+    path = tmp_path / "context.yaml"
+    path.write_text(yaml.safe_dump({
+        "node": {"url": "http://localhost:5000", "kube_context": "kind-fn", "keycloak_namespace": "keycloak"},
+        "defaults": {"project": "demo-gitea", "trigger_type": "pr"},
+    }))
+    (tmp_path / "triggers" / "examples").mkdir(parents=True)
+    (tmp_path / "triggers" / "examples" / "demo.json").write_text('{"spec": {"image": "busybox:1"}}')
+    monkeypatch.setenv("FNCLI_CONTEXT", str(path))
+    monkeypatch.delenv("FNCLI_DEFAULT_PROJECT", raising=False)
+    monkeypatch.delenv("FNCLI_DEFAULT_TRIGGER_TYPE", raising=False)
+    monkeypatch.chdir(tmp_path)
+    return path
+
+
+@pytest.fixture
+def opened(monkeypatch):
+    """What demo_command opened the node with: the project it asked for, in a list"""
+    return []
+
+
+@pytest.fixture
+def node_file(tmp_path, monkeypatch, node_state, context_file, opened):
+    """A node file for the demo holding only its project, and the node it was opened on, which has the dataset"""
     path = tmp_path / "demo.yaml"
-    path.write_text("")
     data = node_data()
     data["projects"][0]["name"] = "demo-gitea"
-    del data["datasets"]
-    node = make_node(data)
+    # Only the project, as the real files are: the providers and repositories are on the node
+    only_projects = {"version": 1, "projects": data["projects"]}
+    path.write_text(yaml.safe_dump(only_projects))
+    node = make_node(only_projects)
     api = FakeApi()
-    monkeypatch.setattr(demo, "open_node", lambda file, project: (node, api))
+
+    def open_node(context, file, project):
+        opened.append(project)
+        return node, api
+
+    monkeypatch.setattr(demo, "open_node", open_node)
     return path
+
+
+def demo_node():
+    data = node_data()
+    data["projects"][0]["name"] = "demo-gitea"
+    return make_node({"version": 1, "projects": data["projects"]})
 
 
 def recorder(ran, name, error=None):
@@ -99,11 +135,13 @@ def run_demo(node_file):
     return run
 
 
-def test_yes_runs_every_step_in_order(ran, run_demo):
+def test_yes_runs_every_step_in_order(ran, run_demo, opened):
     result = run_demo("--yes")
 
     assert result.exit_code == 0, result.output
     assert names(ran) == ["one", "two", "three"]
+    assert opened == ["demo-gitea"]
+    assert "Using the defaults" not in result.output
     assert "Step 3: title of three" in result.output
     assert result.output.rstrip().endswith("Done.")
 
@@ -161,7 +199,7 @@ def test_a_failing_step_stops_the_demo(ran, run_demo, monkeypatch):
 
 
 def test_a_step_that_exits_0_does_not_end_the_demo(ran, run_demo, monkeypatch):
-    # open-pr --watch ends by raising Exit(0) when all went well
+    # trigger --watch ends by raising Exit(0) when all went well
     monkeypatch.setattr(
         demo, "STEPS", [step_of(ran, "one", click.exceptions.Exit(0)), step_of(ran, "two")]
     )
@@ -253,9 +291,7 @@ def test_the_plan_is_checked_whatever_step_it_starts_at(ran, run_demo, node_stat
 
 
 def test_a_dataset_that_is_not_on_the_node_stops_the_demo_before_any_step(ran, run_demo, node_file, monkeypatch):
-    data = node_data()
-    del data["datasets"]
-    monkeypatch.setattr(demo, "open_node", lambda file, project: (make_node(data), FakeApi(datasets=())))
+    monkeypatch.setattr(demo, "open_node", lambda context, file, project: (demo_node(), FakeApi(datasets=())))
 
     result = run_demo("--yes")
 
@@ -263,6 +299,79 @@ def test_a_dataset_that_is_not_on_the_node_stops_the_demo_before_any_step(ran, r
     assert "Dataset shared is not on the node" in result.output
     assert "fncli experiment setup demo" in result.output
     assert ran == []
+
+
+def two_projects(node_file):
+    data = yaml.safe_load(node_file.read_text())
+    data["projects"].append(dict(data["projects"][0], name="demo-other"))
+    node_file.write_text(yaml.safe_dump(data))
+
+
+def test_a_file_with_several_projects_uses_the_default_project_and_says_so_on_the_first_line(ran, run_demo, node_file, opened):
+    two_projects(node_file)
+
+    result = run_demo("--yes")
+
+    assert result.exit_code == 0, result.output
+    assert result.output.splitlines()[0].endswith(": project demo-gitea")
+    assert result.output.splitlines()[0].startswith("Using the defaults of ")
+    assert opened == ["demo-gitea"]
+
+
+def test_a_project_flag_beats_the_default_and_says_nothing(ran, run_demo, node_file, opened):
+    two_projects(node_file)
+
+    result = run_demo("--yes", "--project", "demo-other")
+
+    assert "Using the defaults" not in result.output
+    assert opened == ["demo-other"]
+
+
+def test_the_env_default_project_beats_the_context_file(ran, run_demo, node_file, opened, monkeypatch):
+    two_projects(node_file)
+    monkeypatch.setenv("FNCLI_DEFAULT_PROJECT", "demo-other")
+
+    result = run_demo("--yes")
+
+    assert result.output.splitlines()[0].endswith(": project demo-other")
+    assert opened == ["demo-other"]
+
+
+def test_a_file_with_several_projects_and_no_default_needs_the_project_flag(ran, run_demo, node_file, context_file):
+    two_projects(node_file)
+    context_file.write_text(yaml.safe_dump(
+        {"node": {"url": "http://localhost:5000", "kube_context": "kind-fn", "keycloak_namespace": "keycloak"}}
+    ))
+
+    result = run_demo("--yes")
+
+    assert result.exit_code == 1
+    assert "has 2 projects: pick one with --project (demo-gitea, demo-other)" in result.output
+    assert ran == []
+
+
+def test_the_trigger_file_is_the_argument_found_as_given_or_under_triggers(ran, run_demo, tmp_path, monkeypatch):
+    seen = {}
+    monkeypatch.setattr(demo, "STEPS", [Step("t", "{trigger}", "fncli x", lambda ctx, demo: seen.update(file=demo.trigger_file))])
+
+    assert run_demo("--yes").exit_code == 0
+    assert seen["file"] == tmp_path / "triggers" / "examples" / "demo.json"
+
+    (tmp_path / "triggers" / "mine.json").write_text("{}")
+    assert run_demo("--yes", "mine.json").exit_code == 0
+    assert seen["file"] == tmp_path / "triggers" / "mine.json"
+
+    result = run_demo("--yes", "nope.json")
+    assert result.exit_code == 2 and "nope.json not found, as given or under triggers/ from here up" in result.output
+
+
+def test_the_pull_request_step_triggers_the_demo_project_by_pr_with_the_trigger_file(monkeypatch):
+    calls = []
+    monkeypatch.setattr(demo, "trigger_pr", lambda *args, **options: calls.append((args, options)))
+
+    demo.trigger_by_pr(None, SimpleNamespace(project=SimpleNamespace(name="demo-gitea"), trigger_file=Path("t.json")))
+
+    assert calls == [(("demo-gitea", Path("t.json")), {"merge": True, "watch": True, "timeout": 300})]
 
 
 class FakeState:
@@ -372,8 +481,9 @@ def test_every_step_shows_the_command_it_runs():
 
 @pytest.mark.parametrize("name", ["demo-gitea", "demo-github"])
 def test_every_text_and_command_fills_in_from_the_demo_files(name):
-    node = limit_to_project(load_node_file(EXAMPLES / f"{name}.yaml"), name)
-    values = step_names(Demo(EXAMPLES / f"{name}.yaml", node, None, node.projects[0]))
+    path = EXAMPLES / "projects" / f"{name}.yaml"
+    node = limit_to_project(load_node_file(path), name)
+    values = step_names(Demo(path, Path("triggers/examples/demo.json"), node, None, node.projects[0]))
 
     for step in demo.STEPS:
         assert step.text.format_map(values) and step.line.format_map(values)
@@ -381,7 +491,7 @@ def test_every_text_and_command_fills_in_from_the_demo_files(name):
 
 @pytest.mark.parametrize("name", ["demo-gitea", "demo-github"])
 def test_the_demo_files_assign_the_demo_dataset_without_holding_it(name):
-    node = load_node_file(EXAMPLES / f"{name}.yaml")
+    node = load_node_file(EXAMPLES / "projects" / f"{name}.yaml")
 
     assert node.datasets == []
     assert [project.datasets for project in node.projects] == [["demo-db"]]

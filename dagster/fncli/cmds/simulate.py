@@ -38,7 +38,7 @@ from fncli.cmds.common import (
     build_backend_api,
     build_gitea_api,
 )
-from fncli.cmds.pr import PrConfig, file_for, new_branch_name
+from fncli.cmds.pr import DEFAULT_TRIGGER_FILE, file_for, load_trigger, new_branch_name
 from fncli.cmds.project import init_backend_project
 from fncli.cmds.repository import init_backend_results_repo, init_backend_trigger_repo, init_gitea_repo
 from fncli.cmds.secret import init_git_secret, verify_gitea_accepts_bearer_token
@@ -91,10 +91,6 @@ def trigger_config(repo: str) -> TriggerRepoConfig:
 
 def results_config(repo: str) -> ResultsRepoConfig:
     return ResultsRepoConfig(**repo_fields(repo, LAYOUT.results_repos[repo]), target_dir="results/")
-
-
-def pr_config(repo: str) -> PrConfig:
-    return PrConfig(**repo_fields(repo, LAYOUT.trigger_repos[repo]), watch_dir="specs/")
 
 
 # --- The alias service ------------------------------------------------------------------------
@@ -199,7 +195,8 @@ def teardown():
 def merge_pull_requests(repo: str, kinds: list[str], seed: int) -> list[dict]:
     """Open and merge one pull request of each kind in a trigger repository, one after the other."""
     rng = random.Random(f"{seed}-{repo}")
-    config = pr_config(repo)
+    config = trigger_config(repo)
+    trigger = load_trigger(DEFAULT_TRIGGER_FILE)
     gitea_api = build_gitea_api(GiteaConfig())  # one client per thread
     base = gitea_api.get_or_create_repo(repo)["default_branch"]
     merged = []
@@ -207,7 +204,7 @@ def merge_pull_requests(repo: str, kinds: list[str], seed: int) -> list[dict]:
         time.sleep(rng.uniform(0, 1.5))  # interleave the repositories
         branch = new_branch_name()
         gitea_api.create_branch(config.repo_path, branch, base)
-        path, content = file_for(config, branch, kind)
+        path, content = file_for(config, branch, kind, trigger)
         gitea_api.create_file(config.repo_path, path, content, message=f"Add {path}", branch=branch)
         pr = gitea_api.create_pull_request(config.repo_path, branch, base, f"{kind} {branch}", f"A {kind} pull request, from the simulation")
         gitea_api.merge_pull_request(config.repo_path, pr["number"])

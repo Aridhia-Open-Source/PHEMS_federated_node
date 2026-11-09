@@ -1,18 +1,23 @@
 """
-`open-pr` opens a PR in the trigger repo, chained from the step commands in cmds/pr.py. The project's setup and
+`open-pr` opens a PR of a given kind in the trigger repo named by the env (TEST_*), chained from the step commands in
+cmds/pr.py: what the end-to-end checks (scripts/e2e_shared_resources.sh) use for the kinds the sensor must ignore or
+reject. To trigger a project's task with a trigger file, use `fncli trigger` (cmds/trigger.py). The project's setup and
 teardown are `fncli apply` and `fncli delete` (cmds/nodefile.py).
 """
 
 import click
 
+from fncli.cmds.common import TriggerRepoConfig
 from fncli.cmds.pr import (
     KINDS,
-    commit_gitea_file_command,
-    create_gitea_branch_command,
-    create_gitea_pr_command,
-    merge_gitea_pr_command,
+    commit_file,
+    create_branch,
+    create_pr,
+    load_trigger,
+    merge_pr,
     new_branch_name,
     timeout_option,
+    trigger_option,
     watch_option,
 )
 
@@ -20,17 +25,18 @@ from fncli.cmds.pr import (
 @click.command("open-pr")
 @click.option("--kind", type=click.Choice(KINDS), default="watched", show_default=True)
 @click.option("--merge", is_flag=True, help="Also merge the PR.")
+@trigger_option
 @watch_option
 @timeout_option
-@click.pass_context
-def open_pr_command(ctx, kind, merge, watch, timeout):
-    """Open a PR in the trigger repo: branch, file, PR, and with --merge the merge."""
+def open_pr_command(kind, merge, trigger_file, watch, timeout):
+    """Open a PR in the trigger repo named by the env: branch, file, PR, and with --merge the merge."""
+    config = TriggerRepoConfig()
     branch = new_branch_name()
-    ctx.invoke(create_gitea_branch_command, branch=branch)
-    ctx.invoke(commit_gitea_file_command, branch=branch, kind=kind)
-    pr = ctx.invoke(create_gitea_pr_command, branch=branch, kind=kind)
+    create_branch(config, branch)
+    commit_file(config, branch, kind, load_trigger(trigger_file))
+    pull_request = create_pr(config, branch, kind)
     if merge:
-        ctx.invoke(merge_gitea_pr_command, number=pr["number"], watch=watch, timeout=timeout)
+        merge_pr(config, pull_request["number"], watch, timeout)
 
 
 COMMANDS = [open_pr_command]

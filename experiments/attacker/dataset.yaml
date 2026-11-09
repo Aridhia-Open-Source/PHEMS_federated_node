@@ -3,13 +3,8 @@
 # login are read from the secret that the experiments chart makes for attacker-db, so no secret value is in the file.
 # The names match values.yaml: dbs.attacker.name is the dataset's name and dbs.attacker.secret.name the chart's secret
 # (`setup` checks this). Projects are assigned the dataset by name, from their own node file:
-# bootstrap/examples/experiments/attacker.yaml (`datasets: [attacker-db]`).
+# bootstrap/examples/projects/attacker.yaml (`datasets: [attacker-db]`).
 version: 1
-
-node:
-  url: http://localhost:5000                       # nexus-api (the Tilt port-forward)
-  kube_context: kind-fn
-  keycloak_namespace: keycloak
 
 secrets:
   attacker-db-dataset-creds:

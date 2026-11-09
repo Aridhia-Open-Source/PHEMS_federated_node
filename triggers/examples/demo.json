@@ -1,0 +1,6 @@
+{
+  "spec": {
+    "image": "localhost:5001/demo-fn:latest",
+    "env": {}
+  }
+}

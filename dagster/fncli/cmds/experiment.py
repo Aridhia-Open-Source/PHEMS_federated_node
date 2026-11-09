@@ -1,17 +1,18 @@
 """
 `fncli experiment` runs real experiments against the dev node, see experiments/README.md. Each experiment is a folder
-experiments/projects/NAME/ that holds its database for the chart (values.yaml), its seed, its image and docker-bake.hcl, its dataset as a
-node file (bootstrap.yaml, which `setup` applies after checking it against values.yaml and `teardown` deletes), and
-project.env with the settings of `run` only (no secrets; it wins over .dev.env and the shell). Its node
-project and repositories are in the node file bootstrap/examples/experiments/NAME.yaml, if it has one: `setup` applies
-it after the dataset and `teardown` deletes it first. `up`, `seed`, `setup`, `run` and `teardown` can be repeated after
-a failure.
+experiments/NAME/ that holds its database for the chart (values.yaml), its seed, its image and docker-bake.hcl, its
+dataset as a node file (dataset.yaml, which `setup` applies after checking it against values.yaml and `teardown`
+deletes), its trigger file (trigger.json, the image and anything else the task is asked for), and project.env with the
+settings of `run` only (no secrets; it wins over .dev.env and the shell). Its node project and repositories are in the
+node files bootstrap/examples/globals-NAME.yaml and projects/NAME.yaml, if it has them: `setup` applies them after the
+dataset and `teardown` deletes them first. `up`, `seed`, `setup`, `run` and `teardown` can be repeated after a failure.
 """
 
 import json
 import logging
 import os
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,13 +23,14 @@ from dotenv import find_dotenv, load_dotenv
 from pydantic import Field
 
 from app.config import EnvConfig
-from fncli.cmds.actions import open_pr_command
 from fncli.cmds.demo import step_env
-from fncli.cmds.nodefile import apply_node_file, delete_node_file
+from fncli.cmds.nodefile import apply_node_file, context_option, delete_node_file, open_target, quiet_backend_logs
 from fncli.cmds.sensor import start_sensor_command
+from fncli.cmds.trigger import trigger_pr
 from fncli.k8s import get_k8s_secret
-from fncli.nodefile.loader import load_node_file
+from fncli.nodefile.loader import Context, load_node_file
 from fncli.nodefile.schema import K8sSecretRef, NodeFile
+from fncli.nodefile.state import read_state
 
 logger = logging.getLogger("experiment")
 
@@ -48,8 +50,6 @@ class ReleaseConfig(EnvConfig):
 class ExperimentConfig(ReleaseConfig):
     """What project.env sets for running the experiment, and the host settings that can be set in the env."""
 
-    # The image `build` pushes, from the project's docker-bake.hcl, and `run` puts in the pull request
-    image: str = Field(default="", alias="IMAGE")
     run_timeout: int = Field(default=0, alias="RUN_TIMEOUT")
     # Extra env for the task, as JSON, e.g. '{"EXAMPLE_FLAG": "1"}': set in the shell, not in project.env
     dev_env: dict[str, str] = Field(default={}, alias="DEV_ENV", validate_default=False)
@@ -65,32 +65,43 @@ def experiments_dir() -> Path:
     return Path(dev_env).parent / "experiments"
 
 
-def project_dir(name: str) -> Path:
-    path = experiments_dir() / "projects" / name
+def experiment_dir(name: str) -> Path:
+    path = experiments_dir() / name
     if not path.is_dir():
-        raise click.ClickException(f"No such project: {path}")
+        raise click.ClickException(f"No such experiment: {path}")
     return path
 
 
-def bootstrap_file(name: str) -> Path:
+def dataset_file(name: str) -> Path:
     """The node file of the experiment's dataset, in its own folder"""
-    path = project_dir(name) / "bootstrap.yaml"
+    path = experiment_dir(name) / "dataset.yaml"
     if not path.is_file():
-        raise click.ClickException(f"No bootstrap.yaml for {name}: {path}")
+        raise click.ClickException(f"No dataset.yaml for {name}: {path}")
     return path
+
+
+def trigger_file(name: str) -> Path:
+    """The trigger file `run` asks the node for: the experiment's image, in its own folder"""
+    path = experiment_dir(name) / "trigger.json"
+    if not path.is_file():
+        raise click.ClickException(f"No trigger.json for {name}: {path}")
+    return path
+
+
+def examples_dir() -> Path:
+    return experiments_dir().parent / "bootstrap" / "examples"
 
 
 def project_node_file(name: str) -> Path | None:
-    """The experiment's node file with its project and repositories, next to the other examples, if it has one"""
-    path = experiments_dir().parent / "bootstrap" / "examples" / "experiments" / f"{name}.yaml"
+    """The experiment's node file with its project, next to the other examples, if it has one"""
+    path = examples_dir() / "projects" / f"{name}.yaml"
     return path if path.is_file() else None
 
 
-def require_project_node_file(name: str) -> Path:
-    path = project_node_file(name)
-    if path is None:
-        raise click.ClickException(f"{name} has no node project: bootstrap/examples/experiments/{name}.yaml")
-    return path
+def node_files(name: str) -> list[Path]:
+    """The experiment's node files after its dataset, in the order `setup` applies them: its global resources, then its project"""
+    path = examples_dir() / f"globals-{name}.yaml"
+    return [*([path] if path.is_file() else []), *([project] if (project := project_node_file(name)) else [])]
 
 
 @dataclass(frozen=True)
@@ -104,8 +115,8 @@ class Database:
     write_schema: str
 
 
-def check_bootstrap(name: str, entry: dict, node: NodeFile):
-    """bootstrap.yaml must name what the chart makes: the dataset by the database's name, the secret by the chart's"""
+def check_dataset(name: str, entry: dict, node: NodeFile):
+    """dataset.yaml must name what the chart makes: the dataset by the database's name, the secret by the chart's"""
     problems = []
     dataset_names = [dataset.name for dataset in node.datasets]
     if dataset_names != [entry["name"]]:
@@ -122,25 +133,25 @@ def check_bootstrap(name: str, entry: dict, node: NodeFile):
         )
     if problems:
         listing = "\n".join(f"  - {problem}" for problem in problems)
-        raise click.ClickException(f"experiments/projects/{name}/bootstrap.yaml does not match values.yaml:\n{listing}")
+        raise click.ClickException(f"experiments/{name}/dataset.yaml does not match values.yaml:\n{listing}")
 
 
 def load_database(name: str) -> Database:
     """
-    The database of experiment NAME from values.yaml (its `dbs.NAME` entry) and bootstrap.yaml (the schemas), after
-    checking that bootstrap.yaml names the same database and secret as values.yaml.
+    The database of experiment NAME from values.yaml (its `dbs.NAME` entry) and dataset.yaml (the schemas), after
+    checking that dataset.yaml names the same database and secret as values.yaml.
     """
-    values = project_dir(name) / "values.yaml"
+    values = experiment_dir(name) / "values.yaml"
     entry = yaml.safe_load(values.read_text())["dbs"][name]
-    node = load_node_file(bootstrap_file(name))
-    check_bootstrap(name, entry, node)
+    node = load_node_file(dataset_file(name))
+    check_dataset(name, entry, node)
     dataset = node.datasets[0]
     return Database(entry["name"], entry["user"], entry["secret"]["name"], dataset.read_schema, dataset.write_schema)
 
 
 def load_project(name: str) -> ExperimentConfig:
     """The group has loaded .dev.env without overriding what is set: the project's values must win."""
-    env_file = project_dir(name) / "project.env"
+    env_file = experiment_dir(name) / "project.env"
     if not env_file.is_file():
         raise click.ClickException(f"No project.env for {name}: {env_file}")
     load_dotenv(env_file, override=True)
@@ -172,11 +183,7 @@ def install_release(config: ReleaseConfig):
     # As in deploy.sh: world-writable until Postgres initialises it and takes ownership.
     if host_dir.stat().st_uid == os.geteuid():
         host_dir.chmod(0o777)
-    values = [
-        arg
-        for path in sorted((experiments_dir() / "projects").glob("*/values.yaml"))
-        for arg in ("-f", str(path))
-    ]
+    values = [arg for name in experiment_names() for arg in ("-f", str(experiment_dir(name) / "values.yaml"))]
     run([
         "helm", "upgrade", "--install", RELEASE, str(experiments_dir() / "chart"),
         "--namespace", NAMESPACE, "--create-namespace", *values, "--wait", "--timeout", "5m",
@@ -191,7 +198,7 @@ def release_installed() -> bool:
 
 def seed_database(name: str, database: Database):
     """Load the project's seed SQL, which recreates its schemas. As the project's role over the pod's local socket, so no port-forward is needed."""
-    sql = run([str(project_dir(name) / "seed.sh")], stdout=subprocess.PIPE, text=True).stdout
+    sql = run([str(experiment_dir(name) / "seed.sh")], stdout=subprocess.PIPE, text=True).stdout
     run(
         [
             "kubectl", "exec", "-i", "-n", NAMESPACE, "deploy/db-datasets", "--",
@@ -234,21 +241,21 @@ def seed_command(name):
 
 @experiment_group.command("setup")
 @name_argument
-def setup_command(name):
+@context_option
+def setup_command(name, context):
     """
     Register NAME in the node, against its database on the experiments release (`up`): check that its
-    bootstrap.yaml names the database and secret of its values.yaml, then `fncli apply` it (the dataset and its
-    secret), then the node file with its project and repositories if it has one. Safe to rerun.
+    dataset.yaml names the database and secret of its values.yaml, then `fncli apply` it (the dataset and its
+    secret), then the node files with its global resources and its project if it has them. Safe to rerun.
     """
     database = load_database(name)
     require_release()
     logger.info(f"=== Setting up dataset {database.name} ===")
-    # Its login is generated by the chart: bootstrap.yaml reads it back from the chart's secret
-    apply_node_file(bootstrap_file(name), None, yes=True)
-    project = project_node_file(name)
-    if project:
-        logger.info(f"=== Setting up node project from {project.name} ===")
-        apply_node_file(project, None, yes=True)
+    # Its login is generated by the chart: dataset.yaml reads it back from the chart's secret
+    apply_node_file(context, dataset_file(name), None, yes=True)
+    for path in node_files(name):
+        logger.info(f"=== Setting up node resources from {path.name} ===")
+        apply_node_file(context, path, None, yes=True)
 
 
 @experiment_group.command("build")
@@ -260,7 +267,7 @@ def build_command(name):
     command = [
         "docker", "buildx", "bake",
         "-f", str(repo / "docker-bake.hcl"),
-        "-f", str(project_dir(name) / "docker-bake.hcl"),
+        "-f", str(experiment_dir(name) / "docker-bake.hcl"),
         f"{name}-fn", "--push",
     ]
     run(command, cwd=repo)
@@ -268,31 +275,42 @@ def build_command(name):
 
 @experiment_group.command("run")
 @name_argument
+@context_option
 @click.option("--local", is_flag=True, help="Run the image in docker against its database, with no node.")
 @click.pass_context
-def run_command(ctx, name, local):
+def run_command(ctx, name, context, local):
     """
-    Open and merge a trigger PR for NAME's image and watch its task. With --local, run the
+    Open and merge a trigger PR with NAME's trigger.json and watch its task. With --local, run the
     image in docker against its database instead, with no node. The project's DEV_ENV is
-    passed to the task; FULL=1 leaves it out.
+    added to the task's env; FULL=1 leaves it out.
     """
     config = load_project(name)
+    trigger = json.loads(trigger_file(name).read_text())
     if local:
-        run_local(name, config)
+        run_local(name, config, trigger["spec"]["image"])
         return
+    project_file = project_node_file(name)
+    if project_file is None:
+        raise click.ClickException(f"{name} has no node project: bootstrap/examples/projects/{name}.yaml")
+    spec = load_node_file(project_file).projects[0]
+    api = open_target(context)
+    if api.find_project(spec.name) is None:
+        raise click.ClickException(f"Project {spec.name} is not on the node: run `fncli experiment setup {name}` first")
+    with quiet_backend_logs():
+        state = read_state(api)
     # The pull request's names are the node project's, not whatever .dev.env has for the dev project
-    node = load_node_file(require_project_node_file(name))
-    os.environ.update(step_env(node, node.projects[0]))
+    os.environ.update(step_env(context, spec, state))
     ctx.invoke(start_sensor_command, group="all", name=None)
     env = task_env(config)
     logger.info(f"Task env: {json.dumps(env)}")
-    if env:
-        os.environ["TEST_PR_ENV"] = json.dumps(env)
-    os.environ["TEST_PR_IMAGE"] = config.image
-    ctx.invoke(open_pr_command, kind="watched", merge=True, watch=True, timeout=config.run_timeout)
+    trigger["spec"]["env"] = {**trigger["spec"].get("env", {}), **env}
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "trigger.json"
+        path.write_text(json.dumps(trigger))
+        trigger_pr(spec.name, path, merge=True, watch=True, timeout=config.run_timeout)
 
 
-def run_local(name: str, config: ExperimentConfig):
+def run_local(name: str, config: ExperimentConfig, image: str):
     """NAME's image in docker against its database through a port-forward. Results go to experiments/results/NAME."""
     database = load_database(name)
     password = get_k8s_secret(database.secret_name, NAMESPACE, "password")
@@ -326,54 +344,55 @@ def run_local(name: str, config: ExperimentConfig):
             "-e", f"WRITE_SCHEMA={database.write_schema}",
             "-e", "ARTIFACT_PATH=/artifacts",
             "-v", f"{out_dir}:/artifacts",
-            config.image,
+            image,
         ])
     finally:
         port_forward.terminate()
 
 
-def project_names() -> list[str]:
-    """Every experiment: the folders under experiments/projects with a bootstrap.yaml."""
-    return sorted(path.parent.name for path in (experiments_dir() / "projects").glob("*/bootstrap.yaml"))
+def experiment_names() -> list[str]:
+    """Every experiment: the folders under experiments/ with a dataset.yaml."""
+    return sorted(path.parent.name for path in experiments_dir().glob("*/dataset.yaml"))
 
 
-def teardown_project(name: str):
+def teardown_experiment(context: Context, name: str):
     """
-    Remove what `setup` registered for NAME, in reverse: the node project with its global resources, then the dataset
+    Remove what `setup` registered for NAME, in reverse: the node project, then its global resources, then the dataset
     with its secret (`fncli delete --all` of each file). The dataset is refused, and the command exits 1, while a project
     outside these files (a demo project, say) is still assigned it. Gitea is left alone.
     """
-    project = project_node_file(name)
-    if project:
-        logger.info(f"=== Tearing down node project from {project.name} ===")
-        delete_node_file(project, with_globals=True, yes=True)
+    for path in reversed(node_files(name)):
+        logger.info(f"=== Tearing down node resources from {path.name} ===")
+        delete_node_file(context, path, with_globals=True, yes=True)
     logger.info(f"=== Tearing down dataset of {name} ===")
-    delete_node_file(bootstrap_file(name), with_globals=True, yes=True)
+    delete_node_file(context, dataset_file(name), with_globals=True, yes=True)
 
 
 @experiment_group.command("teardown")
 @name_argument
+@context_option
 @click.confirmation_option("-y", "--yes", prompt="Delete the experiment's node project (if any), its dataset and their secrets from the node?")
-def teardown_command(name):
+def teardown_command(name, context):
     """
     Remove what `setup` registered in the node for NAME: its project, global resources and dataset. The Gitea repos
     and OAuth apps, the experiments release and NAME's database stay. Safe to rerun.
     """
-    teardown_project(name)
+    teardown_experiment(context, name)
 
 
 @experiment_group.command("down")
+@context_option
 @click.confirmation_option(
     "-y", "--yes", prompt="Tear down every experiment's node project and uninstall the experiments release?"
 )
-def down_command():
+def down_command(context):
     """
     Tear down every experiment's node project and dataset, then uninstall the experiments release. The
     secrets and database files stay, so a later `setup` gets the same data back. It stops, and leaves the release,
     if a dataset is still assigned to a project it does not tear down (delete the demo projects first).
     """
-    for name in project_names():
-        teardown_project(name)
+    for name in experiment_names():
+        teardown_experiment(context, name)
     run(["helm", "uninstall", RELEASE, "--namespace", NAMESPACE])
 
 
