@@ -130,6 +130,26 @@ if [ "$COMMAND" = "up" ]; then
 ###############################################################################
 elif [ "$COMMAND" = "down" ]; then
   echo
+  # The chart-generated password secrets die with the cluster, so the database files under
+  # /data must too: Postgres keeps the password it was first initialised with, and the next
+  # `up` would make new secrets that no longer match. Wiped from inside the node because
+  # the files belong to the containers' uids (postgres is 70), as in teardown.sh.
+  echo "=== Wiping Local PV Data ================================================"
+  if kubectl --context "kind-$CLUSTER_NAME" get nodes >/dev/null 2>&1; then
+    kubectl --context "kind-$CLUSTER_NAME" delete pod fn-data-wipe -n default --ignore-not-found >/dev/null 2>&1
+    kubectl --context "kind-$CLUSTER_NAME" run fn-data-wipe -n default --rm -i --restart=Never \
+      --image=busybox:1.36 --quiet \
+      --overrides='{"spec":{"containers":[{"name":"fn-data-wipe","image":"busybox:1.36",
+        "command":["sh","-c","find /host -mindepth 1 -maxdepth 1 -exec rm -rf {} +; echo remaining entries: $(ls -A /host | wc -l)"],
+        "securityContext":{"runAsUser":0},
+        "volumeMounts":[{"name":"host","mountPath":"/host"}]}],
+        "volumes":[{"name":"host","hostPath":{"path":"/data"}}]}}'
+  else
+    echo "No cluster reachable, so nothing was wiped. $FN_DATA_DIR is still on disk:"
+    echo "delete it before the next up (sudo rm -rf $FN_DATA_DIR)."
+  fi
+
+  echo
   echo "=== Deleting Kind Cluster ==============================================="
   kind delete cluster --name "$CLUSTER_NAME" || true
 
