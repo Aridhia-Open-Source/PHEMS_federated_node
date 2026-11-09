@@ -1,8 +1,8 @@
 """
 `fncli experiment` runs real experiments against the dev node, see experiments/README.md. Each experiment is a folder
-experiments/projects/NAME/ that holds its database for the chart (values.yaml), its seed, its image, its dataset as a
+experiments/projects/NAME/ that holds its database for the chart (values.yaml), its seed, its image and docker-bake.hcl, its dataset as a
 node file (bootstrap.yaml, which `setup` applies after checking it against values.yaml and `teardown` deletes), and
-project.env with the settings of `build` and `run` only (no secrets; it wins over .dev.env and the shell). Its node
+project.env with the settings of `run` only (no secrets; it wins over .dev.env and the shell). Its node
 project and repositories are in the node file bootstrap/examples/experiments/NAME.yaml, if it has one: `setup` applies
 it after the dataset and `teardown` deletes it first. `up`, `seed`, `setup`, `run` and `teardown` can be repeated after
 a failure.
@@ -46,11 +46,10 @@ class ReleaseConfig(EnvConfig):
 
 
 class ExperimentConfig(ReleaseConfig):
-    """What project.env sets for building and running the experiment, and the host settings that can be set in the env."""
+    """What project.env sets for running the experiment, and the host settings that can be set in the env."""
 
+    # The image `build` pushes, from the project's docker-bake.hcl, and `run` puts in the pull request
     image: str = Field(default="", alias="IMAGE")
-    # Relative to experiments/
-    source_dir: str = Field(default="", alias="SOURCE_DIR")
     run_timeout: int = Field(default=0, alias="RUN_TIMEOUT")
     # Extra env for the task, as JSON, e.g. '{"EXAMPLE_FLAG": "1"}': set in the shell, not in project.env
     dev_env: dict[str, str] = Field(default={}, alias="DEV_ENV", validate_default=False)
@@ -255,10 +254,16 @@ def setup_command(name):
 @experiment_group.command("build")
 @name_argument
 def build_command(name):
-    """Build NAME's image from its source and push it to the kind registry."""
-    config = load_project(name)
-    run(["docker", "build", "-t", config.image, str(experiments_dir() / config.source_dir)])
-    run(["docker", "push", config.image])
+    """Build NAME's image with the project's docker-bake.hcl and push it to the kind registry."""
+    repo = experiments_dir().parent
+    # Bake contexts are relative to the repo root
+    command = [
+        "docker", "buildx", "bake",
+        "-f", str(repo / "docker-bake.hcl"),
+        "-f", str(project_dir(name) / "docker-bake.hcl"),
+        f"{name}-fn", "--push",
+    ]
+    run(command, cwd=repo)
 
 
 @experiment_group.command("run")

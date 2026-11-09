@@ -26,7 +26,6 @@ NODE = {"url": "http://localhost:5000", "kube_context": "kind-fn", "keycloak_nam
 
 PROJECT_ENV = """\
 IMAGE=localhost:5001/x-fn:latest
-SOURCE_DIR=sources/x
 RUN_TIMEOUT=60
 """
 
@@ -161,7 +160,7 @@ def test_the_project_env_wins_over_the_shell_and_the_rest_of_the_env_is_left_alo
 
     assert os.environ["IMAGE"] == "localhost:5001/x-fn:latest"
     assert os.environ["TEST_PROJECT_NAME"] == "fn-dev"
-    assert (config.image, config.source_dir, config.run_timeout) == ("localhost:5001/x-fn:latest", "sources/x", 60)
+    assert (config.image, config.run_timeout) == ("localhost:5001/x-fn:latest", 60)
     assert config.dev_env == {}
 
 
@@ -196,7 +195,7 @@ def test_the_committed_project_envs_hold_the_run_settings_only():
             if line and not line.startswith("#"):
                 key, _, value = line.partition("=")
                 values[key] = value
-        assert set(values) - {"RESOURCES"} == {"SOURCE_DIR", "IMAGE", "RUN_TIMEOUT"}
+        assert set(values) - {"RESOURCES"} == {"IMAGE", "RUN_TIMEOUT"}
         assert int(values["RUN_TIMEOUT"]) == timeout
     assert not (EXPERIMENTS / "demo" / "project.env").exists()
 
@@ -413,13 +412,13 @@ def test_run_of_an_experiment_with_no_node_project_is_an_error_before_anything_s
     assert steps == []
 
 
-def test_build_builds_and_pushes_the_image(repo, commands):
+def test_build_bakes_the_projects_image_from_the_repo_root_and_pushes_it(repo, commands):
     invoke("build", "x")
 
     assert commands.lines == [
-        f"docker build -t localhost:5001/x-fn:latest {repo}/experiments/sources/x",
-        "docker push localhost:5001/x-fn:latest",
+        f"docker buildx bake -f {repo}/docker-bake.hcl -f {repo}/experiments/projects/x/docker-bake.hcl x-fn --push"
     ]
+    assert commands.calls[0][1]["cwd"] == repo
 
 
 def test_teardown_deletes_the_node_project_first_and_then_the_dataset_with_the_globals(commands, steps):

@@ -16,8 +16,9 @@ from the federated-node chart. The node only sees the dataset that fncli registe
 | `projects/NAME/values.yaml` | yes | the project's `dbs.NAME` entry for the chart: it makes the database, the role and the `db-datasets-NAME` secret (`username` and `password`) |
 | `projects/NAME/bootstrap.yaml` | yes | a node file with only the dataset and its secret, read from the chart's secret: no project, no repos |
 | `projects/NAME/seed.sh`, `seed/` | yes | prints the SQL that seeds the database (or what it needs); must be safe to rerun |
-| `projects/NAME/image/` | yes | the task image, when it lives here (demo, attacker) |
-| `projects/NAME/project.env` | yes | the settings of `build` and `run` only: `SOURCE_DIR`, `IMAGE`, `RUN_TIMEOUT`; wins over `.dev.env` and the shell |
+| `projects/NAME/docker-bake.hcl` | yes | the `NAME-fn` bake target: builds the task image from `image/` (demo, attacker) or the cloned source (uc1), tagged `localhost:5001/NAME-fn`. `make deploy` and `make images` build it (uc1 only when its source is there); `fncli experiment build NAME` builds just this one and pushes it |
+| `projects/NAME/image/` | no | the task image's source, when it lives here (demo, attacker) |
+| `projects/NAME/project.env` | yes | the settings of `run` only: `IMAGE` (what the bake file builds), `RUN_TIMEOUT`; wins over `.dev.env` and the shell |
 | `bootstrap/examples/experiments/NAME.yaml` | yes | the node file with the experiment's project, global repositories and Gitea repos, and the dataset by name (uc1, attacker) |
 | `sources/NAME/` | no | the image's build context (often its own git repo) |
 | `results/NAME/` | no | output of `run --local` |
@@ -64,7 +65,7 @@ no `DEV_ENV`, or with `FULL=1`, `run` is the whole thing.
 3. Run `fncli experiment up` (it upgrades the release with the new database, so this works
    on a running cluster), then `build NAME`, `seed NAME`, `setup NAME` and `run NAME`.
 
-`projects/demo` is a no-op demo database (`demo-db`, user `demo_user`, a tiny `cdm.person` table and an empty `results` schema). It has no node project of its own, and no `project.env`: the demo node files (`bootstrap/examples/demo-gitea.yaml`, `demo-github.yaml`) hold the project and repos and assign the dataset by name (`datasets: [demo-db]`). Its task image is at `experiments/projects/demo/image`, built by `build_all_images.sh` as `demo-fn`.
+`projects/demo` is a no-op demo database (`demo-db`, user `demo_user`, a tiny `cdm.person` table and an empty `results` schema). It has no node project of its own, and no `project.env`: the demo node files (`bootstrap/examples/demo-gitea.yaml`, `demo-github.yaml`) hold the project and repos and assign the dataset by name (`datasets: [demo-db]`). Its task image is at `experiments/projects/demo/image`, built by its `docker-bake.hcl` as `demo-fn`.
 
 ```bash
 fncli experiment up                          # the release: databases, roles, secrets

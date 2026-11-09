@@ -166,7 +166,7 @@ No CA files or `cadir` are needed: nothing in the repo's scripts, Tiltfile or ch
    make deploy
    ```
 
-   It claims the dev cluster, renders the chart as a check, builds and pushes every image to `localhost:5001` (including `demo-fn`, the demo's task image, so there is no separate build step), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). The first run is slow because Docker has no cache yet. At the end it prints the database passwords the chart generated.
+   It claims the dev cluster, renders the chart as a check, builds and pushes every image to `localhost:5001` (including `demo-fn`, the demo's task image, so there is no separate build step; they are `docker buildx bake` targets in `docker-bake.hcl`), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). The first run is slow because Docker has no cache yet. At the end it prints the database passwords the chart generated.
 
    `make deploy` runs `helm install`, so a second run on a live release fails. Use `make upgrade` for chart changes, or `make teardown` first (step 11). It also stops a running Tilt, so deploy first and start Tilt after.
 

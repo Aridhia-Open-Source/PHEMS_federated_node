@@ -28,7 +28,7 @@ failure from a node one.
 | Step | What it does | Where |
 |---|---|---|
 | `up` | helm upgrade of the `experiments` release: Postgres, database `uc1-omop`, role `uc1_omop_user`, generated password | namespace `experiments` |
-| `build` | `docker build experiments/sources/uc1`, push to the kind registry | host Docker |
+| `build` | `docker buildx bake` with `projects/uc1/docker-bake.hcl`: builds `experiments/sources/uc1`, pushes `uc1-fn` to the kind registry | host Docker |
 | `seed` | checks the release is up, loads the synthetic OMOP data over `kubectl exec` (recreating its schemas) | namespace `experiments` |
 | `setup` | checks the release is up, then `fncli apply -f bootstrap/examples/experiments/uc1.yaml -y`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | backend + Gitea |
 | `run` | starts the sensors, opens and merges a spec PR, watches the task and the results PR | Gitea + Dagster |
