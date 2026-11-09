@@ -129,6 +129,9 @@ if [ "$COMMAND" = "up" ]; then
 # DOWN - Tear down cluster
 ###############################################################################
 elif [ "$COMMAND" = "down" ]; then
+  # Refuse to delete a cluster another worktree owns (skipped when no cluster is reachable).
+  kubectl cluster-info >/dev/null 2>&1 && ./scripts/deploy_owner.sh check
+
   echo
   echo "=== Deleting Kind Cluster ==============================================="
   kind delete cluster --name "$CLUSTER_NAME" || true
