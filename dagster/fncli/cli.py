@@ -1,7 +1,9 @@
 """
-Federated node dev tooling. `.dev.env` is found by searching up from the current directory:
+Federated node dev tooling. `.dev.env` is found by searching up from the current directory, and
+--env-file (or FNCLI_ENV_FILE) names a second env file that wins over it, e.g. to run on GitHub:
 
     fncli --help
+    fncli --env-file .demo-github.env verify-git-secret
 """
 
 import logging
@@ -14,9 +16,18 @@ from fncli.cmds import actions, dataset, demo, experiment, hello_world, pr, proj
 
 
 @click.group()
-def cli():
+@click.option(
+    "--env-file", envvar="FNCLI_ENV_FILE", default=None,
+    help="An env file, found from the current directory up, that wins over .dev.env and the shell, e.g. .demo-github.env to run on GitHub.",
+)
+def cli(env_file):
     sys.stdout.reconfigure(line_buffering=True)
     load_dotenv(find_dotenv(".dev.env", usecwd=True))
+    if env_file:
+        path = find_dotenv(env_file, usecwd=True)
+        if not path:
+            raise click.ClickException(f"{env_file} not found. From the repo root: cp {env_file}.example {env_file}")
+        load_dotenv(path, override=True)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",

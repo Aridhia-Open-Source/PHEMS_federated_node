@@ -158,7 +158,7 @@ def test_disabled_provider_makes_its_repositories_inactive(
     T = global_trigger_repo.id
     elsewhere = make_trigger_repo(uri="git.example.com/org/elsewhere")  # a repository on another provider
     elsewhere_resource = f"/projects/{project.id}/repositories/triggers/{elsewhere.id}"
-    assert client.put(elsewhere_resource, json={"watch_dir": "e"}, headers=admin_headers).status_code == 201
+    assert client.put(elsewhere_resource, json={"watch_dir": "e", "base_branch": "main"}, headers=admin_headers).status_code == 201
     trigger_resources = f"/projects/{project.id}/repositories/triggers"
     results_resources = f"/projects/{project.id}/repositories/results"
     active = lambda url: [x["active"] for x in client.get(url, headers=admin_headers).json()]  # noqa: E731
@@ -256,7 +256,8 @@ def test_a_revoked_provider_makes_its_repositories_inactive_unpollable_and_refus
     T = global_trigger_repo.id
     elsewhere = make_trigger_repo(uri="git.example.com/org/elsewhere")  # a repository on another provider
     assert client.put(
-        f"/projects/{project.id}/repositories/triggers/{elsewhere.id}", json={"watch_dir": "e"}, headers=admin_headers
+        f"/projects/{project.id}/repositories/triggers/{elsewhere.id}", json={"watch_dir": "e", "base_branch": "main"},
+        headers=admin_headers
     ).status_code == 201
     trigger_resources = f"/projects/{project.id}/repositories/triggers"
     results_resources = f"/projects/{project.id}/repositories/results"

@@ -37,8 +37,8 @@ FINAL = PAST_PUSHED | {PullRequestResultStep.REVOKED, PullRequestResultStep.STAL
 class ResultsDelivery:
     """
     Zips a task's artifacts and pushes them with the pull request's spec file and a run.json to a new
-    branch of the project's results repository, opens a pull request from it into the repository's
-    default branch, and records each step on the task's result as soon as it is done.
+    branch of the project's results repository, opens a pull request from it into the assignment's
+    base_branch, and records each step on the task's result as soon as it is done.
     Delivery never touches the task's own status.
     """
 
@@ -56,7 +56,7 @@ class ResultsDelivery:
         past PUSHED is left alone, and one in UNKNOWN or PUSHED resumes, a FAILED one back to
         IN_PROGRESS: a branch already on the remote is not pushed again, and its pull request
         is looked up before one is opened.
-        Where to deliver (the results repository's id and the target_dir) comes from the task's pinned
+        Where to deliver (the results repository's id, its base_branch and the target_dir) comes from the task's pinned
         configuration, not from the project's results resource, which may be deleted by now. The backend's
         POST /results is the only gate: no result is created when it refuses with a 409 (the task is not
         SUCCESS) and a 404 (the project, task or results repository is gone) is final: both are logged and
@@ -104,7 +104,8 @@ class ResultsDelivery:
         try:
             pull_request = self._find_pull_request(task)
             title = f"{pull_request.trigger_repository.repo_path} PR{pull_request.number} - task {task.id} - results"
-            branch, commit_sha, base_branch = self._push(task, run_id, repository, results["target_dir"], pull_request.trigger_repository, pull_request, title)
+            base_branch = results["base_branch"]
+            branch, commit_sha = self._push(task, run_id, repository, base_branch, results["target_dir"], pull_request.trigger_repository, pull_request, title)
             pushed = {"branch": branch, "commit_sha": commit_sha}
             self.backend_api.patch_result(task.project_id, result.id, {"step": PullRequestResultStep.PUSHED.value, **pushed})
             results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request, task.project_id)
@@ -145,15 +146,16 @@ class ResultsDelivery:
         task: Task,
         run_id: str,
         repository: ResultsRepository,
+        base_branch: str,
         target_dir: str,
         trigger_repository: TriggerRepositoryRef,
         pull_request: TaskTrigger,
         message: str,
-    ) -> tuple[str, str, str]:
+    ) -> tuple[str, str]:
         """
-        Push the results to their branch and return the branch, its commit sha and the
-        repository's default branch. The branch name is fixed by the layout and the merge sha,
-        so a branch already on the remote is from an earlier attempt and is not pushed again.
+        Push the results to a new branch of base_branch and return the branch and its commit sha.
+        The branch name is fixed by the layout and the merge sha, so a branch already on the remote
+        is from an earlier attempt and is not pushed again.
         """
         # Asked for here, just before the git commands that need it: it lasts an hour
         env = git_push.auth_env(self.backend_api.get_repository_token("results", repository.id, task.project_id).token)
@@ -167,13 +169,12 @@ class ResultsDelivery:
             clone_dir = Path(work) / "repo"
             git_push.clone(
                 git_push.clone_url(repository.provider.uri, repository.repo_path),
-                clone_dir, env,
+                base_branch, clone_dir, env,
             )
-            base_branch = git_push.current_branch(clone_dir)
             commit_sha = git_push.remote_branch_sha(clone_dir, branch, env)
             if commit_sha:
                 self.log.info(f"Branch {branch} is already pushed at {commit_sha}")
-                return branch, commit_sha, base_branch
+                return branch, commit_sha
 
             artifacts = Path(self.config.artifact_mount_path) / run_id
             if artifacts.is_symlink() or not artifacts.is_dir():
@@ -213,7 +214,7 @@ class ResultsDelivery:
             )
             (out_dir / RUN_NAME).write_text(run.model_dump_json(indent=2) + "\n")
 
-            return branch, git_push.commit_and_push(clone_dir, message, env), base_branch
+            return branch, git_push.commit_and_push(clone_dir, message, env)
 
     def _open_pull_request(
         self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: TaskTrigger,

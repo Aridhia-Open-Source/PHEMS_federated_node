@@ -42,6 +42,19 @@ def test_target_dir_is_only_for_the_results_resource(calls):
         state.set_resource(MagicMock(), "p", "trigger", None, None, None, target_dir="x/")
 
 
+@pytest.mark.parametrize("kind", ["trigger", "results"])
+def test_base_branch_is_sent_for_the_trigger_and_results_resources(calls, kind):
+    state.set_resource(MagicMock(), "p", kind, None, None, None, base_branch="release")
+
+    ((_, method, _, kwargs),) = calls
+    assert (method, kwargs["json"]) == ("PATCH", {"base_branch": "release"})
+
+
+def test_base_branch_is_not_for_a_dataset_resource(calls):
+    with pytest.raises(Exception, match="trigger and results"):
+        state.set_resource(MagicMock(), "p", "dataset", None, None, None, base_branch="release")
+
+
 def test_enabling_a_project_with_backfill_sends_both(calls):
     state.set_project(MagicMock(), "p", "true", True, None)
 
@@ -135,7 +148,7 @@ def test_second_project_is_created_disabled_assigned_then_enabled(monkeypatch):
     monkeypatch.setattr(state, "find_project", lambda api, name: SimpleNamespace(id=1))
     monkeypatch.setattr(state, "project_resources", lambda api, pid: {
         "secret": [{"secret": {"label": "s"}}], "dataset": [{"dataset": {"id": 2}}], "trigger": [],
-        "results": [{"results_repository": {"id": 3}, "target_dir": "out"}],
+        "results": [{"results_repository": {"id": 3}, "target_dir": "out", "base_branch": "main"}],
     })
     monkeypatch.setattr(state, "call", respond)
 
@@ -144,3 +157,4 @@ def test_second_project_is_created_disabled_assigned_then_enabled(monkeypatch):
     assert sent[0] == ("POST", "/projects", {"name": "two"})  # no enabled: a new project is disabled
     assert sent[-1] == ("PATCH", "/projects/5", {"enabled": True})
     assert [method for method, _, _ in sent[1:-1]] == ["PUT", "PUT", "PUT"]
+    assert sent[3][2] == {"target_dir": "out", "base_branch": "main"}

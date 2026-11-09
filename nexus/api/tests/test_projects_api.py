@@ -176,7 +176,7 @@ def test_resource_changes_ignore_tasks_in_flight(client, admin_headers, project,
 
 def test_assigning_a_trigger_repository_to_an_enabled_project_is_201(client, admin_headers, project, global_trigger_repo):
     response = client.put(f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}",
-                          json={"watch_dir": "triggers"}, headers=admin_headers)
+                          json={"watch_dir": "triggers", "base_branch": "main"}, headers=admin_headers)
     assert response.status_code == 201
 
 

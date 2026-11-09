@@ -103,7 +103,7 @@ class TriggerResourceMachine(RuleBasedStateMachine):
         project = self.call("post", "/projects", {"name": "Stateful", "enabled": True})
         assert project.status_code == 201, project.json()
         self.project_id = project.json()["id"]
-        resource = self.call("put", self.resource_url, {"watch_dir": WATCH_DIR})
+        resource = self.call("put", self.resource_url, {"watch_dir": WATCH_DIR, "base_branch": "main"})
         assert resource.status_code == 201, resource.json()
 
         # The model, started from what the API reports: only the facts, not the rules, are read back

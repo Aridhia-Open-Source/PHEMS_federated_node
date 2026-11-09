@@ -409,12 +409,8 @@ def run_step(ctx: click.Context, config: ProjectConfig, step: Step):
     "--from", "from_step", type=click.IntRange(min=1), default=1, show_default=True,
     help="Start at this step.",
 )
-@click.option(
-    "--env-file", default=".demo.env", show_default=True,
-    help="The demo's names, found from the current directory up. .demo-github.env runs it on GitHub.",
-)
 @click.pass_context
-def demo_command(ctx, yes_to_all, from_step, env_file):
+def demo_command(ctx, yes_to_all, from_step):
     """
     Set up everything needed to watch a Gitea repo with fncli, then prove it works, one step
     at a time. Before each step it says what the step creates (a global object, a project
@@ -422,19 +418,20 @@ def demo_command(ctx, yes_to_all, from_step, env_file):
 
     Every step is idempotent, so the demo can be rerun. A failing step stops it: rerun with
     --from N. The names it uses are in .demo.env in the repo root (cp .demo.env.example
-    .demo.env); the cluster addresses come from .dev.env. After each step it shows what the
+    .demo.env, or the file of fncli --env-file, which .demo-github.env uses to run it on GitHub); the cluster
+    addresses come from .dev.env. After each step it shows what the
     step made (links to open in the browser, and the backend objects as JSON). After a step
     that changes the project it waits for the change to show, polling every second.
 
     Needs the dev cluster with Tilt running and the Dagster sensors already running.
     """
-    path = find_dotenv(env_file, usecwd=True)
-    if not path:
-        raise click.ClickException(
-            f"{env_file} not found. From the repo root: cp {env_file}.example {env_file}"
-        )
-    # The group has loaded .dev.env without overriding what is set: the demo's names must win.
-    load_dotenv(path, override=True)
+    # Without fncli --env-file the demo's names are in .demo.env. The group has loaded .dev.env without
+    # overriding what is set: the demo's names must win.
+    if not ctx.find_root().params.get("env_file"):
+        path = find_dotenv(".demo.env", usecwd=True)
+        if not path:
+            raise click.ClickException(".demo.env not found. From the repo root: cp .demo.env.example .demo.env")
+        load_dotenv(path, override=True)
     config = ProjectConfig()
     click.echo(
         "Demo project: {TEST_PROJECT_NAME}. Trigger repo: {TEST_TRIGGER_REPO}. "

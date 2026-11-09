@@ -21,10 +21,10 @@ def test_full_flow(client, admin_headers, system_headers, k8s_client, disabled_p
     # 5-7. Assign secret, dataset and trigger repository (the project is still disabled)
     call("put", f"/projects/{pid}/secrets/e2e-creds", 201, json={})
     call("put", f"/projects/{pid}/datasets/{D}", 201, json={})
-    call("put", f"/projects/{pid}/repositories/triggers/{T}", 201, json={"watch_dir": "triggers"})
+    call("put", f"/projects/{pid}/repositories/triggers/{T}", 201, json={"watch_dir": "triggers", "base_branch": "main"})
 
     # 8. Assign the results repository (the project must still be disabled)
-    call("put", f"/projects/{pid}/repositories/results/{R}", 201, json={"target_dir": "results"})
+    call("put", f"/projects/{pid}/repositories/results/{R}", 201, json={"target_dir": "results", "base_branch": "main"})
 
     # 9-10. Enable the project
     body = call("patch", f"/projects/{pid}", 200, json={"enabled": True})

@@ -1090,7 +1090,7 @@
           "projects"
         ],
         "summary": "Put Project Results Repository",
-        "description": "PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global\nresults repository to the project, which has one, 201, and replaces the project's settings\nif it is assigned already, 200. Assigning needs the project disabled. A change of target_dir\nis caught by the configuration snapshot of the tasks created before, which then fail\ninstead of delivering there.\nBody: {\"target_dir\": \"results\", \"owned_by_federated_node\": true, \"enabled\": true}, the last\ntwo are optional.",
+        "description": "PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global\nresults repository to the project, which has one, 201, and replaces the project's settings\nif it is assigned already, 200. Assigning needs the project disabled. A change of target_dir\nor base_branch is caught by the configuration snapshot of the tasks created before, which then\nfail instead of delivering there.\nBody: {\"target_dir\": \"results\", \"base_branch\": \"main\", \"owned_by_federated_node\": true, \"enabled\": true};\ntarget_dir and base_branch are required, the last two are optional.",
         "operationId": "put_project_results_repository_projects__project_id__repositories_results__repository_id__put",
         "parameters": [
           {
@@ -1113,12 +1113,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ProjectResultsRepositoryRequest"
               }
             }
           }
@@ -1151,7 +1150,7 @@
           "projects"
         ],
         "summary": "Patch Project Results Repository",
-        "description": "PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where\nthe project's results go (target_dir, owned_by_federated_node), at any time (the tasks created\nbefore fail instead of delivering to the new place), or turns the project resource on or\noff (enabled), or revokes and re-grants it\n(revoked), which is admin only and takes effect at once.",
+        "description": "PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where\nthe project's results go (target_dir, base_branch, owned_by_federated_node), at any time (the tasks created\nbefore fail instead of delivering to the new place), or turns the project resource on or\noff (enabled), or revokes and re-grants it\n(revoked), which is admin only and takes effect at once.",
         "operationId": "patch_project_results_repository_projects__project_id__repositories_results__repository_id__patch",
         "parameters": [
           {
@@ -1174,12 +1173,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ProjectResultsRepositoryPatchRequest"
               }
             }
           }
@@ -3481,7 +3479,7 @@
           "project_trigger_repositories"
         ],
         "summary": "Put Project Trigger Repository",
-        "description": "PUT /projects/<project_id>/repositories/triggers/<repo_id> \u2014 assigns a global trigger\nrepository to the project, 201, or replaces the project's settings if it is assigned already,\n200: a change of\nwatch_dir or base_branch applies at once. A new watcher does not touch work in\nflight. Fields left out take their defaults. The cursor is set when\nthe project resource is created, after the latest pull request stored, and stays where it is.\nBody: {\"watch_dir\": \"triggers\", \"base_branch\": \"main\", \"enabled\": true}; watch_dir is\nrequired, the rest optional.",
+        "description": "PUT /projects/<project_id>/repositories/triggers/<repo_id> \u2014 assigns a global trigger\nrepository to the project, 201, or replaces the project's settings if it is assigned already,\n200: a change of\nwatch_dir or base_branch applies at once. A new watcher does not touch work in\nflight. The cursor is set when\nthe project resource is created, after the latest pull request stored, and stays where it is.\nBody: {\"watch_dir\": \"triggers\", \"base_branch\": \"main\", \"enabled\": true}; watch_dir and\nbase_branch are required, enabled is optional and defaults to true.",
         "operationId": "put_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__put",
         "parameters": [
           {
@@ -3504,12 +3502,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ProjectTriggerRepositoryRequest"
               }
             }
           }
@@ -3615,12 +3612,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ProjectTriggerRepositoryPatchRequest"
               }
             }
           }
@@ -6757,6 +6753,10 @@
             "type": "string",
             "title": "Target Dir"
           },
+          "base_branch": {
+            "type": "string",
+            "title": "Base Branch"
+          },
           "owned_by_federated_node": {
             "type": "boolean",
             "title": "Owned By Federated Node"
@@ -6779,6 +6779,7 @@
           "project_id",
           "results_repository",
           "target_dir",
+          "base_branch",
           "owned_by_federated_node",
           "enabled",
           "revoked",
@@ -6801,6 +6802,10 @@
             "type": "string",
             "title": "Target Dir"
           },
+          "base_branch": {
+            "type": "string",
+            "title": "Base Branch"
+          },
           "enabled": {
             "type": "boolean",
             "title": "Enabled"
@@ -6822,12 +6827,109 @@
           "project_id",
           "owned_by_federated_node",
           "target_dir",
+          "base_branch",
           "enabled",
           "revoked",
           "active",
           "results_repository"
         ],
         "title": "ProjectResultsRepositoryHealthDTO"
+      },
+      "ProjectResultsRepositoryPatchRequest": {
+        "properties": {
+          "target_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Dir"
+          },
+          "base_branch": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Branch"
+          },
+          "owned_by_federated_node": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owned By Federated Node"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "revoked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProjectResultsRepositoryPatchRequest",
+        "description": "The fields of a project's results repository resource that can be updated, all optional but never null."
+      },
+      "ProjectResultsRepositoryRequest": {
+        "properties": {
+          "target_dir": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Target Dir"
+          },
+          "base_branch": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Base Branch"
+          },
+          "owned_by_federated_node": {
+            "type": "boolean",
+            "title": "Owned By Federated Node",
+            "default": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target_dir",
+          "base_branch"
+        ],
+        "title": "ProjectResultsRepositoryRequest",
+        "description": "A project's resource for a global results repository as assigned: where its results go, and whether it is on."
       },
       "ProjectSecretDTO": {
         "properties": {
@@ -6995,6 +7097,85 @@
           "trigger_repository"
         ],
         "title": "ProjectTriggerRepositoryHealthDTO"
+      },
+      "ProjectTriggerRepositoryPatchRequest": {
+        "properties": {
+          "watch_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watch Dir"
+          },
+          "base_branch": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Branch"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "revoked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProjectTriggerRepositoryPatchRequest",
+        "description": "The fields of a project's trigger repository resource that can be updated, all optional but never null."
+      },
+      "ProjectTriggerRepositoryRequest": {
+        "properties": {
+          "watch_dir": {
+            "type": "string",
+            "title": "Watch Dir"
+          },
+          "base_branch": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Base Branch"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "watch_dir",
+          "base_branch"
+        ],
+        "title": "ProjectTriggerRepositoryRequest",
+        "description": "A project's resource for a global trigger repository as assigned: what it watches, and whether it is on."
       },
       "PullRequestBatchDTO": {
         "properties": {
@@ -7527,6 +7708,10 @@
             "type": "string",
             "title": "Target Dir"
           },
+          "base_branch": {
+            "type": "string",
+            "title": "Base Branch"
+          },
           "status": {
             "type": "string",
             "title": "Status"
@@ -7541,6 +7726,7 @@
           "uri",
           "owned_by_federated_node",
           "target_dir",
+          "base_branch",
           "status",
           "health_check"
         ],

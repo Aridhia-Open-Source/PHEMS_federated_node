@@ -30,7 +30,7 @@ class ProjectTriggerRepository(SoftDeleteMixin, db.Model, BaseModel):
         sa.Integer, sa.ForeignKey('trigger_repositories.id', ondelete='RESTRICT'), nullable=False
     )
     watch_dir = sa.Column(sa.String(4096), nullable=False)
-    base_branch = sa.Column(sa.String(256), nullable=False, default='main')
+    base_branch = sa.Column(sa.String(256), nullable=False)
     initial_cursor = sa.Column(
         sa.DateTime, nullable=False, server_default=func.now(), default=now_ts
     )
@@ -94,7 +94,7 @@ class ProjectTriggerRepository(SoftDeleteMixin, db.Model, BaseModel):
         project_id: int,
         trigger_repository_id: int,
         watch_dir: str,
-        base_branch: str = 'main',
+        base_branch: str,
         enabled: bool = True,
         revoked: bool = False,
     ):

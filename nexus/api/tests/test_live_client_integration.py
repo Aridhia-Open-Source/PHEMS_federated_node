@@ -147,7 +147,7 @@ def world(api, raw):
     results = api.create_results_repository(provider.id, "org/live-results", "live-creds")
     resource_ds = api.get_or_assign_dataset(project.id, dataset)
     resource_trigger = api.get_or_assign_repository(project.id, trigger, "triggers", "main")
-    resource_results = api.get_or_assign_results_repository(project.id, results, "results")
+    resource_results = api.get_or_assign_results_repository(project.id, results, "results", "main")
     project = api.patch_project(project.id, {"enabled": True})
     return dict(
         secret=secret, project=project, dataset=dataset, provider=provider, trigger=trigger, results=results,
@@ -169,7 +169,8 @@ def test_fncli_setup_models_parse(api, world):
     assert isinstance(w["results"], fn_models.ResultsRepository)
     assert w["resource_ds"].active and w["resource_ds"].dataset.id == w["dataset"].id
     assert w["resource_trigger"].watch_dir == "triggers" and w["resource_trigger"].base_branch == "main"
-    assert w["resource_results"].target_dir == "results" and w["resource_results"].results_repository.id == w["results"].id
+    assert w["resource_results"].target_dir == "results" and w["resource_results"].base_branch == "main"
+    assert w["resource_results"].results_repository.id == w["results"].id
 
     # lookups, get_or_* reuse
     assert api.get_dataset(w["dataset"].id).id == w["dataset"].id
@@ -210,7 +211,7 @@ def test_fncli_setup_models_parse(api, world):
         "github.com/org/second-results", provider_id=w["provider"].id, secret_label="live-creds"
     ).uri == "https://github.com/org/second-results"
     assert api.get_project_results_repositories(w["project"].id)[0].target_dir == "results"
-    assert api.get_or_assign_results_repository(w["project"].id, w["results"], "x").target_dir == "results"
+    assert api.get_or_assign_results_repository(w["project"].id, w["results"], "x", "dev").target_dir == "results"
     assert api.get_project_datasets(w["project"].id)[0].dataset.id == w["dataset"].id
     assert api.find_project_dataset("LiveDs", w["project"].id).project_id == w["project"].id
     assert api.find_project_dataset("zzz", w["project"].id) is None

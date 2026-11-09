@@ -107,14 +107,14 @@ def teardown_project_command(ctx):
         ctx.invoke(step, **options)
 
 
-# Backend only: no Gitea call, so the git secrets hold placeholders and the trigger repo
-# watches "main" until setup-gitea issues the tokens.
+# Backend only: no Gitea call, so the git secrets hold placeholders until setup-gitea issues the tokens.
+# The branches come from TEST_TRIGGER_REPO_BASE_BRANCH and TEST_RESULTS_REPO_BASE_BRANCH.
 BACKEND_SETUP_STEPS = [
     (init_backend_project_command, {}),
     (init_backend_secret_command, {"entity": "trigger"}),
     (init_backend_secret_command, {"entity": "results"}),
     (init_backend_secret_command, {"entity": "dataset"}),
-    (init_backend_trigger_repo_command, {"base_branch": "main"}),
+    (init_backend_trigger_repo_command, {}),
     (init_backend_results_repo_command, {}),
     (init_backend_dataset_command, {}),
 ]

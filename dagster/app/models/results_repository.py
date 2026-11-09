@@ -31,6 +31,7 @@ class ProjectResultsRepository(BaseModel):
 
     - project_id: the project the repository is assigned to.
     - results_repository: the global repository.
+    - base_branch: the branch the project's results pull requests go into.
     - target_dir: the directory of the repository the project's results go under.
     - owned_by_federated_node: whether the node owns the repository.
     - enabled: a person turned the repository on for the project.
@@ -41,6 +42,7 @@ class ProjectResultsRepository(BaseModel):
 
     project_id: int
     results_repository: ResultsRepository
+    base_branch: str
     target_dir: str
     owned_by_federated_node: bool
     enabled: bool

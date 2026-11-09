@@ -199,7 +199,7 @@ def test_project_trigger_resource_list_is_ordered_and_404_for_unknown_project(
     repos = [make_trigger_repo(uri=f"github.com/org/l{i}") for i in range(3)]
     for repo in repos:
         put = client.put(f"/projects/{project.id}/repositories/triggers/{repo.id}",
-                         json={"watch_dir": "t"}, headers=admin_headers)
+                         json={"watch_dir": "t", "base_branch": "main"}, headers=admin_headers)
         assert put.status_code == 201
     listed = get(client, admin_headers, f"/projects/{project.id}/repositories/triggers").json()
     assert [i["trigger_repository"]["id"] for i in listed] == [r.id for r in repos]

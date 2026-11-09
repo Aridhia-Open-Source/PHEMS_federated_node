@@ -1,7 +1,7 @@
 def test_assign_global_trigger_repo_and_get_it_back(client, admin_headers, project, global_trigger_repo):
     url = f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}"
 
-    put = client.put(url, json={"watch_dir": "triggers"}, headers=admin_headers)
+    put = client.put(url, json={"watch_dir": "triggers", "base_branch": "main"}, headers=admin_headers)
     assert put.status_code == 201
 
     response = client.get(url, headers=admin_headers)
@@ -14,6 +14,16 @@ def test_admin_routes_live_under_global(client):
     rules = set(client.app.openapi()["paths"])
     assert {"/global/users/", "/global/users/reset-password"} <= rules
     assert not {rule for rule in rules if rule.split("/")[1] in ("users", "registries", "whitelisted_images")}
+
+
+def test_the_openapi_schema_describes_base_branch_of_every_assignment(client):
+    schemas = client.app.openapi()["components"]["schemas"]
+    for name in ("ProjectTriggerRepositoryRequest", "ProjectResultsRepositoryRequest"):
+        assert "base_branch" in schemas[name]["required"]
+    for name in ("ProjectTriggerRepositoryPatchRequest", "ProjectResultsRepositoryPatchRequest"):
+        assert "base_branch" in schemas[name]["properties"]
+    for name in ("ProjectTriggerRepositoryDTO", "ProjectResultsRepositoryDTO"):
+        assert "base_branch" in schemas[name]["required"]
 
 
 def test_reset_password_needs_no_token(client):

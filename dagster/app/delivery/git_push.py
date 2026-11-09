@@ -72,16 +72,11 @@ def zip_dir(src: Path, dest_zip: Path) -> int:
     return file_count
 
 
-def clone(url: str, dest: Path, env: dict[str, str]) -> None:
-    """Shallow-clone the default branch and set the committer."""
-    git(["clone", "--depth=1", url, str(dest)], env=env)
+def clone(url: str, branch: str, dest: Path, env: dict[str, str]) -> None:
+    """Shallow-clone one branch, which is then checked out, and set the committer."""
+    git(["clone", "--depth=1", "--branch", branch, url, str(dest)], env=env)
     git(["config", "user.name", COMMITTER_NAME], cwd=dest)
     git(["config", "user.email", COMMITTER_EMAIL], cwd=dest)
-
-
-def current_branch(repo_dir: Path) -> str:
-    """The checked-out branch: right after a clone, the remote's default branch."""
-    return git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_dir)
 
 
 def remote_branch_sha(repo_dir: Path, branch: str, env: dict[str, str]) -> str | None:
@@ -91,7 +86,7 @@ def remote_branch_sha(repo_dir: Path, branch: str, env: dict[str, str]) -> str |
 
 
 def checkout_new_branch(repo_dir: Path, branch: str) -> None:
-    """Start a new branch from the cloned commit."""
+    """Start a new branch from the cloned branch's commit."""
     git(["checkout", "-b", branch], cwd=repo_dir)
 
 

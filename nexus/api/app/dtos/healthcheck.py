@@ -86,6 +86,7 @@ class ProjectResultsRepositoryHealthDTO(DTO):
     project_id: int
     owned_by_federated_node: bool
     target_dir: str
+    base_branch: str
     enabled: bool
     revoked: bool
     active: bool

@@ -44,7 +44,7 @@ def switch_resource(project, enabled):
 def put_resource(client, admin_headers, project, repo, target_dir="results"):
     """Assign a results repository (PUT needs the project disabled); returns the response, project left enabled."""
     set_enabled(project, False)
-    response = client.put(resource_url(project, repo), json={"target_dir": target_dir}, headers=admin_headers)
+    response = client.put(resource_url(project, repo), json={"target_dir": target_dir, "base_branch": "main"}, headers=admin_headers)
     set_enabled(project, True)
     return response
 
@@ -94,7 +94,7 @@ def test_global_results_repo_create_get(client, admin_headers, global_secret, gl
 
 
 def test_assigning_a_results_repository_to_an_enabled_project_is_409(client, admin_headers, project, global_results_repo):
-    response = client.put(resource_url(project, global_results_repo), json={"target_dir": "results"}, headers=admin_headers)
+    response = client.put(resource_url(project, global_results_repo), json={"target_dir": "results", "base_branch": "main"}, headers=admin_headers)
     assert response.status_code == 409
     assert response.json()["error"] == f"Project {project.id} must be disabled to assign a results repository"
     assert resources(client, admin_headers, project) == []
@@ -103,15 +103,15 @@ def test_assigning_a_results_repository_to_an_enabled_project_is_409(client, adm
 def test_assign_needs_a_disabled_project_then_reassign_replaces_settings(
         client, admin_headers, project, global_results_repo):
     url = resource_url(project, global_results_repo)
-    assert client.put(url, json={"target_dir": "results"}, headers=admin_headers).status_code == 409  # enabled
+    assert client.put(url, json={"target_dir": "results", "base_branch": "main"}, headers=admin_headers).status_code == 409  # enabled
     assert resources(client, admin_headers, project) == []
 
     set_enabled(project, False)
-    response = client.put(url, json={"target_dir": "a", "owned_by_federated_node": False}, headers=admin_headers)
+    response = client.put(url, json={"target_dir": "a", "owned_by_federated_node": False, "base_branch": "main"}, headers=admin_headers)
     assert response.status_code == 201 and response.json()["project_id"] == project.id
 
     # PUT replaces: omitted fields go back to their defaults
-    response = client.put(url, json={"target_dir": "b"}, headers=admin_headers)
+    response = client.put(url, json={"target_dir": "b", "base_branch": "main"}, headers=admin_headers)
     assert response.status_code == 200
     assert response.json()["target_dir"] == "b" and response.json()["owned_by_federated_node"] is True
     assert len(resources(client, admin_headers, project)) == 1
@@ -123,7 +123,7 @@ def test_reassign_target_dir_and_disabling_work_on_an_enabled_project_with_a_tas
     make_task()  # a pending task
     url = resource_url(project, global_results_repo)
     # the task is pinned to the old target_dir instead
-    assert client.put(url, json={"target_dir": "x", "enabled": False}, headers=admin_headers).status_code == 200
+    assert client.put(url, json={"target_dir": "x", "enabled": False, "base_branch": "main"}, headers=admin_headers).status_code == 200
     got = client.get(url, headers=admin_headers).json()
     assert got["target_dir"] == "x" and got["enabled"] is False
 
@@ -150,20 +150,38 @@ def test_assign_target_dir_validation(client, admin_headers, disabled_project, g
         {"target_dir": "r", "enabled": "yes"}, {"target_dir": "r", "owned_by_federated_node": 1},
     ]
     for body in bad_bodies:
+        assert client.put(url, json={"base_branch": "main", **body}, headers=admin_headers).status_code == 400, body
+    assert resources(client, admin_headers, disabled_project) == []
+
+    assert client.put(f"/projects/{disabled_project.id}/repositories/results/999", json={"target_dir": "r", "base_branch": "main"},
+                      headers=admin_headers).status_code == 404
+    assert client.put(f"/projects/999/repositories/results/{global_results_repo.id}", json={"target_dir": "r", "base_branch": "main"},
+                      headers=admin_headers).status_code == 404
+
+
+def test_assign_needs_a_base_branch(client, admin_headers, disabled_project, global_results_repo):
+    url = resource_url(disabled_project, global_results_repo)
+    for body in ({"target_dir": "r"}, {"target_dir": "r", "base_branch": ""}, {"target_dir": "r", "base_branch": None},
+                 {"target_dir": "r", "base_branch": 1}, {"base_branch": "main"}):
         assert client.put(url, json=body, headers=admin_headers).status_code == 400, body
     assert resources(client, admin_headers, disabled_project) == []
 
-    assert client.put(f"/projects/{disabled_project.id}/repositories/results/999", json={"target_dir": "r"},
-                      headers=admin_headers).status_code == 404
-    assert client.put(f"/projects/999/repositories/results/{global_results_repo.id}", json={"target_dir": "r"},
-                      headers=admin_headers).status_code == 404
+    response = client.put(url, json={"target_dir": "r", "base_branch": "release"}, headers=admin_headers)
+    assert response.status_code == 201 and response.json()["base_branch"] == "release"
+    # a re-assign needs it too, and a refused one changes nothing
+    assert client.put(url, json={"target_dir": "r2"}, headers=admin_headers).status_code == 400
+    assert client.put(url, json={"target_dir": "r2", "base_branch": ""}, headers=admin_headers).status_code == 400
+    got = client.get(url, headers=admin_headers).json()
+    assert (got["target_dir"], got["base_branch"]) == ("r", "release")
+    response = client.put(url, json={"target_dir": "r2", "base_branch": "dev"}, headers=admin_headers)
+    assert response.status_code == 200 and response.json()["base_branch"] == "dev"
 
 
 def test_assign_target_dir_normalised_and_never_absolute(client, admin_headers, disabled_project, global_results_repo):
     url = resource_url(disabled_project, global_results_repo)
-    response = client.put(url, json={"target_dir": "/etc/out/"}, headers=admin_headers)
+    response = client.put(url, json={"target_dir": "/etc/out/", "base_branch": "main"}, headers=admin_headers)
     assert response.status_code == 201 and response.json()["target_dir"] == "etc/out"
-    response = client.put(url, json={"target_dir": "./a//b/./c/"}, headers=admin_headers)
+    response = client.put(url, json={"target_dir": "./a//b/./c/", "base_branch": "main"}, headers=admin_headers)
     assert response.status_code == 200
     assert client.get(url, headers=admin_headers).json()["target_dir"] == "a/b/c"
 
@@ -172,9 +190,13 @@ def test_patch_resource_settings(client, admin_headers, project, global_results_
     url = resource_url(project, global_results_repo)
     response = client.patch(url, json={"target_dir": "/new//dir/"}, headers=admin_headers)
     assert response.status_code == 200 and response.json()["target_dir"] == "new/dir"
-    for body in ({"target_dir": "../up"}, {"target_dir": ""}, {"bogus": 1}, {}, {"enabled": "no"}):
+    for body in ({"target_dir": "../up"}, {"target_dir": ""}, {"base_branch": ""}, {"bogus": 1}, {}, {"enabled": "no"}):
         assert client.patch(url, json=body, headers=admin_headers).status_code == 400, body
     assert client.get(url, headers=admin_headers).json()["target_dir"] == "new/dir"
+    assert client.get(url, headers=admin_headers).json()["base_branch"] == "main"
+    response = client.patch(url, json={"base_branch": "release"}, headers=admin_headers)
+    assert response.status_code == 200 and response.json()["base_branch"] == "release"
+    assert response.json()["target_dir"] == "new/dir"
 
 
 # ---------------------------------------------------------------- loop refusal (results dir vs watched dir)
@@ -186,16 +208,16 @@ def test_results_dir_inside_watched_dir_refused(
     """A results target_dir that overlaps a watched dir of the same git repository would loop."""
     trigger = make_trigger_repo(uri="github.com/org/shared")
     results = make_results_repo(uri="github.com/org/shared")
-    assert client.put(trigger_url(disabled_project, trigger), json={"watch_dir": "/triggers/in/"},
+    assert client.put(trigger_url(disabled_project, trigger), json={"watch_dir": "/triggers/in/", "base_branch": "main"},
                       headers=admin_headers).status_code == 201
 
     for target in ("triggers/in/out", "triggers/in", "triggers", "./triggers//in/x"):  # inside, equal, parent, unnormalised
-        response = client.put(resource_url(disabled_project, results), json={"target_dir": target}, headers=admin_headers)
+        response = client.put(resource_url(disabled_project, results), json={"target_dir": target, "base_branch": "main"}, headers=admin_headers)
         assert response.status_code == 400, target
         assert "overlap" in response.json()["error"]
     assert resources(client, admin_headers, disabled_project) == []
 
-    response = client.put(resource_url(disabled_project, results), json={"target_dir": "triggers/out"}, headers=admin_headers)
+    response = client.put(resource_url(disabled_project, results), json={"target_dir": "triggers/out", "base_branch": "main"}, headers=admin_headers)
     assert response.status_code == 201  # a sibling dir is fine
 
     # PATCHing the target_dir into the watched dir is refused and rolled back
@@ -213,13 +235,13 @@ def test_watch_dir_over_results_dir_refused_and_other_repo_or_project(
     assert put_resource(client, admin_headers, project, results, "out/data").status_code == 201
 
     for watch in ("out", "out/data", "out/data/sub"):
-        assert client.put(trigger_url(project, trigger), json={"watch_dir": watch},
+        assert client.put(trigger_url(project, trigger), json={"watch_dir": watch, "base_branch": "main"},
                           headers=admin_headers).status_code == 400, watch
     # a different git repository never loops, whatever the directories
-    assert client.put(trigger_url(project, elsewhere), json={"watch_dir": "out/data"},
+    assert client.put(trigger_url(project, elsewhere), json={"watch_dir": "out/data", "base_branch": "main"},
                       headers=admin_headers).status_code == 201
     # cross-project loops are forbidden too (ADR section 9)
-    response = client.put(trigger_url(other_project, trigger), json={"watch_dir": "out"}, headers=admin_headers)
+    response = client.put(trigger_url(other_project, trigger), json={"watch_dir": "out", "base_branch": "main"}, headers=admin_headers)
     assert response.status_code == 400
 
 
@@ -916,10 +938,10 @@ def test_whole_repository_trigger_then_results_resource_in_the_same_repository_i
 ):
     trigger = make_trigger_repo(uri="github.com/org/shared")
     results = make_results_repo(uri="github.com/org/shared")
-    assert client.put(trigger_url(disabled_project, trigger), json={"watch_dir": ""},
+    assert client.put(trigger_url(disabled_project, trigger), json={"watch_dir": "", "base_branch": "main"},
                       headers=admin_headers).status_code == 201
 
-    response = client.put(resource_url(disabled_project, results), json={"target_dir": "out"}, headers=admin_headers)
+    response = client.put(resource_url(disabled_project, results), json={"target_dir": "out", "base_branch": "main"}, headers=admin_headers)
 
     assert response.status_code == 400, response.json()
     assert "watches the whole repository" in response.json()["error"]
@@ -933,7 +955,7 @@ def test_results_resource_then_whole_repository_trigger_in_the_same_repository_i
     results = make_results_repo(uri="github.com/org/shared")
     assert put_resource(client, admin_headers, project, results, "out").status_code == 201
 
-    response = client.put(trigger_url(project, trigger), json={"watch_dir": ""}, headers=admin_headers)
+    response = client.put(trigger_url(project, trigger), json={"watch_dir": "", "base_branch": "main"}, headers=admin_headers)
 
     assert response.status_code == 400, response.json()
     assert "watches the whole repository" in response.json()["error"]

@@ -327,10 +327,10 @@ export interface paths {
          * @description PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global
          *     results repository to the project, which has one, 201, and replaces the project's settings
          *     if it is assigned already, 200. Assigning needs the project disabled. A change of target_dir
-         *     is caught by the configuration snapshot of the tasks created before, which then fail
-         *     instead of delivering there.
-         *     Body: {"target_dir": "results", "owned_by_federated_node": true, "enabled": true}, the last
-         *     two are optional.
+         *     or base_branch is caught by the configuration snapshot of the tasks created before, which then
+         *     fail instead of delivering there.
+         *     Body: {"target_dir": "results", "base_branch": "main", "owned_by_federated_node": true, "enabled": true};
+         *     target_dir and base_branch are required, the last two are optional.
          */
         put: operations["put_project_results_repository_projects__project_id__repositories_results__repository_id__put"];
         post?: never;
@@ -346,7 +346,7 @@ export interface paths {
         /**
          * Patch Project Results Repository
          * @description PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
-         *     the project's results go (target_dir, owned_by_federated_node), at any time (the tasks created
+         *     the project's results go (target_dir, base_branch, owned_by_federated_node), at any time (the tasks created
          *     before fail instead of delivering to the new place), or turns the project resource on or
          *     off (enabled), or revokes and re-grants it
          *     (revoked), which is admin only and takes effect at once.
@@ -1058,10 +1058,10 @@ export interface paths {
          *     repository to the project, 201, or replaces the project's settings if it is assigned already,
          *     200: a change of
          *     watch_dir or base_branch applies at once. A new watcher does not touch work in
-         *     flight. Fields left out take their defaults. The cursor is set when
+         *     flight. The cursor is set when
          *     the project resource is created, after the latest pull request stored, and stays where it is.
-         *     Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir is
-         *     required, the rest optional.
+         *     Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir and
+         *     base_branch are required, enabled is optional and defaults to true.
          */
         put: operations["put_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__put"];
         post?: never;
@@ -2179,6 +2179,8 @@ export interface components {
             results_repository: components["schemas"]["ResultsRepositoryDTO"];
             /** Target Dir */
             target_dir: string;
+            /** Base Branch */
+            base_branch: string;
             /** Owned By Federated Node */
             owned_by_federated_node: boolean;
             /** Enabled */
@@ -2196,6 +2198,8 @@ export interface components {
             owned_by_federated_node: boolean;
             /** Target Dir */
             target_dir: string;
+            /** Base Branch */
+            base_branch: string;
             /** Enabled */
             enabled: boolean;
             /** Revoked */
@@ -2203,6 +2207,42 @@ export interface components {
             /** Active */
             active: boolean;
             results_repository: components["schemas"]["RepositoryConnectionDTO"];
+        };
+        /**
+         * ProjectResultsRepositoryPatchRequest
+         * @description The fields of a project's results repository resource that can be updated, all optional but never null.
+         */
+        ProjectResultsRepositoryPatchRequest: {
+            /** Target Dir */
+            target_dir?: string | null;
+            /** Base Branch */
+            base_branch?: string | null;
+            /** Owned By Federated Node */
+            owned_by_federated_node?: boolean | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Revoked */
+            revoked?: boolean | null;
+        };
+        /**
+         * ProjectResultsRepositoryRequest
+         * @description A project's resource for a global results repository as assigned: where its results go, and whether it is on.
+         */
+        ProjectResultsRepositoryRequest: {
+            /** Target Dir */
+            target_dir: string;
+            /** Base Branch */
+            base_branch: string;
+            /**
+             * Owned By Federated Node
+             * @default true
+             */
+            owned_by_federated_node?: boolean;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled?: boolean;
         };
         /**
          * ProjectSecretDTO
@@ -2269,6 +2309,35 @@ export interface components {
             /** Active */
             active: boolean;
             trigger_repository: components["schemas"]["RepositoryConnectionDTO"];
+        };
+        /**
+         * ProjectTriggerRepositoryPatchRequest
+         * @description The fields of a project's trigger repository resource that can be updated, all optional but never null.
+         */
+        ProjectTriggerRepositoryPatchRequest: {
+            /** Watch Dir */
+            watch_dir?: string | null;
+            /** Base Branch */
+            base_branch?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Revoked */
+            revoked?: boolean | null;
+        };
+        /**
+         * ProjectTriggerRepositoryRequest
+         * @description A project's resource for a global trigger repository as assigned: what it watches, and whether it is on.
+         */
+        ProjectTriggerRepositoryRequest: {
+            /** Watch Dir */
+            watch_dir: string;
+            /** Base Branch */
+            base_branch: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled?: boolean;
         };
         /**
          * PullRequestBatchDTO
@@ -2456,6 +2525,8 @@ export interface components {
             owned_by_federated_node: boolean;
             /** Target Dir */
             target_dir: string;
+            /** Base Branch */
+            base_branch: string;
             /** Status */
             status: string;
             health_check: components["schemas"]["HealthCheckDTO"];
@@ -3481,11 +3552,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProjectResultsRepositoryRequest"];
             };
         };
         responses: {
@@ -3549,11 +3618,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProjectResultsRepositoryPatchRequest"];
             };
         };
         responses: {
@@ -5056,11 +5123,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProjectTriggerRepositoryRequest"];
             };
         };
         responses: {
@@ -5124,11 +5189,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProjectTriggerRepositoryPatchRequest"];
             };
         };
         responses: {

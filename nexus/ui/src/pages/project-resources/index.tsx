@@ -15,14 +15,17 @@ type TriggerResource = Schemas["ProjectTriggerRepositoryDTO"];
 type ResultsResource = Schemas["ProjectResultsRepositoryDTO"];
 type DatasetResource = Schemas["ProjectDatasetDTO"];
 type SecretResource = Schemas["ProjectSecretDTO"];
+type TriggerRequest = Schemas["ProjectTriggerRepositoryRequest"];
+type ResultsRequest = Schemas["ProjectResultsRepositoryRequest"];
 
 const triggerFields: Field[] = [
   { name: "watch_dir", required: true, help: "Directory in the repository the trigger watches" },
-  { name: "base_branch", help: "Defaults to main" },
+  { name: "base_branch", required: true, help: "Branch the trigger watches: only pull requests merged into it start tasks" },
   { name: "enabled", type: "checkbox" },
 ];
 const resultsFields: Field[] = [
   { name: "target_dir", required: true, help: "Directory in the repository results are delivered to" },
+  { name: "base_branch", required: true, help: "Branch results pull requests start from and go into" },
   { name: "owned_by_federated_node", type: "checkbox" },
   { name: "enabled", type: "checkbox" },
 ];
@@ -63,7 +66,7 @@ function TriggerResources({ projectId }: { projectId: number }) {
   });
   const done = { onSuccess: () => qc.invalidateQueries({ queryKey: resourceKey(projectId, "triggers") }) };
   const add = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+    mutationFn: ({ id, body }: { id: number; body: TriggerRequest }) =>
       call(api.PUT("/projects/{project_id}/repositories/triggers/{repo_id}", {
         params: { path: { ...path, repo_id: id } },
         body,
@@ -102,10 +105,10 @@ function TriggerResources({ projectId }: { projectId: number }) {
       options={global.data?.map((r) => ({ value: String(r.id), label: r.repo_path }))}
       pickLabel="Trigger repository"
       fields={triggerFields}
-      initial={{ base_branch: "main", enabled: true }}
+      initial={{ enabled: true }}
       help={ADD_HELP}
       busy={add.isPending}
-      onAdd={(id, body) => add.mutate({ id: Number(id), body })}
+      onAdd={(id, body) => add.mutate({ id: Number(id), body: body as TriggerRequest })}
       onToggle={(r, enabled) => toggle.mutate({ id: r.trigger_repository.id, enabled })}
       onUnassign={(r) => unassign.mutate(r.trigger_repository.id)}
     />
@@ -122,7 +125,7 @@ function ResultsResources({ projectId }: { projectId: number }) {
   });
   const done = { onSuccess: () => qc.invalidateQueries({ queryKey: resourceKey(projectId, "results") }) };
   const add = useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Record<string, unknown> }) =>
+    mutationFn: ({ id, body }: { id: number; body: ResultsRequest }) =>
       call(api.PUT("/projects/{project_id}/repositories/results/{repository_id}", {
         params: { path: { ...path, repository_id: id } },
         body,
@@ -155,6 +158,7 @@ function ResultsResources({ projectId }: { projectId: number }) {
           <Link to={resourcePath(projectId, "results", r.results_repository.id)}>{r.results_repository.repo_path}</Link>
         ) },
         { header: "Target dir", cell: (r) => r.target_dir },
+        { header: "Base branch", cell: (r) => r.base_branch },
         { header: "Owned by node", cell: (r) => String(r.owned_by_federated_node) },
       ]}
       options={global.data?.map((r) => ({ value: String(r.id), label: r.repo_path }))}
@@ -163,7 +167,7 @@ function ResultsResources({ projectId }: { projectId: number }) {
       initial={{ owned_by_federated_node: true, enabled: true }}
       help={`A project has one results repository, and assigning needs the project disabled. ${ADD_HELP}`}
       busy={add.isPending}
-      onAdd={(id, body) => add.mutate({ id: Number(id), body })}
+      onAdd={(id, body) => add.mutate({ id: Number(id), body: body as ResultsRequest })}
       onToggle={(r, enabled) => toggle.mutate({ id: r.results_repository.id, enabled })}
       onUnassign={(r) => unassign.mutate(r.results_repository.id)}
     />

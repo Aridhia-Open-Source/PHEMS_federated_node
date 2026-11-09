@@ -14,25 +14,22 @@ from fncli.cmds.common import (
     ResultsRepoConfig,
     TriggerRepoConfig,
     build_backend_api,
-    build_git_api,
+    build_gitea_api,
     entity_option,
+    get_base_branch,
 )
 from fncli.cmds.project import find_project, init_backend_project
 from fncli.backend import FncliBackendAPI
 from app.git_uri import normalise_repo_uri
-from app.github import GithubAPI
 from fncli.gitea import GiteaAdminAPI
 from app.models import GitProvider, Project, ProjectResultsRepository, ProjectTriggerRepository
 
 logger = logging.getLogger("repository")
 
 
-def init_gitea_repo(config: RepoConfig, gitea_api: GiteaAdminAPI | GithubAPI) -> dict:
-    """Find or create the repo. A GitHub repo must already exist."""
-    if config.is_github:
-        gitea_repo = gitea_api.get_repo(config.repo_path)
-    else:
-        gitea_repo = gitea_api.get_or_create_repo(config.repo, "Trigger-repository simulation")
+def init_gitea_repo(config: RepoConfig, gitea_api: GiteaAdminAPI) -> dict:
+    """Find or create the repo as the Gitea admin user."""
+    gitea_repo = gitea_api.get_or_create_repo(config.repo, "Trigger-repository simulation")
     logger.info(f"Gitea repo: {gitea_repo['html_url']} (default branch {gitea_repo['default_branch']})")
     return gitea_repo
 
@@ -69,7 +66,7 @@ def init_backend_trigger_repo(
 
 
 def init_backend_results_repo(
-    config: ResultsRepoConfig, backend_api: FncliBackendAPI, project: Project
+    config: ResultsRepoConfig, backend_api: FncliBackendAPI, project: Project, base_branch: str
 ) -> ProjectResultsRepository:
     provider = init_backend_provider(config, backend_api)
     repo = backend_api.get_or_create_results_repository(
@@ -77,11 +74,11 @@ def init_backend_results_repo(
         provider_id=provider.id,
         secret_label=config.secret_label,
     )
-    assignment = backend_api.get_or_assign_results_repository(project.id, repo, config.target_dir)
+    assignment = backend_api.get_or_assign_results_repository(project.id, repo, config.target_dir, base_branch)
     logger.info(
         f"Backend results repository {repo.id}: {repo.uri} "
         f"(provider {repo.provider.name}, api_uri {repo.provider.api_uri}, secret {repo.secret.label}), "
-        f"assigned to project {assignment.project_id} (target_dir {assignment.target_dir})"
+        f"assigned to project {assignment.project_id} (branch {assignment.base_branch}, target_dir {assignment.target_dir})"
     )
     return assignment
 
@@ -140,11 +137,13 @@ def load_repo_config(entity: str, from_backend: bool, project: str | None) -> Re
     own_field = {"watch_dir": record.watch_dir} if entity == "trigger" else {"target_dir": record.target_dir}
     config = config_class(
         **own_field,
+        base_branch=record.base_branch,
         project_name=backend_project.name,
         repo=name,
         repo_uri=repository.uri,
         gitea_api_uri=repository.provider.api_uri,
         backend_secret_label=repository.secret.label,
+        backend_provider_type=repository.provider.type,
     )
     if not config.is_github and owner != config.gitea_admin_user:
         raise click.ClickException(
@@ -160,22 +159,23 @@ def load_repo_config(entity: str, from_backend: bool, project: str | None) -> Re
 def init_gitea_repo_command(entity, from_backend, project):
     """Find or create a repo in Gitea."""
     config = load_repo_config(entity, from_backend, project)
-    init_gitea_repo(config, build_git_api(config))
+    if config.is_github:
+        logger.info(f"Not creating GitHub repo {config.repo_path}: fncli never creates GitHub repos, it must exist")
+        return
+    init_gitea_repo(config, build_gitea_api(config))
 
 
 @click.command("init-backend-trigger-repo")
 @click.option(
     "--base-branch",
     default=None,
-    help="The branch to watch. Default: the default branch of the repo in Gitea.",
+    help="The branch to watch. Default: TEST_TRIGGER_REPO_BASE_BRANCH.",
 )
 def init_backend_trigger_repo_command(base_branch):
     """Register the trigger repo with the backend so the sensor polls it."""
     config = TriggerRepoConfig()
+    base_branch = get_base_branch(config, base_branch)
     backend_api = build_backend_api(config)
-    if base_branch is None:
-        gitea_repo = init_gitea_repo(config, build_git_api(config))
-        base_branch = gitea_repo["default_branch"]
     project = init_backend_project(config, backend_api)
     init_backend_trigger_repo(
         config=config,
@@ -186,12 +186,18 @@ def init_backend_trigger_repo_command(base_branch):
 
 
 @click.command("init-backend-results-repo")
-def init_backend_results_repo_command():
+@click.option(
+    "--base-branch",
+    default=None,
+    help="The branch results pull requests start from and go into. Default: TEST_RESULTS_REPO_BASE_BRANCH.",
+)
+def init_backend_results_repo_command(base_branch):
     """Register the results repo with the backend as the project's results repository."""
     config = ResultsRepoConfig()
+    base_branch = get_base_branch(config, base_branch)
     backend_api = build_backend_api(config)
     project = init_backend_project(config, backend_api)
-    init_backend_results_repo(config, backend_api, project)
+    init_backend_results_repo(config, backend_api, project, base_branch)
 
 
 @click.command("delete-backend-trigger-repo")
@@ -250,7 +256,7 @@ def delete_gitea_repo_command(entity, from_backend, project):
     if config.is_github:
         logger.info(f"Not deleting GitHub repo {config.repo_path}: fncli never deletes GitHub repos")
         return
-    if build_git_api(config).delete_repo(config.repo):
+    if build_gitea_api(config).delete_repo(config.repo):
         logger.info(f"Deleted Gitea repo {config.gitea_admin_user}/{config.repo}")
     else:
         logger.info(f"Gitea repo {config.gitea_admin_user}/{config.repo} does not exist")

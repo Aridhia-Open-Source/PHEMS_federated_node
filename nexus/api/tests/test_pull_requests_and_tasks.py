@@ -40,6 +40,7 @@ def post_prs(client, headers, repo_id, *prs):
 
 def assign(client, headers, pid, repo_id, **body):
     body.setdefault("watch_dir", "triggers")
+    body.setdefault("base_branch", "main")
     r = client.put(f"/projects/{pid}/repositories/triggers/{repo_id}", json=body, headers=headers)
     assert r.status_code in (200, 201), r.json()
     return r
@@ -225,7 +226,7 @@ def test_enabling_a_resource_skips_the_gap(client, admin_headers, system_headers
     assign(client, admin_headers, project.id, T, enabled=False)
     post_prs(client, system_headers, T, pr(1, merged_at=merged_hours_from_now(-1)))
     assert states(client, admin_headers, project.id, T) == {}
-    r = client.put(resource_url(project.id, T), json={"watch_dir": "triggers"}, headers=admin_headers)
+    r = client.put(resource_url(project.id, T), json={"watch_dir": "triggers", "base_branch": "main"}, headers=admin_headers)
     assert r.status_code == 200 and r.json()["active"] is True
     assert states(client, admin_headers, project.id, T) == {}
 
@@ -368,7 +369,7 @@ def test_truncated_file_list_matches_but_base_branch_still_applies(client, admin
     assert states(client, admin_headers, project.id, T) == {1: "UNKNOWN"}
 
 
-def test_base_branch_default_override_and_case(client, admin_headers, system_headers, project, other_project, global_trigger_repo):
+def test_base_branch_per_project_and_case(client, admin_headers, system_headers, project, other_project, global_trigger_repo):
     T = global_trigger_repo.id
     assert assign(client, admin_headers, project.id, T).json()["base_branch"] == "main"
     assign(client, admin_headers, other_project.id, T, base_branch="release/1.0")
