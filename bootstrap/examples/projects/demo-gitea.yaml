@@ -1,6 +1,6 @@
 # The project of the Gitea demo, and what it is assigned: the repositories are in globals-gitea.yaml, the dataset
 # demo-db is in experiments/demo/dataset.yaml. Apply those first:
-#   fncli experiment up; fncli experiment seed demo; fncli experiment setup demo      (the dataset)
+#   make experiments deploy; fncli experiment seed demo; fncli experiment setup demo      (the dataset)
 #   fncli apply -f examples/globals-gitea.yaml                                         (the repositories)
 #   fncli apply -f examples/projects/demo-gitea.yaml
 #   fncli demo -f examples/projects/demo-gitea.yaml

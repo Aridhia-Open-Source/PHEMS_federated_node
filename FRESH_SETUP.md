@@ -230,7 +230,7 @@ The example matches this guide: `url: http://localhost:5000`, `kube_context: kin
 Both demos use one dataset, `demo-db`. It is a tiny Postgres in its own `experiments` release and namespace. `make experiments` calls `fncli`, so step 6 comes first.
 
 ```bash
-fncli experiment up
+make experiments deploy
 fncli experiment seed demo
 fncli experiment setup demo
 ```
@@ -400,8 +400,8 @@ Only what the repo's scripts and docs already call out.
 | fncli: `node.env_file ... not found` | The env file must exist in or above the context file's directory. Make `.dev.env` (step 4) |
 | fncli: `context.yaml not found, as given or under bootstrap/ from here up` | `cp bootstrap/examples/context.yaml bootstrap/context.yaml` (step 6), or give `--context FILE` |
 | `Nothing was applied, these secret values cannot be read`, or `missing` in the diff | Set what it names: `GH_APP_ID` and `GH_INSTALLATION_ID` in `.dev.env`, the key file at the path in your globals file, and for the demo database the `make experiments` steps in step 7 |
-| `The node cannot connect to the dataset's database` | `fncli experiment up`, then `fncli experiment seed demo` |
-| `No experiments deployment: run fncli experiment up first` | `fncli experiment up` |
+| `The node cannot connect to the dataset's database` | `make experiments deploy`, then `fncli experiment seed demo` |
+| `No experiments deployment: run fncli experiment deploy first` | `make experiments deploy` |
 | `fncli: command not found` | `pipx ensurepath`, then a new terminal |
 | `make experiments`: `No such command`, or `No module named 'fncli'` | Reinstall from this checkout (step 6) |
 | `Writing to a GitHub repo needs RESEARCHER_GIT_TOKEN, or gh auth login` | Step 9, item 7 |
@@ -433,7 +433,7 @@ Only what the repo's scripts and docs already call out.
 
 - `make teardown` wipes the node's data and releases the cluster's owner. It keeps the `experiments` release, so the demo database survives it.
 - After `make teardown` and `make deploy`, or `make nuke`, run `tilt up --stream` again, then `fncli start-sensor --group all`, then the demo. Your `.dev.env`, `dev.values.yaml`, `bootstrap/context.yaml`, your files under `bootstrap/` and the App's key file are untouched.
-- After `make nuke` or a new cluster, run `fncli experiment up` again if `kubectl get pods -n experiments` shows nothing.
+- After `make nuke` or a new cluster, run `make experiments deploy` again if `kubectl get pods -n experiments` shows nothing.
 - `fncli experiment down` removes every experiment's dataset from the node, then the release. It stops while a demo project still uses `demo-db`: run `fncli delete -f bootstrap/projects/<your-name>.yaml` first.
 
 - To start the demo database from empty: `kubectl delete ns experiments`, then delete `~/.fn/data/experiments`. Postgres owns it, so that needs root or the kind node.

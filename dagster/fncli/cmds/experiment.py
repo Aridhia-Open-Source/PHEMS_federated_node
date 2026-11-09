@@ -218,15 +218,15 @@ def experiment_group():
     """Run a real experiment against the dev node: set it up, build its image, run it."""
 
 
-@experiment_group.command("up")
-def up_command():
+@experiment_group.command("deploy")
+def deploy_command():
     """Install or upgrade the experiments release: Postgres with every project's database. Safe to rerun."""
     install_release(ReleaseConfig())
 
 
 def require_release():
     if not release_installed():
-        raise click.ClickException("No experiments deployment: run `fncli experiment up` first")
+        raise click.ClickException("No experiments deployment: run `fncli experiment deploy` first")
 
 
 @experiment_group.command("seed")

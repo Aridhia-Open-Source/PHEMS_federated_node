@@ -27,8 +27,8 @@ If `start-sensor` says a sensor is not found, Dagster is still loading its code:
 ## 2. The demo database
 
 ```bash
-make experiments up                 # the experiments release: demo-db, its role and secret
-make experiments seed demo          # cdm.person with three rows, and an empty results schema
+make experiments deploy                 # the experiments release: demo-db, its role and secret
+fncli experiment seed demo          # cdm.person with three rows, and an empty results schema
 fncli apply -f experiments/demo/dataset.yaml      # registers demo-db with the node
 ```
 
@@ -54,8 +54,6 @@ fncli apply -f examples/projects/demo-github.yaml
 fncli demo -f examples/projects/demo-github.yaml    # with defaults.project: demo-github
 ```
 
-## Again, and other triggers
-
 - Run `fncli demo -f examples/projects/demo-gitea.yaml` again for another pull request; nothing needs resetting.
 - `fncli demo -f examples/projects/demo-gitea.yaml examples/demo-failing.json` makes the task fail on purpose, to see the failure path.
 - Without the guided checks: `fncli trigger --pr examples/demo.json` opens the pull request directly.
@@ -78,4 +76,4 @@ Delete is a soft delete, and it skips anything another project still uses. The G
 | `is for kubectl context X, but the current one is Y` | `kubectl config use-context kind-fn` |
 | `demo` lists rows and says run apply first | run the `fncli apply` lines for that demo again |
 | `dataset demo-db is not in the file or on the node` | step 2 was skipped |
-| the dataset login check fails | `make experiments seed demo`, then check `kubectl get pods -n experiments` |
+| the dataset login check fails | `fncli experiment seed demo`, then check `kubectl get pods -n experiments` |

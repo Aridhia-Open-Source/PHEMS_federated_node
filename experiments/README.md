@@ -32,7 +32,7 @@ its own repo, so it is not always in this one: clone it into `sources/<name>`. N
 specific experiment are in `projects/<name>/README.md`.
 
 ```bash
-fncli experiment up                    # the release: Postgres with every project's database
+make experiments deploy                    # the release: Postgres with every project's database
 fncli experiment build uc1             # localhost:5001/uc1-fn:latest (slow: renv restore)
 fncli experiment seed uc1              # dummy OMOP data into uc1-omop
 fncli experiment setup uc1             # name check, then the dataset uc1-omop, then the repos and project "uc1"
@@ -40,7 +40,8 @@ fncli experiment run uc1 --local       # optional: image straight against the DB
 fncli experiment run uc1               # trigger PR -> task -> results PR in uc1-results-repo
 ```
 
-See Clean up for `fncli experiment teardown NAME` and `down`. `seed` and `setup`
+These call `fncli experiment deploy|seed|setup|build|run` (also `teardown NAME` and `down`, see Clean
+up). `--local` needs fncli directly, since make takes `--` options as its own. `seed` and `setup`
 fail and tell you to run `up` if the release isn't installed. `up`, `seed`, `setup`, `run` and
 `teardown` can be rerun after a failure. If `fncli experiment`
 says "No such command", reinstall fncli from this checkout:
@@ -66,13 +67,13 @@ repositories from the project file and the node, not from `.dev.env`, and the ta
    (`dbs.NAME`), `dataset.yaml` (the dataset and secret must match it), `trigger.json` (the image),
    `project.env`, and copies of `bootstrap/examples/globals-uc1.yaml` and `projects/uc1.yaml` for the
    repos and the project.
-3. Run `fncli experiment up` (it upgrades the release with the new database, so this works
+3. Run `make experiments deploy` (it upgrades the release with the new database, so this works
    on a running cluster), then `build NAME`, `seed NAME`, `setup NAME` and `run NAME`.
 
 `demo` is a no-op demo database (`demo-db`, user `demo_user`, a tiny `cdm.person` table and an empty `results` schema). It has no node project of its own, no `trigger.json` and no `project.env`: the demo node files (`bootstrap/examples/globals-gitea.yaml` and `projects/demo-gitea.yaml`, or the `github` ones) hold the repos and the project, which assigns the dataset by name (`datasets: [demo-db]`), and `triggers/examples/demo.json` is its trigger file. Its task image is at `experiments/demo/image`, built by its `docker-bake.hcl` as `demo-fn`.
 
 ```bash
-fncli experiment up                          # the release: databases, roles, secrets
+make experiments deploy                          # the release: databases, roles, secrets
 fncli experiment seed demo                   # the schemas and rows
 fncli experiment setup demo                  # name check, then the dataset demo-db with its secret
 fncli apply -f examples/globals-github.yaml  # the repos (or globals-gitea.yaml)

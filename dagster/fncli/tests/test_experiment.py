@@ -325,7 +325,7 @@ def test_every_committed_experiment_with_a_node_project_has_its_globals_and_the_
 
 
 def test_up_installs_the_release_with_every_experiments_database(repo, commands):
-    invoke("up")
+    invoke("deploy")
 
     experiments = repo / "experiments"
     assert commands.lines == [
@@ -390,7 +390,7 @@ def test_without_the_release_seed_and_setup_tell_you_to_run_up(command, commands
     result = CliRunner().invoke(experiment_group, [command, "x"])
 
     assert result.exit_code == 1
-    assert "fncli experiment up" in result.output
+    assert "fncli experiment deploy" in result.output
     assert len(commands.calls) == 1
     assert steps == []
 
@@ -408,7 +408,7 @@ def test_the_commands_that_talk_to_the_node_need_a_context_file(command, repo, c
 
 
 def test_up_makes_the_database_directory_writable_for_postgres(repo, commands):
-    invoke("up")
+    invoke("deploy")
 
     assert (repo / "data" / "experiments" / "datasets").stat().st_mode & 0o777 == 0o777
 
@@ -416,7 +416,7 @@ def test_up_makes_the_database_directory_writable_for_postgres(repo, commands):
 def test_up_without_the_data_dir_stops_before_helm(repo, commands):
     (repo / "data").rmdir()
 
-    result = CliRunner().invoke(experiment_group, ["up"])
+    result = CliRunner().invoke(experiment_group, ["deploy"])
 
     assert result.exit_code == 1
     assert "cluster.sh up" in result.output
@@ -543,7 +543,7 @@ def test_the_chart_and_the_other_folders_of_experiments_are_not_experiments(repo
     (repo / "experiments" / "chart" / "values.yaml").write_text("dbs: {}")
     (repo / "experiments" / "sources").mkdir()
 
-    invoke("up")
+    invoke("deploy")
 
     assert "chart/values.yaml" not in commands.lines[0]
     assert commands.lines[0].count(" -f ") == 2

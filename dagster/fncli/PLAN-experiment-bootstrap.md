@@ -38,7 +38,7 @@ Projects and repos stay in the node's own bootstrap file (e.g. `bootstrap/exampl
 ## Flow after
 
 ```bash
-fncli experiment up                 # chart: databases, roles, secrets
+make experiments deploy                 # chart: databases, roles, secrets
 fncli experiment seed demo          # schemas and rows
 fncli experiment setup demo         # name check, then apply experiments/demo/dataset.yaml
 fncli apply -f examples/projects/demo-github.yaml   # project, repos, assigns demo-db

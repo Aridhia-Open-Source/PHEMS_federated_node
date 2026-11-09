@@ -231,7 +231,7 @@ def check_dataset(ctx, demo):
     if health["status"] != "ok":
         click.echo(f"[FAIL] dataset {name} at {health['host']}:{health['port']}: {health['status']} ({detail})")
         raise click.ClickException(
-            "The node cannot connect to the dataset's database. For the demo database: fncli experiment up, "
+            "The node cannot connect to the dataset's database. For the demo database: make experiments deploy, "
             "fncli experiment seed demo, then fncli experiment setup demo"
         )
     click.echo(f"[  ok] dataset {name} at {health['host']}:{health['port']}: the node can log in ({detail})")
@@ -424,7 +424,7 @@ def demo_command(ctx, trigger_file, node_file, context, project, yes_to_all, fro
     absent = [name for name in spec.datasets if api.find_dataset(name) is None]
     if absent:
         raise click.ClickException(
-            f"Dataset {', '.join(absent)} is not on the node. Make it first: fncli experiment up, make experiments "
+            f"Dataset {', '.join(absent)} is not on the node. Make it first: make experiments deploy, make experiments "
             "seed demo, fncli experiment setup demo"
         )
     demo = Demo(node_file, trigger_file, node, api, spec)
