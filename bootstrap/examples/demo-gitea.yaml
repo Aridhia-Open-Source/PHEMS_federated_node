@@ -1,11 +1,13 @@
-# Node file for the Gitea demo, replacing .demo.env.example. The same values: the demo's own project, repos and
-# dataset, apart from the ones the e2e suites use (fn-dev). No secret values: each says where it is read from.
+# Node file for the Gitea demo, replacing .demo.env.example. The same values: the demo's own project and repos, apart
+# from the ones the e2e suites use (fn-dev). No secret values: each says where it is read from.
 #   fncli diff -f bootstrap/examples/demo-gitea.yaml       (or FNCLI_NODE_FILE=bootstrap/examples/demo-gitea.yaml)
 #   fncli apply -f bootstrap/examples/demo-gitea.yaml
 #   fncli demo -f bootstrap/examples/demo-gitea.yaml       (the guided version)
-# The dataset is the demo database, a tiny Postgres in the experiments release. Create and seed it first:
+# The project is assigned the dataset demo-db, a tiny Postgres in the experiments release. It is not in this file: its
+# node resources are in experiments/projects/demo/bootstrap.yaml. Make it first:
 #   make experiments up
 #   make experiments seed demo
+#   make experiments setup demo
 # Names: lowercase letters, digits, '-' and '.' only, because they become Secret labels.
 version: 1
 
@@ -28,10 +30,6 @@ secrets:
     gitea_oauth: {app: demo-sensor}
   demo-results-repo-creds:
     gitea_oauth: {app: demo-results}
-  demo-db-dataset-creds:                           # the demo database's login, read from its chart secret
-    values:
-      USERNAME: {k8s_secret: {name: db-datasets-demo, namespace: experiments, key: username}}
-      PASSWORD: {k8s_secret: {name: db-datasets-demo, namespace: experiments, key: password}}
 
 repositories:
   triggers:
@@ -41,18 +39,9 @@ repositories:
     - uri: "http://gitea.fn.svc:4000/gitea_admin/demo-results-repo"
       secret: demo-results-repo-creds
 
-datasets:                                          # dataset names are unique across the whole node
-  - name: demo-db                                  # shared with demo-github.yaml
-    type: postgres
-    host: db-datasets.experiments.svc
-    port: 5432
-    read_schema: cdm
-    write_schema: results
-    secret: demo-db-dataset-creds
-
 projects:
   - name: demo-gitea
-    datasets: [demo-db]
+    datasets: [demo-db]                            # on the node already, see above
     repositories:
       triggers:
         - repository: http://gitea.fn.svc:4000/gitea_admin/demo-trigger-repo

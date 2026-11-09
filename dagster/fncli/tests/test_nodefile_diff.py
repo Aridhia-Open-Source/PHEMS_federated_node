@@ -279,6 +279,115 @@ def test_other_changes_of_a_project_are_kept_beside_a_blocked_one():
     assert [c.action for c in diff(make_node(), state) if c.kind == "project"] == [UPDATE, BLOCKED]
 
 
+def without_globals() -> dict:
+    """The file's project alone: its dataset, repositories and their secrets are not in the file"""
+    data = node_data()
+    for key in ("secrets", "datasets"):
+        data[key] = {} if key == "secrets" else []
+    data["repositories"] = {"triggers": [], "results": []}
+    del data["gitea"]
+    return data
+
+
+def test_what_the_project_names_that_is_on_the_node_but_not_in_the_file_is_an_existing_reference():
+    changes = diff(make_node(without_globals()), synced_state())
+
+    assert [(c.action, c.kind, c.name, c.detail) for c in changes if c.kind not in ("project", "provider")] == [
+        (UNCHANGED, "trigger repo", "gitea_admin/trigger-repo", "on the node, not in this file"),
+        (UNCHANGED, "results repo", "gitea_admin/results-repo", "on the node, not in this file"),
+        (UNCHANGED, "dataset", "shared", "on the node, not in this file"),
+    ]
+    assert by(changes, "project", "alpha").action == UNCHANGED
+
+
+def test_a_new_project_on_references_from_the_node_is_created():
+    state = replace(synced_state(), projects=[])
+
+    changes = diff(make_node(without_globals()), state)
+
+    assert by(changes, "project", "alpha").action == CREATE
+
+
+def test_a_dataset_that_is_in_neither_the_file_nor_the_node_blocks_the_project_that_names_it():
+    state = replace(synced_state(), datasets=[], projects=[])
+
+    project = by(diff(make_node(without_globals()), state), "project", "alpha")
+
+    assert (project.action, project.detail) == (BLOCKED, "dataset shared is not in the file or on the node")
+
+
+def test_a_repository_that_is_in_neither_the_file_nor_the_node_blocks_the_project_that_names_it():
+    state = replace(synced_state(), trigger_repositories=[], results_repositories=[], projects=[])
+
+    project = by(diff(make_node(without_globals()), state), "project", "alpha")
+
+    assert project.action == BLOCKED
+    assert project.detail == (
+        "trigger repository gitea_admin/trigger-repo is not in the file or on the node; "
+        "results repository gitea_admin/results-repo is not in the file or on the node"
+    )
+
+
+def test_a_project_blocked_by_a_missing_reference_is_blocked_whether_or_not_it_exists():
+    data = without_globals()
+    data["projects"][0]["datasets"] = ["shared", "new-one"]
+
+    project = by(diff(make_node(data), synced_state()), "project", "alpha")
+
+    assert (project.action, project.detail) == (BLOCKED, "dataset new-one is not in the file or on the node")
+
+
+def test_a_dataset_the_file_holds_does_not_need_to_be_on_the_node_yet():
+    state = replace(synced_state(), datasets=[], projects=[], secrets={"trigger-creds", "results-creds"})
+    data = node_data()
+    del data["gitea"]
+
+    changes = diff(make_node(data), state)
+
+    assert by(changes, "dataset", "Shared").action == CREATE
+    assert by(changes, "project", "alpha").action == CREATE
+
+
+def test_a_secret_on_the_node_but_not_in_the_file_is_an_existing_reference():
+    data = node_data()
+    del data["secrets"]["dataset-creds"]
+    del data["gitea"]
+
+    changes = diff(make_node(data), synced_state())
+
+    assert (by(changes, "secret", "dataset-creds").action, by(changes, "secret", "dataset-creds").detail) == (
+        UNCHANGED, "on the node, not in this file",
+    )
+    assert by(changes, "dataset", "Shared").action == UNCHANGED
+
+
+def test_a_dataset_or_repository_with_a_secret_nowhere_is_blocked_not_created():
+    data = node_data()
+    data["datasets"][0]["secret"] = "nope-creds"
+    data["repositories"]["results"][0]["secret"] = "nope-creds"
+    del data["gitea"]
+    empty = BackendState([], set(), [], [], [], [])
+
+    changes = diff(make_node(data), empty)
+
+    assert (by(changes, "dataset", "Shared").action, by(changes, "dataset", "Shared").detail) == (
+        BLOCKED, "secret nope-creds is not in the file or on the node",
+    )
+    assert by(changes, "results repo", "gitea_admin/results-repo").action == BLOCKED
+    assert by(changes, "trigger repo", "gitea_admin/trigger-repo").action == CREATE
+    # What is blocked is not made, so the project that is assigned it is blocked too
+    project = by(changes, "project", "alpha")
+    assert project.action == BLOCKED
+    assert "dataset shared" in project.detail and "results repository gitea_admin/results-repo" in project.detail
+
+
+def test_a_dataset_name_is_found_on_the_node_whatever_its_case():
+    data = without_globals()
+    data["projects"][0]["datasets"] = ["SHARED"]
+
+    assert by(diff(make_node(data), synced_state()), "project", "alpha").action != BLOCKED
+
+
 def test_limiting_to_a_project_keeps_the_others_as_other_projects():
     data = node_data()
     beta = copy.deepcopy(data["projects"][0])
@@ -298,30 +407,37 @@ def test_limiting_to_a_project_keeps_the_others_as_other_projects():
     assert by(changes, "dataset", "Shared").also_used_by == ("beta",)
 
 
+DEMO_DATASET = DatasetState(
+    "demo-db", "postgres", "db-datasets.experiments.svc", 5432, "cdm", "results", "demo-db-dataset-creds"
+)
+
+
 @pytest.mark.skipif(not (ROOT / "bootstrap" / "examples" / "demo-gitea.yaml").exists(), reason="the repo's bootstrap/examples files are not in the test image")
 def test_the_gitea_demo_against_what_the_env_setup_creates_differs_only_in_the_providers_name():
     """
-    Backend-style values as `setup-project` leaves them from .demo.env: normalised uris, no trailing slashes, and the
-    provider named <type>-<host> by init_backend_provider. The file names it gitea-local, which the gitea section refers to.
+    Backend-style values as `setup-project` leaves them: normalised uris, no trailing slashes, and the provider named
+    <type>-<host> by init_backend_provider. The file names it gitea-local, which the gitea section refers to. The
+    dataset is not in the file: it is on the node from experiments/projects/demo/bootstrap.yaml.
     """
     node = load_node_file(ROOT / "bootstrap" / "examples" / "demo-gitea.yaml")
     trigger, results = "gitea.fn.svc:4000/gitea_admin/demo-trigger-repo", "gitea.fn.svc:4000/gitea_admin/demo-results-repo"
     state = BackendState(
         providers=[ProviderState("gitea-gitea.fn.svc:4000", "gitea", PROVIDER, f"{PROVIDER}/api/v1")],
-        secrets={"demo-trigger-repo-creds", "demo-results-repo-creds", "demo-dataset-dataset-creds"},
+        secrets={"demo-trigger-repo-creds", "demo-results-repo-creds", "demo-db-dataset-creds"},
         trigger_repositories=[RepositoryState(trigger, PROVIDER, "demo-trigger-repo-creds")],
         results_repositories=[RepositoryState(results, PROVIDER, "demo-results-repo-creds")],
-        datasets=[DatasetState("demo-dataset", "postgres", "db-datasets.experiments.svc", 5432, "cdm", "results",
-                               "demo-dataset-dataset-creds")],
+        datasets=[DEMO_DATASET],
         projects=[ProjectState(
-            "demo-gitea", True, ["demo-dataset"], "demo-dataset",
+            "demo-gitea", True, ["demo-db"], "demo-db",
             [TriggerState(trigger, "specs", "main", True)], ResultsState(results, "results", "main", True),
         )],
     )
-    changed = [c for c in diff(node, state) if c.action not in (UNCHANGED, ENSURE)]
+    changes = diff(node, state)
+    changed = [c for c in changes if c.action not in (UNCHANGED, ENSURE)]
     assert [(c.kind, c.action, [str(f) for f in c.fields]) for c in changed] == [
         ("provider", UPDATE, ["name: gitea-gitea.fn.svc:4000 -> gitea-local"]),
     ]
+    assert by(changes, "dataset", "demo-db").detail == "on the node, not in this file"
 
 
 @pytest.mark.skipif(not (ROOT / "bootstrap" / "examples" / "demo-github.yaml").exists(), reason="the repo's bootstrap/examples files are not in the test image")
@@ -331,14 +447,23 @@ def test_the_github_demo_against_what_the_env_setup_creates_is_all_unchanged():
     repo, provider = "github.com/aridhia-open-source/phems-sandbox", "https://github.com"
     state = BackendState(
         providers=[ProviderState("github-github.com", "github", provider, "https://api.github.com")],
-        secrets={"phems-sandbox-creds", "demo-github-dataset-dataset-creds"},
+        secrets={"phems-sandbox-creds", "demo-db-dataset-creds"},
         trigger_repositories=[RepositoryState(repo, provider, "phems-sandbox-creds")],
         results_repositories=[RepositoryState(repo, provider, "phems-sandbox-creds")],
-        datasets=[DatasetState("demo-github-dataset", "postgres", "db-datasets.experiments.svc", 5432, "cdm", "results",
-                               "demo-github-dataset-dataset-creds")],
+        datasets=[DEMO_DATASET],
         projects=[ProjectState(
-            "demo-github", True, ["demo-github-dataset"], "demo-github-dataset",
+            "demo-github", True, ["demo-db"], "demo-db",
             [TriggerState(repo, "mgmt/requests", "main", True)], ResultsState(repo, "mgmt/results", "main", True),
         )],
     )
     assert {c.action for c in diff(node, state)} == {UNCHANGED}
+
+
+@pytest.mark.skipif(not (ROOT / "bootstrap" / "examples" / "demo-github.yaml").exists(), reason="the repo's bootstrap/examples files are not in the test image")
+def test_the_github_demo_project_is_blocked_until_the_demo_dataset_is_on_the_node():
+    node = load_node_file(ROOT / "bootstrap" / "examples" / "demo-github.yaml")
+    empty = BackendState([], set(), [], [], [], [])
+
+    project = by(diff(node, empty), "project", "demo-github")
+
+    assert (project.action, project.detail) == (BLOCKED, "dataset demo-db is not in the file or on the node")

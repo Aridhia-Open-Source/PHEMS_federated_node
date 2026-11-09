@@ -7,6 +7,10 @@ the plan would show differences that are not there. Identity decides create or u
 provider its uri, a secret its label, a dataset its name, a project its name. A secret is only ever "missing" or
 "exists": the backend returns no values, so they cannot be compared. Nothing in the backend that the file does not
 list is touched, so the plan has no deletions.
+
+A file may name what it does not hold: a project's dataset or repository, a repository's or dataset's secret. That is
+resolved here, against the backend. What is on the node shows as an existing reference (unchanged, "on the node, not in
+this file"); what is neither in the file nor on the node blocks the row that names it, so nothing half-made is applied.
 """
 
 from collections import Counter
@@ -18,6 +22,8 @@ from fncli.nodefile.schema import NodeFile, ProjectSpec, SecretSpec, normalise_d
 
 CREATE, UPDATE, UNCHANGED, CONFIRM, BLOCKED, ENSURE = "create", "update", "unchanged", "confirm", "blocked", "ensure"
 EARLIER_TASKS_FAIL = "earlier tasks will fail"
+NOT_FOUND = "is not in the file or on the node"
+REFERENCE = "on the node, not in this file"
 NONE = "(none)"
 # What nexus-api pins into every task when it is created (nexus/api/app/helpers/task_config.py)
 PINNED_DATASET_FIELDS = ("type", "host", "port", "read_schema", "write_schema")
@@ -166,11 +172,47 @@ def gitea_changes(node: NodeFile) -> list[Change]:
     ]
 
 
+def has_secret(node: NodeFile, state: BackendState, label: str) -> bool:
+    return label in node.secrets or label in state.secrets
+
+
+def references(node: NodeFile, state: BackendState) -> dict[str, dict[str, str]]:
+    """
+    What the file names without holding it, and the node has: kind -> {key: name as the node spells it}. A dataset's
+    key is its lowercase name, a repository's its normalised uri, a secret's its label.
+    """
+    in_file = {
+        "dataset": {dataset.name.lower() for dataset in node.datasets},
+        "trigger": {repo.uri for repo in node.repositories.triggers},
+        "results": {repo.uri for repo in node.repositories.results},
+    }
+    on_node = {
+        "dataset": {dataset.name.lower(): dataset.name for dataset in state.datasets},
+        "trigger": {repo.uri: repo_path_of(repo.uri) for repo in state.trigger_repositories},
+        "results": {repo.uri: repo_path_of(repo.uri) for repo in state.results_repositories},
+    }
+    named = {
+        "dataset": [name.lower() for project in node.projects for name in project.datasets],
+        "trigger": [t.repository for project in node.projects for t in project.repositories.triggers],
+        "results": [project.repositories.results.repository for project in node.projects],
+    }
+    found = {
+        kind: {key: on_node[kind][key] for key in dict.fromkeys(keys) if key not in in_file[kind] and key in on_node[kind]}
+        for kind, keys in named.items()
+    }
+    labels = [repo.secret for repo in node.repositories.triggers + node.repositories.results]
+    labels += [dataset.secret for dataset in node.datasets]
+    found["secret"] = {label: label for label in dict.fromkeys(labels) if label not in node.secrets and label in state.secrets}
+    return found
+
+
 def secret_changes(node: NodeFile, state: BackendState) -> list[Change]:
     return [
         Change(UNCHANGED, "secret", label, "exists, values not compared", key=label) if label in state.secrets
         else Change(CREATE, "secret", label, describe_secret(spec), key=label)
         for label, spec in node.secrets.items()
+    ] + [
+        Change(UNCHANGED, "secret", label, REFERENCE, key=label) for label in references(node, state)["secret"]
     ]
 
 
@@ -217,6 +259,9 @@ def repository_changes(node: NodeFile, state: BackendState, kind: str) -> list[C
     for spec in specs:
         name = repo_path_of(spec.uri)
         current = current_by_uri.get(spec.uri)
+        if not has_secret(node, state, spec.secret):
+            changes.append(Change(BLOCKED, f"{kind} repo", name, f"secret {spec.secret} {NOT_FOUND}", key=spec.uri))
+            continue
         if current is None:
             changes.append(Change(CREATE, f"{kind} repo", name, f"secret {spec.secret}", key=spec.uri))
             continue
@@ -229,6 +274,9 @@ def repository_changes(node: NodeFile, state: BackendState, kind: str) -> list[C
             changes.append(Change(UPDATE, f"{kind} repo", name, fields=fields, also_used_by=used, key=spec.uri))
         else:
             changes.append(Change(UNCHANGED, f"{kind} repo", name, key=spec.uri))
+    changes += [
+        Change(UNCHANGED, f"{kind} repo", name, REFERENCE, key=uri) for uri, name in references(node, state)[kind].items()
+    ]
     return changes
 
 
@@ -237,6 +285,9 @@ def dataset_changes(node: NodeFile, state: BackendState) -> list[Change]:
     changes = []
     for spec in node.datasets:
         current = existing.get(spec.name.lower())
+        if not has_secret(node, state, spec.secret):
+            changes.append(Change(BLOCKED, "dataset", spec.name, f"secret {spec.secret} {NOT_FOUND}", key=spec.name))
+            continue
         if current is None:
             detail = f"{spec.type} {spec.host}:{spec.port}, secret {spec.secret}"
             changes.append(Change(CREATE, "dataset", spec.name, detail, key=spec.name))
@@ -249,6 +300,9 @@ def dataset_changes(node: NodeFile, state: BackendState) -> list[Change]:
         used = users(node, state, lambda p: spec.name.lower() in {name.lower() for name in p.datasets})
         warnings = (EARLIER_TASKS_FAIL,) if pinned else ()
         changes.append(Change(UPDATE, "dataset", spec.name, fields=fields, warnings=warnings, also_used_by=used, key=spec.name))
+    changes += [
+        Change(UNCHANGED, "dataset", name, REFERENCE, key=key) for key, name in references(node, state)["dataset"].items()
+    ]
     return changes
 
 
@@ -323,12 +377,37 @@ def update_project(spec: ProjectSpec, current: ProjectState) -> list[Change]:
     return separate or [Change(UNCHANGED, "project", spec.name, key=spec.name)]
 
 
+def unresolved(spec: ProjectSpec, node: NodeFile, state: BackendState) -> list[str]:
+    """
+    What the project is assigned that will not be on the node: neither there already nor made by this file. An entry
+    of the file whose own secret is nowhere is not made, and counts as missing.
+    """
+    datasets = {dataset.name.lower() for dataset in state.datasets}
+    datasets |= {dataset.name.lower() for dataset in node.datasets if has_secret(node, state, dataset.secret)}
+    triggers = {repo.uri for repo in state.trigger_repositories}
+    triggers |= {repo.uri for repo in node.repositories.triggers if has_secret(node, state, repo.secret)}
+    results = {repo.uri for repo in state.results_repositories}
+    results |= {repo.uri for repo in node.repositories.results if has_secret(node, state, repo.secret)}
+    problems = [f"dataset {name} {NOT_FOUND}" for name in spec.datasets if name.lower() not in datasets]
+    problems += [
+        f"trigger repository {repo_path_of(trigger.repository)} {NOT_FOUND}"
+        for trigger in spec.repositories.triggers if trigger.repository not in triggers
+    ]
+    if spec.repositories.results.repository not in results:
+        problems.append(f"results repository {repo_path_of(spec.repositories.results.repository)} {NOT_FOUND}")
+    return problems
+
+
 def project_changes(node: NodeFile, state: BackendState) -> list[Change]:
     existing = {project.name: project for project in state.projects}
     changes = []
     for spec in node.projects:
         current = existing.get(spec.name)
-        changes += [create_project(spec)] if current is None else update_project(spec, current)
+        missing = unresolved(spec, node, state)
+        if missing:
+            changes.append(Change(BLOCKED, "project", spec.name, "; ".join(missing), key=spec.name))
+        else:
+            changes += [create_project(spec)] if current is None else update_project(spec, current)
     return changes
 
 

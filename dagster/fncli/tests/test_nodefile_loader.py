@@ -129,25 +129,27 @@ def test_a_secret_is_values_or_gitea_oauth_not_both_or_neither(tmp_path):
 
 def test_all_problems_are_listed_at_once(tmp_path):
     data = node_data()
-    data["repositories"]["triggers"][0]["secret"] = "nope-creds"
     data["repositories"]["results"][0]["uri"] = "http://unknown.example/gitea_admin/results-repo"
-    data["projects"][0]["datasets"] = ["missing-dataset"]
+    data["repositories"]["triggers"].append(data["repositories"]["triggers"][0])
+    data["projects"][0]["datasets"] = ["shared", "Shared"]
     message = problems_of(tmp_path, data)
-    assert "has 4 problems" in message
-    assert "repositories.triggers[0]: secret nope-creds is not in secrets" in message
+    assert "has 3 problems" in message
+    assert "trigger repository gitea.fn.svc:4000/gitea_admin/trigger-repo is listed twice" in message
     assert "repositories.results[0]: no provider for the host of unknown.example/gitea_admin/results-repo" in message
-    assert "dataset missing-dataset is not in datasets" in message
-    # the project still names the results repository by its old uri
-    assert "results repository gitea.fn.svc:4000/gitea_admin/results-repo is not in repositories.results" in message
+    assert "dataset shared is listed twice" in message
 
 
-def test_project_repositories_must_be_in_the_global_lists(tmp_path):
+def test_what_the_file_does_not_hold_is_not_a_problem_here_because_it_may_be_on_the_node(tmp_path):
     data = node_data()
+    data["repositories"]["triggers"][0]["secret"] = "other-creds"
+    data["datasets"][0]["secret"] = "other-creds"
+    data["projects"][0]["datasets"] = ["elsewhere"]
     data["projects"][0]["repositories"]["triggers"][0]["repository"] = "http://gitea.fn.svc:4000/gitea_admin/other"
     data["projects"][0]["repositories"]["results"]["repository"] = "http://gitea.fn.svc:4000/gitea_admin/other2"
-    message = problems_of(tmp_path, data)
-    assert "trigger repository gitea.fn.svc:4000/gitea_admin/other is not in repositories.triggers" in message
-    assert "results repository gitea.fn.svc:4000/gitea_admin/other2 is not in repositories.results" in message
+
+    node = load(tmp_path, data)
+
+    assert node.projects[0].datasets == ["elsewhere"]
 
 
 def test_a_project_has_exactly_one_results_repository(tmp_path):
@@ -284,6 +286,17 @@ def test_limit_to_project_keeps_the_project_and_what_it_references(tmp_path):
     assert [r.uri for r in limited.repositories.triggers] == ["github.com/org/repo"]
     with pytest.raises(click.ClickException, match="Project nope is not in the node file, which has: alpha, beta"):
         limit_to_project(node, "nope")
+
+
+def test_limit_to_project_keeps_what_the_file_has_when_the_project_also_names_things_on_the_node(tmp_path):
+    data = node_data()
+    data["projects"][0]["datasets"] = ["shared", "on-the-node"]
+    node = load(tmp_path, data)
+
+    limited = limit_to_project(node, "alpha")
+
+    assert limited.projects[0].datasets == ["shared", "on-the-node"]
+    assert [d.name for d in limited.datasets] == ["Shared"]
 
 
 def test_check_sources_says_set_or_missing_and_never_holds_a_value(tmp_path, monkeypatch):

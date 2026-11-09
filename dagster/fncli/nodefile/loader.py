@@ -2,7 +2,8 @@
 Load a node file (schema.py): parse the YAML, validate it, resolve its paths, and run the checks that need no API
 call. Every problem found is reported at once, in one ClickException. The checks across projects on the same repository
 (trigger and results directories) are only made within the file: the backend sees every project on the node, so it
-stays the final judge.
+stays the final judge. So are the references to what the file does not hold (a project's dataset, a repository's
+secret, ...): they may be on the node, which only the diff reads (diff.py).
 """
 
 import os
@@ -88,7 +89,7 @@ def duplicates(names: list[str]) -> list[str]:
 
 
 def check(node: NodeFile, gitea_admin_user: str) -> list[str]:
-    """What is wrong with the file beyond its shape: references that lead nowhere, clashes, and loops"""
+    """What is wrong with the file beyond its shape: names used twice, hosts without a provider, and loops"""
     problems = []
     trigger_uris = [repo.uri for repo in node.repositories.triggers]
     results_uris = [repo.uri for repo in node.repositories.results]
@@ -105,8 +106,6 @@ def check(node: NodeFile, gitea_admin_user: str) -> list[str]:
 
     for kind, repos in (("triggers", node.repositories.triggers), ("results", node.repositories.results)):
         for i, repo in enumerate(repos):
-            if repo.secret not in node.secrets:
-                problems.append(f"repositories.{kind}[{i}]: secret {repo.secret} is not in secrets")
             provider = node.provider_for(repo.uri)
             if provider is None:
                 problems.append(f"repositories.{kind}[{i}]: no provider for the host of {repo.uri}")
@@ -117,10 +116,6 @@ def check(node: NodeFile, gitea_admin_user: str) -> list[str]:
                         f"repositories.{kind}[{i}]: {repo.uri} is owned by {owner}, not the Gitea admin user "
                         f"{gitea_admin_user}"
                     )
-
-    for i, dataset in enumerate(node.datasets):
-        if dataset.secret not in node.secrets:
-            problems.append(f"datasets[{i}]: secret {dataset.secret} is not in secrets")
 
     apps = [spec.gitea_oauth.app for spec in node.secrets.values() if spec.gitea_oauth]
     problems += [f"Gitea OAuth app name {app} is used twice, and Gitea tells apps apart by name" for app in duplicates(apps)]
@@ -134,18 +129,10 @@ def check(node: NodeFile, gitea_admin_user: str) -> list[str]:
     results_by_repo = {}
     for i, project in enumerate(node.projects):
         at = f"projects[{i}] ({project.name})"
-        for dataset in project.datasets:
-            if dataset.lower() not in dataset_names:
-                problems.append(f"{at}: dataset {dataset} is not in datasets")
         problems += [f"{at}: dataset {name} is listed twice" for name in duplicates([d.lower() for d in project.datasets])]
         triggers = project.repositories.triggers
         problems += [f"{at}: trigger {uri} is listed twice" for uri in duplicates([t.repository for t in triggers])]
-        for trigger in triggers:
-            if trigger.repository not in trigger_uris:
-                problems.append(f"{at}: trigger repository {trigger.repository} is not in repositories.triggers")
         results = project.repositories.results
-        if results.repository not in results_uris:
-            problems.append(f"{at}: results repository {results.repository} is not in repositories.results")
         results_by_repo.setdefault(results.repository, []).append((project.name, results.target_dir))
 
     for project in node.projects:

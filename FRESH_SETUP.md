@@ -225,15 +225,13 @@ Both demos use one dataset, `demo-db`. It is a tiny Postgres in its own `experim
 ```bash
 make experiments up
 make experiments seed demo
+make experiments setup demo
 ```
 
 - `up` installs the `experiments` release: a Postgres with a database, a role and a generated password secret for each project under `experiments/projects/`. Safe to rerun.
 - `seed demo` loads `cdm.person` (three rows) and an empty `results` schema into `demo-db`, as `demo_user`. Safe to rerun.
+- `setup demo` checks `experiments/projects/demo/bootstrap.yaml` against its `values.yaml`, then applies it: the node gets the `demo-db` dataset and its secret. The demo node files only assign it, so run this before them.
 - Check: `kubectl get pods -n experiments` shows the database `Running`.
-
-Do not run `make experiments setup demo`: it looks for `bootstrap/examples/experiments/demo.yaml`, which does not exist. The demo node files register the dataset themselves.
-
-> Planned, not built yet ([PLAN-experiment-bootstrap.md](dagster/fncli/PLAN-experiment-bootstrap.md), "Flow after"): `make experiments setup demo` will apply `experiments/projects/demo/bootstrap.yaml` after `seed`, and the demo node files will then drop their own dataset.
 
 Start the Dagster sensors. Every sensor starts stopped, and `fncli demo` does not start them. Without them a merged pull request is never picked up.
 
@@ -409,8 +407,6 @@ Only what the repo's scripts and docs already call out.
 - `make teardown` wipes the node's data and releases the cluster's owner. It keeps the `experiments` release, so the demo database survives it.
 - After `make teardown` and `make deploy`, or `make nuke`, run `tilt up --stream` again, then `fncli start-sensor --group all`, then the demo. Your `.dev.env`, `dev.values.yaml`, `bootstrap/<your-name>*.yaml` and the App's key file are untouched.
 - After `make nuke` or a new cluster, run `make experiments up` again if `kubectl get pods -n experiments` shows nothing.
-- `make experiments down` is the repo's own command for removing the demo database release, but it tears down every project under `experiments/projects/` first, and for `demo` it stops with `No node file for demo` because `bootstrap/examples/experiments/demo.yaml` does not exist. That is why the table uses `helm uninstall`.
-
-  > TODO(verify): confirm `make experiments down` fails this way on a clean checkout. [PLAN-experiment-bootstrap.md](dagster/fncli/PLAN-experiment-bootstrap.md) step 5 plans to fix it.
+- `make experiments down` removes every experiment's dataset from the node, then the release. It stops while a demo project still uses `demo-db`: run `fncli delete -f bootstrap/<your-name>.yaml` first.
 
 - To start the demo database from empty: `kubectl delete ns experiments`, then delete `~/.fn/data/experiments`. Postgres owns it, so that needs root or the kind node.

@@ -1,7 +1,8 @@
 """
 `fncli demo` sets up everything needed to watch a repo from a node file (bootstrap/examples/demo-*.yaml), one
 confirmed step at a time, then proves it works. The setup steps are what `fncli apply` does, split into its parts and
-run in this process; the teardown is `fncli delete --all`. The walk after it (pull request, task, results, checks) is
+run in this process; the teardown is `fncli delete --all`. The dataset the project is assigned is not in the file: it is
+already on the node, made by `make experiments setup demo`. The walk after it (pull request, task, results, checks) is
 the step commands, run in this process. They read the demo's names from the env, which the demo sets from the file.
 """
 
@@ -97,12 +98,10 @@ class Demo:
 
     @property
     def secret_labels(self) -> list[str]:
-        """The secrets of the project's repositories and datasets, once each"""
+        """The secrets of the project's repositories, once each"""
         node, spec = self.node, self.project
         repos = [*(t.repository for t in spec.repositories.triggers), spec.repositories.results.repository]
-        secrets = [r.secret for r in node.repositories.triggers + node.repositories.results if r.uri in repos]
-        secrets += [d.secret for d in node.datasets if d.name in spec.datasets]
-        return list(dict.fromkeys(secrets))
+        return list(dict.fromkeys(r.secret for r in node.repositories.triggers + node.repositories.results if r.uri in repos))
 
     def read_state(self) -> BackendState:
         with quiet_backend_logs():
@@ -323,7 +322,7 @@ def check_dataset(ctx, demo):
         click.echo(f"[FAIL] dataset {name} at {health['host']}:{health['port']}: {health['status']} ({detail})")
         raise click.ClickException(
             "The node cannot connect to the dataset's database. For the demo database: make experiments up, "
-            "then make experiments seed demo"
+            "make experiments seed demo, then make experiments setup demo"
         )
     click.echo(f"[  ok] dataset {name} at {health['host']}:{health['port']}: the node can log in ({detail})")
 
@@ -348,9 +347,9 @@ STEPS = [
         gitea_only=True,
     ),
     Step(
-        "Secrets for the repos and the dataset (global)",
-        "Stores what the backend mints git tokens from, and the dataset's database login, as global Secrets "
-        "through the backend: {secrets}. The values live only there; the records just name the secret.",
+        "Secrets for the repos (global)",
+        "Stores what the backend mints git tokens from as global Secrets through the backend: {secrets}. The values "
+        "live only there; the records just name the secret.",
         "fncli apply -f {file}   # this step: the secrets",
         apply_step("secret"),
         show=show_secrets,
@@ -364,18 +363,13 @@ STEPS = [
         show=show_global_repositories,
     ),
     Step(
-        "The dataset (global)",
-        "Global: the dataset {dataset}, with its database address and its secret.",
-        "fncli apply -f {file}   # this step: the dataset",
-        apply_step("dataset"),
-        show=show_dataset,
-    ),
-    Step(
         "Check the node can log in to the dataset's database",
-        "Read-only. The backend connects to the database with the dataset's secret, as a task will. Stops the "
-        "demo unless it can.",
+        "Read-only. Global: the dataset {dataset} is already on the node (`make experiments setup demo` made it, "
+        "with its database address and its secret). The backend connects to the database with the dataset's "
+        "secret, as a task will. Stops the demo unless it can.",
         "GET /global/datasets/ID/healthcheck   # nexus-api",
         check_dataset,
+        show=show_dataset,
     ),
     Step(
         "Create the project",
@@ -479,8 +473,9 @@ STEPS = [
 # Offered last, and not with --yes. It asks here, and `delete` is run without asking again.
 TEARDOWN_STEP = Step(
     "Tear the demo down (optional)",
-    "Deletes the demo project {project}, then its global repositories, dataset, secrets and provider, as "
-    "`fncli delete --all` does. What another project still uses is kept. The repos and OAuth apps in Gitea stay.",
+    "Deletes the demo project {project}, then its global repositories, secrets and provider, as "
+    "`fncli delete --all` does. What another project still uses is kept. The dataset stays (`make experiments "
+    "teardown demo` removes it), and so do the repos and OAuth apps in Gitea.",
     "fncli delete -f {file} --all",
     delete_demo,
     confirm="Delete the demo project, its global resources and its secrets?",
@@ -552,7 +547,8 @@ def demo_command(ctx, node_file, project, yes_to_all, from_step):
     Every step is idempotent, so the demo can be rerun. A failing step stops it: rerun with
     --from N (a file with no gitea section has no Gitea step, so its numbers are one lower). The names it uses
     are the node file's: its one project, with that project's first trigger repository, results repository and
-    dataset (bootstrap/examples/demo-gitea.yaml or demo-github.yaml). Secret values come from the file's env_file
+    dataset (bootstrap/examples/demo-gitea.yaml or demo-github.yaml). The dataset is not in the file: it must be on
+    the node already (make experiments up, seed demo and setup demo). Secret values come from the file's env_file
     and the places it names. After each step it shows what the
     step made (links to open in the browser, and the backend objects as JSON). After a step
     that changes the project it waits for the change to show, polling every second.
@@ -568,6 +564,12 @@ def demo_command(ctx, node_file, project, yes_to_all, from_step):
     spec = node.projects[0]
     if not spec.repositories.triggers or not spec.datasets:
         raise click.ClickException(f"Project {spec.name} needs a trigger repository and a dataset to demo")
+    absent = [name for name in spec.datasets if api.find_dataset(name) is None]
+    if absent:
+        raise click.ClickException(
+            f"Dataset {', '.join(absent)} is not on the node. Make it first: make experiments up, make experiments "
+            "seed demo, make experiments setup demo"
+        )
     # After open_node: it has loaded the node's env file over the env, and the demo's names must win over that
     os.environ.update(step_env(node, spec))
     demo = Demo(node_file, node, api, spec)

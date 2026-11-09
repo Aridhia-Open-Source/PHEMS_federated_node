@@ -51,9 +51,9 @@ To start from empty data, after `down`: `kubectl delete ns experiments` and
 
 ### Dev mode
 
-`run` and `run --local` pass `DEV_ENV` from `projects/uc1/project.env` (`UC1_DEV=1`) to the
-task: fewer cohorts, for proving the pipeline. `FULL=1 fncli experiment run uc1` runs the
-whole study. `UC1_DEV` needs R changes that are not on MVP-Code's main yet. Without them
+`run` and `run --local` pass `DEV_ENV` from your shell to the task, e.g.
+`DEV_ENV='{"UC1_DEV":"1"}' fncli experiment run uc1`: fewer cohorts, for proving the pipeline.
+Without it the whole study runs. `UC1_DEV` needs R changes that are not on MVP-Code's main yet. Without them
 the variable is ignored and the full study runs, which still works, only slower.
 
 ## Planned: one command

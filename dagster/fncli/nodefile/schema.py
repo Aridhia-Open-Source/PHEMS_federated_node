@@ -17,6 +17,9 @@ A secret says where fncli reads each value at apply time, never the value. A ref
 and a whole secret may instead be `gitea_oauth: {app: NAME}`, an OAuth app fncli creates and authorises in Gitea.
 A bare string where a reference belongs is an error.
 
+A project's datasets and repositories, and a repository's or dataset's secret, may be listed in this file or already be
+on the node (made by another file): the diff resolves them against the backend, and blocks what is in neither.
+
 Repository uris are kept in their normalised form (host[:port]/owner/repo, lowercase, no scheme), a provider's uri in
 its own (scheme://host[:port]).
 """
@@ -247,7 +250,7 @@ class ProjectSpec(Strict):
     name: str = Field(min_length=1)
     # Created disabled, and enabled last
     enabled: bool = True
-    # Names of the global datasets. The first becomes the project's default.
+    # Names of datasets, in this file or on the node. The first becomes the project's default.
     datasets: list[str] = Field(default_factory=list)
     repositories: ProjectRepositories
 

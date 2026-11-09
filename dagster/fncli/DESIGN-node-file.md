@@ -92,7 +92,7 @@ Notes on the format:
 - **Gitea host-side addresses stay in env.** `GITEA_URL`, `GITEA_ADMIN_USER`, `NAMESPACE` and `NEXUS_API_URL` are how this machine reaches the cluster. The file says how the node sees things, and `to_host_url` still translates.
 - **Secret sources:** `env`, `file` (`~` and paths relative to the node file), `k8s_secret`, `gitea_oauth` (bootstrap only), and `generate` (proposed: a random value, for stand-in dataset credentials only, replacing today's `dummy/dummy` defaults).
 - **Checked before any API call:**
-  - every reference resolves (unknown secret label, no provider for a repo's host, unknown dataset);
+  - every repository has a provider for its host;
   - exactly one `results` per project;
   - `base_branch` is set and `watch_dir` is not empty;
   - `api_uri` is on the provider's host (`validate_api_uri`);
@@ -101,6 +101,7 @@ Notes on the format:
   - within the file, a trigger `watch_dir` does not overlap a results `target_dir` on the same repo.
 
   The backend's overlap check covers every project on the node, so it stays the final judge.
+- **References may point outside the file.** A project's datasets and repositories, and a repository's or dataset's secret, can be listed in the file or already be on the node (a dataset made by another file, say an experiment's `bootstrap.yaml`). The diff resolves them against the backend: one on the node shows as an unchanged row "on the node, not in this file", one in neither blocks the row that names it (the project, repository or dataset), and apply leaves a blocked row alone. `delete` still only deletes what the file lists.
 
 ## 3. Commands, and what they reuse
 
@@ -164,7 +165,7 @@ Keep the env vars working, frozen: no new `TEST_*` variables, no new features on
 
 - The e2e suite imports `SETUP_STEPS` and `TEARDOWN_STEPS`.
 - `scripts/e2e_check.py` builds `ProjectConfig`.
-- `fncli experiment` reads `experiments/projects/*/project.env`.
+- `fncli experiment` reads `experiments/projects/*/project.env` (it now holds only the settings of `build` and `run`; the dataset is in `bootstrap.yaml` next to it).
 - Teardown (`teardown-project`, the demo's last step) has a file-based form in `fncli delete` only once the demo and the e2e suite move to files.
 
 Then:

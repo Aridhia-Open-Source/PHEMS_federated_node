@@ -1,8 +1,7 @@
-# Node file for the uc1 experiment (experiments/projects/uc1/project.env, see experiments/README.md): its node
-# project, global resources and Gitea repos, which `fncli experiment setup uc1` applies and `teardown uc1` deletes.
-# The database is the one the experiments release makes for it; its password is read from the chart's secret and the user
-# name from DATASET_USERNAME, which project.env sets. No secret values. The names match project.env, which
-# `fncli experiment run` still reads for the pull request.
+# Node file for the uc1 experiment (experiments/projects/uc1/): its node project, global repositories and Gitea
+# repos, which `fncli experiment setup uc1` applies and `teardown uc1` deletes. The project is assigned the dataset
+# uc1-omop by name: the dataset and its secret are in experiments/projects/uc1/bootstrap.yaml, which setup applies
+# first. No secret values.
 version: 1
 
 node:
@@ -22,10 +21,6 @@ secrets:
     gitea_oauth: {app: uc1-sensor}
   uc1-results-repo-creds:
     gitea_oauth: {app: uc1-results}
-  uc1-omop-dataset-creds:
-    values:
-      USERNAME: {env: DATASET_USERNAME}
-      PASSWORD: {k8s_secret: {name: db-datasets-uc1, namespace: experiments, key: password}}
 
 repositories:
   triggers:
@@ -34,15 +29,6 @@ repositories:
   results:
     - uri: "http://gitea.fn.svc:4000/gitea_admin/uc1-results-repo"
       secret: uc1-results-repo-creds
-
-datasets:
-  - name: uc1-omop
-    type: postgres
-    host: db-datasets.experiments.svc
-    port: 5432
-    read_schema: cdm
-    write_schema: results
-    secret: uc1-omop-dataset-creds
 
 projects:
   - name: uc1

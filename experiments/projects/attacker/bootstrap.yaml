@@ -1,0 +1,27 @@
+# The dataset of the attacker experiment and the secret holding its database login, as node resources. `fncli experiment
+# setup attacker` applies this file and `teardown attacker` deletes it (`fncli delete --all -f` does). Both values of the
+# login are read from the secret that the experiments chart makes for attacker-db, so no secret value is in the file.
+# The names match values.yaml: dbs.attacker.name is the dataset's name and dbs.attacker.secret.name the chart's secret
+# (`setup` checks this). Projects are assigned the dataset by name, from their own node file:
+# bootstrap/examples/experiments/attacker.yaml (`datasets: [attacker-db]`).
+version: 1
+
+node:
+  url: http://localhost:5000                       # nexus-api (the Tilt port-forward)
+  kube_context: kind-fn
+  keycloak_namespace: keycloak
+
+secrets:
+  attacker-db-dataset-creds:
+    values:
+      USERNAME: {k8s_secret: {name: db-datasets-attacker, namespace: experiments, key: username}}
+      PASSWORD: {k8s_secret: {name: db-datasets-attacker, namespace: experiments, key: password}}
+
+datasets:                                          # dataset names are unique across the whole node
+  - name: attacker-db
+    type: postgres
+    host: db-datasets.experiments.svc
+    port: 5432
+    read_schema: cdm
+    write_schema: results
+    secret: attacker-db-dataset-creds

@@ -328,7 +328,7 @@ These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and 
 
 - **On a real node, set up the git provider, repositories and secrets with the API.** `apply` and `delete` are written for the dev and demo clusters, with the confirmation they ask for: using them on a node you care about needs a decision of its own (ADR 0018).
 - **Never run `delete --all` against a node you care about.** It deletes the project, its global dataset, repositories and secrets (their stored values too).
-- A node file's dataset is whatever its `datasets:` entry says. `fncli experiment setup uc1` applies the UC1 one (`bootstrap/examples/experiments/uc1.yaml`).
+- A node file's dataset is whatever its `datasets:` entry says, and a project may be assigned a dataset by name that another file made. `fncli experiment setup uc1` applies the UC1 dataset (`experiments/projects/uc1/bootstrap.yaml`) and then its project (`bootstrap/examples/experiments/uc1.yaml`).
 
 ## Switch things on and off
 

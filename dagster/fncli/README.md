@@ -188,20 +188,20 @@ On GitHub the repo must already exist, and the file's secret reads `GH_APP_ID` a
 
 ## Real experiments
 
-`fncli experiment` runs a real experiment against the dev node. Its names are in `experiments/projects/NAME/project.env`, which wins over `.dev.env` and the shell, and its node project in the node file `bootstrap/examples/experiments/NAME.yaml`. Run it from inside the repo.
+`fncli experiment` runs a real experiment against the dev node. Each experiment is a folder `experiments/projects/NAME/`: its database for the chart (`values.yaml`), its dataset as a node file (`bootstrap.yaml`), and the settings of `build` and `run` in `project.env`, which wins over `.dev.env` and the shell. Its node project is in the node file `bootstrap/examples/experiments/NAME.yaml`, if it has one. Run it from inside the repo.
 
 ```bash
 fncli experiment up              # install/upgrade the release: Postgres + every project's database
 fncli experiment build NAME      # docker build + push of the image
 fncli experiment seed NAME       # load the dummy data (recreates its schemas); needs `up`; safe to rerun
-fncli experiment setup NAME      # apply NAME's node file against that database; needs `up`; safe to rerun
-fncli experiment run NAME        # start-sensor, then open-pr --merge --watch; FULL=1 leaves out DEV_ENV
+fncli experiment setup NAME      # check bootstrap.yaml against values.yaml, apply it (the dataset), then the project's node file; needs `up`; safe to rerun
+fncli experiment run NAME        # start-sensor, then open-pr --merge --watch; DEV_ENV in the shell is passed to the task, FULL=1 leaves it out
 fncli experiment run NAME --local  # the image in docker against the database, no node
-fncli experiment teardown NAME   # delete NAME's node project and global resources (Gitea repos stay)
+fncli experiment teardown NAME   # delete NAME's node project, global resources and dataset (Gitea repos stay)
 fncli experiment down            # teardown every experiment, then uninstall the release (secrets and database files stay)
 ```
 
-`up` runs `helm upgrade --install` of the `experiments` release. `seed` and `setup` check it is installed (if not, they tell you to run `up`). `seed` runs the project's `seed.sh` over `kubectl exec` (which recreates its schemas). `setup` runs `fncli apply` of NAME's node file, which reads the generated database password from the chart's secret. `fncli experiment seed NAME` and `fncli experiment setup NAME` call them. See [experiments/README.md](../../experiments/README.md).
+`up` runs `helm upgrade --install` of the `experiments` release. `seed` and `setup` check it is installed (if not, they tell you to run `up`). `seed` runs the project's `seed.sh` over `kubectl exec` (which recreates its schemas). `setup` first checks that `bootstrap.yaml` names the database and secret of `values.yaml`, then runs `fncli apply` of it (the dataset, which reads the generated login from the chart's secret) and of the project's node file. `fncli experiment seed NAME` and `fncli experiment setup NAME` call them. See [experiments/README.md](../../experiments/README.md).
 
 ## Maintenance
 

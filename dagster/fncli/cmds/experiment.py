@@ -1,8 +1,11 @@
 """
-`fncli experiment` runs real experiments against the dev node, see experiments/README.md.
-Each experiment's names are in experiments/projects/NAME/project.env (no secrets), which wins
-over .dev.env and the shell, and its node project in the node file bootstrap/examples/experiments/NAME.yaml, which
-`setup` applies and `teardown` deletes. `up`, `seed`, `setup`, `run` and `teardown` can be repeated after a failure.
+`fncli experiment` runs real experiments against the dev node, see experiments/README.md. Each experiment is a folder
+experiments/projects/NAME/ that holds its database for the chart (values.yaml), its seed, its image, its dataset as a
+node file (bootstrap.yaml, which `setup` applies after checking it against values.yaml and `teardown` deletes), and
+project.env with the settings of `build` and `run` only (no secrets; it wins over .dev.env and the shell). Its node
+project and repositories are in the node file bootstrap/examples/experiments/NAME.yaml, if it has one: `setup` applies
+it after the dataset and `teardown` deletes it first. `up`, `seed`, `setup`, `run` and `teardown` can be repeated after
+a failure.
 """
 
 import json
@@ -10,17 +13,22 @@ import logging
 import os
 import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import click
+import yaml
 from dotenv import find_dotenv, load_dotenv
 from pydantic import Field
 
 from app.config import EnvConfig
 from fncli.cmds.actions import open_pr_command
+from fncli.cmds.demo import step_env
 from fncli.cmds.nodefile import apply_node_file, delete_node_file
 from fncli.cmds.sensor import start_sensor_command
 from fncli.k8s import get_k8s_secret
+from fncli.nodefile.loader import load_node_file
+from fncli.nodefile.schema import K8sSecretRef, NodeFile
 
 logger = logging.getLogger("experiment")
 
@@ -38,19 +46,13 @@ class ReleaseConfig(EnvConfig):
 
 
 class ExperimentConfig(ReleaseConfig):
-    """What project.env sets for the experiment, and the two host settings that can be set in the env."""
+    """What project.env sets for building and running the experiment, and the host settings that can be set in the env."""
 
     image: str = Field(default="", alias="IMAGE")
     # Relative to experiments/
     source_dir: str = Field(default="", alias="SOURCE_DIR")
-    database: str = Field(default="", alias="DATASET_NAME")
-    username: str = Field(default="", alias="DATASET_USERNAME")
-    secret_name: str = Field(default="", alias="DATASET_SECRET_NAME")
-    read_schema: str = Field(default="", alias="DATASET_SCHEMA")
-    write_schema: str = Field(default="", alias="DATASET_SCHEMA_WRITE")
-    project_name: str = Field(default="", alias="TEST_PROJECT_NAME")
     run_timeout: int = Field(default=0, alias="RUN_TIMEOUT")
-    # Extra env for the task, as JSON, e.g. '{"EXAMPLE_FLAG": "1"}'
+    # Extra env for the task, as JSON, e.g. '{"EXAMPLE_FLAG": "1"}': set in the shell, not in project.env
     dev_env: dict[str, str] = Field(default={}, alias="DEV_ENV", validate_default=False)
     # `run --local`'s port-forward. 5432 is the node's own Postgres.
     local_port: int = Field(default=5434, alias="EXPERIMENTS_LOCAL_PORT")
@@ -64,19 +66,84 @@ def experiments_dir() -> Path:
     return Path(dev_env).parent / "experiments"
 
 
-def node_file(name: str) -> Path:
-    """The experiment's node file, next to the other examples, found from the checkout fncli is run in"""
-    path = experiments_dir().parent / "bootstrap" / "examples" / "experiments" / f"{name}.yaml"
-    if not path.is_file():
-        raise click.ClickException(f"No node file for {name}: {path}")
+def project_dir(name: str) -> Path:
+    path = experiments_dir() / "projects" / name
+    if not path.is_dir():
+        raise click.ClickException(f"No such project: {path}")
     return path
+
+
+def bootstrap_file(name: str) -> Path:
+    """The node file of the experiment's dataset, in its own folder"""
+    path = project_dir(name) / "bootstrap.yaml"
+    if not path.is_file():
+        raise click.ClickException(f"No bootstrap.yaml for {name}: {path}")
+    return path
+
+
+def project_node_file(name: str) -> Path | None:
+    """The experiment's node file with its project and repositories, next to the other examples, if it has one"""
+    path = experiments_dir().parent / "bootstrap" / "examples" / "experiments" / f"{name}.yaml"
+    return path if path.is_file() else None
+
+
+def require_project_node_file(name: str) -> Path:
+    path = project_node_file(name)
+    if path is None:
+        raise click.ClickException(f"{name} has no node project: bootstrap/examples/experiments/{name}.yaml")
+    return path
+
+
+@dataclass(frozen=True)
+class Database:
+    """The experiment's database as the chart makes it (values.yaml), and the schemas its dataset reads and writes"""
+
+    name: str  # the database, and the dataset's name in the node
+    username: str
+    secret_name: str  # the chart's Secret in NAMESPACE: `username` and `password`
+    read_schema: str
+    write_schema: str
+
+
+def check_bootstrap(name: str, entry: dict, node: NodeFile):
+    """bootstrap.yaml must name what the chart makes: the dataset by the database's name, the secret by the chart's"""
+    problems = []
+    dataset_names = [dataset.name for dataset in node.datasets]
+    if dataset_names != [entry["name"]]:
+        problems.append(f"its datasets are {dataset_names}, but dbs.{name}.name in values.yaml is {entry['name']}")
+    secret = node.secrets.get(node.datasets[0].secret) if node.datasets else None
+    read_from = {
+        (ref.k8s_secret.namespace, ref.k8s_secret.name)
+        for ref in (secret.values or {}).values() if isinstance(ref, K8sSecretRef)
+    } if secret else set()
+    if read_from != {(NAMESPACE, entry["secret"]["name"])}:
+        problems.append(
+            f"its dataset's secret reads {sorted(read_from)}, but dbs.{name}.secret.name in values.yaml is "
+            f"{entry['secret']['name']} in namespace {NAMESPACE}"
+        )
+    if problems:
+        listing = "\n".join(f"  - {problem}" for problem in problems)
+        raise click.ClickException(f"experiments/projects/{name}/bootstrap.yaml does not match values.yaml:\n{listing}")
+
+
+def load_database(name: str) -> Database:
+    """
+    The database of experiment NAME from values.yaml (its `dbs.NAME` entry) and bootstrap.yaml (the schemas), after
+    checking that bootstrap.yaml names the same database and secret as values.yaml.
+    """
+    values = project_dir(name) / "values.yaml"
+    entry = yaml.safe_load(values.read_text())["dbs"][name]
+    node = load_node_file(bootstrap_file(name))
+    check_bootstrap(name, entry, node)
+    dataset = node.datasets[0]
+    return Database(entry["name"], entry["user"], entry["secret"]["name"], dataset.read_schema, dataset.write_schema)
 
 
 def load_project(name: str) -> ExperimentConfig:
     """The group has loaded .dev.env without overriding what is set: the project's values must win."""
-    env_file = experiments_dir() / "projects" / name / "project.env"
+    env_file = project_dir(name) / "project.env"
     if not env_file.is_file():
-        raise click.ClickException(f"No such project: {env_file}")
+        raise click.ClickException(f"No project.env for {name}: {env_file}")
     load_dotenv(env_file, override=True)
     return ExperimentConfig()
 
@@ -123,13 +190,13 @@ def release_installed() -> bool:
     ).returncode == 0
 
 
-def seed_database(name: str, config: ExperimentConfig):
+def seed_database(name: str, database: Database):
     """Load the project's seed SQL, which recreates its schemas. As the project's role over the pod's local socket, so no port-forward is needed."""
-    sql = run([str(experiments_dir() / "projects" / name / "seed.sh")], stdout=subprocess.PIPE, text=True).stdout
+    sql = run([str(project_dir(name) / "seed.sh")], stdout=subprocess.PIPE, text=True).stdout
     run(
         [
             "kubectl", "exec", "-i", "-n", NAMESPACE, "deploy/db-datasets", "--",
-            "psql", "-v", "ON_ERROR_STOP=1", "-q", "-U", config.username, "-d", config.database,
+            "psql", "-v", "ON_ERROR_STOP=1", "-q", "-U", database.username, "-d", database.name,
         ],
         input=sql,
         text=True,
@@ -160,24 +227,29 @@ def require_release():
 @name_argument
 def seed_command(name):
     """Load NAME's dummy data into its database on the experiments release (`up`). Its schemas are recreated. Safe to rerun."""
-    config = load_project(name)
+    database = load_database(name)
     require_release()
-    logger.info(f"=== Seeding {config.database} ===")
-    seed_database(name, config)
+    logger.info(f"=== Seeding {database.name} ===")
+    seed_database(name, database)
 
 
 @experiment_group.command("setup")
 @name_argument
 def setup_command(name):
     """
-    Set up NAME's node project, with the global and project resources, against its database
-    on the experiments release (`up`): `fncli apply` of its node file. Safe to rerun.
+    Register NAME in the node, against its database on the experiments release (`up`): check that its
+    bootstrap.yaml names the database and secret of its values.yaml, then `fncli apply` it (the dataset and its
+    secret), then the node file with its project and repositories if it has one. Safe to rerun.
     """
-    config = load_project(name)
+    database = load_database(name)
     require_release()
-    logger.info(f"=== Setting up node project {config.project_name} ===")
-    # Its password is generated by the chart: the node file reads it back from the chart's secret
-    apply_node_file(node_file(name), None, yes=True)
+    logger.info(f"=== Setting up dataset {database.name} ===")
+    # Its login is generated by the chart: bootstrap.yaml reads it back from the chart's secret
+    apply_node_file(bootstrap_file(name), None, yes=True)
+    project = project_node_file(name)
+    if project:
+        logger.info(f"=== Setting up node project from {project.name} ===")
+        apply_node_file(project, None, yes=True)
 
 
 @experiment_group.command("build")
@@ -203,6 +275,9 @@ def run_command(ctx, name, local):
     if local:
         run_local(name, config)
         return
+    # The pull request's names are the node project's, not whatever .dev.env has for the dev project
+    node = load_node_file(require_project_node_file(name))
+    os.environ.update(step_env(node, node.projects[0]))
     ctx.invoke(start_sensor_command, group="all", name=None)
     env = task_env(config)
     logger.info(f"Task env: {json.dumps(env)}")
@@ -214,7 +289,8 @@ def run_command(ctx, name, local):
 
 def run_local(name: str, config: ExperimentConfig):
     """NAME's image in docker against its database through a port-forward. Results go to experiments/results/NAME."""
-    password = get_k8s_secret(config.secret_name, NAMESPACE, "password")
+    database = load_database(name)
+    password = get_k8s_secret(database.secret_name, NAMESPACE, "password")
     out_dir = experiments_dir() / "results" / name
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -234,15 +310,15 @@ def run_local(name: str, config: ExperimentConfig):
         logger.info(f"Task env: {json.dumps(env)}")
         # The experiments database is Postgres; same form as the node's (app/definitions/pipes.py).
         connection = (
-            f"driver={{PostgreSQL ANSI}};Uid={config.username};Pwd={password};"
-            f"Server=localhost,{config.local_port};Database={config.database};"
+            f"driver={{PostgreSQL ANSI}};Uid={database.username};Pwd={password};"
+            f"Server=localhost,{config.local_port};Database={database.name};"
         )
         run([
             "docker", "run", "--rm", "--network", "host",
             *[arg for key, value in env.items() for arg in ("-e", f"{key}={value}")],
             "-e", f"CONNECTION_STRING={connection}",
-            "-e", f"CDM_SCHEMA={config.read_schema}",
-            "-e", f"WRITE_SCHEMA={config.write_schema}",
+            "-e", f"CDM_SCHEMA={database.read_schema}",
+            "-e", f"WRITE_SCHEMA={database.write_schema}",
             "-e", "ARTIFACT_PATH=/artifacts",
             "-v", f"{out_dir}:/artifacts",
             config.image,
@@ -252,23 +328,30 @@ def run_local(name: str, config: ExperimentConfig):
 
 
 def project_names() -> list[str]:
-    """Every experiment: the folders under experiments/projects with a project.env."""
-    return sorted(path.parent.name for path in (experiments_dir() / "projects").glob("*/project.env"))
+    """Every experiment: the folders under experiments/projects with a bootstrap.yaml."""
+    return sorted(path.parent.name for path in (experiments_dir() / "projects").glob("*/bootstrap.yaml"))
 
 
 def teardown_project(name: str):
-    """Remove NAME's node project with its global resources: `fncli delete --all` of its node file. Gitea is left alone."""
-    config = load_project(name)
-    logger.info(f"=== Tearing down node project {config.project_name} ===")
-    delete_node_file(node_file(name), with_globals=True, yes=True)
+    """
+    Remove what `setup` registered for NAME, in reverse: the node project with its global resources, then the dataset
+    with its secret (`fncli delete --all` of each file). The dataset is refused, and the command exits 1, while a project
+    outside these files (a demo project, say) is still assigned it. Gitea is left alone.
+    """
+    project = project_node_file(name)
+    if project:
+        logger.info(f"=== Tearing down node project from {project.name} ===")
+        delete_node_file(project, with_globals=True, yes=True)
+    logger.info(f"=== Tearing down dataset of {name} ===")
+    delete_node_file(bootstrap_file(name), with_globals=True, yes=True)
 
 
 @experiment_group.command("teardown")
 @name_argument
-@click.confirmation_option("-y", "--yes", prompt="Delete the project and its secrets from the node?")
+@click.confirmation_option("-y", "--yes", prompt="Delete the experiment's node project (if any), its dataset and their secrets from the node?")
 def teardown_command(name):
     """
-    Remove what `setup` registered in the node for NAME: its project and global resources. The Gitea repos
+    Remove what `setup` registered in the node for NAME: its project, global resources and dataset. The Gitea repos
     and OAuth apps, the experiments release and NAME's database stay. Safe to rerun.
     """
     teardown_project(name)
@@ -280,8 +363,9 @@ def teardown_command(name):
 )
 def down_command():
     """
-    Tear down every experiment's node project, then uninstall the experiments release. The
-    secrets and database files stay, so a later `setup` gets the same data back.
+    Tear down every experiment's node project and dataset, then uninstall the experiments release. The
+    secrets and database files stay, so a later `setup` gets the same data back. It stops, and leaves the release,
+    if a dataset is still assigned to a project it does not tear down (delete the demo projects first).
     """
     for name in project_names():
         teardown_project(name)

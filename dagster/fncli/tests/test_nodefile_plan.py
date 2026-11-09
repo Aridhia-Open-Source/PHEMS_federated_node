@@ -113,11 +113,25 @@ def test_project_limits_the_plan_and_an_unknown_project_is_an_error(run_plan):
 
 def test_a_bad_node_file_lists_its_problems(run_plan):
     data = node_data()
-    data["projects"][0]["datasets"] = ["nope"]
+    data["projects"][0]["datasets"] = ["shared", "Shared"]
     result = run_plan(data, EMPTY)
 
     assert result.exit_code == 1
-    assert "has 1 problem:" in result.output and "dataset nope is not in datasets" in result.output
+    assert "has 1 problem:" in result.output and "dataset shared is listed twice" in result.output
+
+
+def test_a_project_dataset_on_the_node_but_not_in_the_file_is_an_existing_reference_and_one_nowhere_is_blocked(run_plan):
+    data = node_data()
+    del data["datasets"]
+    data["projects"][0]["datasets"] = ["shared"]
+    present = run_plan(data, synced_state())
+    absent = run_plan(data, replace(synced_state(), datasets=[]))
+
+    assert present.exit_code == 0, present.output
+    assert "  = dataset       shared" in present.output and "on the node, not in this file" in present.output
+    assert absent.exit_code == 0, absent.output
+    assert "  x project       alpha" in absent.output and "dataset shared is not in the file or on the node" in absent.output
+    assert absent.output.splitlines()[-1] == "Plan: 1 blocked, 2 to check at apply, 6 unchanged. Nothing is deleted."
 
 
 def test_the_file_comes_from_the_option_or_the_env_never_a_search(run_plan, tmp_path, monkeypatch):

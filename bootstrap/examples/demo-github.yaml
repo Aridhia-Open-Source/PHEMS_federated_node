@@ -3,9 +3,11 @@
 #   fncli diff -f bootstrap/examples/demo-github.yaml      (or FNCLI_NODE_FILE=bootstrap/examples/demo-github.yaml)
 #   fncli apply -f bootstrap/examples/demo-github.yaml
 #   fncli demo -f bootstrap/examples/demo-github.yaml      (the guided version)
-# The dataset is the demo database, a tiny Postgres in the experiments release. Create and seed it first:
+# The project is assigned the dataset demo-db, a tiny Postgres in the experiments release. It is not in this file: its
+# node resources are in experiments/projects/demo/bootstrap.yaml. Make it first:
 #   make experiments up
 #   make experiments seed demo
+#   make experiments setup demo
 # The node mints its tokens from the GitHub App in SETUP_GIT_APPS.md. GH_APP_ID and GH_INSTALLATION_ID come from the
 # node's env_file; keep the App's private key in the file named below. The demo's own pull
 # requests into the trigger repo use RESEARCHER_GIT_TOKEN, or else the token of `gh auth login`.
@@ -28,10 +30,6 @@ secrets:
       APP_ID:          {env: GH_APP_ID}
       INSTALLATION_ID: {env: GH_INSTALLATION_ID}
       PRIVATE_KEY:     {file: ~/.config/phems/phems-sandbox.private-key.pem}
-  demo-db-dataset-creds:                           # the demo database's login, read from its chart secret
-    values:
-      USERNAME: {k8s_secret: {name: db-datasets-demo, namespace: experiments, key: username}}
-      PASSWORD: {k8s_secret: {name: db-datasets-demo, namespace: experiments, key: password}}
 
 # One repo is both the trigger repo and the results repo: the sensor only picks up PRs that change files
 # under the watch dir, so the results PRs are not seen as triggers.
@@ -43,18 +41,9 @@ repositories:
     - uri: "https://github.com/Aridhia-Open-Source/phems-sandbox"
       secret: phems-sandbox-creds
 
-datasets:
-  - name: demo-db                                  # shared with demo-gitea.yaml: dataset names are unique on the node
-    type: postgres
-    host: db-datasets.experiments.svc
-    port: 5432
-    read_schema: cdm
-    write_schema: results
-    secret: demo-db-dataset-creds
-
 projects:
   - name: demo-github
-    datasets: [demo-db]
+    datasets: [demo-db]                            # on the node already, see above
     repositories:
       triggers:
         - repository: https://github.com/Aridhia-Open-Source/phems-sandbox
