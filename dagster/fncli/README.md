@@ -85,7 +85,7 @@ fncli apply -f examples/e2e.yaml    # print that, ask, build the whole dev proje
 fncli start-sensor --group all      # ingest -> evaluate -> launcher, plus the run-status sensors (fncli sensor-status to watch)
 fncli open-pr [--kind watched|unwatched|invalid] [--merge]
 fncli delete -f examples/e2e.yaml --all   # delete it all again, last (Gitea repos stay)
-fncli demo -f examples/demo-gitea.yaml [-y] [--from N]   # the same, one confirmed step at a time (see Demo)
+fncli demo -f examples/demo-gitea.yaml [-y] [--from N]   # on an applied node: the pull request walk, one confirmed step at a time (see Demo)
 ```
 
 - `diff -f FILE [--project P]`: the difference between the file and the node, one row per entity (`+` create, `~` change, `=` unchanged, `!` needs a confirmation, `x` blocked, `?` checked at apply). Secrets can only be "exists", never "changed", and a secret to be created lists where each value is read from and whether it can be. `plan` is a hidden alias.
@@ -174,15 +174,17 @@ A second project on the same global resources is `fncli apply -f examples/e2e-se
 
 ## Demo
 
-`fncli demo -f FILE` walks through setting up everything needed to watch a repo, then proves it works: the secrets, the project and its resources, a check that the node can log in to the dataset's database, a merged pull request and its results. The setup steps are the parts of `apply` (run in this process), the last, optional one is `delete --all`. Before each step it says what the step creates, shows the equivalent fncli command and asks: Enter runs it, `s` skips it, `q` quits. Steps are separated by a line of dashes. After each step it lists nexus-api calls it made (`METHOD /path -> status`, repeats counted) and shows what the step made: links to open in the browser (`Open:` lines) and nexus-api objects as JSON. A step that changes the project waits for the change to show in the project's state, polling every second, and prints it when it changes. The teardown asks again, default No.
+`fncli demo -f FILE` walks the pull request process on a node that `fncli apply -f FILE` has already set up, and proves it works: checks that the node can log in to the dataset's database and the git host, a merged pull request, its task and its results pull request, then checks of the whole project. It creates and deletes nothing. The flow is `fncli apply -f FILE`, then `fncli demo -f FILE` (as often as you like), then `fncli delete -f FILE [--all]`. First it builds the plan `fncli diff` prints and stops with exit 1, listing the rows, unless nothing is left to change (Gitea repos that apply would ensure do not count). Before each step it says what the step does, shows the equivalent fncli command and asks: Enter runs it, `s` skips it, `q` quits. Steps are separated by a line of dashes. After each step it lists nexus-api calls it made (`METHOD /path -> status`, repeats counted) and shows what the step made: links to open in the browser (`Open:` lines) and nexus-api objects as JSON. A step that changes the project waits for the change to show in the project's state, polling every second, and prints it when it changes.
 
 ```bash
+fncli apply -f examples/demo-gitea.yaml    # first: set the node up
 fncli demo -f examples/demo-gitea.yaml      # step by step
-fncli demo -f examples/demo-github.yaml -y  # every step without asking (no teardown), on GitHub (phems-sandbox)
-fncli demo -f examples/demo-gitea.yaml --from 8   # start at step 8, e.g. after a step failed
+fncli demo -f examples/demo-github.yaml -y  # every step without asking, on GitHub (phems-sandbox)
+fncli demo -f examples/demo-gitea.yaml --from 5   # start at step 5, e.g. after a step failed
+fncli delete -f examples/demo-gitea.yaml --all    # last: clean up
 ```
 
-It needs the dev cluster with Tilt running and the Dagster sensors already running, and the demo database (`fncli experiment up`, `fncli experiment seed demo`). The demo's names are the node file's: its one project (`--project` picks one when there are several), with that project's first trigger repository, results repository and dataset, so it never touches the e2e project. The steps are idempotent, so it can be rerun. A file with no `gitea:` section has no Gitea step.
+It needs the dev cluster with Tilt running and the Dagster sensors already running, and the demo database (`fncli experiment up`, `seed demo` and `setup demo`). The demo's names are the node file's: its one project (`--project` picks one when there are several), with that project's first trigger repository, results repository and dataset, so it never touches the e2e project. It can be rerun.
 
 On GitHub the repo must already exist, and the file's secret reads `GH_APP_ID` and `GH_INSTALLATION_ID` from its `node.env_file` (`.dev.env`) and the App's private key from a file ([SETUP_GIT_APPS.md](../../SETUP_GIT_APPS.md)); the backend mints installation tokens from them. fncli works out the provider from the file. Everything the node does (reading the repos, `verify-git-secret`, `merge-results-pr`) uses tokens the backend mints, built like Dagster's clients (`GitAPIFactory`). The trigger repo's branches, files and pull requests (`open-pr`, `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, `merge-gitea-pr`) are the researcher's work: on Gitea the admin login, on GitHub `RESEARCHER_GIT_TOKEN`, or else the token of `gh auth login`. fncli never creates or deletes GitHub repos, tokens or Apps.
 
@@ -247,7 +249,7 @@ dagster/fncli/
   cmds/             the commands
     common.py       env config classes and the Gitea and backend API builders
     nodefile.py     diff, apply and delete: the commands that work from a node file
-    demo.py         the guided demo, from a node file
+    demo.py         the pull request walk on an applied node file
     experiment.py   real experiments: release, seed, image, setup (apply), run, teardown (delete)
     actions.py      open-pr
     project.py      the project healthcheck, and the find/init helpers the others use

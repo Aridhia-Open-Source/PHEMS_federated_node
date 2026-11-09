@@ -18,7 +18,7 @@ The source of truth is the repo: [DEPLOYMENT.md](DEPLOYMENT.md), [MANAGEMENT.md]
 
 ## 1. What you end up with
 
-A local Federated Node on a kind cluster, with Gitea running inside it, a small demo database, and `fncli` on your PATH. `fncli demo` then walks one project from nothing to a merged pull request, one confirmed step at a time. It stores the secrets, registers the git provider and repositories, creates the project, opens and merges a pull request, waits for the task to run, and merges the results pull request. You run it twice: once on the in-cluster Gitea, and once on a GitHub repo of yours, with a GitHub App that you created.
+A local Federated Node on a kind cluster, with Gitea running inside it, a small demo database, and `fncli` on your PATH. `fncli apply` sets up one project from a node file: it stores the secrets, registers the git provider and repositories, and creates the project. `fncli demo` then walks a pull request through it, one confirmed step at a time: it opens and merges a pull request, waits for the task to run, and merges the results pull request. `fncli delete` cleans up. You run it twice: once on the in-cluster Gitea, and once on a GitHub repo of yours, with a GitHub App that you created.
 
 ## 2. Install the tools
 
@@ -223,9 +223,9 @@ fncli finds `.dev.env` by searching up from the current directory, so run it fro
 Both demos use one dataset, `demo-db`. It is a tiny Postgres in its own `experiments` release and namespace. `make experiments` calls `fncli`, so step 6 comes first.
 
 ```bash
-make experiments up
-make experiments seed demo
-make experiments setup demo
+fncli experiment up
+fncli experiment seed demo
+fncli experiment setup demo
 ```
 
 - `up` installs the `experiments` release: a Postgres with a database, a role and a generated password secret for each project under `experiments/projects/`. Safe to rerun.
@@ -270,24 +270,32 @@ After a new `make deploy` or `make teardown`, start them again.
 
    The first line names the node and the kubectl context. Each secret that would be created lists where its values come from and whether they are `set` or `missing`. The demo database's two values must say `set`, or step 7 is not done. From a directory other than the repo root, `-f <your-name>.yaml` also works: a bare name is looked up under the nearest `bootstrap/`.
 
-4. Run the guided demo.
+4. Set the node up. This is the only step that creates anything.
+
+   ```bash
+   fncli apply -f bootstrap/<your-name>.yaml
+   ```
+
+   It prints the same diff, asks, then makes the Gitea repos, secrets, git provider, repositories and project. Run the diff again afterwards: it should show nothing left to change.
+
+5. Run the guided demo.
 
    ```bash
    fncli demo -f bootstrap/<your-name>.yaml
    ```
 
-   Before each step it says what the step creates and shows the equivalent command. Enter runs it, `s` skips it, `q` quits. After each step it prints `Open:` addresses for the browser and the objects that were made. The pull request step waits up to 5 minutes for the task to run. The last step offers to tear everything down, and the default is No. Useful options:
+   The demo creates and deletes nothing. It first checks the plan, and stops with the rows that differ unless the node already matches the file: run the apply above first. Before each step it says what the step does and shows the equivalent command. Enter runs it, `s` skips it, `q` quits. After each step it prints `Open:` addresses for the browser and the objects that were made. The pull request step waits up to 5 minutes for the task to run. Useful options:
 
-   - `-y` runs every step without asking, and leaves the teardown out.
+   - `-y` runs every step without asking.
    - `--from N` starts at step N, for example after a failed step.
 
-   The demo is idempotent, so you can run it again.
+   You can run the demo again as often as you like.
 
    For the Gitea web pages that the `Open:` lines point to, log in as `gitea_admin`.
 
    > TODO(verify): the password is the chart-generated `gitea-admin` secret, and `make show-db-passwords` should list it. Not confirmed on a fresh install.
 
-5. Clean up.
+6. Clean up.
 
    ```bash
    fncli delete -f bootstrap/<your-name>.yaml            # the project only
@@ -353,15 +361,16 @@ fncli never creates or deletes GitHub repos, tokens or Apps. You make them, then
 
    Leave the `providers:` block (`api_uri` defaults to `https://api.github.com`), the `demo-db-dataset-creds` secret and the `datasets:` block, for the reason in step 8.
 
-10. Diff, demo, delete.
+10. Diff, apply, demo, delete.
 
     ```bash
     fncli diff -f bootstrap/<your-name>-github.yaml
+    fncli apply -f bootstrap/<your-name>-github.yaml
     fncli demo -f bootstrap/<your-name>-github.yaml
     fncli delete -f bootstrap/<your-name>-github.yaml --all
     ```
 
-    In the diff, `GH_APP_ID`, `GH_INSTALLATION_ID` and the key file must say `set`. This file has no Gitea section, so the demo has no "Create the Gitea repos" step, and its step numbers are one lower than the Gitea demo's. The demo asks the backend for a token for each repo and calls GitHub with it (the two `verify-git-secret` steps), then opens a pull request into your repo, merges it, and later merges the results pull request, which you can watch in your repo. Everything is also visible in the `Open:` addresses.
+    In the diff, `GH_APP_ID`, `GH_INSTALLATION_ID` and the key file must say `set`. This file has no Gitea section, so apply makes no Gitea repos. The demo asks the backend for a token for each repo and calls GitHub with it (the two `verify-git-secret` steps), then opens a pull request into your repo, merges it, and later merges the results pull request, which you can watch in your repo. Everything is also visible in the `Open:` addresses.
 
     The delete notes at the end of step 8 apply here too: nothing is deleted in your GitHub repo, and the shared dataset is skipped while the other demo's project exists.
 
@@ -374,12 +383,13 @@ Only what the repo's scripts and docs already call out.
 | fncli: `... is for kubectl context kind-fn, but the current one is ...` | `kubectl config use-context kind-fn` |
 | fncli: `node.env_file ... not found` | The env file must exist in or above the node file's directory. Make `.dev.env` (step 4) |
 | `Nothing was applied, these secret values cannot be read`, or `missing` in the diff | Set what it names: `GH_APP_ID` and `GH_INSTALLATION_ID` in `.dev.env`, the key file at the path in your node file, and for the demo database the `make experiments` steps in step 7 |
-| `The node cannot connect to the dataset's database` | `make experiments up`, then `make experiments seed demo` |
-| `No experiments deployment: run fncli experiment up first` | `make experiments up` |
+| `The node cannot connect to the dataset's database` | `fncli experiment up`, then `fncli experiment seed demo` |
+| `No experiments deployment: run fncli experiment up first` | `fncli experiment up` |
 | `fncli: command not found` | `pipx ensurepath`, then a new terminal |
 | `make experiments`: `No such command`, or `No module named 'fncli'` | Reinstall from this checkout (step 6) |
 | `Writing to a GitHub repo needs RESEARCHER_GIT_TOKEN, or gh auth login` | Step 9, item 7 |
 | A merged pull request does nothing | `fncli sensor-status`. Sensors are stopped by default: `fncli start-sensor --group all` |
+| `fncli demo`: `The node does not match ... yet` | `fncli apply -f <the same file>`, then the demo again |
 | A demo step failed | Fix the cause and rerun with `fncli demo -f ... --from N` |
 | `Connection refused` on localhost 5000, 4000 or 3000 | Tilt must be running (`tilt up --stream`). Check `tilt logs \| grep "Port forward"`, or forward by hand: `kubectl port-forward service/nexus-api 5000:5000 -n fn` |
 | Helm will not render, or the chart's subcharts are missing | `make helm_deps` |
@@ -406,7 +416,7 @@ Only what the repo's scripts and docs already call out.
 
 - `make teardown` wipes the node's data and releases the cluster's owner. It keeps the `experiments` release, so the demo database survives it.
 - After `make teardown` and `make deploy`, or `make nuke`, run `tilt up --stream` again, then `fncli start-sensor --group all`, then the demo. Your `.dev.env`, `dev.values.yaml`, `bootstrap/<your-name>*.yaml` and the App's key file are untouched.
-- After `make nuke` or a new cluster, run `make experiments up` again if `kubectl get pods -n experiments` shows nothing.
-- `make experiments down` removes every experiment's dataset from the node, then the release. It stops while a demo project still uses `demo-db`: run `fncli delete -f bootstrap/<your-name>.yaml` first.
+- After `make nuke` or a new cluster, run `fncli experiment up` again if `kubectl get pods -n experiments` shows nothing.
+- `fncli experiment down` removes every experiment's dataset from the node, then the release. It stops while a demo project still uses `demo-db`: run `fncli delete -f bootstrap/<your-name>.yaml` first.
 
 - To start the demo database from empty: `kubectl delete ns experiments`, then delete `~/.fn/data/experiments`. Postgres owns it, so that needs root or the kind node.

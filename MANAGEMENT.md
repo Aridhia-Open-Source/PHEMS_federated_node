@@ -292,7 +292,7 @@ fncli delete -f examples/e2e.yaml --all   # delete it all again (dev only; Gitea
 
 `examples/e2e.yaml` is found under the nearest `bootstrap/` directory. A node file lists the providers, secrets (each value says where it is read from, never the value), repositories, datasets and projects of a node, and which node it is for: `fncli` refuses to run when `kubectl` points at another cluster. `apply` creates what is missing, changes what differs (only the differing fields), never rewrites a secret that exists unless `--rotate LABEL`, and never deletes. `delete -f FILE` deletes only the file's projects; `--all` also deletes the global repositories, datasets, secrets and providers, and skips, with the backend's reason, whatever a project outside the file still uses. Both can be repeated after a failure.
 
-`fncli demo -f examples/demo-gitea.yaml` (or `demo-github.yaml`) does the same one step at a time. Before each step it says what the step creates and shows the command, then asks: Enter runs it, `s` skips it, `q` quits. It uses its own project and repository names, so it never touches your test project.
+`fncli demo -f examples/demo-gitea.yaml` (or `demo-github.yaml`) walks the pull request part one step at a time, on a node that `fncli apply -f examples/demo-gitea.yaml` has set up (it stops unless `fncli diff` shows nothing to change). Before each step it says what the step does and shows the command, then asks: Enter runs it, `s` skips it, `q` quits. It creates and deletes nothing: `fncli delete -f examples/demo-gitea.yaml --all` cleans up. It uses its own project and repository names, so it never touches your test project.
 
 ### API step to fncli
 

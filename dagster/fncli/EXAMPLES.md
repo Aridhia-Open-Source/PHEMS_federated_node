@@ -25,7 +25,7 @@ fncli logs in first with `POST /login` on nexus-api, then makes its backend call
 
 ### Quick happy-path check
 
-To walk through the same flow one confirmed step at a time, run `fncli demo -f examples/demo-gitea.yaml` (see Demo in [README.md](README.md)).
+To watch the pull request part one confirmed step at a time, run `fncli apply -f examples/demo-gitea.yaml`, then `fncli demo -f examples/demo-gitea.yaml` (see Demo in [README.md](README.md)), then `fncli delete -f examples/demo-gitea.yaml --all`. The demo creates and deletes nothing.
 
 A PR in the Gitea trigger repo, through a task, to a merged results PR in the Gitea results repo:
 

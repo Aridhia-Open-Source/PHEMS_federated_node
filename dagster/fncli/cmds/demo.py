@@ -1,9 +1,10 @@
 """
-`fncli demo` sets up everything needed to watch a repo from a node file (bootstrap/examples/demo-*.yaml), one
-confirmed step at a time, then proves it works. The setup steps are what `fncli apply` does, split into its parts and
-run in this process; the teardown is `fncli delete --all`. The dataset the project is assigned is not in the file: it is
-already on the node, made by `make experiments setup demo`. The walk after it (pull request, task, results, checks) is
-the step commands, run in this process. They read the demo's names from the env, which the demo sets from the file.
+`fncli demo` walks the pull request process on a node that `fncli apply -f FILE` has already set up
+(bootstrap/examples/demo-*.yaml), one confirmed step at a time, then proves it works. It creates and deletes nothing
+itself: it first builds the plan `fncli diff` shows and stops unless the node already matches the file. The dataset
+the project is assigned is not in the file: it is already on the node, made by `fncli experiment setup demo`. The
+steps (checks, pull request, task, results) are the step commands, run in this process. They read the demo's names
+from the env, which the demo sets from the file.
 """
 
 import json
@@ -21,24 +22,15 @@ import requests
 from app.utils import BackendSession
 from fncli.backend import FncliBackendAPI, repo_path_of
 from fncli.cmds.actions import open_pr_command
-from fncli.cmds.common import (
-    DagsterConfig,
-    GiteaConfig,
-    RepoConfig,
-    ResultsRepoConfig,
-    TriggerRepoConfig,
-    build_gitea_api,
-    to_host_url,
-)
-from fncli.cmds.nodefile import carry_out, delete_from_node, node_file_option, open_node, quiet_backend_logs
+from fncli.cmds.common import DagsterConfig, RepoConfig, ResultsRepoConfig, TriggerRepoConfig, to_host_url
+from fncli.cmds.nodefile import node_file_option, open_node, quiet_backend_logs, render_change
 from fncli.cmds.pr import merge_results_pr_command
 from fncli.cmds.project import project_healthcheck_command
 from fncli.cmds.secret import verify_git_secret_command
-from fncli.cmds.state import get, project_resources, project_set_command, snapshot
+from fncli.cmds.state import get, snapshot
 from fncli.cmds.verify import Links, verify_project_command, verify_repo_command
 from fncli.nodefile import lookup
-from fncli.nodefile.apply import Applier, missing_sources, needs_gitea, to_do
-from fncli.nodefile.diff import BackendState, describe_secret, diff
+from fncli.nodefile.diff import ENSURE, UNCHANGED, BackendState, diff
 from fncli.nodefile.loader import limit_to_project
 from fncli.nodefile.schema import NodeFile, ProjectSpec
 from fncli.nodefile.state import read_state
@@ -96,23 +88,9 @@ class Demo:
     api: FncliBackendAPI
     project: ProjectSpec
 
-    @property
-    def secret_labels(self) -> list[str]:
-        """The secrets of the project's repositories, once each"""
-        node, spec = self.node, self.project
-        repos = [*(t.repository for t in spec.repositories.triggers), spec.repositories.results.repository]
-        return list(dict.fromkeys(r.secret for r in node.repositories.triggers + node.repositories.results if r.uri in repos))
-
     def read_state(self) -> BackendState:
         with quiet_backend_logs():
             return read_state(self.api)
-
-    def applier(self, state: BackendState | None = None, gitea=None) -> Applier:
-        """What `apply` carries its changes out with"""
-        return Applier(self.node, state or self.read_state(), self.api, gitea)
-
-    def gitea_api(self):
-        return build_gitea_api(GiteaConfig(GITEA_ADMIN_USER=self.node.node.gitea_admin_user))
 
 
 def repository_uri(node: NodeFile, uri: str) -> str:
@@ -149,7 +127,7 @@ def step_env(node: NodeFile, project: ProjectSpec) -> dict[str, str]:
 
 def step_names(demo: Demo) -> dict[str, str]:
     """What a step's text and command line are filled from"""
-    node, project = demo.node, demo.project
+    project = demo.project
     return {
         "file": str(demo.node_file),
         "project": project.name,
@@ -158,7 +136,6 @@ def step_names(demo: Demo) -> dict[str, str]:
         "results_repo": repo_path_of(project.repositories.results.repository),
         "target_dir": project.repositories.results.target_dir,
         "dataset": project.datasets[0],
-        "secrets": "; ".join(f"{label} ({describe_secret(node.secrets[label])})" for label in demo.secret_labels),
     }
 
 
@@ -166,41 +143,9 @@ def gitea_repo_url(config: RepoConfig, page: str = "") -> str:
     return to_host_url(f"{config.web_url}/{config.repo_path}{page}")
 
 
-def show_repos(demo, state):
-    """Where the repositories are, to open in the browser"""
-    urls = dict.fromkeys(gitea_repo_url(config()) for config in (TriggerRepoConfig, ResultsRepoConfig))
-    return "\n".join(f"Open: {url}" for url in urls)
-
-
-def show_secrets(demo, state):
-    """The secrets as the backend returns them: label, key, namespace, enabled. Never their values."""
-    return "\n".join(as_json("secret", get(demo.api, f"/global/secrets/{label}")) for label in demo.secret_labels)
-
-
-def show_global_repositories(demo, state):
-    records = [
-        ("trigger_repository", demo.api.find_trigger_repository(TriggerRepoConfig().repo_uri)),
-        ("results_repository", demo.api.find_results_repository(ResultsRepoConfig().repo_uri)),
-    ]
-    return "\n".join([show_repos(demo, state), *(as_json(name, repo.model_dump(mode="json")) for name, repo in records)])
-
-
 def show_dataset(demo, state):
     dataset = lookup.present(demo.api.find_dataset(demo.project.datasets[0]), f"dataset {demo.project.datasets[0]}")
     return as_json("dataset", dataset.model_dump(mode="json"))
-
-
-def show_project(demo, state):
-    return as_json("project", state["project"])
-
-
-def show_resources(kind, name, config_class=None):
-    """The project's resources of that kind, shown under the name of the global resource they are assigned, with the global repository, provider or dataset in each."""
-    def show(demo, state):
-        resources = as_json(name, project_resources(demo.api, state["project"]["id"])[kind])
-        return f"Open: {gitea_repo_url(config_class())}\n{resources}" if config_class else resources
-
-    return show
 
 
 def result_lines(result: dict) -> list[str]:
@@ -246,13 +191,11 @@ class Wait(NamedTuple):
     # True once the project's snapshot shows it
     done: Callable[[dict], bool]
     timeout: int = 30
-    # snapshot fails while the project does not exist: only the step that creates it waits through that
-    may_be_missing: bool = False
 
 
 class Step(NamedTuple):
     title: str
-    # What the step creates. {project}, {trigger_repo}, ... are filled from the node file when the step is shown.
+    # What the step does. {project}, {trigger_repo}, ... are filled from the node file when the step is shown.
     text: str
     # The fncli command line that does the same, for the user to see and reuse. Filled like the text.
     line: str
@@ -263,53 +206,11 @@ class Step(NamedTuple):
     # What the step made, as text: "Open:" links first, then the backend objects as JSON. Called
     # with the demo and the project's snapshot (None when the step has no wait_for).
     show: Callable[[Demo, dict | None], str] | None = None
-    # Ask this (default No) before running it
-    confirm: str | None = None
-    # Left out for a node file with no gitea section
-    gitea_only: bool = False
 
 
 def command_step(command: click.Command, **options) -> Callable[[click.Context, Demo], None]:
     """A step that is one of the step commands, which read their names from the env"""
     return lambda ctx, demo: ctx.invoke(command, **options)
-
-
-def apply_step(*kinds: str) -> Callable[[click.Context, Demo], None]:
-    """A part of `apply`: the changes of those kinds that the file asks of the node as it is now. What is there stays."""
-    def run(ctx, demo):
-        state = demo.read_state()
-        changes = [change for change in to_do(diff(demo.node, state)) if change.kind in kinds]
-        if not changes:
-            click.echo("Nothing to do: it is all there already.")
-            return
-        missing = missing_sources(demo.node, changes)
-        if missing:
-            raise click.ClickException(
-                "These secret values cannot be read:\n" + "\n".join(f"  {line}" for line in missing)
-            )
-        gitea = demo.gitea_api() if needs_gitea(demo.node, changes) else None
-        carry_out(changes, demo.applier(state, gitea).run)
-
-    return run
-
-
-def create_project(ctx, demo):
-    demo.applier().ensure_project(demo.project)
-
-
-def assign_triggers(ctx, demo):
-    applier = demo.applier()
-    project_id = lookup.project_id(demo.api, demo.project.name)
-    for trigger in demo.project.repositories.triggers:
-        applier.put_trigger(project_id, trigger)
-
-
-def assign_results(ctx, demo):
-    demo.applier().put_results(lookup.project_id(demo.api, demo.project.name), demo.project.repositories.results)
-
-
-def assign_datasets(ctx, demo):
-    demo.applier().assign_datasets(lookup.project_id(demo.api, demo.project.name), demo.project.datasets)
 
 
 def check_dataset(ctx, demo):
@@ -321,10 +222,23 @@ def check_dataset(ctx, demo):
     if health["status"] != "ok":
         click.echo(f"[FAIL] dataset {name} at {health['host']}:{health['port']}: {health['status']} ({detail})")
         raise click.ClickException(
-            "The node cannot connect to the dataset's database. For the demo database: make experiments up, "
-            "make experiments seed demo, then make experiments setup demo"
+            "The node cannot connect to the dataset's database. For the demo database: fncli experiment up, "
+            "fncli experiment seed demo, then fncli experiment setup demo"
         )
     click.echo(f"[  ok] dataset {name} at {health['host']}:{health['port']}: the node can log in ({detail})")
+
+
+def require_applied(demo: Demo):
+    """
+    Stop unless the node already matches the file, by the plan `fncli diff` prints. A Gitea repository to ensure is
+    not a difference: apply makes it in Gitea, never in the backend, and the plan lists it every time.
+    """
+    pending = [change for change in diff(demo.node, demo.read_state()) if change.action not in (UNCHANGED, ENSURE)]
+    if pending:
+        rows = "\n".join(line for change in pending for line in render_change(change, {}))
+        raise click.ClickException(
+            f"The node does not match {demo.node_file} yet:\n{rows}\nRun `fncli apply -f {demo.node_file}` first."
+        )
 
 
 def merge_results_pr(ctx, demo):
@@ -332,77 +246,15 @@ def merge_results_pr(ctx, demo):
     ctx.invoke(merge_results_pr_command, number=snapshot(demo.api, demo.project.name)["results"][0]["number"])
 
 
-def delete_demo(ctx, demo):
-    delete_from_node(demo.node, demo.api, with_globals=True, yes=True)
-
-
 STEPS = [
     Step(
-        "Create the Gitea repos",
-        "Gitea only. Creates {trigger_repo} (the repo the sensor will watch) and {results_repo} (where the results "
-        "go) under the Gitea admin user, or finds them.",
-        "fncli apply -f {file}   # this step: the Gitea repos",
-        apply_step("gitea repo"),
-        show=show_repos,
-        gitea_only=True,
-    ),
-    Step(
-        "Secrets for the repos (global)",
-        "Stores what the backend mints git tokens from as global Secrets through the backend: {secrets}. The values "
-        "live only there; the records just name the secret.",
-        "fncli apply -f {file}   # this step: the secrets",
-        apply_step("secret"),
-        show=show_secrets,
-    ),
-    Step(
-        "The git provider and the repositories (global)",
-        "Global: the GitProvider for the git host, and the trigger repository {trigger_repo} and the results "
-        "repository {results_repo} on it, each with its secret.",
-        "fncli apply -f {file}   # this step: the provider and the repositories",
-        apply_step("provider", "trigger repo", "results repo"),
-        show=show_global_repositories,
-    ),
-    Step(
         "Check the node can log in to the dataset's database",
-        "Read-only. Global: the dataset {dataset} is already on the node (`make experiments setup demo` made it, "
+        "Read-only. Global: the dataset {dataset} is already on the node (`fncli experiment setup demo` made it, "
         "with its database address and its secret). The backend connects to the database with the dataset's "
         "secret, as a task will. Stops the demo unless it can.",
         "GET /global/datasets/ID/healthcheck   # nexus-api",
         check_dataset,
         show=show_dataset,
-    ),
-    Step(
-        "Create the project",
-        "Creates {project}. A new project is disabled: a results repository can only be assigned while it is "
-        "disabled. Nothing is assigned to it yet.",
-        "fncli apply -f {file}   # this step: the project",
-        create_project,
-        wait_for=Wait("the project to exist", lambda state: True, may_be_missing=True),
-        show=show_project,
-    ),
-    Step(
-        "The project's trigger repository resource",
-        "Project: the resource for {trigger_repo}, with watch_dir {watch_dir} and the branch to watch.",
-        "fncli apply -f {file}   # this step: the trigger repository resource",
-        assign_triggers,
-        wait_for=Wait("the trigger repository resource", lambda state: bool(state["trigger_resources"])),
-        show=show_resources("trigger", "trigger_repositories", TriggerRepoConfig),
-    ),
-    Step(
-        "The project's results repository resource",
-        "Project: the resource for {results_repo}, with target_dir {target_dir}.",
-        "fncli apply -f {file}   # this step: the results repository resource",
-        assign_results,
-        wait_for=Wait("the results repository resource", lambda state: bool(state["results_resources"])),
-        show=show_resources("results", "results_repositories", ResultsRepoConfig),
-    ),
-    Step(
-        "The project's dataset resource",
-        "Project: the resource for {dataset}; the first dataset assigned becomes the project's default.",
-        "fncli apply -f {file}   # this step: the dataset resource",
-        assign_datasets,
-        wait_for=Wait("the dataset resource", lambda state: bool(state["dataset_resources"])),
-        show=show_resources("dataset", "datasets"),
     ),
     Step(
         "Check the git host accepts the trigger token",
@@ -416,14 +268,6 @@ STEPS = [
         "Read-only, same for the results repo.",
         "fncli verify-git-secret --entity results",
         command_step(verify_git_secret_command, entity="results"),
-    ),
-    Step(
-        "Enable the project",
-        "All resources are in place, so switch the project on.",
-        "fncli project-set --enabled true",
-        command_step(project_set_command, enabled="true"),
-        wait_for=Wait("the project to be enabled", lambda state: state["project"]["enabled"]),
-        show=show_project,
     ),
     Step(
         "Project healthcheck",
@@ -470,17 +314,6 @@ STEPS = [
     ),
 ]
 
-# Offered last, and not with --yes. It asks here, and `delete` is run without asking again.
-TEARDOWN_STEP = Step(
-    "Tear the demo down (optional)",
-    "Deletes the demo project {project}, then its global repositories, secrets and provider, as "
-    "`fncli delete --all` does. What another project still uses is kept. The dataset stays (`make experiments "
-    "teardown demo` removes it), and so do the repos and OAuth apps in Gitea.",
-    "fncli delete -f {file} --all",
-    delete_demo,
-    confirm="Delete the demo project, its global resources and its secrets?",
-)
-
 
 def wait_for_state(demo: Demo, step: Step):
     """Poll the project every second until the step's change has arrived, printing what the step made when it changes."""
@@ -488,18 +321,13 @@ def wait_for_state(demo: Demo, step: Step):
     deadline = time.monotonic() + wait.timeout
     shown = None
     while True:
-        try:
-            state = snapshot(demo.api, demo.project.name)
-        except click.ClickException:
-            if not wait.may_be_missing:
-                raise
-            state = None
-        text = step.show(demo, state) if state else None
-        changed = text is not None and text != shown
+        state = snapshot(demo.api, demo.project.name)
+        text = step.show(demo, state)
+        changed = text != shown
         if changed:
             shown = text
             click.echo(f"--- now:\n{text}")
-        if state and wait.done(state):
+        if wait.done(state):
             return
         if not changed:
             click.echo(f"waiting for {wait.description}...")
@@ -529,10 +357,7 @@ def run_step(ctx: click.Context, demo: Demo, step: Step):
 @click.command("demo")
 @node_file_option
 @click.option("--project", default=None, help="The project to demo, when the node file has more than one.")
-@click.option(
-    "-y", "--yes", "yes_to_all", is_flag=True,
-    help="Run every step without asking. The teardown is left out.",
-)
+@click.option("-y", "--yes", "yes_to_all", is_flag=True, help="Run every step without asking.")
 @click.option(
     "--from", "from_step", type=click.IntRange(min=1), default=1, show_default=True,
     help="Start at this step.",
@@ -540,21 +365,20 @@ def run_step(ctx: click.Context, demo: Demo, step: Step):
 @click.pass_context
 def demo_command(ctx, node_file, project, yes_to_all, from_step):
     """
-    Set up everything needed to watch a repo with fncli from a node file, then prove it works, one step
-    at a time. Before each step it says what the step creates (a global object, a project
-    resource, or Gitea only), shows the command and asks: Enter runs it, s skips it, q quits.
+    Walk the pull request process of a node file's project, one step at a time: checks that the node can reach the
+    dataset's database and the git host, then a pull request into the trigger repository that is merged, becomes a
+    task and delivers its results in a results pull request, which is merged, then checks of the whole project. It
+    creates and deletes nothing: set the node up first with `fncli apply -f FILE`, and remove it afterwards with
+    `fncli delete -f FILE [--all]`. It stops unless `fncli diff -f FILE` shows nothing to change.
 
-    Every step is idempotent, so the demo can be rerun. A failing step stops it: rerun with
-    --from N (a file with no gitea section has no Gitea step, so its numbers are one lower). The names it uses
-    are the node file's: its one project, with that project's first trigger repository, results repository and
-    dataset (bootstrap/examples/demo-gitea.yaml or demo-github.yaml). The dataset is not in the file: it must be on
-    the node already (make experiments up, seed demo and setup demo). Secret values come from the file's env_file
-    and the places it names. After each step it shows what the
-    step made (links to open in the browser, and the backend objects as JSON). After a step
-    that changes the project it waits for the change to show, polling every second.
+    Before each step it says what the step does, shows the command and asks: Enter runs it, s skips it, q quits.
+    A failing step stops it: rerun with --from N. The names it uses are the node file's: its one project, with that
+    project's first trigger repository, results repository and dataset (bootstrap/examples/demo-gitea.yaml or
+    demo-github.yaml). The dataset is not in the file: it must be on the node already (fncli experiment up, seed
+    demo and setup demo). After each step it shows what the step made (links to open in the browser, and the backend
+    objects as JSON). After a step that changes the project it waits for the change to show, polling every second.
 
-    Needs the dev cluster with Tilt running and the Dagster sensors already running. The last step deletes
-    what the demo made, like `fncli delete --all`.
+    Needs the dev cluster with Tilt running and the Dagster sensors already running.
     """
     node, api = open_node(node_file, project)
     if project is None and len(node.projects) != 1:
@@ -567,21 +391,19 @@ def demo_command(ctx, node_file, project, yes_to_all, from_step):
     absent = [name for name in spec.datasets if api.find_dataset(name) is None]
     if absent:
         raise click.ClickException(
-            f"Dataset {', '.join(absent)} is not on the node. Make it first: make experiments up, make experiments "
-            "seed demo, make experiments setup demo"
+            f"Dataset {', '.join(absent)} is not on the node. Make it first: fncli experiment up, make experiments "
+            "seed demo, fncli experiment setup demo"
         )
+    demo = Demo(node_file, node, api, spec)
+    require_applied(demo)
     # After open_node: it has loaded the node's env file over the env, and the demo's names must win over that
     os.environ.update(step_env(node, spec))
-    demo = Demo(node_file, node, api, spec)
     names = step_names(demo)
     click.echo(
         "Demo project: {project}. Trigger repo: {trigger_repo}. Results repo: {results_repo}. "
         "Dataset: {dataset}.".format_map(names)
     )
-    steps = [step for step in STEPS if node.gitea or not step.gitea_only]
-    if not yes_to_all:
-        steps.append(TEARDOWN_STEP)
-    for number, step in enumerate(steps, start=1):
+    for number, step in enumerate(STEPS, start=1):
         if number < from_step:
             continue
         click.echo(f"\n{SEPARATOR}")
@@ -594,8 +416,6 @@ def demo_command(ctx, node_file, project, yes_to_all, from_step):
                 continue
             if answer.strip().lower() == "q":
                 return
-            if step.confirm and not click.confirm(step.confirm, default=False):
-                continue
         run_step(ctx, demo, step)
     click.echo("\nDone.")
 

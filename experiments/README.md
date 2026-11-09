@@ -72,8 +72,11 @@ fncli experiment up                          # the release: databases, roles, se
 fncli experiment seed demo                   # the schemas and rows
 fncli experiment setup demo                  # name check, then the dataset demo-db with its secret
 fncli apply -f examples/demo-github.yaml     # project, repos, assigns demo-db (or demo-gitea.yaml)
-fncli demo -f examples/demo-github.yaml      # the guided walk, with the dataset healthcheck
+fncli demo -f examples/demo-github.yaml      # the pull request walk on the applied node, with the dataset healthcheck (repeatable)
+fncli delete -f examples/demo-github.yaml --all   # clean up
 ```
+
+`fncli demo` creates and deletes nothing: it stops with the rows that differ unless `apply` has already set the node up.
 
 A node file whose project names a dataset that is not on the node is blocked (the plan says "not in the
 file or on the node"), so apply the dataset first.

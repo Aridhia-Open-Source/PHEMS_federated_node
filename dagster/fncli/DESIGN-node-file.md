@@ -111,7 +111,7 @@ Notes on the format:
 | `fncli apply -f node.yaml [--project P] [-y] [--only PHASE] [--rotate LABEL]` | Prints the plan, asks, executes, then verifies. | `create_*`, `upsert_secret`, `GiteaAdminAPI.get_or_create_repo` and `authorize_oauth_app`, `verify_git_secret`, project healthcheck | `update_*` calls on `FncliBackendAPI`, the executor, the disable and enable step |
 | `fncli delete -f node.yaml [--all] [-y]` | Soft-deletes the file's projects (their assignments go with them) through the DELETE routes, never with `?force=true`. With `--all`, then the global repositories and datasets, secrets and providers, in that order. What a project outside the file still uses is a 409: skipped with the backend's message, exit 1. Gitea repositories and OAuth apps are left. | `delete_project`, `delete_secret`, `delete_git_provider` | `force=False` on the repository and dataset deletes, the reverse-order executor |
 | `fncli open-pr`, `merge-gitea-pr`, `merge-results-pr`, `verify-*`, ... `--project P [--repository URI]` | Read the repo, branch and directories from the project's assignments in the backend. No file. `--repository` is needed only when the project has more than one trigger assignment; otherwise the only one is used. | `load_repo_config(from_backend=True)`, `get_pr_base_branch`, `build_researcher_git_api` | `--project` means "from the backend" everywhere; `PrConfig` stops requiring `TEST_TRIGGER_*` |
-| `fncli demo -f demo.yaml --project P` | The same guided walk. | The `Step` table, `wait_for_state`, the `show_*` helpers | Setup steps become `apply --only <phase>`; step text is filled from the file |
+| `fncli demo -f demo.yaml --project P` | Walks the pull request process on a node that `apply` has set up; creates and deletes nothing. Stops with exit 1, listing the rows, unless `diff` shows nothing to change. | The `Step` table, `wait_for_state`, the `show_*` helpers, the checks | The plan check (`diff`); step text is filled from the file. The flow is `apply`, then `demo` (repeatable), then `delete` |
 | `fncli node-file --from-env` | Prints the current env as a node file. | The config classes | Small renderer, also the migration check |
 
 **Where the code pushes back on the proposal:**
@@ -119,7 +119,7 @@ Notes on the format:
 - **The `init-*` steps are not the engine.** They are click commands bound to the env config classes, and the `get_or_*` helpers only reuse. Apply reuses the layer below them (`FncliBackendAPI`, `GiteaAdminAPI`) and adds create-or-update with a diff in front.
 - **Identity decides create vs update.** A repository's `uri` can't be patched (its PATCH takes provider, secret, enabled, revoked). A changed uri is a new repository, not an update.
 - **Compare normalised forms** (`normalise_repo_uri`, `normalise_provider_uri`, lowercase dataset names), or the plan shows false differences.
-- **Phases** run in dependency order: `gitea` (repos), `secrets`, `providers`, `repositories`, `datasets`, `projects` (created disabled, assignments in), `enable`, then verify. `--only` runs one, which is what the demo's steps call.
+- **Phases** run in dependency order: `gitea` (repos), `secrets`, `providers`, `repositories`, `datasets`, `projects` (created disabled, assignments in), `enable`, then verify. `--only` runs one.
 
 **Reach of `--project`.** `apply --project P` covers the project plus the globals it references. Datasets, repositories and secrets are shared, so a change to one can fail another project's earlier tasks (for example `shared-dataset` for `demo-gitea` when applying `demo-github`). The plan lists every project assigned to a changed global, taken from the backend's assignments, not from the file, because projects outside the file may use it too.
 
@@ -166,7 +166,7 @@ Keep the env vars working, frozen: no new `TEST_*` variables, no new features on
 - The e2e suite imports `SETUP_STEPS` and `TEARDOWN_STEPS`.
 - `scripts/e2e_check.py` builds `ProjectConfig`.
 - `fncli experiment` reads `experiments/projects/*/project.env` (it now holds only the settings of `build` and `run`; the dataset is in `bootstrap.yaml` next to it).
-- Teardown (`teardown-project`, the demo's last step) has a file-based form in `fncli delete` only once the demo and the e2e suite move to files.
+- Teardown (`teardown-project`) has a file-based form in `fncli delete`. The demo no longer tears down: it only walks the pull request process, after `apply` and before `delete`.
 
 Then:
 
@@ -208,5 +208,5 @@ About 11 working days with agent help. The first useful slice is the first three
 1. Commit `demo-gitea.yaml` and `demo-github.yaml` in `bootstrap/examples/` (they hold no secrets), replacing the two `.demo*.env.example` files? Recommend yes.
 2. Always an explicit `-f` (or `FNCLI_NODE_FILE`), no upward search like `.dev.env`? Recommend explicit, so a stray file can't be applied to the wrong node.
 3. New results repository on a live project: disable and enable automatically after a confirmation, or refuse? Recommend the confirmation.
-4. `fncli delete -f` (built) replaces `teardown-project` in the demo and the e2e suite once they run from files. Recommend yes.
+4. `fncli delete -f` (built) replaces `teardown-project` in the e2e suite once it runs from files (the demo no longer tears down). Recommend yes.
 5. Add the `generate` secret source for stand-in dataset credentials? Recommend yes, noted as dev only.

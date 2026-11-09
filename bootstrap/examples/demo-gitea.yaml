@@ -2,12 +2,13 @@
 # from the ones the e2e suites use (fn-dev). No secret values: each says where it is read from.
 #   fncli diff -f bootstrap/examples/demo-gitea.yaml       (or FNCLI_NODE_FILE=bootstrap/examples/demo-gitea.yaml)
 #   fncli apply -f bootstrap/examples/demo-gitea.yaml
-#   fncli demo -f bootstrap/examples/demo-gitea.yaml       (the guided version)
+#   fncli demo -f bootstrap/examples/demo-gitea.yaml       (walks a pull request through the applied node; repeatable)
+#   fncli delete -f bootstrap/examples/demo-gitea.yaml --all   (clean up)
 # The project is assigned the dataset demo-db, a tiny Postgres in the experiments release. It is not in this file: its
 # node resources are in experiments/projects/demo/bootstrap.yaml. Make it first:
-#   make experiments up
-#   make experiments seed demo
-#   make experiments setup demo
+#   fncli experiment up
+#   fncli experiment seed demo
+#   fncli experiment setup demo
 # Names: lowercase letters, digits, '-' and '.' only, because they become Secret labels.
 version: 1
 
