@@ -29,8 +29,7 @@ If `start-sensor` says a sensor is not found, Dagster is still loading its code:
 ```bash
 make experiments up                 # the experiments release: demo-db, its role and secret
 make experiments seed demo          # cdm.person with three rows, and an empty results schema
-cd dagster
-fncli apply -f ../experiments/demo/dataset.yaml   # registers demo-db with the node
+fncli apply -f experiments/demo/dataset.yaml      # registers demo-db with the node
 ```
 
 ## 3a. Gitea demo
