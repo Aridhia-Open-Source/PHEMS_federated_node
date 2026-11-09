@@ -1,9 +1,11 @@
 """
 Federated node dev tooling. `.dev.env` is found by searching up from the current directory, and
---env-file (or FNCLI_ENV_FILE) names a second env file that wins over it, e.g. to run on GitHub:
+--env-file (or FNCLI_ENV_FILE) names a second env file that wins over it. The node itself is set up from a
+node file (bootstrap/examples), not from the env:
 
     fncli --help
-    fncli --env-file .demo-github.env verify-git-secret
+    fncli diff -f examples/demo-github.yaml
+    fncli apply -f examples/demo-github.yaml
 """
 
 import logging
@@ -12,13 +14,13 @@ import sys
 import click
 from dotenv import find_dotenv, load_dotenv
 
-from fncli.cmds import actions, dataset, demo, experiment, hello_world, pr, project, repository, secret, sensor, simulate, state, verify
+from fncli.cmds import actions, demo, experiment, hello_world, nodefile, pr, project, secret, sensor, simulate, state, verify
 
 
 @click.group()
 @click.option(
     "--env-file", envvar="FNCLI_ENV_FILE", default=None,
-    help="An env file, found from the current directory up, that wins over .dev.env and the shell, e.g. .demo-github.env to run on GitHub.",
+    help="An env file, found from the current directory up, that wins over .dev.env and the shell.",
 )
 def cli(env_file):
     sys.stdout.reconfigure(line_buffering=True)
@@ -36,6 +38,6 @@ def cli(env_file):
     )
 
 
-for module in (hello_world, actions, project, repository, secret, dataset, pr, sensor, state, simulate, verify, demo, experiment):
+for module in (hello_world, actions, project, secret, pr, sensor, state, simulate, verify, demo, experiment, nodefile):
     for command in module.COMMANDS:
         cli.add_command(command)

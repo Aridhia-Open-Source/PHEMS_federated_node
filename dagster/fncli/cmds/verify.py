@@ -139,7 +139,7 @@ def verify_project(report: Report, config: ProjectConfig, dataset_config: Datase
         lambda p: f"id {p.id}",
     )
     if project is None:
-        report.skip("everything else", "no project, run setup-project first")
+        report.skip("everything else", "no project, run fncli apply first")
         return
 
     health = report.check(

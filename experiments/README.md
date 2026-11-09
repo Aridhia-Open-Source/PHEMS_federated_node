@@ -54,6 +54,8 @@ A project can use it for a quick dev run (see its README). `FULL=1 fncli experim
 3. Run `fncli experiment up` (it upgrades the release with the new database, so this works
    on a running cluster), then `build NAME`, `seed NAME`, `setup NAME` and `run NAME`.
 
+`projects/demo` is a no-op demo database (`demo-db`, user `demo_user`, a tiny `cdm.person` table and an empty `results` schema): `make experiments up`, then `make experiments seed demo`. The demo project has its own task image at `experiments/projects/demo/image`, built by `build_all_images.sh` as `demo-fn`.
+
 ## Check task isolation
 
 `projects/attacker` is a hostile task image, not an experiment. It tries to read other runs'

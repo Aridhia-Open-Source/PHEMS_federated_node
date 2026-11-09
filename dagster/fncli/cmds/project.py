@@ -1,5 +1,6 @@
 """
-Commands for the nexus-api Project. Its datasets and repositories are global, the project only holds assignments of them. Deleting what is already gone is logged, not an error.
+The nexus-api Project and its healthcheck. Its datasets and repositories are global, the project only holds
+assignments of them. It is made and deleted by `fncli apply` and `fncli delete`.
 """
 
 import json
@@ -28,37 +29,18 @@ def init_backend_project(config: ProjectConfig, backend_api: FncliBackendAPI) ->
 
 
 def find_project(config: ProjectConfig, backend_api: FncliBackendAPI) -> Project | None:
-    """For the delete steps: a project that is already gone is not an error."""
+    """The config's project, or None, which is logged: not an error for every caller."""
     project = backend_api.find_project(config.project_name)
     if project is None:
         logger.info(f"Backend project {config.project_name} does not exist")
     return project
 
 
-@click.command("init-backend-project")
-def init_backend_project_command():
-    """Find or create the test project in the backend, disabled when new."""
-    config = ProjectConfig()
-    init_backend_project(config, build_backend_api(config))
-
-
-@click.command("delete-backend-project")
-def delete_backend_project_command():
-    """Delete the project from the backend, with its assignments. Global datasets, repositories and secrets stay."""
-    config = ProjectConfig()
-    backend_api = build_backend_api(config)
-    project = find_project(config, backend_api)
-    if project is None:
-        return
-    backend_api.delete_project(project.id)
-    logger.info(f"Deleted backend project {project.name} ({project.id})")
-
-
 def get_project_healthcheck(config: ProjectConfig, backend_api: FncliBackendAPI) -> dict:
     project = backend_api.find_project(config.project_name)
     if project is None:
         raise click.ClickException(
-            f"Project {config.project_name} not found, run init-backend-project first"
+            f"Project {config.project_name} not found, run fncli apply first"
         )
     return backend_api.get_project_healthcheck(project.id)
 
@@ -73,8 +55,4 @@ def project_healthcheck_command():
         raise click.exceptions.Exit(1)
 
 
-COMMANDS = [
-    init_backend_project_command,
-    delete_backend_project_command,
-    project_healthcheck_command,
-]
+COMMANDS = [project_healthcheck_command]

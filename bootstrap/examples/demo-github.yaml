@@ -1,0 +1,66 @@
+# Node file for the demo on an existing GitHub repo, replacing .demo-github.env.example. The same values. fncli
+# never creates or deletes GitHub repos or tokens. No secret values: each says where it is read from.
+#   fncli diff -f bootstrap/examples/demo-github.yaml      (or FNCLI_NODE_FILE=bootstrap/examples/demo-github.yaml)
+#   fncli apply -f bootstrap/examples/demo-github.yaml
+#   fncli demo -f bootstrap/examples/demo-github.yaml      (the guided version)
+# The dataset is the demo database, a tiny Postgres in the experiments release. Create and seed it first:
+#   make experiments up
+#   make experiments seed demo
+# The node mints its tokens from the GitHub App in SETUP_GIT_APPS.md. GH_APP_ID and GH_INSTALLATION_ID come from the
+# node's env_file; keep the App's private key in the file named below. The demo's own pull
+# requests into the trigger repo use RESEARCHER_GIT_TOKEN, or else the token of `gh auth login`.
+version: 1
+
+# The node this file is for, as this host reaches it. fncli refuses to run when kubectl points elsewhere.
+node:
+  url: http://localhost:5000                       # nexus-api (the Tilt port-forward)
+  kube_context: kind-fn
+  keycloak_namespace: keycloak
+  env_file: .dev.env                               # GH_APP_ID, GH_INSTALLATION_ID; found from here up
+
+providers:
+  - type: github
+    uri: https://github.com                        # api_uri defaults to https://api.github.com
+
+secrets:
+  phems-sandbox-creds:                             # shared by the trigger and the results repository
+    values:
+      APP_ID:          {env: GH_APP_ID}
+      INSTALLATION_ID: {env: GH_INSTALLATION_ID}
+      PRIVATE_KEY:     {file: ~/.config/phems/phems-sandbox.private-key.pem}
+  demo-db-dataset-creds:                           # the demo database's login, read from its chart secret
+    values:
+      USERNAME: {k8s_secret: {name: db-datasets-demo, namespace: experiments, key: username}}
+      PASSWORD: {k8s_secret: {name: db-datasets-demo, namespace: experiments, key: password}}
+
+# One repo is both the trigger repo and the results repo: the sensor only picks up PRs that change files
+# under the watch dir, so the results PRs are not seen as triggers.
+repositories:
+  triggers:
+    - uri: "https://github.com/Aridhia-Open-Source/phems-sandbox"
+      secret: phems-sandbox-creds
+  results:
+    - uri: "https://github.com/Aridhia-Open-Source/phems-sandbox"
+      secret: phems-sandbox-creds
+
+datasets:
+  - name: demo-db                                  # shared with demo-gitea.yaml: dataset names are unique on the node
+    type: postgres
+    host: db-datasets.experiments.svc
+    port: 5432
+    read_schema: cdm
+    write_schema: results
+    secret: demo-db-dataset-creds
+
+projects:
+  - name: demo-github
+    datasets: [demo-db]
+    repositories:
+      triggers:
+        - repository: https://github.com/Aridhia-Open-Source/phems-sandbox
+          watch_dir: mgmt/requests/
+          base_branch: main
+      results:
+        repository: https://github.com/Aridhia-Open-Source/phems-sandbox
+        target_dir: mgmt/results/
+        base_branch: main

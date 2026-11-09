@@ -76,7 +76,7 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     backend_secret_label: str = Field(default="", validate_default=False)
     # Set when the repo comes from a backend record: the type of that record's provider.
     backend_provider_type: str = Field(default="", validate_default=False)
-    # GitHub only: what init-git-secret stores in the repo's secret, for the backend to mint installation tokens from.
+    # GitHub only: what init_git_secret stores in the repo's secret, for the backend to mint installation tokens from.
     github_app_id: str = Field(default="", alias="GH_APP_ID", validate_default=False)
     github_installation_id: str = Field(default="", alias="GH_INSTALLATION_ID", validate_default=False)
     github_private_key: str = Field(default="", alias="GH_PRIVATE_KEY", validate_default=False)
@@ -153,14 +153,6 @@ class ResultsRepoConfig(RepoConfig):
 
 class DatasetConfig(ProjectConfig):
     dataset_name: str = Field(default="", alias="DEFAULT_PROJECT_DATASET")
-    # The defaults are the dummy stand-in dataset. fncli experiment setup sets these for a real experiment.
-    dataset_host: str = Field(default="db-datasets.experiments.svc", alias="CLUSTER_DATASET_HOST")
-    dataset_port: int = Field(default=5432, alias="DATASET_PORT")
-    dataset_type: str = Field(default="postgres", alias="DATASET_TYPE")
-    dataset_read_schema: str = Field(default="cdm", alias="DATASET_SCHEMA")
-    dataset_write_schema: str = Field(default="results", alias="DATASET_SCHEMA_WRITE")
-    dataset_username: str = Field(default="dummy", alias="DATASET_USERNAME")
-    dataset_password: str = Field(default="dummy", alias="DATASET_PASSWORD")
 
     @property
     def secret_label(self) -> str:
@@ -188,16 +180,6 @@ def build_gitea_api(config: GiteaConfig) -> GiteaAdminAPI:
     return GiteaAdminAPI(client, config.gitea_admin_user, web)
 
 
-def get_base_branch(config: RepoConfig, option: str | None = None) -> str:
-    """The branch to assign the repo with: the --base-branch option, else TEST_<TRIGGER|RESULTS>_REPO_BASE_BRANCH."""
-    base_branch = option or config.base_branch
-    if not base_branch:
-        raise click.ClickException(
-            f"No base branch: give --base-branch or set TEST_{config.entity.upper()}_REPO_BASE_BRANCH"
-        )
-    return base_branch
-
-
 def get_repository(config: RepoConfig, backend_api: FncliBackendAPI) -> TriggerRepository | ResultsRepository:
     """The repo's global record in the backend, which names its provider."""
     find = backend_api.find_trigger_repository if config.entity == "trigger" else backend_api.find_results_repository
@@ -205,7 +187,7 @@ def get_repository(config: RepoConfig, backend_api: FncliBackendAPI) -> TriggerR
     if repository is None:
         raise click.ClickException(
             f"Backend {config.entity} repository {config.repo_uri} does not exist "
-            f"(run init-backend-{config.entity}-repo first)"
+            f"(run fncli apply first)"
         )
     return repository
 

@@ -1,7 +1,7 @@
 """
 Commands for the end-to-end suites (tests/e2e/README.md): look at the test project's state, and change the
-state nexus-api's rules act on (project enabled and revoked, a project resource's enabled and revoked, a global resource's enabled and revoked),
-plus a second project on the same global resources. Every write prints the HTTP status and body; `--expect STATUS` asserts
+state nexus-api's rules act on (project enabled and revoked, a project resource's enabled and revoked, a global resource's enabled and revoked).
+Every write prints the HTTP status and body; `--expect STATUS` asserts
 the status, which is how the suites check the 409 rules. Without it a status of 400 or more is a failure.
 """
 
@@ -40,7 +40,7 @@ def get(api: FncliBackendAPI, path: str, **params):
 def find_project(api: FncliBackendAPI, name: str):
     project = api.find_project(name)
     if project is None:
-        raise click.ClickException(f"Project {name} not found, run setup-project first")
+        raise click.ClickException(f"Project {name} not found, run fncli apply first")
     return project
 
 
@@ -223,43 +223,6 @@ def set_secret(api: FncliBackendAPI, label: str, enabled: str, expect: int | Non
     return report(call(api, "PATCH", f"/global/secrets/{label}", json={"enabled": enabled == "true"}), expect)
 
 
-def setup_second_project(api: FncliBackendAPI, config: ProjectConfig, name: str) -> int:
-    """A second project assigned the SAME global resources: created disabled, assigned, then enabled."""
-    first = find_project(api, config.project_name)
-    found = project_resources(api, first.id)
-    created = call(api, "POST", "/projects", json={"name": name})
-    if created.status_code >= 400:
-        raise click.ClickException(f"Could not create project {name}: HTTP {created.status_code} {created.text[:200]}")
-    pid = body_of(created)["id"]
-    steps = [("PUT", resource_path("secret", pid, resource["secret"]["label"]), {}) for resource in found["secret"]]
-    steps += [("PUT", resource_path("dataset", pid, resource["dataset"]["id"]), {}) for resource in found["dataset"]]
-    steps += [
-        ("PUT", resource_path("trigger", pid, resource["trigger_repository"]["id"]),
-         {"watch_dir": resource["watch_dir"], "base_branch": resource["base_branch"]})
-        for resource in found["trigger"]
-    ]
-    steps += [
-        ("PUT", resource_path("results", pid, resource["results_repository"]["id"]),
-         {"target_dir": resource["target_dir"], "base_branch": resource["base_branch"]})
-        for resource in found["results"]
-    ]
-    steps.append(("PATCH", f"/projects/{pid}", {"enabled": True}))
-    for method, path, data in steps:
-        response = call(api, method, path, json=data)
-        click.echo(f"{method} {path} -> {response.status_code}")
-        if response.status_code >= 400:
-            raise click.ClickException(
-                f"{response.text[:300]}\nProject {name} (id {pid}) is half set up: remove it with second-project-teardown"
-            )
-    click.echo(f"Second project {name} ready (id {pid}); inspect it with: fncli project-show --project {name}")
-    return 0
-
-
-def teardown_second_project(api: FncliBackendAPI, name: str, expect: int | None) -> int:
-    project = find_project(api, name)
-    return report(call(api, "DELETE", f"/projects/{project.id}"), expect)
-
-
 def finish(code: int):
     if code:
         raise click.exceptions.Exit(code)
@@ -352,29 +315,10 @@ def secret_set_command(entity, enabled, expect):
     finish(set_secret(build_backend_api(config), config.secret_label, enabled, expect))
 
 
-@click.command("second-project-setup")
-@click.argument("name")
-def second_project_setup_command(name):
-    """Create a second project assigned the SAME global resources as the test project, enabled."""
-    config = ProjectConfig()
-    finish(setup_second_project(build_backend_api(config), config, name))
-
-
-@click.command("second-project-teardown")
-@click.argument("name")
-@expect_option
-def second_project_teardown_command(name, expect):
-    """Delete a project. The global resources it was assigned stay."""
-    config = ProjectConfig()
-    finish(teardown_second_project(build_backend_api(config), name, expect))
-
-
 COMMANDS = [
     project_show_command,
     project_set_command,
     resource_set_command,
     global_set_command,
     secret_set_command,
-    second_project_setup_command,
-    second_project_teardown_command,
 ]

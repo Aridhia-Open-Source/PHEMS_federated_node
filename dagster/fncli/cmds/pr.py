@@ -51,7 +51,7 @@ RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 
 
 class PrConfig(TriggerRepoConfig):
-    pr_image: str = Field(default="localhost:5001/pypipes-fn:latest", alias="TEST_PR_IMAGE")
+    pr_image: str = Field(default="localhost:5001/demo-fn:latest", alias="TEST_PR_IMAGE")
     # Extra env for the task, as JSON, e.g. '{"EXAMPLE_FLAG": "1"}' (fncli experiment run)
     pr_env: dict[str, str] = Field(default={}, alias="TEST_PR_ENV", validate_default=False)
     # The task's run tags, as JSON, e.g. '{"team": "a"}'

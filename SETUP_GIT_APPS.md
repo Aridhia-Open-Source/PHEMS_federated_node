@@ -15,17 +15,14 @@ the API client.
 2. Note the **App ID**, then **Generate a private key** (a `.pem`; keep it out of git).
 3. **Install App** on only the repositories the node uses. The number at the end of the
    installation URL is the **installation ID**.
-4. Store the credentials and register the repositories:
+4. Store the credentials and register the repositories from a node file
+   (`bootstrap/examples/demo-github.yaml` is the pattern). Put the two ids in `.dev.env` (the file's `node.env_file`)
+   as `GH_APP_ID` and `GH_INSTALLATION_ID`, and the key at the path the file names (`~/.config/phems/phems-sandbox.private-key.pem`):
 
 ```bash
-export FNCLI_ENV_FILE=.demo-github.env          # the repo URIs: github.com makes fncli use GitHub
-export GH_APP_ID=<app id> GH_INSTALLATION_ID=<installation id>
-export GH_PRIVATE_KEY="$(cat path/to/key.pem)"
-fncli init-git-secret --entity trigger
-fncli init-git-secret --entity results
-fncli init-backend-trigger-repo
-fncli init-backend-results-repo
-fncli verify-git-secret --entity trigger      # nexus-api mints a token, GitHub accepts it
+fncli diff  -f examples/demo-github.yaml        # what it would create; shows each value's source, never the value
+fncli apply -f examples/demo-github.yaml
+fncli verify-git-secret --entity trigger        # nexus-api mints a token, GitHub accepts it
 fncli verify-git-secret --entity results
 ```
 
@@ -34,7 +31,7 @@ GitHub OAuth Apps (user tokens) are not supported.
 
 ## Gitea: an OAuth2 application
 
-The default dev setup. `fncli init-git-secret` creates an OAuth2 application for the admin user
+The default dev setup. `fncli apply` of a node file with a `gitea_oauth` secret creates an OAuth2 application for the admin user
 and stores `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN`; nexus-api refreshes from them.
 The chart pins Gitea's `INVALIDATE_REFRESH_TOKENS=false`, which is what makes concurrent
 refreshes safe (see the concurrent-refresh e2e test).

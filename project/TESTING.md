@@ -135,7 +135,7 @@ They cannot show that a command works against the real cluster; that is what the
 - All sensors already running: `fncli start-sensor --group all`. The suites do not start or stop them.
 - `.dev.env` in the repo root, with the `TEST_*` values from `.dev.env.example`.
 - An admin login: revoking is admin only, so fncli logs in as the first Keycloak user, whose credentials `deploy.sh` stores in the `keycloak-first-user` secret from `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD` in `.dev.env`. (The end-to-end README calls these `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD`; the code reads the secret. Check.) The failure suite checks the login first and fails with the cause.
-- Images built from the branch under test (`mise run deploy`), including `pypipes-fn`: the failing-task group needs the run image to honour `PYPIPES_EXIT_CODE`.
+- Images built from the branch under test (`mise run deploy`), including `demo-fn`: the failing-task group needs the run image to honour `PYPIPES_EXIT_CODE`.
 
 ### How to run
 

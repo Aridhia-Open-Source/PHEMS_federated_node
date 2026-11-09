@@ -44,3 +44,6 @@ experiments/results/
 # worktree include files
 .worktreeinclude
 mise.local.toml
+# fncli node files (bootstrap): your own stay local, the examples are committed
+/bootstrap/*
+!/bootstrap/examples/
