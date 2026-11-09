@@ -101,3 +101,11 @@ The `%: @:` rule and `up down: @:` let `make cluster up` read `up` as a word, bu
 - `extra_connection_args` never reaches the task's `CONNECTION_STRING` (likely bug)
 
 Full audit: `CLEANUP_AUDIT.md` (delete with this file).
+
+## Order (agreed 2026-11-09)
+
+1. Fix the make commands (steps 2 and 3: dead targets, catch-all, real targets, `make help`).
+2. Tidy the docs (steps 1, 6, 7).
+3. Then mise: a `mise.toml` pinning kind, kubectl, helm, tilt, uv, python; consider mise tasks
+   (or `just`) replacing make. The user dislikes make, so this is the end goal.
+4. fncli tidy (step 5) and one-command start (step 4) can go alongside.
