@@ -129,7 +129,6 @@ Two files, both gitignored. Do this before step 5: `scripts/cluster.sh` and `scr
    | `KEYCLOAK_FIRST_USER_PASSWORD` | a password you will remember | Same. Quote it if it has special characters, because the file is `source`d by bash |
    | `TEST_PR_IMAGE` | `localhost:5001/demo-fn:latest` | The image of the spec in the demo's pull request. `make deploy` builds `demo-fn`. |
 
-   > TODO(verify): `.dev.env.example` says `TEST_PR_IMAGE=localhost:5001/pypipes-fn:latest`, an image that `scripts/build_all_images.sh` does not build, and `fncli demo` does not override it. Deleting the line also works: `PrConfig` defaults to `demo-fn`.
 
    Leave `CLUSTER_NAME=fn`, `NAMESPACE=fn`, `RELEASE_NAME=fn-dev` and `DOCKER_TAG=v1` as they are. They are written into more than this file: the Tiltfile allows only `kind-fn`, the node files name `kind-fn` and `gitea.fn.svc`, fncli translates only hosts ending in `fn.svc`, `scripts/portfwd.sh` uses `-n fn`, and the values file names `db.fn.svc` and tag `v1`. Your own names go in the node files (steps 8 and 9), not here.
 
@@ -141,22 +140,7 @@ Two files, both gitignored. Do this before step 5: `scripts/cluster.sh` and `scr
 
    - `nodeId`: your own node name (any text). It is required, and names the node in the results it delivers.
    - `db.host` stays `db.fn.svc` and every `tag` stays `v1`: they must match `NAMESPACE` and `DOCKER_TAG`.
-   - Add Gitea. The example file has no `gitea:` block and the chart's default is `gitea.enabled: false`, so without this there is no Gitea, no `gitea-admin` secret, and no Gitea demo. Append at the top level:
-
-     ```yaml
-     gitea:
-       enabled: true
-       admin:
-         user: gitea_admin
-         email: admin@example.com
-         secret:
-           name: gitea-admin
-           key: password
-     ```
-
-     The chart generates the admin password, so no password goes in the file.
-
-     > TODO(verify): this is the block the author's own `dev.values.yaml` uses on top of the example. It was not confirmed with a fresh render. After `make helm_deps`, `make helm_template` renders the chart with the example file only, so run `helm template fn k8s/federated-node -f k8s/federated-node/dev.values.yaml` to check yours.
+   - Gitea: the example's `gitea:` block already turns it on. The chart generates the admin password into the `gitea-admin` secret, so no password goes in the file.
 
 No CA files or `cadir` are needed: nothing in the repo's scripts, Tiltfile or chart reads them.
 
