@@ -112,6 +112,18 @@ def test_a_secret_that_does_not_hold_the_new_value_fails(backend_api, k8s):
         init_git_secret(TriggerRepoConfig(), gitea_api, backend_api)
 
 
+def test_delete_gitea_token_deletes_the_token_and_the_oauth_application(monkeypatch):
+    gitea_api = MagicMock()
+    monkeypatch.setattr(secret, "load_repo_config", lambda entity, from_backend, project: TriggerRepoConfig())
+    monkeypatch.setattr(secret, "build_gitea_api", lambda config: gitea_api)
+
+    result = CliRunner().invoke(secret.delete_gitea_token_command, [])
+
+    assert result.exit_code == 0, result.output
+    gitea_api.delete_token.assert_called_once_with("fn-sensor")
+    gitea_api.delete_oauth_app.assert_called_once_with("fn-sensor")
+
+
 def test_verify_git_secret_reads_the_repo_with_the_client_for_its_record(monkeypatch, caplog):
     caplog.set_level(logging.INFO, logger="secret")
     git_api = MagicMock()

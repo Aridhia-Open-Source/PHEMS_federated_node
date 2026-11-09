@@ -8,7 +8,6 @@ All sensors must already be running before the run (`fncli start-sensor --group 
 
 import pytest
 
-from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
 from fncli.cmds.pr import (
     commit_gitea_file_command,
     create_gitea_branch_command,
@@ -20,9 +19,9 @@ from fncli.cmds.pr import (
 from fncli.tests.e2e.conftest import (
     PR_STATES,
     RESULT_STEPS,
-    SETUP_IDS,
+    SETUP_STEPS,
     TASK_STATUSES,
-    TEARDOWN_IDS,
+    TEARDOWN_STEPS,
     pull_requests,
     reached,
     teardown_step,
@@ -52,14 +51,14 @@ def our_result(snapshot, flow):
     return next((r for r in snapshot["results"] if r["task_id"] == flow["task_id"]), None)
 
 
-@pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
-def test_teardown_leftovers(fncli, command, options):
-    fncli.call(command, **options)
+@pytest.mark.parametrize("step", TEARDOWN_STEPS)
+def test_teardown_leftovers(fncli, step):
+    step(fncli)
 
 
-@pytest.mark.parametrize("command, options", SETUP_STEPS, ids=SETUP_IDS)
-def test_setup(fncli, command, options):
-    fncli.call(command, **options)
+@pytest.mark.parametrize("step", SETUP_STEPS)
+def test_setup(fncli, step):
+    step(fncli)
 
 
 def test_verify_project_after_setup(fncli):
@@ -156,6 +155,6 @@ def test_verify_repo(fncli):
     fncli.run("verify-repo", "--tail", "1")
 
 
-@pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
-def test_teardown_final(fncli, command, options):
-    teardown_step(fncli, command, options, final=True)
+@pytest.mark.parametrize("step", TEARDOWN_STEPS)
+def test_teardown_final(fncli, step):
+    teardown_step(fncli, step, final=True)

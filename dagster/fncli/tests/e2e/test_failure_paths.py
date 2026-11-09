@@ -46,7 +46,6 @@ from threading import Barrier
 import pytest
 from requests import HTTPError
 
-from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
 from fncli.cmds.common import TriggerRepoConfig, build_admin_backend_api, build_gitea_api
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.secret import verify_gitea_accepts_bearer_token
@@ -54,20 +53,20 @@ from fncli.cmds.state import (
     global_set_command,
     resource_set_command,
     project_set_command,
-    second_project_teardown_command,
     secret_set_command,
 )
 from fncli.tests.e2e.conftest import (
     QUIET_TICKS,
     SECOND_PROJECT,
-    SETUP_IDS,
+    SETUP_STEPS,
     STEP_TIMEOUT,
-    TEARDOWN_IDS,
+    TEARDOWN_STEPS,
     assert_no_new_task,
     commit_file,
     counts,
     create_branch,
     create_pr,
+    delete_second_projects,
     logger,
     merge_pr,
     merge_watched_pr,
@@ -112,17 +111,17 @@ def test_admin_login(fncli):
 def test_teardown_leftover_second_project(fncli):
     """A run that died mid-test leaves the second project behind, and creating it again fails with "already exists"."""
     if fncli.backend_api.find_project(SECOND_PROJECT) is not None:
-        fncli.call(second_project_teardown_command, name=SECOND_PROJECT, expect=204)
+        delete_second_projects(fncli)
 
 
-@pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
-def test_teardown_leftovers(fncli, command, options):
-    teardown_step(fncli, command, options)
+@pytest.mark.parametrize("step", TEARDOWN_STEPS)
+def test_teardown_leftovers(fncli, step):
+    teardown_step(fncli, step)
 
 
-@pytest.mark.parametrize("command, options", SETUP_STEPS, ids=SETUP_IDS)
-def test_setup(fncli, command, options):
-    fncli.call(command, **options)
+@pytest.mark.parametrize("step", SETUP_STEPS)
+def test_setup(fncli, step):
+    step(fncli)
 
 
 def test_verify_project_after_setup(fncli):
@@ -527,6 +526,6 @@ def test_concurrent_refresh_secret_still_holds_valid_credentials(flow):
 # --- Teardown ---------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
-def test_teardown_final(fncli, command, options):
-    teardown_step(fncli, command, options, final=True)
+@pytest.mark.parametrize("step", TEARDOWN_STEPS)
+def test_teardown_final(fncli, step):
+    teardown_step(fncli, step, final=True)

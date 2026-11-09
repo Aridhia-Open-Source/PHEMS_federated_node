@@ -15,14 +15,15 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 
 import click
 import pytest
 from dotenv import find_dotenv, load_dotenv
 
+from fncli.backend import repo_path_of
 from fncli.cli import cli
-from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
-from fncli.cmds.common import DagsterConfig, GiteaConfig, ProjectConfig, build_backend_api
+from fncli.cmds.common import DagsterConfig, GiteaConfig, ProjectConfig, build_backend_api, build_gitea_api
 from fncli.cmds.pr import (
     commit_gitea_file_command,
     create_gitea_branch_command,
@@ -30,6 +31,8 @@ from fncli.cmds.pr import (
     merge_gitea_pr_command,
     new_branch_name,
 )
+from fncli.cmds.project import project_healthcheck_command
+from fncli.cmds.secret import verify_git_secret_command
 from fncli.cmds.state import snapshot
 from fncli.k8s import (
     ENV_CONFIGMAP,
@@ -37,6 +40,7 @@ from fncli.k8s import (
     restart_code_server,
     set_configmap_value,
 )
+from fncli.nodefile.loader import load_node_file
 from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("e2e")
@@ -56,14 +60,76 @@ def reached(order: list[str], value: str, minimum: str) -> bool:
     return value in order and order.index(value) >= order.index(minimum)
 
 
-def step_id(step) -> str:
-    """The test id of a (command, options) step: `init-gitea-repo[trigger]`, or just the name."""
-    command, options = step
-    return f"{command.name}[{','.join(map(str, options.values()))}]" if options else command.name
+# The dev project and its global resources, and the two extra projects on the same ones, as node files
+BOOTSTRAP_EXAMPLES = Path(__file__).parents[4] / "bootstrap" / "examples"
+NODE_FILE = BOOTSTRAP_EXAMPLES / "e2e.yaml"
+SECOND_PROJECTS_FILE = BOOTSTRAP_EXAMPLES / "e2e-second-projects.yaml"
 
 
-SETUP_IDS = [step_id(step) for step in SETUP_STEPS]
-TEARDOWN_IDS = [step_id(step) for step in TEARDOWN_STEPS]
+def apply_node(fncli):
+    """`fncli apply` of the dev project's node file: its secrets, provider, repositories, dataset and project, and the Gitea repositories."""
+    fncli.run("apply", "-f", str(NODE_FILE), "-y")
+
+
+def delete_node(fncli):
+    """`fncli delete --all` of the dev project's node file: the project, then its global resources."""
+    fncli.run("delete", "-f", str(NODE_FILE), "--all", "-y")
+
+
+def delete_gitea_leftovers(fncli):
+    """What `fncli delete` leaves in Gitea: the repositories and the OAuth apps the node file names, so a run starts on fresh ones."""
+    node = load_node_file(NODE_FILE)
+    gitea = build_gitea_api(GiteaConfig(GITEA_ADMIN_USER=node.node.gitea_admin_user))
+    for repository in node.repositories.triggers + node.repositories.results:
+        gitea.delete_repo(repo_path_of(repository.uri).split("/")[1])
+    for secret in node.secrets.values():
+        if secret.gitea_oauth:
+            gitea.delete_oauth_app(secret.gitea_oauth.app)
+
+
+def verify_git_secret(entity: str):
+    def verify(fncli):
+        fncli.call(verify_git_secret_command, entity=entity)
+
+    return verify
+
+
+def project_healthcheck(fncli):
+    fncli.call(project_healthcheck_command)
+
+
+def trigger_secret_label() -> str:
+    """The label of the secret the node file's trigger repository takes its git credentials from."""
+    return load_node_file(NODE_FILE).repositories.triggers[0].secret
+
+
+def rotate_trigger_secret(fncli):
+    """`fncli apply --rotate` of the trigger repository's secret: its OAuth app is authorised again and the new credentials stored."""
+    fncli.run("apply", "-f", str(NODE_FILE), "--rotate", trigger_secret_label(), "-y")
+
+
+def apply_second_project(fncli, name: str):
+    fncli.run("apply", "-f", str(SECOND_PROJECTS_FILE), "--project", name, "-y")
+
+
+def delete_second_projects(fncli):
+    """Every project of the second-projects node file that exists; its global resources are the dev project's and stay."""
+    fncli.run("delete", "-f", str(SECOND_PROJECTS_FILE), "-y")
+
+
+# The steps that set up the dev project and that clear it, each run as one test: the id names the step
+SETUP_STEPS = [
+    pytest.param(apply_node, id="apply"),
+    pytest.param(verify_git_secret("trigger"), id="verify-git-secret[trigger]"),
+    pytest.param(verify_git_secret("results"), id="verify-git-secret[results]"),
+    pytest.param(project_healthcheck, id="project-healthcheck"),
+]
+TEARDOWN_STEPS = [
+    # First: the dev project's global resources are refused (409) while a second project still uses them
+    pytest.param(delete_second_projects, id="delete-second-projects"),
+    pytest.param(delete_node, id="delete"),
+    pytest.param(delete_gitea_leftovers, id="delete-gitea-leftovers"),
+]
 
 
 def pull_requests(snapshot: dict) -> list[dict]:
@@ -92,11 +158,11 @@ def summary(snapshot: dict) -> dict:
     }
 
 
-def teardown_step(fncli, command, options, final: bool = False):
+def teardown_step(fncli, step, final: bool = False):
     """One teardown step; the final teardown only runs with E2E_TEARDOWN=1."""
     if final and os.environ.get("E2E_TEARDOWN") != "1":
         pytest.skip("the project is kept for inspection: set E2E_TEARDOWN=1 to tear it down at the end")
-    fncli.call(command, **options)
+    step(fncli)
 
 
 INTERVAL_KEY = "DAGSTER_SENSORS_MIN_INTERVAL_SECONDS"

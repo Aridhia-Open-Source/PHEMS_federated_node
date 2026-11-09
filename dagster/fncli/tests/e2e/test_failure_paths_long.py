@@ -22,20 +22,13 @@ import json
 
 import pytest
 
-from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
 from fncli.cmds.common import DagsterConfig, build_admin_backend_api
 from fncli.cmds.project import project_healthcheck_command
-from fncli.cmds.secret import (
-    delete_gitea_token_command,
-    init_git_secret_command,
-    verify_git_secret_command,
-)
+from fncli.cmds.secret import delete_gitea_token_command, verify_git_secret_command
 from fncli.cmds.sensor import DELIVERY_RETRY_SENSOR, sensor_status_command
 from fncli.cmds.state import (
     resource_set_command,
     project_set_command,
-    second_project_setup_command,
-    second_project_teardown_command,
 )
 from fncli.sensors import DagsterAPI
 from fncli.tests.e2e.conftest import (
@@ -43,14 +36,16 @@ from fncli.tests.e2e.conftest import (
     QUIET_SENSORS,
     QUIET_TICKS,
     SECOND_PROJECT,
-    SETUP_IDS,
+    SETUP_STEPS,
     STEP_TIMEOUT,
     TASK_TIMEOUT,
-    TEARDOWN_IDS,
+    TEARDOWN_STEPS,
+    apply_second_project,
     commit_file,
     counts,
     create_branch,
     create_pr,
+    delete_second_projects,
     drained,
     grew_by_one,
     logger,
@@ -63,6 +58,7 @@ from fncli.tests.e2e.conftest import (
     record_stored,
     result_with,
     results_of,
+    rotate_trigger_secret,
     stored_without_a_trigger,
     summary,
     task_has_status,
@@ -101,17 +97,17 @@ def test_admin_login(fncli):
 def test_teardown_leftover_second_project(fncli):
     """A run that died mid-test leaves the second project behind, and creating it again fails with "already exists"."""
     if fncli.backend_api.find_project(SECOND_PROJECT) is not None:
-        fncli.call(second_project_teardown_command, name=SECOND_PROJECT, expect=204)
+        delete_second_projects(fncli)
 
 
-@pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
-def test_teardown_leftovers(fncli, command, options):
-    teardown_step(fncli, command, options)
+@pytest.mark.parametrize("step", TEARDOWN_STEPS)
+def test_teardown_leftovers(fncli, step):
+    teardown_step(fncli, step)
 
 
-@pytest.mark.parametrize("command, options", SETUP_STEPS, ids=SETUP_IDS)
-def test_setup(fncli, command, options):
-    fncli.call(command, **options)
+@pytest.mark.parametrize("step", SETUP_STEPS)
+def test_setup(fncli, step):
+    step(fncli)
 
 
 def test_verify_project_after_setup(fncli):
@@ -136,7 +132,7 @@ def test_second_project_record_counts(fncli, flow):
 
 
 def test_second_project_second_project_setup(fncli):
-    fncli.call(second_project_setup_command, name=SECOND_PROJECT)
+    apply_second_project(fncli, SECOND_PROJECT)
 
 
 def test_second_project_create_branch(fncli, flow):
@@ -206,7 +202,7 @@ def test_second_project_wait_for_tasks_to_finish_before_teardown(fncli):
 
 
 def test_second_project_second_project_teardown(fncli):
-    fncli.call(second_project_teardown_command, name=SECOND_PROJECT, expect=204)
+    delete_second_projects(fncli)
 
 
 # --- a lost token fails clearly, then recovers -------------------------------------------
@@ -264,8 +260,8 @@ def test_lost_token_healthcheck_fails(fncli):
     assert fncli.exit_code(project_healthcheck_command) != 0, "project-healthcheck exited 0 with the trigger token deleted"
 
 
-def test_lost_token_init_git_secret(fncli):
-    fncli.call(init_git_secret_command, entity="trigger")
+def test_lost_token_rotate_git_secret(fncli):
+    rotate_trigger_secret(fncli)
 
 
 def test_lost_token_verify_git_secret(fncli):
@@ -417,6 +413,6 @@ def test_switched_off_results_resource_retry_sensor_delivers(fncli, flow):
 # --- Teardown ---------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("command, options", TEARDOWN_STEPS, ids=TEARDOWN_IDS)
-def test_teardown_final(fncli, command, options):
-    teardown_step(fncli, command, options, final=True)
+@pytest.mark.parametrize("step", TEARDOWN_STEPS)
+def test_teardown_final(fncli, step):
+    teardown_step(fncli, step, final=True)
