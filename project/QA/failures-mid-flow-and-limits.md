@@ -128,7 +128,7 @@ Needs a short token life: the chart value `token.life` (seconds). Lower it on th
 
 ## A rotated trigger token is picked up without a restart
 
-1. Note that the sensors run. `fncli apply -f examples/e2e.yaml --rotate trigger -y` (writes a fresh token into the Secret), then `fncli verify-git-secret --entity trigger`.
+1. Note that the sensors run. `fncli apply -f examples/globals-e2e.yaml --rotate trigger -y` (writes a fresh token into the Secret), then `fncli verify-git-secret --entity trigger`.
 2. Merge a watched pull request. Wait.
 
 - **Expected:** the next ingest tick uses the new token; no restart of the code server is needed; the pull request is processed once. If ingest fails with an authentication error, record how long it takes to recover. (The decision lists that the code server is not restarted after a credential rotation as an open question.)

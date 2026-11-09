@@ -28,10 +28,10 @@ failure from a node one.
 | Step | What it does | Where |
 |---|---|---|
 | `up` | helm upgrade of the `experiments` release: Postgres, database `uc1-omop`, role `uc1_omop_user`, generated password | namespace `experiments` |
-| `build` | `docker buildx bake` with `projects/uc1/docker-bake.hcl`: builds `experiments/sources/uc1`, pushes `uc1-fn` to the kind registry | host Docker |
+| `build` | `docker buildx bake` with `experiments/uc1/docker-bake.hcl`: builds `experiments/sources/uc1`, pushes `uc1-fn` to the kind registry | host Docker |
 | `seed` | checks the release is up, loads the synthetic OMOP data over `kubectl exec` (recreating its schemas) | namespace `experiments` |
-| `setup` | checks the release is up, then `fncli apply -f bootstrap/examples/experiments/uc1.yaml -y`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | backend + Gitea |
-| `run` | starts the sensors, opens and merges a spec PR, watches the task and the results PR | Gitea + Dagster |
+| `setup` | checks the release is up, then `fncli apply` of `experiments/uc1/dataset.yaml` (the dataset at `db-datasets.experiments.svc`), `bootstrap/examples/globals-uc1.yaml` (Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens) and `projects/uc1.yaml` (project `uc1`); needs `bootstrap/context.yaml` | backend + Gitea |
+| `run` | starts the sensors, opens and merges a PR with `experiments/uc1/trigger.json`, watches the task and the results PR | Gitea + Dagster |
 
 A full run takes about 8 minutes, nearly all of it in the R cohort building. The data is
 small (832 patients); the time goes on the many small queries the R packages run.
@@ -39,7 +39,7 @@ small (832 patients); the time goes on the many small queries the R packages run
 ### Tear down and redeploy
 
 ```bash
-fncli delete -f bootstrap/examples/experiments/uc1.yaml -y   # remove project "uc1", its global resources and Gitea repos
+fncli experiment teardown uc1 -y   # remove project "uc1", its global resources and dataset from the node (Gitea repos stay)
 fncli experiment down           # or: uninstall the release
 fncli experiment up             # back again (the database files survive `down`)
 fncli experiment setup uc1      # `seed uc1` too if you wiped the data

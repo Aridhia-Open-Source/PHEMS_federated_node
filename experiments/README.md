@@ -12,14 +12,15 @@ from the federated-node chart. The node only sees the dataset that fncli registe
 
 | Path | Committed | What |
 |---|---|---|
-| `chart/` | yes | the datasets Postgres, plus a database, role and generated password per project |
-| `projects/NAME/values.yaml` | yes | the project's `dbs.NAME` entry for the chart: it makes the database, the role and the `db-datasets-NAME` secret (`username` and `password`) |
-| `projects/NAME/bootstrap.yaml` | yes | a node file with only the dataset and its secret, read from the chart's secret: no project, no repos |
-| `projects/NAME/seed.sh`, `seed/` | yes | prints the SQL that seeds the database (or what it needs); must be safe to rerun |
-| `projects/NAME/docker-bake.hcl` | yes | the `NAME-fn` bake target: builds the task image from `image/` (demo, attacker) or the cloned source (uc1), tagged `localhost:5001/NAME-fn`. `make deploy` and `make images` build it (uc1 only when its source is there); `fncli experiment build NAME` builds just this one and pushes it |
-| `projects/NAME/image/` | no | the task image's source, when it lives here (demo, attacker) |
-| `projects/NAME/project.env` | yes | the settings of `run` only: `IMAGE` (what the bake file builds), `RUN_TIMEOUT`; wins over `.dev.env` and the shell |
-| `bootstrap/examples/experiments/NAME.yaml` | yes | the node file with the experiment's project, global repositories and Gitea repos, and the dataset by name (uc1, attacker) |
+| `chart/` | yes | the datasets Postgres, plus a database, role and generated password per experiment |
+| `NAME/values.yaml` | yes | the experiment's `dbs.NAME` entry for the chart: it makes the database, the role and the `db-datasets-NAME` secret (`username` and `password`) |
+| `NAME/dataset.yaml` | yes | a node file with only the dataset and its secret, read from the chart's secret: no project, no repos |
+| `NAME/seed.sh`, `seed/` | yes | prints the SQL that seeds the database (or what it needs); must be safe to rerun |
+| `NAME/docker-bake.hcl` | yes | the `NAME-fn` bake target: builds the task image from `image/` (demo, attacker) or the cloned source (uc1), tagged `localhost:5001/NAME-fn`. `make deploy` and `make images` build it (uc1 only when its source is there); `fncli experiment build NAME` builds just this one and pushes it |
+| `NAME/image/` | yes | the task image's source, when it lives here (demo, attacker) |
+| `NAME/trigger.json` | yes | the trigger file `run` sends: the image the bake file builds, and what else the task is asked for (the attacker's CPU and memory limits). The same format as `triggers/examples/` (uc1, attacker) |
+| `NAME/project.env` | yes | the settings of `run` only: `RUN_TIMEOUT`; wins over `.dev.env` and the shell |
+| `../bootstrap/examples/globals-NAME.yaml`, `projects/NAME.yaml` | yes | the node files with the experiment's global repositories and Gitea repos, and its project, which assigns the dataset by name (uc1, attacker) |
 | `sources/NAME/` | no | the image's build context (often its own git repo) |
 | `results/NAME/` | no | output of `run --local` |
 
@@ -32,11 +33,11 @@ specific experiment are in `projects/<name>/README.md`.
 
 ```bash
 fncli experiment up                    # the release: Postgres with every project's database
-fncli experiment build <name>          # the project's image, pushed to the kind registry
-fncli experiment seed <name>           # dummy data into the project's database
-fncli experiment setup <name>          # name check, then the dataset, then the project with its repos
-fncli experiment run <name> --local    # optional: image straight against the DB, no node
-fncli experiment run <name>            # trigger PR -> task -> results PR in the project's results repo
+fncli experiment build uc1             # localhost:5001/uc1-fn:latest (slow: renv restore)
+fncli experiment seed uc1              # dummy OMOP data into uc1-omop
+fncli experiment setup uc1             # name check, then the dataset uc1-omop, then the repos and project "uc1"
+fncli experiment run uc1 --local       # optional: image straight against the DB, no node
+fncli experiment run uc1               # trigger PR -> task -> results PR in uc1-results-repo
 ```
 
 See Clean up for `fncli experiment teardown NAME` and `down`. `seed` and `setup`
@@ -45,35 +46,39 @@ fail and tell you to run `up` if the release isn't installed. `up`, `seed`, `set
 says "No such command", reinstall fncli from this checkout:
 `pipx install --force --editable './dagster[cli]'`.
 
-`setup` first checks that `bootstrap.yaml` names what the chart makes: its dataset is `dbs.NAME.name`
+`setup` first checks that `dataset.yaml` names what the chart makes: its dataset is `dbs.NAME.name`
 of `values.yaml`, and its secret reads the Kubernetes secret `dbs.NAME.secret.name` in `experiments`.
-Then it applies `bootstrap.yaml` (`fncli apply -f`), and the project's node file if the experiment has
-one. `run` takes its pull request's project and repositories from that node file, not from `.dev.env`.
+Then it applies `dataset.yaml` (`fncli apply -f`), and the experiment's global and project node files if it has
+them. `setup`, `run`, `teardown` and `down` talk to the node, so they need your context file
+(`cp bootstrap/examples/context.yaml bootstrap/context.yaml`). `run` takes its pull request's project and
+repositories from the project file and the node, not from `.dev.env`, and the task's image from `trigger.json`.
 
-`run` and `run --local` pass `DEV_ENV` from your shell (JSON) to the task. A project can use it for a
-quick dev run (see its README), e.g. `DEV_ENV='{"EXAMPLE_FLAG": "1"}' fncli experiment run <name>`; with
-no `DEV_ENV`, or with `FULL=1`, `run` is the whole thing.
+`run` and `run --local` add `DEV_ENV` from your shell (JSON) to the `env` of the trigger file. For UC1, `DEV_ENV='{"UC1_DEV":
+"1"}' fncli experiment run uc1` is a quick run with fewer cohorts; with no `DEV_ENV`, or with `FULL=1`,
+`run` is the whole study.
 
 ## Add an experiment
 
 1. Put the source in `sources/NAME`. Its image reads the task contract: `CONNECTION_STRING`
    (a full ODBC string, e.g. `driver={PostgreSQL ANSI};Uid=;Pwd=;Server=host,port;Database=;`), `CDM_SCHEMA`, `WRITE_SCHEMA`, and writes results
    to `ARTIFACT_PATH`.
-2. Copy an existing project in `projects/` to `projects/NAME`, then change the names and the seed:
-   `values.yaml` (`dbs.NAME`), `bootstrap.yaml` (the dataset and secret must match it), `project.env`,
-   and a copy of one of `bootstrap/examples/experiments/*.yaml` for the project and its repos.
+2. Copy `uc1` to `NAME`, then change the names and the seed: `values.yaml`
+   (`dbs.NAME`), `dataset.yaml` (the dataset and secret must match it), `trigger.json` (the image),
+   `project.env`, and copies of `bootstrap/examples/globals-uc1.yaml` and `projects/uc1.yaml` for the
+   repos and the project.
 3. Run `fncli experiment up` (it upgrades the release with the new database, so this works
    on a running cluster), then `build NAME`, `seed NAME`, `setup NAME` and `run NAME`.
 
-`projects/demo` is a no-op demo database (`demo-db`, user `demo_user`, a tiny `cdm.person` table and an empty `results` schema). It has no node project of its own, and no `project.env`: the demo node files (`bootstrap/examples/demo-gitea.yaml`, `demo-github.yaml`) hold the project and repos and assign the dataset by name (`datasets: [demo-db]`). Its task image is at `experiments/projects/demo/image`, built by its `docker-bake.hcl` as `demo-fn`.
+`demo` is a no-op demo database (`demo-db`, user `demo_user`, a tiny `cdm.person` table and an empty `results` schema). It has no node project of its own, no `trigger.json` and no `project.env`: the demo node files (`bootstrap/examples/globals-gitea.yaml` and `projects/demo-gitea.yaml`, or the `github` ones) hold the repos and the project, which assigns the dataset by name (`datasets: [demo-db]`), and `triggers/examples/demo.json` is its trigger file. Its task image is at `experiments/demo/image`, built by its `docker-bake.hcl` as `demo-fn`.
 
 ```bash
 fncli experiment up                          # the release: databases, roles, secrets
 fncli experiment seed demo                   # the schemas and rows
 fncli experiment setup demo                  # name check, then the dataset demo-db with its secret
-fncli apply -f examples/demo-github.yaml     # project, repos, assigns demo-db (or demo-gitea.yaml)
-fncli demo -f examples/demo-github.yaml      # the pull request walk on the applied node, with the dataset healthcheck (repeatable)
-fncli delete -f examples/demo-github.yaml --all   # clean up
+fncli apply -f examples/globals-github.yaml  # the repos (or globals-gitea.yaml)
+fncli apply -f examples/projects/demo-github.yaml   # the project, which assigns demo-db (or demo-gitea.yaml)
+fncli demo -f examples/projects/demo-github.yaml    # the pull request walk on the applied node, with the dataset healthcheck (repeatable)
+fncli delete -f examples/projects/demo-github.yaml; fncli delete -f examples/globals-github.yaml --all   # clean up
 ```
 
 `fncli demo` creates and deletes nothing: it stops with the rows that differ unless `apply` has already set the node up.
@@ -83,7 +88,7 @@ file or on the node"), so apply the dataset first.
 
 ## Check task isolation
 
-`projects/attacker` is a hostile task image, not an experiment. It tries to read other runs'
+`attacker` is a hostile task image, not an experiment. It tries to read other runs'
 folders, plant symlinks and `../` paths in its output, reach nexus-api, Gitea and the
 Kubernetes API, read a service account token or another task's Secret, and keep privileges. Each
 attempt prints `BLOCKED` or `LEAKED`; `PLANTED` lines are judged by what delivery does with them.
@@ -96,12 +101,12 @@ name to try to read) and `SLEEP_SECONDS` (to hang the task and see the pod's dea
 ## Clean up
 
 - `fncli experiment teardown NAME` removes what `setup` registered in the node for NAME: its
-  project and repositories (if it has a node file), then its dataset and secret. The release and
+  project and repositories (if it has node files), then its dataset and secret. The release and
   its database stay. The backend refuses to delete a dataset that another project still uses.
-- `fncli experiment down` does that for every experiment (every folder with a `bootstrap.yaml`),
+- `fncli experiment down` does that for every experiment (every folder with a `dataset.yaml`),
   then uninstalls the release. The secrets and database files stay, so a later `setup` gets the
   same data back. If a demo project still uses `demo-db`, `down` stops with the backend's refusal
-  and leaves the release: delete the demo project first, `fncli delete -f examples/demo-github.yaml --all -y`
+  and leaves the release: delete the demo project first, `fncli delete -f examples/projects/demo-github.yaml -y`
   (or `demo-gitea.yaml`).
 - Start from empty: `kubectl delete ns experiments`, then delete
   `~/.fn/data/experiments` (Postgres owns it, so you need root or the kind node).

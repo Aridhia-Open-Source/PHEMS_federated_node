@@ -2,11 +2,11 @@
 
 A trigger repository is polled once and each pull request is stored once, however many projects assign it. Each project keeps its own project resource, flags, cursor, triggers, tasks and results. The GlobalResources (Secret, dataset, repositories) are shared, so an edit to one reaches both projects. These cases check that the two projects stay independent where they should and move together where they must.
 
-Needs: the dev project (called here "the first project") and a second project from `fncli apply -f examples/e2e-second-projects.yaml --project QaTwo -y` (it has the same Secrets, dataset, trigger repository and results repository assigned, with the same settings, and is enabled). Look at either with `fncli project-show` and `fncli project-show --project QaTwo`. `fncli delete -f examples/e2e-second-projects.yaml -y` removes the second project and leaves the GlobalResources. For a third project use the name `QaThree`.
+Needs: the dev project (called here "the first project") and a second project from `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y` (it has the same Secrets, dataset, trigger repository and results repository assigned, with the same settings, and is enabled). Look at either with `fncli project-show` and `fncli project-show --project QaTwo`. `fncli delete -f examples/projects/e2e-second-projects.yaml -y` removes the second project and leaves the GlobalResources. For a third project use the name `QaThree`.
 
 ## One pull request gives each project its own trigger and task
 
-1. `fncli apply -f examples/e2e-second-projects.yaml --project QaTwo -y`.
+1. `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y`.
 2. `fncli open-pr --kind watched --merge`.
 3. Look at both projects until both tasks finish.
 
@@ -80,7 +80,7 @@ Do this with the launcher stopped (see "Make a change while a task is still PEND
 
 ## Deleting one project leaves the other and the GlobalResources
 
-1. With both projects set up and a finished task in each, `fncli delete -f examples/e2e-second-projects.yaml -y`.
+1. With both projects set up and a finished task in each, `fncli delete -f examples/projects/e2e-second-projects.yaml -y`.
 2. `fncli project-show`, `GET /global/repositories/triggers`, `GET /global/datasets`.
 3. Merge another watched pull request.
 
@@ -92,7 +92,7 @@ Do this with the launcher stopped (see "Make a change while a task is still PEND
 
 ## Three projects on one repository
 
-1. `fncli apply -f examples/e2e-second-projects.yaml --project QaTwo -y` and `fncli apply -f examples/e2e-second-projects.yaml --project QaThree -y`.
+1. `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y` and `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaThree -y`.
 2. Merge three watched pull requests, one after the other, without waiting.
 3. When everything has settled, count tasks and results per project.
 

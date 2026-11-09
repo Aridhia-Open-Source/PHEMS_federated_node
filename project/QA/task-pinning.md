@@ -93,7 +93,7 @@ The results resource can be replaced only while the project is disabled.
 ## Changes that are not pinned do not touch tasks in flight
 
 1. Recipe: task `PENDING`, launcher stopped.
-2. Change things the snapshot does not hold: the trigger resource's `watch_dir` (`PATCH` the project resource), and a Secret's value (`fncli apply -f examples/e2e.yaml --rotate results -y` writes a fresh token). The `enabled` and `revoked` flags are not pinned either, but they have their own rules ([enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md)).
+2. Change things the snapshot does not hold: the trigger resource's `watch_dir` (`PATCH` the project resource), and a Secret's value (`fncli apply -f examples/globals-e2e.yaml --rotate results -y` writes a fresh token). The `enabled` and `revoked` flags are not pinned either, but they have their own rules ([enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md)).
 3. Start the launcher. Put things back.
 
 - **Expected:** the task launches and runs; `GET .../config` shows `current` true. A credential rotation reaches the running work.

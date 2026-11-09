@@ -1,5 +1,8 @@
 # Plan: the e2e suites on bootstrap files
 
+> Names since the layout change: `e2e.yaml` is `bootstrap/examples/globals-e2e.yaml` (global resources) plus `projects/e2e.yaml` (the project); the `node:` block is `bootstrap/examples/context.yaml` (the suites pass `--context` with it); `TEST_PR_IMAGE` and friends are gone: a pull request adds a trigger file (`triggers/examples/demo.json`) with `--trigger`.
+
+
 Status: plan only, 2026-11-09. Read against `fncli-declarative-config` (b4d68379). Nothing here has been run.
 Rule for every step below: never start `--e2e` while one is running (`pgrep -f pytest` first), and only on `kind-fn`.
 
@@ -16,9 +19,9 @@ Rule for every step below: never start `--e2e` while one is running (`pgrep -f p
 ### conftest.py (shared)
 
 - Setup, run as one test each: `apply -f e2e.yaml -y`, `verify-git-secret` for trigger and results, `project-healthcheck`.
-- Teardown, in this order: `delete -f e2e-second-projects.yaml -y`, `delete -f e2e.yaml --all -y`, then `delete_gitea_leftovers` (Python: deletes the Gitea repos and OAuth apps the node file names).
+- Teardown, in this order: `delete -f projects/e2e-second-projects.yaml -y`, `delete -f e2e.yaml --all -y`, then `delete_gitea_leftovers` (Python: deletes the Gitea repos and OAuth apps the node file names).
 - Reads env: `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE` (every backend client), `TEST_PROJECT_NAME` (`Fncli.snapshot`, healthcheck, verify), `NAMESPACE` (Gitea admin password, sensor configmap), `GITEA_URL`, `DAGSTER_URL`.
-- Hard-codes `SECOND_PROJECT = "QaTwo"`, a second copy of a name that is in e2e-second-projects.yaml.
+- Hard-codes `SECOND_PROJECT = "QaTwo"`, a second copy of a name that is in projects/e2e-second-projects.yaml.
 - `Fncli.run` prints to the terminal and asserts exit 0. It cannot assert on `diff` text or on an expected exit 1.
 - `cli.main(standalone_mode=False)` returns an exit code but raises a `ClickException`, so a refused command needs its own helper.
 
@@ -49,7 +52,7 @@ Rule for every step below: never start `--e2e` while one is running (`pgrep -f p
 ### test_failure_paths_long.py (64 tests, tasks run to the end)
 
 - Same setup and teardown, same admin preflight.
-- Second project: `apply -f e2e-second-projects.yaml --project QaTwo`, `resource-set trigger --revoked --project QaTwo`, `delete -f e2e-second-projects.yaml`.
+- Second project: `apply -f projects/e2e-second-projects.yaml --project QaTwo`, `resource-set trigger --revoked --project QaTwo`, `delete -f projects/e2e-second-projects.yaml`.
 - Lost token: `delete-gitea-token` (token name from `GITEA_TOKEN_NAME`, default `fn-sensor`), `sensor-status`, `project-healthcheck` (expects exit 1), `apply -f e2e.yaml --rotate <label>`, `verify-git-secret`.
 - Failing task: `commit-gitea-file --kind failing`.
 - Backfill: `project-set --enabled false`, then `project-set --enabled true --backfill`.
@@ -63,7 +66,7 @@ Rule for every step below: never start `--e2e` while one is running (`pgrep -f p
 - Two sources of truth (node file, `.dev.env`) and two node addresses (node block for apply, `NEXUS_API_URL` for the rest).
 - The kube-context check lives only in `diff`, `apply`, `delete`. PR-side and `*-set` commands use whatever context kubectl has.
 - `delete` leaves Gitea repos and OAuth apps, so conftest does it by hand.
-- e2e-second-projects.yaml repeats all globals (about 35 lines). The comment says "the same name in every file, or applying one renames it for the others". Cross-file references now make the repeat unnecessary.
+- projects/e2e-second-projects.yaml repeats all globals (about 35 lines). The comment says "the same name in every file, or applying one renames it for the others". Cross-file references now make the repeat unnecessary.
 - A no-op re-apply of a file with a `gitea:` section prints "Applied 2 changes": the Gitea repository rows are always in the to-do list (`to_do` keeps ENSURE).
 - README preflight says `FNCLI_ADMIN_USER` / `FNCLI_ADMIN_PASSWORD`. The code reads the `keycloak-first-user` secret (already in project/QA/known-issues.md).
 - `--e2e` sets `maxfail=1`: a late failure costs the whole run, so cheap checks should run first.
@@ -72,8 +75,8 @@ Rule for every step below: never start `--e2e` while one is running (`pgrep -f p
 
 ### Scenario state is files, reached with `apply`
 
-- Baseline: `bootstrap/examples/e2e.yaml`. No new committed file for the baseline.
-- Second projects: slim e2e-second-projects.yaml to the node block and the two projects. Its datasets, repositories and secrets resolve from the node (cross-file). Checked: the slim file loads, and against a node without the dev entries it plans one blocked row per project ("dataset dev-dataset is not in the file or on the node").
+- Baseline: `bootstrap/examples/globals-e2e.yaml` and `projects/e2e.yaml`. No new committed file for the baseline.
+- Second projects: slim projects/e2e-second-projects.yaml to the node block and the two projects. Its datasets, repositories and secrets resolve from the node (cross-file). Checked: the slim file loads, and against a node without the dev entries it plans one blocked row per project ("dataset dev-dataset is not in the file or on the node").
 - Variants: a `variant(base, edit)` helper in conftest. It loads the YAML, edits the dict, writes it to a tmp path. No new committed files. The e2e files hold no relative paths or `env_file`, so a tmp copy is safe.
 - If someone adds `node.env_file` to an e2e file: `open_node` calls `load_dotenv(..., override=True)`, which changes `os.environ` for the rest of the pytest process.
 
@@ -183,7 +186,7 @@ Runtime base: failure suites about 35 min. The nodefile times are estimates, mea
 2. **conftest helpers. Size S. About +10 s per suite.**
    - `PROJECT` and `SECOND_PROJECT` from the node files; `Fncli.output`, `Fncli.refused`, `plan`; `variant`; `assert_in_sync`; the kube-context and `.dev.env` preflight.
    - `assert_in_sync` after setup and before the final teardown of each suite.
-3. **fncli: `delete --gitea`, slim e2e-second-projects.yaml. Size S.** `delete_gitea_leftovers` is removed from `TEARDOWN_STEPS`. Unit tests for the new rows. A run of the happy path confirms the cleaner teardown.
+3. **fncli: `delete --gitea`, slim projects/e2e-second-projects.yaml. Size S.** `delete_gitea_leftovers` is removed from `TEARDOWN_STEPS`. Unit tests for the new rows. A run of the happy path confirms the cleaner teardown.
 4. **The nodefile suite (section 4). Size M. Adds a suite of about 5 min, run first.** Registered in dagster/conftest.py. After this step a broken `diff`, `apply` or `delete` fails in minutes.
 5. **fncli: `--project` on the eight commands, `secret-set LABEL`, `delete-gitea-token --app`. Size M to L.** One shared loader, unit tests per command. No e2e change yet, so nothing breaks while it lands.
 6. **Rewire the suites to the new options. Size M. Runtime neutral.** Remove every `TEST_*`, `DEFAULT_PROJECT_DATASET` and `GITEA_TOKEN_NAME` read from tests and conftest. Drop the "keep them equal" comment in e2e.yaml and the e2e `TEST_*` lines from the README preflight. The suite then runs with only the cluster addresses in `.dev.env`.

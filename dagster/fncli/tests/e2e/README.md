@@ -15,9 +15,9 @@ The failure paths are split by what a group waits for. `failure` holds the group
 ## Rules
 
 - Run against the local `kind-fn` cluster only: never a shared or production cluster.
-- Never tear the dev cluster down (`mise run teardown`) to run the suites. Use the cluster that is running (`kubectl` on context `kind-fn`, Tilt green). If there is none, create it with `mise run helm-deps && mise run deploy` and `tilt up --stream` ([EXAMPLES.md](../../EXAMPLES.md)).
-- Work from the worktree that owns the cluster (`mise run deploy-owner` shows it) and do not switch branches in the main checkout.
-- Only the test project, its global resources, its Gitea repositories and the `QaTwo` project are created or changed. `fncli delete -f examples/e2e.yaml --all -y` (the suite's teardown) removes them.
+- Never tear the dev cluster down (`make teardown`) to run the suites. Use the cluster that is running (`kubectl` on context `kind-fn`, Tilt green). If there is none, create it with `make helm_deps && make deploy` and `tilt up --stream` ([EXAMPLES.md](../../EXAMPLES.md)).
+- Work from the worktree that owns the cluster (`make deploy-owner` shows it) and do not switch branches in the main checkout.
+- Only the test project, its global resources, its Gitea repositories and the `QaTwo` project are created or changed. `fncli delete -f examples/projects/e2e.yaml -y` and then `fncli delete -f examples/globals-e2e.yaml --all -y` (the suite's teardown) remove them. The suites run on `bootstrap/examples/context.yaml`, not on your own `bootstrap/context.yaml`.
 - A failing test is a finding: the suites report, they do not fix. Record the scenario, the commands, the expected and the actual result, and the logs.
 
 ## Preflight

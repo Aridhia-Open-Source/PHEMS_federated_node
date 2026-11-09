@@ -34,7 +34,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 3. `fncli open-pr --kind watched --merge`. Wait five intervals; note the counts.
 4. `fncli sensor-status`, and the Dagster UI tick log of `git_pull_request_ingest_sensor`.
 5. `fncli project-healthcheck`.
-6. `fncli apply -f examples/e2e.yaml --rotate trigger -y`, then `fncli verify-git-secret --entity trigger`.
+6. `fncli apply -f examples/globals-e2e.yaml --rotate trigger -y`, then `fncli verify-git-secret --entity trigger`.
 7. Watch `fncli project-show`; then `fncli project-healthcheck` again.
 
 - **Expected:** step 3: the counts do not change. Step 4: the ingest sensor's ticks fail, naming the repository with an authentication error, while the evaluate and launcher sensors keep ticking. Step 5: exit code is not 0. Step 7: the pull request merged during the outage gets a trigger and a task (this is not a gap: the global cursor did not move because nothing was stored), and the healthcheck is `ok` again.

@@ -2,7 +2,7 @@
 
 The main path: a merged pull request becomes a task, the task runs, its artifacts are zipped and pushed to a branch of the results repository, and a results pull request is opened. A person merges (or closes) it and the sync sensor records that. Do this section before the failure and rule sections: they assume it works.
 
-Needs: the dev project set up (`fncli apply -f examples/e2e.yaml -y`) with all sensors running, and the Gitea UI to look at the results repository. Check the state with `fncli project-show` (see [the index](README.md)).
+Needs: the dev project set up (`fncli apply -f examples/globals-e2e.yaml -y` then `fncli apply -f examples/projects/e2e.yaml -y`) with all sensors running, and the Gitea UI to look at the results repository. Check the state with `fncli project-show` (see [the index](README.md)).
 
 ## A watched pull request goes all the way to a merged results pull request
 

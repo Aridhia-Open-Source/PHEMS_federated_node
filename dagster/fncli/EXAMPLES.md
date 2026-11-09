@@ -25,14 +25,16 @@ fncli logs in first with `POST /login` on nexus-api, then makes its backend call
 
 ### Quick happy-path check
 
-To watch the pull request part one confirmed step at a time, run `fncli apply -f examples/demo-gitea.yaml`, then `fncli demo -f examples/demo-gitea.yaml` (see Demo in [README.md](README.md)), then `fncli delete -f examples/demo-gitea.yaml --all`. The demo creates and deletes nothing.
+Every command that talks to the node reads `bootstrap/context.yaml` first (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
+
+To watch the pull request part one confirmed step at a time, run `fncli apply -f examples/globals-gitea.yaml` and `fncli apply -f examples/projects/demo-gitea.yaml`, then `fncli demo -f examples/projects/demo-gitea.yaml` (see Demo in [README.md](README.md)), then `fncli delete -f examples/projects/demo-gitea.yaml` and `fncli delete -f examples/globals-gitea.yaml --all`. The demo creates and deletes nothing.
 
 A PR in the Gitea trigger repo, through a task, to a merged results PR in the Gitea results repo:
 
 ```bash
-fncli apply -f examples/e2e.yaml -y && fncli verify-project
+fncli apply -f examples/globals-e2e.yaml -y && fncli apply -f examples/projects/e2e.yaml -y && fncli verify-project
 fncli start-sensor --group all
-fncli open-pr --kind watched --merge --watch --timeout 300
+fncli trigger triggers/examples/demo.json --project fn-dev --pr --merge --watch --timeout 300
 
 # Every minute or so:
 fncli project-show | jq '{prs: .trigger_resources[0].pull_requests | map({number,state,task_id}), tasks: .tasks | map({id,status}), results: .results | map({number,step,state})}'
@@ -52,8 +54,8 @@ If something sticks: `fncli sensor-status`, and nexus-api and Dagster pod logs.
 
 ### 1. Set up the dev project
 
-- `fncli diff -f examples/e2e.yaml` shows what the next step would do, and changes nothing.
-- `fncli apply -f examples/e2e.yaml` (it asks, `-y` does not). It first checks that kubectl points at the file's cluster. In this order:
+- `fncli diff -f examples/globals-e2e.yaml` shows what the next step would do, and changes nothing. The same for `examples/projects/e2e.yaml`, once the global file is applied.
+- `fncli apply -f examples/globals-e2e.yaml`, then `fncli apply -f examples/projects/e2e.yaml` (each asks, `-y` does not). Each first checks that kubectl points at the context's cluster. In this order:
   - Backend: `GET` of every secret, provider, repository, dataset and project, to compare with the file.
   - Backend: stores each secret that is missing (`POST /global/secrets`): the OAuth credentials of a Gitea application it has made and authorised for the admin user (Gitea: `POST user/applications/oauth2`, then the authorisation over HTTP), or the values it read from the places the file names. A secret that exists is left alone (`--rotate LABEL` rewrites it: `PATCH /global/secrets/{label}`).
   - Backend: registers the Gitea host as a git provider (`POST /global/providers`) if it is missing, or changes what differs (`PATCH /global/providers/{id}`).
@@ -76,11 +78,15 @@ Optional: `--group ingest|evaluate|launcher|status|delivery` starts just one gro
 
 ### 3. Open pull requests in the trigger repo
 
-Each command opens a PR and merges it, using the Gitea API only. fncli makes no backend call here. The merge is what the ingest sensor later picks up, and the sensor is what calls nexus-api.
+Each command opens a PR and merges it, using the Gitea API only (`trigger` reads the project's trigger repository record from the backend first, `open-pr` reads it from `.dev.env`). The merge is what the ingest sensor later picks up, and the sensor is what calls nexus-api.
 
-- `fncli open-pr --kind watched --merge`
-  - Gitea: creates a branch, commits a file that matches the trigger's watched paths, opens the PR and merges it.
+- `fncli trigger triggers/examples/demo.json --project fn-dev --pr --merge`
+  - Backend: `GET` of the project and its trigger repository assignment, for the repository, watch directory and base branch.
+  - Gitea: creates a branch, commits the trigger file under the watch directory, opens the PR and merges it.
   - Expect a Task and a run.
+  - The project and the way (`--pr`) can be left out when the context's `defaults` name them; the first line then says so.
+- `fncli open-pr --kind watched --merge`
+  - The same by the names in `.dev.env`, with the default trigger file `triggers/examples/demo.json` (`--trigger FILE` for another).
 - `fncli open-pr --kind unwatched --merge`
   - Gitea: the same, with a file outside the watched paths.
   - Expect no trigger for it: the PR is not listed for the project resource (`--watch` times out, as it waits for the PR to show up).
@@ -90,7 +96,7 @@ Each command opens a PR and merges it, using the Gitea API only. fncli makes no 
 
 Add `--watch` to follow the merged PR in real time (and `--timeout <seconds>`, default 300). It prints a timestamped line each time something changes (including a link to the Dagster run once it starts), and exits 1 on REJECTED, a FAILURE or CANCELED run, or a timeout. On a timeout it also lists the sensors that are not running at the stage it is stuck at. A dropped connection (Dagster reloading, say) is retried; it gives up after 10 failed polls in a row.
 
-- `fncli open-pr --kind watched --merge --watch`, or `fncli merge-gitea-pr --number <n> --watch`
+- `fncli trigger FILE --pr --merge --watch`, `fncli open-pr --kind watched --merge --watch`, or `fncli merge-gitea-pr --number <n> --watch`
   - Backend: `GET /projects/{project_id}/repositories/triggers/{repository_id}/pull_requests`, until the PR shows up ("waiting for ingest") and shows its state (UNKNOWN, then YIELDED or REJECTED, with its state_cause).
   - Backend: `GET /projects/{project_id}/tasks/{task_id}` for a YIELDED PR, showing the task's status.
   - Dagster: GraphQL `runsOrError` filtered by the fn/task_id tag, showing the run's id and status until SUCCESS, FAILURE or CANCELED.
@@ -138,12 +144,12 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and nexu
   - Does not check the files in the results repo: it only reads nexus-api and Dagster.
 - `fncli verify-repo --tail 10`
   - The same, for only the last 10 PRs by number.
-- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 180s for the results to be delivered: the delivery pushes them, then the results PR sensor opens the results PR (state `OPENED` or later; with that sensor stopped, a push-only node, the push is enough) or an error is recorded, from the push or from opening the PR. They print a `Delivery:` line each time its state changes (Backend: `GET /projects/{project_id}/tasks/{id}/results`, and `GET /dagster/sensors/results_pull_request_sync_sensor` for whether the results PR sensor is stopped). If it does not finish, they name the delivery-stage sensors that are not running, and the delivery check fails.
+- `merge-gitea-pr --watch`, `open-pr --merge --watch` and `trigger --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to open its results PR (state `OPENED` or later) or fail (an error is recorded), printing a `Delivery:` line each time its state changes (Backend: `GET /projects/{project_id}/tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
 
 ### 5. Tear down
 
-- `fncli delete -f examples/e2e.yaml --all -y`
-  - Backend: `DELETE /projects/{id}`, which also removes the tasks, triggers and the dataset, results repository and trigger repository assignments under it. Without `--all` that is all it does.
+- `fncli delete -f examples/projects/e2e.yaml -y`, then `fncli delete -f examples/globals-e2e.yaml --all -y`
+  - Backend: `DELETE /projects/{id}`, which also removes the tasks, triggers and the dataset, results repository and trigger repository assignments under it. A file with projects, without `--all`, does only that.
   - Backend: with `--all`, the deletes that follow (`DELETE /global/repositories/triggers/{id}`, `DELETE /global/repositories/results/{id}`, `DELETE /global/datasets/{id}`, `DELETE /global/secrets/{label}`, `DELETE /global/providers/{id}` (kept when other repositories are on it)). They soft delete, and never with `?force=true`: what a project outside the file still uses is a 409, skipped with the backend's message, and the command exits 1.
   - Gitea: nothing. The repos and the OAuth apps stay.
   - Does not prompt, because of `-y`.

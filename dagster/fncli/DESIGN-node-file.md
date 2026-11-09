@@ -12,7 +12,7 @@ Draft, 2026-11-09. Design only, no code. Read against the `fncli-provider-from-b
 
 ## 2. The file
 
-One YAML file describes a node's desired state. It holds **no secret values**, so it can be committed. Keys are the backend's own unique fields, so there are no ids: provider uri, repository uri, secret label, dataset name, project name.
+A YAML file describes some of a node's desired state, and may hold any of the sections below (the global ones in one file and a project in another, say; section 9 says how the files, the node and the trigger files fit). It holds **no secret values**, so it can be committed. Keys are the backend's own unique fields, so there are no ids: provider uri, repository uri, secret label, dataset name, project name.
 
 ```yaml
 version: 1
@@ -101,7 +101,7 @@ Notes on the format:
   - within the file, a trigger `watch_dir` does not overlap a results `target_dir` on the same repo.
 
   The backend's overlap check covers every project on the node, so it stays the final judge.
-- **References may point outside the file.** A project's datasets and repositories, and a repository's or dataset's secret, can be listed in the file or already be on the node (a dataset made by another file, say an experiment's `bootstrap.yaml`). The diff resolves them against the backend: one on the node shows as an unchanged row "on the node, not in this file", one in neither blocks the row that names it (the project, repository or dataset), and apply leaves a blocked row alone. `delete` still only deletes what the file lists.
+- **References may point outside the file.** A project's datasets and repositories, and a repository's or dataset's secret, can be listed in the file or already be on the node (a dataset made by another file, say an experiment's `dataset.yaml`). The diff resolves them against the backend: one on the node shows as an unchanged row "on the node, not in this file", one in neither blocks the row that names it (the project, repository or dataset), and apply leaves a blocked row alone. `delete` still only deletes what the file lists.
 
 ## 3. Commands, and what they reuse
 
@@ -110,8 +110,8 @@ Notes on the format:
 | `fncli diff -f node.yaml [--project P]` | Read-only. Resolves references (reports "env GH_APP_ID: set", never a value), reads the backend, prints the difference. | `build_backend_api`, the `find_*` and `get_*` calls of `FncliBackendAPI` | File schema and loader, the diff (a pure module like `simulation.py`), the printer |
 | `fncli apply -f node.yaml [--project P] [-y] [--only PHASE] [--rotate LABEL]` | Prints the plan, asks, executes, then verifies. | `create_*`, `upsert_secret`, `GiteaAdminAPI.get_or_create_repo` and `authorize_oauth_app`, `verify_git_secret`, project healthcheck | `update_*` calls on `FncliBackendAPI`, the executor, the disable and enable step |
 | `fncli delete -f node.yaml [--all] [-y]` | Soft-deletes the file's projects (their assignments go with them) through the DELETE routes, never with `?force=true`. With `--all`, then the global repositories and datasets, secrets and providers, in that order. What a project outside the file still uses is a 409: skipped with the backend's message, exit 1. Gitea repositories and OAuth apps are left. | `delete_project`, `delete_secret`, `delete_git_provider` | `force=False` on the repository and dataset deletes, the reverse-order executor |
-| `fncli open-pr`, `merge-gitea-pr`, `merge-results-pr`, `verify-*`, ... `--project P [--repository URI]` | Read the repo, branch and directories from the project's assignments in the backend. No file. `--repository` is needed only when the project has more than one trigger assignment; otherwise the only one is used. | `load_repo_config(from_backend=True)`, `get_pr_base_branch`, `build_researcher_git_api` | `--project` means "from the backend" everywhere; `PrConfig` stops requiring `TEST_TRIGGER_*` |
-| `fncli demo -f demo.yaml --project P` | Walks the pull request process on a node that `apply` has set up; creates and deletes nothing. Stops with exit 1, listing the rows, unless `diff` shows nothing to change. | The `Step` table, `wait_for_state`, the `show_*` helpers, the checks | The plan check (`diff`); step text is filled from the file. The flow is `apply`, then `demo` (repeatable), then `delete` |
+| `fncli trigger FILE --project P --pr` (built, see section 9), `merge-gitea-pr`, `merge-results-pr`, `verify-*`, ... `--project P [--repository URI]` | Read the repo, branch and directories from the project's assignments in the backend. No file. `--repository` is needed only when the project has more than one trigger assignment; otherwise the only one is used. | `load_repo_config(from_backend=True)`, `get_pr_base_branch`, `build_researcher_git_api` | `--project` means "from the backend" everywhere; `PrConfig` stops requiring `TEST_TRIGGER_*` |
+| `fncli demo -f projects/demo-gitea.yaml [TRIGGER]` | Walks the pull request process on a node that `apply` has set up; creates and deletes nothing. Stops with exit 1, listing the rows, unless `diff` shows nothing to change. | The `Step` table, `wait_for_state`, the `show_*` helpers, the checks | The plan check (`diff`); step text is filled from the file. The flow is `apply`, then `demo` (repeatable), then `delete` |
 | `fncli node-file --from-env` | Prints the current env as a node file. | The config classes | Small renderer, also the migration check |
 
 **Where the code pushes back on the proposal:**
@@ -165,13 +165,13 @@ Keep the env vars working, frozen: no new `TEST_*` variables, no new features on
 
 - The e2e suite imports `SETUP_STEPS` and `TEARDOWN_STEPS`.
 - `scripts/e2e_check.py` builds `ProjectConfig`.
-- `fncli experiment` reads `experiments/projects/*/project.env` (it now holds only the settings of `build` and `run`; the dataset is in `bootstrap.yaml` next to it).
+- `fncli experiment` reads `experiments/*/project.env` (it now holds only `RUN_TIMEOUT`; the dataset is in `dataset.yaml` and the task's image in `trigger.json` next to it).
 - Teardown (`teardown-project`) has a file-based form in `fncli delete`. The demo no longer tears down: it only walks the pull request process, after `apply` and before `delete`.
 
 Then:
 
-1. `.dev.env` shrinks to cluster addresses and auth: `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE`, `NAMESPACE`, `GITEA_URL`, `GITEA_ADMIN_USER`, `DAGSTER_URL`, plus `GH_*` and `RESEARCHER_GIT_TOKEN` when a file references them. All `TEST_*`, `GITEA_API_URI`, the token names, `DEFAULT_PROJECT_DATASET` and `DATASET_*` move into the file. `TEST_PR_IMAGE`, `TEST_PR_ENV`, `TEST_PR_TAGS` and `TEST_PR_CONFIG` are per-pull-request inputs, not node state, so they stay as options with env defaults.
-2. `.demo.env.example` and `.demo-github.env.example` become `bootstrap/examples/demo-gitea.yaml` and `bootstrap/examples/demo-github.yaml`.
+1. `.dev.env` shrinks to cluster addresses and auth: `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE`, `NAMESPACE`, `GITEA_URL`, `GITEA_ADMIN_USER`, `DAGSTER_URL`, plus `GH_*` and `RESEARCHER_GIT_TOKEN` when a file references them. All `TEST_*`, `GITEA_API_URI`, the token names, `DEFAULT_PROJECT_DATASET` and `DATASET_*` move into the file. `TEST_PR_IMAGE`, `TEST_PR_ENV`, `TEST_PR_TAGS` and `TEST_PR_CONFIG` were per-pull-request inputs, not node state: they are gone, and a trigger file (section 9) holds what a task is asked to run.
+2. `.demo.env.example` and `.demo-github.env.example` became `bootstrap/examples/globals-gitea.yaml` with `projects/demo-gitea.yaml`, and `globals-github.yaml` with `projects/demo-github.yaml`.
 3. `fncli node-file --from-env` renders a current env as a file.
 4. The e2e fixtures and the experiments move to files later, and only then is the env path deleted.
 
@@ -210,3 +210,29 @@ About 11 working days with agent help. The first useful slice is the first three
 3. New results repository on a live project: disable and enable automatically after a confirmation, or refuse? Recommend the confirmation.
 4. `fncli delete -f` (built) replaces `teardown-project` in the e2e suite once it runs from files (the demo no longer tears down). Recommend yes.
 5. Add the `generate` secret source for stand-in dataset credentials? Recommend yes, noted as dev only.
+
+## 9. The context file, the node files and the trigger files (built)
+
+The first draft put a `node:` block (url, kubectl context, keycloak namespace, env file) in every node file. It left it: a node is not part of what a file describes, and one block per file meant the same four lines in every example. Now there are three kinds of file, none with a secret value.
+
+**The context, `bootstrap/context.yaml`** (gitignored; the example is `bootstrap/examples/context.yaml`). It is not a node file: it says where fncli works and what its commands use when not told.
+
+```yaml
+node:
+  url: http://localhost:5000
+  kube_context: kind-fn
+  keycloak_namespace: keycloak
+  gitea_admin_user: gitea_admin   # optional
+  env_file: .dev.env              # optional, found from the context file's directory up
+defaults:                         # optional
+  project: demo-gitea
+  trigger_type: pr                # pr or api
+```
+
+- Every command that talks to the node (`diff`, `apply`, `delete`, `demo`, `trigger`, and `experiment setup`, `run`, `teardown`, `down`) loads it, found like `-f`: `--context FILE` (`FNCLI_CONTEXT`), a path as given or under the nearest `bootstrap/`, else `bootstrap/context.yaml` from the current directory up. With none it stops and prints the `cp` that makes one. It then checks kubectl points at `node.kube_context` and loads `node.env_file`.
+- `defaults` are for the commands that act on one project in one way. Order: a flag, then `FNCLI_DEFAULT_PROJECT` / `FNCLI_DEFAULT_TRIGGER_TYPE` in the env, then `defaults:`. A command that used a default says so on its first line (`Using the defaults of bootstrap/context.yaml: project demo-gitea, via pr`), so nobody triggers the wrong project silently. `.dev.env` keeps only secret values and addresses; no `DEFAULT_*` there. `apply`, `diff` and `delete` take no default project: it would silently narrow them.
+- The Gitea owner rule (a Gitea repository is under the admin user) is checked against the context's `gitea_admin_user` when a command opens the node.
+
+**Node files** (`bootstrap/*.yaml`, `bootstrap/projects/*.yaml`) hold any subset of providers, secrets, repositories, datasets, projects and `gitea:`. What a file names and does not hold resolves against the node (section 2), so the project files are only a name and assignments. Two limits: a repository needs its provider in the same file, and a `gitea_oauth` secret its `gitea:` section. The examples are `globals-*.yaml` (providers, secrets, repositories, `gitea:`) and `projects/*.yaml`; an experiment's dataset is `experiments/NAME/dataset.yaml`. `demo` and `experiment run` read the repositories' providers from the node, not from the project file.
+
+**Trigger files** (`triggers/*.json`, gitignored except `triggers/examples/`; a path, or one relative to the nearest `triggers/`) are what a task is asked to run, `{"spec": {"image": ..., "env": {...}}}`, the file the git sensor ingests. `fncli trigger FILE --project P --pr` opens a pull request that adds the file under the project's trigger repository (repository, watch directory and base branch from the project's backend record) and, with `--merge`, merges it. `--api` is reserved: the same file would be sent to the task API, which today takes a different (TES-like) body, so the API would need to accept this one. `demo` and `experiment run` call the same code. `open-pr` stays only for the end-to-end checks' kinds of pull request (unwatched, invalid, failing), by the `TEST_*` env.

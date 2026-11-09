@@ -16,12 +16,13 @@ the API client.
 3. **Install App** on only the repositories the node uses. The number at the end of the
    installation URL is the **installation ID**.
 4. Store the credentials and register the repositories from a node file
-   (`bootstrap/examples/demo-github.yaml` is the pattern). Put the two ids in `.dev.env` (the file's `node.env_file`)
+   (`bootstrap/examples/globals-github.yaml` is the pattern). Put the two ids in `.dev.env` (the `node.env_file` of
+   your `bootstrap/context.yaml`, `cp bootstrap/examples/context.yaml bootstrap/context.yaml`)
    as `GH_APP_ID` and `GH_INSTALLATION_ID`, and the key at the path the file names (`~/.config/phems/phems-sandbox.private-key.pem`):
 
 ```bash
-fncli diff  -f examples/demo-github.yaml        # what it would create; shows each value's source, never the value
-fncli apply -f examples/demo-github.yaml
+fncli diff  -f examples/globals-github.yaml     # what it would create; shows each value's source, never the value
+fncli apply -f examples/globals-github.yaml
 fncli verify-git-secret --entity trigger        # nexus-api mints a token, GitHub accepts it
 fncli verify-git-secret --entity results
 ```

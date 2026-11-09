@@ -40,7 +40,7 @@ from fncli.k8s import (
     restart_code_server,
     set_configmap_value,
 )
-from fncli.nodefile.loader import load_node_file
+from fncli.nodefile.loader import load_context, load_node_file
 from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("e2e")
@@ -60,26 +60,35 @@ def reached(order: list[str], value: str, minimum: str) -> bool:
     return value in order and order.index(value) >= order.index(minimum)
 
 
-# The dev project and its global resources, and the two extra projects on the same ones, as node files
+# The dev project and its global resources, and the two extra projects on the same ones, as node files, on the node
+# of the example context
 BOOTSTRAP_EXAMPLES = Path(__file__).parents[4] / "bootstrap" / "examples"
-NODE_FILE = BOOTSTRAP_EXAMPLES / "e2e.yaml"
-SECOND_PROJECTS_FILE = BOOTSTRAP_EXAMPLES / "e2e-second-projects.yaml"
+CONTEXT_FILE = BOOTSTRAP_EXAMPLES / "context.yaml"
+GLOBALS_FILE = BOOTSTRAP_EXAMPLES / "globals-e2e.yaml"
+PROJECT_FILE = BOOTSTRAP_EXAMPLES / "projects" / "e2e.yaml"
+SECOND_PROJECTS_FILE = BOOTSTRAP_EXAMPLES / "projects" / "e2e-second-projects.yaml"
+
+
+def node_args(file: Path) -> list[str]:
+    return ["-f", str(file), "--context", str(CONTEXT_FILE)]
 
 
 def apply_node(fncli):
-    """`fncli apply` of the dev project's node file: its secrets, provider, repositories, dataset and project, and the Gitea repositories."""
-    fncli.run("apply", "-f", str(NODE_FILE), "-y")
+    """`fncli apply` of the dev project's node files: the secrets, provider, repositories, dataset and Gitea repositories, then the project."""
+    fncli.run("apply", *node_args(GLOBALS_FILE), "-y")
+    fncli.run("apply", *node_args(PROJECT_FILE), "-y")
 
 
 def delete_node(fncli):
-    """`fncli delete --all` of the dev project's node file: the project, then its global resources."""
-    fncli.run("delete", "-f", str(NODE_FILE), "--all", "-y")
+    """`fncli delete` of the dev project, then `--all` of its global resources."""
+    fncli.run("delete", *node_args(PROJECT_FILE), "-y")
+    fncli.run("delete", *node_args(GLOBALS_FILE), "--all", "-y")
 
 
 def delete_gitea_leftovers(fncli):
     """What `fncli delete` leaves in Gitea: the repositories and the OAuth apps the node file names, so a run starts on fresh ones."""
-    node = load_node_file(NODE_FILE)
-    gitea = build_gitea_api(GiteaConfig(GITEA_ADMIN_USER=node.node.gitea_admin_user))
+    node = load_node_file(GLOBALS_FILE)
+    gitea = build_gitea_api(GiteaConfig(GITEA_ADMIN_USER=load_context(CONTEXT_FILE).node.gitea_admin_user))
     for repository in node.repositories.triggers + node.repositories.results:
         gitea.delete_repo(repo_path_of(repository.uri).split("/")[1])
     for secret in node.secrets.values():
@@ -100,21 +109,21 @@ def project_healthcheck(fncli):
 
 def trigger_secret_label() -> str:
     """The label of the secret the node file's trigger repository takes its git credentials from."""
-    return load_node_file(NODE_FILE).repositories.triggers[0].secret
+    return load_node_file(GLOBALS_FILE).repositories.triggers[0].secret
 
 
 def rotate_trigger_secret(fncli):
     """`fncli apply --rotate` of the trigger repository's secret: its OAuth app is authorised again and the new credentials stored."""
-    fncli.run("apply", "-f", str(NODE_FILE), "--rotate", trigger_secret_label(), "-y")
+    fncli.run("apply", *node_args(GLOBALS_FILE), "--rotate", trigger_secret_label(), "-y")
 
 
 def apply_second_project(fncli, name: str):
-    fncli.run("apply", "-f", str(SECOND_PROJECTS_FILE), "--project", name, "-y")
+    fncli.run("apply", *node_args(SECOND_PROJECTS_FILE), "--project", name, "-y")
 
 
 def delete_second_projects(fncli):
     """Every project of the second-projects node file that exists; its global resources are the dev project's and stay."""
-    fncli.run("delete", "-f", str(SECOND_PROJECTS_FILE), "-y")
+    fncli.run("delete", *node_args(SECOND_PROJECTS_FILE), "-y")
 
 
 # The steps that set up the dev project and that clear it, each run as one test: the id names the step
