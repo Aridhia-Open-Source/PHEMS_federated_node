@@ -131,7 +131,7 @@ Two files, both gitignored. Do this before step 5: `scripts/cluster.sh` and `scr
 
    Leave `CLUSTER_NAME=fn`, `NAMESPACE=fn`, `RELEASE_NAME=fn-dev` and `DOCKER_TAG=v1` as they are. They are written into more than this file: the Tiltfile allows only `kind-fn`, the context file names `kind-fn` and the node files name `gitea.fn.svc`, fncli translates only hosts ending in `fn.svc`, `scripts/portfwd.sh` uses `-n fn`, and the values file names `db.fn.svc` and tag `v1`. Your own names go in your own files under `bootstrap/` (steps 6, 8 and 9), not here.
 
-   Leave the other `TEST_*` lines, `GITEA_API_URI`, `NEXUS_API_URL` and `KEYCLOAK_NAMESPACE` alone too. They describe the dev project of the e2e suites. `fncli demo` sets its own names from the project file.
+   That is all `.dev.env` holds: deploy settings, the first Keycloak user and the optional GitHub ids. The node's address, kubectl context, Keycloak namespace and Gitea admin user are in `bootstrap/context.yaml`, and a project's repositories and dataset are read from the node.
 
    You add `GH_APP_ID`, `GH_INSTALLATION_ID` and optionally `RESEARCHER_GIT_TOKEN` in step 9.
 

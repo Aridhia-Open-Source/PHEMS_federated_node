@@ -1,5 +1,7 @@
 # fncli: a declarative node file instead of env vars
 
+> Done since: the env path is deleted. No fncli command reads `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE`, `GITEA_URL`, `GITEA_API_URI`, `GITEA_ADMIN_USER`, `TEST_*` or `DEFAULT_PROJECT_DATASET`. The node is `bootstrap/context.yaml`'s `node:` (url, keycloak_namespace, gitea_admin_user, kube_context), a Gitea's address is its provider's uri through the port-forward, and the step commands take `--project` (else the context's `defaults.project`) and read the project's repositories and dataset from the node. `.dev.env` keeps only the deploy settings, the first Keycloak user and the GitHub ids. The text below is the design as it was written.
+
 Draft, 2026-11-09. Design only, no code. Read against the `fncli-provider-from-backend` branch, assuming its in-flight work lands: provider type comes from the backend record or the repo uri's host, fncli's git calls use tokens nexus-api mints, trigger and results `base_branch` are explicit, and there is a global `--env-file`.
 
 ## 1. Problem

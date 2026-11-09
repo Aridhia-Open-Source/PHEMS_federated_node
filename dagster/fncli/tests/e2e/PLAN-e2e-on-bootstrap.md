@@ -1,5 +1,7 @@
 # Plan: the e2e suites on bootstrap files
 
+> Done since: the step commands take `--context` and `--project` and read the project from the node, no `TEST_*` or `NEXUS_API_URL` is read, and the suites use the project of `projects/e2e.yaml` on the node of `examples/context.yaml` (`Fncli` in conftest.py). The text below is the plan as written.
+>
 > Names since the layout change: `e2e.yaml` is `bootstrap/examples/globals-e2e.yaml` (global resources) plus `projects/e2e.yaml` (the project); the `node:` block is `bootstrap/examples/context.yaml` (the suites pass `--context` with it); `TEST_PR_IMAGE` and friends are gone: a pull request adds a trigger file (`triggers/examples/demo.json`) with `--trigger`.
 
 

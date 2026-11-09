@@ -23,8 +23,9 @@ the API client.
 ```bash
 fncli diff  -f examples/globals-github.yaml     # what it would create; shows each value's source, never the value
 fncli apply -f examples/globals-github.yaml
-fncli verify-git-secret --entity trigger        # nexus-api mints a token, GitHub accepts it
-fncli verify-git-secret --entity results
+fncli apply -f examples/projects/demo-github.yaml   # the project the checks below work on: its repos are read from the node
+fncli verify-git-secret --entity trigger --project demo-github   # nexus-api mints a token, GitHub accepts it
+fncli verify-git-secret --entity results --project demo-github
 ```
 
 Tokens last an hour and are scoped to the one repository. There are no refresh tokens.

@@ -1,11 +1,12 @@
-# Global resources for the dev project the end-to-end suites and scripts/e2e_shared_resources.sh use, replacing the TEST_*
-# values of .dev.env.example: its provider, two Gitea repos, OAuth-app secrets and a stand-in dataset. The project is in
-# projects/e2e.yaml. No secret values. The e2e suites run these against bootstrap/examples/context.yaml.
+# Global resources for the dev project the end-to-end suites and scripts/e2e_shared_resources.sh use: its provider, two
+# Gitea repos, OAuth-app secrets and a stand-in dataset. The project is in projects/e2e.yaml. No secret values. The e2e
+# suites run these against bootstrap/examples/context.yaml.
 #   fncli apply -f examples/globals-e2e.yaml
 #   fncli apply -f examples/projects/e2e.yaml
 #   fncli delete -f examples/projects/e2e.yaml; fncli delete -f examples/globals-e2e.yaml --all
-# The step commands (verify-project, project-set, ...) still read the same names from .dev.env (TEST_PROJECT_NAME,
-# TEST_TRIGGER_REPO, ...): keep them equal to these files.
+# The step commands (verify-project, project-set, open-pr, ...) read the project's repositories and dataset from the node,
+# once these are applied: give them --project fn-dev, or make it the context's defaults.project (the e2e suites and
+# e2e_shared_resources.sh do).
 # Names: lowercase letters, digits, '-' and '.' only, because they become Secret labels.
 version: 1
 

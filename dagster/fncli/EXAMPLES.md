@@ -25,7 +25,7 @@ fncli logs in first with `POST /login` on nexus-api, then makes its backend call
 
 ### Quick happy-path check
 
-Every command that talks to the node reads `bootstrap/context.yaml` first (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
+Every command that talks to the node reads `bootstrap/context.yaml` first (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`). The commands that work on a project (`verify-project`, `project-show`, `open-pr`, `merge-results-pr`, ...) take `--project NAME`, else the context's `defaults.project`, and read its repositories and dataset from the node. The examples below are for the e2e project: `export FNCLI_DEFAULT_PROJECT=fn-dev` once, or add `--project fn-dev` to each.
 
 To watch the pull request part one confirmed step at a time, run `fncli apply -f examples/globals-gitea.yaml` and `fncli apply -f examples/projects/demo-gitea.yaml`, then `fncli demo -f examples/projects/demo-gitea.yaml` (see Demo in [README.md](README.md)), then `fncli delete -f examples/projects/demo-gitea.yaml` and `fncli delete -f examples/globals-gitea.yaml --all`. The demo creates and deletes nothing.
 

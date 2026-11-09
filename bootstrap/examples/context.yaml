@@ -1,15 +1,19 @@
 # The context: which node fncli works on, and what its commands use when not told. Every command that talks to the node
-# reads it. Copy it to bootstrap/context.yaml (gitignored) and edit; fncli finds that one from the current directory up,
-# or give --context FILE (or FNCLI_CONTEXT). The examples here are for the dev cluster (make cluster, make deploy).
+# reads it, and it is all they need to reach the node (.dev.env holds only the deploy settings, the first Keycloak user and
+# the GitHub ids). A project's repositories and dataset are read from the node, not from here. Copy it to
+# bootstrap/context.yaml (gitignored) and edit; fncli finds that one from the current directory up, or give --context FILE
+# (or FNCLI_CONTEXT). The examples here are for the dev cluster (make cluster, make deploy).
 node:
   url: http://localhost:5000                       # nexus-api (the Tilt port-forward)
   kube_context: kind-fn                            # fncli refuses to run when kubectl points elsewhere
   keycloak_namespace: keycloak                     # where fncli's login is read from
   gitea_admin_user: gitea_admin                    # optional, this is the default
-  env_file: .dev.env                               # optional: GH_APP_ID, GH_INSTALLATION_ID, ...; found from here up
+  env_file: .dev.env                               # optional: NAMESPACE, GH_APP_ID, GH_INSTALLATION_ID, ...; found from here up
 
 # Optional. FNCLI_DEFAULT_PROJECT and FNCLI_DEFAULT_TRIGGER_TYPE in the env win over these, and a flag wins over both.
-# A command that uses a default says so on its first line.
+# A command that uses a default says so on its first line. The step commands (verify-project, verify-repo,
+# project-healthcheck, project-show, project-set, resource-set, global-set, secret-set, verify-git-secret, open-pr, the
+# *-gitea-* and merge-results-pr ones) take --project, else this project, and fail if there is neither.
 defaults:
-  project: demo-gitea                              # for `fncli trigger FILE` and `fncli demo` without --project
+  project: demo-gitea                              # for `fncli trigger FILE`, `fncli demo` and the step commands without --project
   trigger_type: pr                                 # pr, or api (not built yet)

@@ -277,7 +277,7 @@ If the shell cannot find `fncli`, run `pipx ensurepath` and open a new terminal.
 
 - The dev cluster running with Tilt up (`mise run deploy`, then `tilt up`: [DEPLOYMENT.md](DEPLOYMENT.md#run-it-locally)). That gives the port-forwards: nexus-api `localhost:5000`, Dagster `localhost:3000`, Gitea `localhost:4000`.
 - `kubectl` pointing at the cluster. fncli reads secrets (the Dagster system login, the Gitea admin password, the first user) from the **current context**, so check `kubectl config current-context` is the cluster you mean.
-- A `.dev.env`, which fncli finds by searching up from your current directory. `.dev.env.example` documents every variable; the ones that matter here are `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE`, `NAMESPACE`, `GITEA_API_URI`, the `TEST_*` names of the project, repositories and watch directory, and `DEFAULT_PROJECT_DATASET`. The node itself is described by node files in `bootstrap/examples`, which `fncli apply` makes real, and which node that is (and the defaults of `fncli trigger`) is in `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
+- A `.dev.env`, which fncli finds by searching up from your current directory. It holds only the deploy settings (`NAMESPACE` among them), the first Keycloak user and the optional GitHub ids: `.dev.env.example` documents them. The node itself is described by node files in `bootstrap/examples`, which `fncli apply` makes real, and which node that is (and the defaults of `fncli trigger`) is in `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
 
 ### The short way
 
@@ -312,7 +312,7 @@ fncli delete -f examples/projects/e2e.yaml; fncli delete -f examples/globals-e2e
 
 ### Operating the dev cluster with fncli
 
-These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and talk only to nexus-api and Dagster. They are written for the dev cluster. On another node they may work if you point `NEXUS_API_URL` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `mise run deploy` creates, so on a real node revoke through the API instead.
+These act on the project named by `--project NAME`, or the context's `defaults.project` (the first line says when it is used), and talk only to nexus-api and Dagster. They read the project's repositories and datasets from the node. They are written for the dev cluster. On another node they may work if you point the context file's `node.url` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `make deploy` creates, so on a real node revoke through the API instead.
 
 | Command | What it does |
 |---|---|
@@ -323,7 +323,7 @@ These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and 
 | `resource-set KIND --enabled/--revoked ...` | The flags on a project resource (a project's use of a global resource). `KIND` is `trigger`, `results`, `dataset` or `secret` |
 | `global-set KIND --enabled/--revoked ...` | The flags on the global resource itself |
 | `secret-set --entity ... --enabled ...` | Turns a secret on or off, and with it everything that uses it |
-| `project-healthcheck`, `verify-project` | The project's healthcheck, and its dataset; exit 1 on a failure |
+| `project-healthcheck`, `verify-project` | The project's healthcheck, and its datasets; exit 1 on a failure |
 
 ### What not to do with it
 

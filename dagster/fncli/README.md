@@ -96,7 +96,7 @@ fncli demo -f examples/projects/demo-gitea.yaml [TRIGGER] [-y] [--from N]   # on
 - `apply -f FILE [--project P] [-y] [--rotate LABEL]`: prints the diff, asks, then does it in order: secrets, providers, Gitea repos (if the file has a `gitea:` section), repositories, datasets, projects (created disabled, enabled last). It stops at the first backend error and says what was done and what was not. A secret is only written when missing (`--rotate LABEL` rewrites it, and authorises a Gitea OAuth app again, which rotates the app's client secret). An assignment that exists is only PATCHed with the fields that differ. A results repository on a live project is assigned by disabling the project and enabling it again, which the question mentions. What the backend refuses (a swapped results repository, another default dataset) is skipped with its manual steps and apply exits 1. Nothing is deleted.
 - `delete -f FILE [--all] [-y]`: deletes the file's projects (their assignments go with them). With `--all` also the global repositories and datasets, then the secrets (with their stored values) and the providers, as far as the node has them, through the DELETE routes and never with `?force=true`: what a project outside the file still uses is skipped with the backend's message and delete exits 1. A provider that repositories outside the file are on is kept. Gitea repos and OAuth apps are left in place.
 - `trigger FILE [--project P] [--pr | --api] [--merge] [--watch] [--timeout N]`: asks the node to run a task with a trigger file. With `--pr`, it adds the file in a new branch and a PR under the watch directory of the project's trigger repository (taken from the project's record in the node, not from the env), and with `--merge` merges the PR, which is what the sensor picks up; with `--watch` it then follows the PR, its task and its run. `--api` is reserved for sending the same file to the task API and says it is not built yet. The project and the way default to the context's `defaults` (`project`, `trigger_type`), `FNCLI_DEFAULT_PROJECT` and `FNCLI_DEFAULT_TRIGGER_TYPE` in the env win over those, and a flag wins over both. When a default is used, the first line of the output says which: `Using the defaults of bootstrap/context.yaml: project demo-gitea, via pr`. So with the defaults set, `fncli trigger triggers/examples/demo.json --merge --watch` is enough.
-- `open-pr [--kind watched|unwatched|invalid|failing] [--merge] [--trigger FILE]`: the end-to-end checks' version of the same, named by the env (`TEST_*` in `.dev.env`) instead of a project, and able to open the kinds of pull request the sensor must ignore or reject (see the pull request commands). Use `trigger` for your own work.
+- `open-pr [--kind watched|unwatched|invalid|failing] [--merge] [--trigger FILE]`: the end-to-end checks' version of the same, on `--project` (else the context's default) and able to open the kinds of pull request the sensor must ignore or reject (see the pull request commands). Use `trigger` for your own work.
 
 Each of the first three first checks that kubectl points at the context's `node.kube_context`, because it reads cluster secrets from the current one. The context's `node.env_file` is loaded first (found from the context file's directory up, like `.dev.env`), which is where a node file that refers to env vars (`{env: GH_APP_ID}`) finds them. A Gitea repository in a file must be under the context's `node.gitea_admin_user`.
 
@@ -108,7 +108,7 @@ Secrets, datasets and the trigger and results repositories are global: they belo
 
 | Command | What it does |
 |---|---|
-| `project-healthcheck` | Prints nexus-api's healthcheck for the test project as JSON (can the repos be reached with their tokens?). Exits 1 unless the status is `ok` |
+| `project-healthcheck` | Prints nexus-api's healthcheck for the project as JSON (can the repos be reached with their tokens?). Exits 1 unless the status is `ok` |
 
 **Secret** (`cmds/secret.py`)
 
@@ -147,14 +147,11 @@ so the start order of the sensors does not matter. `start-sensor --group all` st
 
 `hello-world` prints a greeting, to check the CLI is installed.
 
-`verify-git-secret` also takes `--from-backend` and `--project NAME`. By default the repo and its secret label come from the `TEST_*` env vars. With `--from-backend` they come from nexus-api project's own trigger or results repository record: the repo is the last uri segment (its `repo_path` is `owner/name`), which must sit under the Gitea admin user (otherwise the command fails), and the secret is the record's. `--project` names nexus-api project (default `TEST_PROJECT_NAME`). The command fails with a clear message if the project is missing or does not have exactly one record of that kind.
+`verify-git-secret` and `delete-gitea-token` take `--project NAME` (else the context's `defaults.project`). The repo and its secret label come from nexus-api project's own trigger or results repository record: the repo is the last uri segment (its `repo_path` is `owner/name`), which must sit under the Gitea admin user (otherwise the command fails), and the secret is the record's. The command fails with a clear message if the project is missing or does not have exactly one record of that kind.
 
 `--entity` is `trigger` (default) or `results`.
 
-The commands that open pull requests by the env and check the project (`open-pr`, the PR steps, `verify-*`, `project-set`, ...) read only the env vars they use,
-all documented in `.dev.env.example`: `TEST_PROJECT_NAME`, `TEST_TRIGGER_REPO`, `TEST_TRIGGER_REPO_URI`,
-`TEST_RESULTS_REPO`, `TEST_RESULTS_REPO_URI`, `TEST_RESULTS_TARGET_DIR` and `DEFAULT_PROJECT_DATASET`.
-`fncli demo` and `fncli experiment run` set them from the project file and the node. What a task is asked to run is never in the env: it is the trigger file.
+Every command that works on a project (`open-pr`, the PR steps, `verify-*`, `project-*`, `resource-set`, `global-set`, `secret-set`, `verify-git-secret`, ...) takes `--context FILE` and `--project NAME`. The context file says how to reach the node (`node.url`, `node.keycloak_namespace`, `node.gitea_admin_user`, `node.kube_context`) and, as `defaults.project` (or `FNCLI_DEFAULT_PROJECT`), which project to use when `--project` is not given; the first line says when it is used, and a command with neither fails. The project's repositories, branches, directories and datasets are read from the node, so there are no `TEST_*`, `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE`, `GITEA_*` or `DEFAULT_PROJECT_DATASET` variables: `.dev.env` holds only the deploy settings, the first Keycloak user and the optional GitHub ids. What a task is asked to run is never in the env: it is the trigger file.
 
 ## State and rules (for the end-to-end suites)
 
@@ -281,5 +278,5 @@ providers, one repository is shared by two projects, and the projects deliver to
 `simulate-run --seed N --prs-per-repo N` merges seeded pull requests (watched, invalid, unwatched and failing) in all trigger
 repositories at once, waits for the sensors, then checks per project and repository: the right pull requests and tasks, no task shared
 between projects, results delivered only to the project's own results repository. It writes a report to `artifacts/simulation/`.
-It needs `GITEA_API_URI`, `NAMESPACE` and the usual backend settings in `.dev.env`, and has not been run. Later: an outage step (break
+It takes `--context` and needs the node's one Gitea provider (`fncli apply -f examples/globals-gitea.yaml`), whose address the simulation's two providers are made from, and `NAMESPACE` in `.dev.env`. It has not been run. Later: an outage step (break
 one provider's token or `api_uri`), then retries.

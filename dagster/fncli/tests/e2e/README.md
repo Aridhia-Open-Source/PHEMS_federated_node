@@ -24,8 +24,8 @@ The failure paths are split by what a group waits for. `failure` holds the group
 
 - `kubectl config current-context` is `kind-fn`.
 - nexus-api (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answer on localhost (port-forwards or Tilt).
-- `.dev.env` exists in the repo root and defines `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD` (the first Keycloak user, needed to revoke project resources) and the `TEST_*` values documented in `.dev.env.example`.
-- The images in the cluster are built from the branch under test (`mise run deploy`), including `demo-fn`.
+- `.dev.env` exists in the repo root and defines `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD` (the first Keycloak user, needed to revoke project resources) and the deploy settings in `.dev.env.example`. The node and the project are not in it: the suites use `bootstrap/examples/context.yaml` and the project of `bootstrap/examples/projects/e2e.yaml` (`fn-dev`), whatever your own `bootstrap/context.yaml` says.
+- The images in the cluster are built from the branch under test (`make deploy`), including `demo-fn`.
 - `jq` is installed when you run the scenarios by hand.
 
 ## Run

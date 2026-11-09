@@ -29,7 +29,7 @@ It is written against the code at commit `6c46e803` (branch `moonshot/shared-res
 
 Which environment the commands are for:
 
-- The `fncli` commands are written for the dev cluster: context `kind-fn`, the Tilt port-forwards (backend `:5000`, Gitea `:4000`, Dagster `:3000`, Keycloak `:8080`), a `.dev.env` in the repo root, a `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`) and the project that `fncli apply -f examples/globals-e2e.yaml -y` then `fncli apply -f examples/projects/e2e.yaml -y` creates. On any other node, check that `fncli` can reach it; if it cannot, use the HTTP route the case names, with an administrator bearer token.
+- The `fncli` commands are written for the dev cluster: context `kind-fn`, the Tilt port-forwards (backend `:5000`, Gitea `:4000`, Dagster `:3000`, Keycloak `:8080`), a `.dev.env` in the repo root, a `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`) and the project that `fncli apply -f examples/globals-e2e.yaml -y` then `fncli apply -f examples/projects/e2e.yaml -y` creates (they work on the project from `--project`, else the context's `defaults.project`: `export FNCLI_DEFAULT_PROJECT=fn-dev`). On any other node, check that `fncli` can reach it; if it cannot, use the HTTP route the case names, with an administrator bearer token.
 - `fncli apply` and `fncli delete` with bootstrap files create and delete GlobalResources and git repositories. Use them on the test project only, never on a shared node.
 - The end-to-end suites use Gitea only. GitHub is checked by one case in [pull request ingest and task creation](pull-requests-and-task-creation.md).
 
