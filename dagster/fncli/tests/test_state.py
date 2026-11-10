@@ -82,7 +82,7 @@ def test_project_set_needs_a_flag(calls):
 
 
 def test_project_set_command_options():
-    assert {param.name for param in state.project_set_command.params} == {"enabled", "revoked", "backfill", "project", "expect"}
+    assert {param.name for param in state.project_set_command.params} == {"enabled", "revoked", "backfill", "project", "expect", "context"}
 
 
 def test_revoking_a_project_uses_the_admin_login(calls):
