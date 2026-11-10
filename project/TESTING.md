@@ -54,8 +54,6 @@ Counts are `def test_` lines; a parametrised test counts once.
 | In-process flow | `test_e2e_flow.py` (1) | One route-level run through the whole API (secret, provider, repositories, dataset, project resources, enable, ingest, task). The name says e2e, but it is the nexus-api test client with mocks, not a live end-to-end test |
 | Real clients | `test_live_client_integration.py` (9) | The fncli backend client and the Dagster `BackendAPI` against the real nexus-api over HTTP, no Kubernetes |
 
-[nexus/api/tests/TEST_PLAN.md](../nexus/api/tests/TEST_PLAN.md) is superseded. It was the plan for the first set of route tests, which were later merged into the files above, and it still names an `IGNORED` state that no longer exists. Keep it only for its fixture list and its traps (assign first, then ingest; assigning a results repository needs the project disabled; the mocked Keycloak lets a non-admin token through every scope except `revoked`).
-
 ### The Hypothesis stateful test
 
 `nexus/api/tests/test_stateful_rules.py` (collected as `TestTriggerResourceRules`) is a model-based test. Hypothesis builds random sequences of actions against the real API, and after every action compares the API's state with a small model of the rules.
