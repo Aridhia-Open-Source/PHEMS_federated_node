@@ -20,7 +20,10 @@ from sqlalchemy.exc import IntegrityError
 from app.dtos.base import page_of
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
-from app.dtos.trigger_repository import ProjectTriggerRepositoryDTO, PullRequestTriggerDTO
+from app.dtos.trigger_repository import (
+    ProjectTriggerRepositoryDTO, ProjectTriggerRepositoryPatchRequest, ProjectTriggerRepositoryRequest,
+    PullRequestTriggerDTO,
+)
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.helpers.project_state import require_accepts_tasks
@@ -77,35 +80,28 @@ def list_project_trigger_repositories(project_id: int, active: str = ''):
 
 @router.put('/{repo_id}', response_model=ProjectTriggerRepositoryDTO)
 def put_project_trigger_repository(
-    project_id: int, repo_id: int, response: Response, body: dict = Body(default_factory=dict)
+    project_id: int, repo_id: int, response: Response, req: ProjectTriggerRepositoryRequest
 ):
     """
     PUT /projects/<project_id>/repositories/triggers/<repo_id> — assigns a global trigger
     repository to the project, 201, or replaces the project's settings if it is assigned already,
     200: a change of
     watch_dir or base_branch applies at once. A new watcher does not touch work in
-    flight. Fields left out take their defaults. The cursor is set when
+    flight. The cursor is set when
     the project resource is created, after the latest pull request stored, and stays where it is.
-    Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir is
-    required, the rest optional.
+    Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir and
+    base_branch are required, enabled is optional and defaults to true.
     """
     project = Project.get_by_id(project_id)
-    allowed = {"watch_dir", "base_branch", "enabled"}
-    if not set(body) <= allowed or not isinstance(body.get("watch_dir"), str):
-        raise InvalidRequest("Provide watch_dir and, optionally, base_branch and enabled")
-    if not isinstance(body.get("enabled", True), bool):
-        raise InvalidRequest("enabled must be a boolean")
-    if "base_branch" in body and not body["base_branch"]:
-        raise InvalidRequest("base_branch cannot be empty")
     repo = TriggerRepository.get_by_id(repo_id)
-    watch_dir = normalise_dir(body["watch_dir"])
+    watch_dir = normalise_dir(req.watch_dir)
     assignment = ProjectTriggerRepository.query.filter_by(project_id=project.id, trigger_repository_id=repo.id).one_or_none()
 
     if assignment is not None:
         was_active = assignment.active
         assignment.watch_dir = watch_dir
-        assignment.base_branch = body.get("base_branch", "main")
-        assignment.enabled = body.get("enabled", True)
+        assignment.base_branch = req.base_branch
+        assignment.enabled = req.enabled
         # What was merged while it was off is not replayed
         if assignment.active and not was_active:
             skip_gap([assignment])
@@ -116,8 +112,8 @@ def put_project_trigger_repository(
 
     assignment = ProjectTriggerRepository(
         project.id, repo.id, watch_dir,
-        base_branch=body.get("base_branch", "main"),
-        enabled=body.get("enabled", True),
+        base_branch=req.base_branch,
+        enabled=req.enabled,
     )
     # History is not replayed: start after the latest pull request stored, or at the project resource's
     # creation when there is none
@@ -143,7 +139,7 @@ def get_project_trigger_repository(project_id: int, repo_id: int):
 
 @router.patch('/{repo_id}', response_model=ProjectTriggerRepositoryDTO)
 def patch_project_trigger_repository(
-    project_id: int, repo_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)
+    project_id: int, repo_id: int, req: ProjectTriggerRepositoryPatchRequest, caller: Caller = Depends(get_caller)
 ):
     """
     PATCH /projects/<project_id>/repositories/triggers/<repo_id> — changes what the
@@ -152,19 +148,14 @@ def patch_project_trigger_repository(
     (revoked), which is admin only and takes effect at once.
     """
     assignment = _assignment(project_id, repo_id)
-    fields = {"watch_dir", "base_branch", "enabled", "revoked"}
-    if not body or not set(body) <= fields:
-        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
-    for field in ("enabled", "revoked"):
-        if field in body and not isinstance(body[field], bool):
-            raise InvalidRequest(f"{field} must be a boolean")
+    body = req.model_dump(exclude_unset=True)
+    if not body:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectTriggerRepositoryPatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
 
     was_active = assignment.active
     if "base_branch" in body:
-        if not body["base_branch"]:
-            raise InvalidRequest("base_branch cannot be empty")
         assignment.base_branch = body["base_branch"]
 
     if "watch_dir" in body:

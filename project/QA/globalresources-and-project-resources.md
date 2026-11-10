@@ -56,7 +56,7 @@ Needs: an administrator token. On the dev cluster `fncli setup-project` creates 
 
 ## Assign a trigger repository to a project
 
-1. `PUT /projects/<pid>/repositories/triggers/<id>` with `{"watch_dir": "<dir>"}`; optionally `base_branch`.
+1. `PUT /projects/<pid>/repositories/triggers/<id>` with `{"watch_dir": "<dir>", "base_branch": "main"}`; both are required.
 2. `PUT` again with a changed `watch_dir`.
 3. `PUT` with `{}`, then with an unknown field, then for an unknown repository id and an unknown project id.
 4. `GET /projects/<pid>/repositories/triggers/<id>`.
@@ -69,7 +69,7 @@ Needs: an administrator token. On the dev cluster `fncli setup-project` creates 
 
 ## Assigning a results repository needs the project disabled, and a project has one
 
-1. On an enabled project, `PUT /projects/<pid>/repositories/results/<id>` with `{"target_dir": "<dir>"}`.
+1. On an enabled project, `PUT /projects/<pid>/repositories/results/<id>` with `{"target_dir": "<dir>", "base_branch": "main"}`.
 2. `fncli project-set --enabled false`, then repeat the `PUT`, then `fncli project-set --enabled true`.
 3. Try to assign a second, different ResultsRepository without unassigning the first.
 4. Change `target_dir` with `PATCH` on the project resource while the project is enabled.

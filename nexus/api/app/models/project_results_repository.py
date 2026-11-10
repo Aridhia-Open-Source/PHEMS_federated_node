@@ -1,6 +1,6 @@
 """
 A project's grant of a global results repository, holding the project's own state for it:
-where its results go, and whether it may use it.
+where its results go (the directory, and the branch they are based on), and whether it may use it.
 """
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
@@ -21,6 +21,7 @@ class ProjectResultsRepository(SoftDeleteMixin, db.Model, BaseModel):
         sa.Integer, sa.ForeignKey('results_repositories.id', ondelete='RESTRICT'), nullable=False
     )
     target_dir = sa.Column(sa.String(4096), nullable=False)
+    base_branch = sa.Column(sa.String(256), nullable=False)
     owned_by_federated_node = sa.Column(sa.Boolean, nullable=False, server_default=sa.true())
     # A person turned the repository on or off for the project
     enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
@@ -44,6 +45,7 @@ class ProjectResultsRepository(SoftDeleteMixin, db.Model, BaseModel):
         project_id: int,
         results_repository_id: int,
         target_dir: str,
+        base_branch: str,
         owned_by_federated_node: bool = True,
         enabled: bool = True,
         revoked: bool = False,
@@ -51,6 +53,7 @@ class ProjectResultsRepository(SoftDeleteMixin, db.Model, BaseModel):
         self.project_id = project_id
         self.results_repository_id = results_repository_id
         self.target_dir = target_dir
+        self.base_branch = base_branch
         self.owned_by_federated_node = owned_by_federated_node
         self.enabled = enabled
         self.revoked = revoked

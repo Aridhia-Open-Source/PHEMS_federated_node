@@ -132,7 +132,11 @@ export function ResultsResourcePage({ projectId }: { projectId: number }) {
       projectId={projectId} kind="results" id={id}
       title={`Results repository ${data?.results_repository.repo_path ?? id}`}
       resource={data}
-      settings={{ target_dir: data?.target_dir, owned_by_federated_node: data?.owned_by_federated_node }}
+      settings={{
+        target_dir: data?.target_dir,
+        base_branch: data?.base_branch,
+        owned_by_federated_node: data?.owned_by_federated_node,
+      }}
       busy={toggle.isPending}
       onToggle={(enabled) => toggle.mutate(enabled)}
       health={() => call(api.GET("/projects/{project_id}/repositories/results/{repository_id}/healthcheck", {

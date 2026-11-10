@@ -189,10 +189,12 @@ def prepare_trigger_resource_health(resource: ProjectTriggerRepository) -> Calla
 def prepare_results_resource_health(resource: ProjectResultsRepository) -> Callable[[], ProjectResultsRepositoryHealthDTO]:
     repository = prepare_repository_health(resource.results_repository)
     project_id, enabled, revoked, active = resource.project_id, resource.enabled, resource.revoked, resource.active
-    owned_by_federated_node, target_dir = resource.owned_by_federated_node, resource.target_dir
+    owned_by_federated_node, target_dir, base_branch = (
+        resource.owned_by_federated_node, resource.target_dir, resource.base_branch
+    )
     return lambda: ProjectResultsRepositoryHealthDTO(
         project_id=project_id, owned_by_federated_node=owned_by_federated_node, target_dir=target_dir,
-        enabled=enabled, revoked=revoked, active=active, results_repository=repository(),
+        base_branch=base_branch, enabled=enabled, revoked=revoked, active=active, results_repository=repository(),
     )
 
 
@@ -301,6 +303,7 @@ def project_healthcheck(project_id: int):
             uri=resource.results_repository.uri,
             owned_by_federated_node=resource.owned_by_federated_node,
             target_dir=resource.target_dir,
+            base_branch=resource.base_branch,
             status=resource.results_repository.status,
             health_check=resource.results_repository.health_check,
         )

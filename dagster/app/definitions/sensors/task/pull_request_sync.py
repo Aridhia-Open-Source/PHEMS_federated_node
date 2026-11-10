@@ -65,7 +65,7 @@ class ResultsPullRequestSyncSensor(LaunchingSensor, GitSensor):
     Reads the git provider for every PUSHED or OPENED result, with its ResultsRepository's secret,
     and launches sync_results_pull_requests_job for each result whose pull request differs from
     what it records:
-    - PUSHED: the pull request of the result's branch exists.
+    - PUSHED: the pull request of the result's branch into the task's pinned base_branch exists.
     - OPENED: the pull request is MERGED or CLOSED now.
     A result with no change has no run. The run key names the result and the step it moves to, see
     run_key: a change launches at once, and a failed run is retried once per retry interval. A result
@@ -113,7 +113,9 @@ class ResultsPullRequestSyncSensor(LaunchingSensor, GitSensor):
             return False
         git_api = self.git_apis.for_repository(repository)
         if item.step == PullRequestResultStep.PUSHED:
-            base_branch = git_api.get_default_branch(repository.repo_path)
+            # The base branch the delivery used: the task's pinned one, the assignment may have changed since
+            results = self.backend_api.get_task_config(item.project_id, item.task_id)["config_snapshot"]["results"]
+            base_branch = results["base_branch"]
             pr = git_api.find_pull_request_by_branch(repository.repo_path, item.branch, base_branch)
             if pr is None:
                 return False
