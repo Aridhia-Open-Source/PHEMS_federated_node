@@ -1,4 +1,7 @@
+{{- if .Values.taskNetworkPolicy.enabled }}
 {{- /*
+Renders only when taskNetworkPolicy.enabled is true (off by default).
+
 Task pods run partner images that hold a dataset's credentials, so the tasks namespace is shut
 in: nothing may reach a task pod, and a task pod reaches only DNS and the dataset database
 (taskNetworkPolicy in values.yaml). Without this Kubernetes lets a task reach the backend,
@@ -35,3 +38,4 @@ spec:
   {{- end }}
     - {{ toYaml . | indent 6 | trim }}
   {{- end }}
+{{- end }}

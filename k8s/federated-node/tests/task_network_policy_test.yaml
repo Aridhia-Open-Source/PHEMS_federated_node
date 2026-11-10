@@ -7,7 +7,15 @@ values:
 templates:
   - task-network-policy.yaml
 tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
   - it: denies all ingress and egress for every pod in the tasks namespace
+    set:
+      taskNetworkPolicy:
+        enabled: true
     asserts:
       - isKind:
           of: NetworkPolicy
@@ -26,6 +34,9 @@ tests:
           path: spec.ingress
 
   - it: allows only DNS by default
+    set:
+      taskNetworkPolicy:
+        enabled: true
     asserts:
       - lengthEqual:
           path: spec.egress
@@ -48,6 +59,8 @@ tests:
 
   - it: follows global.namespaces.tasks
     set:
+      taskNetworkPolicy:
+        enabled: true
       global:
         namespaces:
           tasks: partner-tasks
@@ -59,6 +72,7 @@ tests:
   - it: lets the DNS destination be replaced
     set:
       taskNetworkPolicy:
+        enabled: true
         dns:
           - ipBlock:
               cidr: 169.254.20.10/32
@@ -75,6 +89,7 @@ tests:
   - it: adds each dataset database after DNS, by address or by pod
     set:
       taskNetworkPolicy:
+        enabled: true
         datasetEgress:
           - to:
               - ipBlock:
@@ -115,6 +130,8 @@ tests:
 
   - it: fails when the tasks namespace is the release namespace
     set:
+      taskNetworkPolicy:
+        enabled: true
       global:
         namespaces:
           tasks: federatednode
@@ -124,6 +141,8 @@ tests:
 
   - it: fails when the tasks namespace is the Keycloak namespace
     set:
+      taskNetworkPolicy:
+        enabled: true
       global:
         namespaces:
           tasks: keycloak
@@ -134,6 +153,7 @@ tests:
   - it: fails on a dataset rule without a destination
     set:
       taskNetworkPolicy:
+        enabled: true
         datasetEgress:
           - ports:
               - protocol: TCP
@@ -145,6 +165,7 @@ tests:
   - it: fails on a dataset rule without ports
     set:
       taskNetworkPolicy:
+        enabled: true
         datasetEgress:
           - to:
               - ipBlock:
@@ -156,6 +177,7 @@ tests:
   - it: fails on an empty DNS destination
     set:
       taskNetworkPolicy:
+        enabled: true
         dns: []
     asserts:
       - failedTemplate:
