@@ -14,10 +14,11 @@
 local_development: true      # http instead of https, in-cluster test URLs
 create_db_deployment: true   # run Postgres in the cluster instead of a managed one
 
-# With the policy on, task pods reach only DNS and the dataset database
-# (templates/task-network-policy.yaml). This allows the dev dataset database, experiments/chart.
+# The task network policy is on by default: task pods reach cluster DNS, the private ranges and
+# datasetEgress (templates/task-network-policy.yaml). The dev dataset database, experiments/chart,
+# is in the private ranges already; this rule names it by pod label so it stays reachable if
+# privateEgress is narrowed.
 taskNetworkPolicy:
-  enabled: true
   datasetEgress:
     - to:
         - namespaceSelector:

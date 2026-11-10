@@ -7,15 +7,20 @@ values:
 templates:
   - task-network-policy.yaml
 tests:
-  - it: renders nothing by default
+  - it: renders by default
+    asserts:
+      - hasDocuments:
+          count: 1
+
+  - it: renders nothing when disabled
+    set:
+      taskNetworkPolicy:
+        enabled: false
     asserts:
       - hasDocuments:
           count: 0
 
   - it: denies all ingress and egress for every pod in the tasks namespace
-    set:
-      taskNetworkPolicy:
-        enabled: true
     asserts:
       - isKind:
           of: NetworkPolicy
@@ -33,14 +38,11 @@ tests:
       - notExists:
           path: spec.ingress
 
-  - it: allows only DNS by default
-    set:
-      taskNetworkPolicy:
-        enabled: true
+  - it: allows only DNS and the private ranges by default
     asserts:
       - lengthEqual:
           path: spec.egress
-          count: 1
+          count: 2
       - equal:
           path: spec.egress[0]
           value:
@@ -56,11 +58,56 @@ tests:
                 port: 53
               - protocol: TCP
                 port: 53
+      - equal:
+          path: spec.egress[1]
+          value:
+            to:
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+              - ipBlock:
+                  cidr: 172.16.0.0/12
+              - ipBlock:
+                  cidr: 192.168.0.0/16
+
+  - it: allows the private ranges on any port and no public address
+    asserts:
+      - notExists:
+          path: spec.egress[1].ports
+      - notContains:
+          path: spec.egress[1].to
+          content:
+            ipBlock:
+              cidr: 0.0.0.0/0
+
+  - it: lets the private ranges be narrowed
+    set:
+      taskNetworkPolicy:
+        privateEgress:
+          - 10.20.0.0/16
+    asserts:
+      - lengthEqual:
+          path: spec.egress
+          count: 2
+      - equal:
+          path: spec.egress[1].to
+          value:
+            - ipBlock:
+                cidr: 10.20.0.0/16
+
+  - it: renders no private rule when the list is empty
+    set:
+      taskNetworkPolicy:
+        privateEgress: []
+    asserts:
+      - lengthEqual:
+          path: spec.egress
+          count: 1
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
 
   - it: follows global.namespaces.tasks
     set:
-      taskNetworkPolicy:
-        enabled: true
       global:
         namespaces:
           tasks: partner-tasks
@@ -72,7 +119,6 @@ tests:
   - it: lets the DNS destination be replaced
     set:
       taskNetworkPolicy:
-        enabled: true
         dns:
           - ipBlock:
               cidr: 169.254.20.10/32
@@ -89,7 +135,6 @@ tests:
   - it: adds each dataset database after DNS, by address or by pod
     set:
       taskNetworkPolicy:
-        enabled: true
         datasetEgress:
           - to:
               - ipBlock:
@@ -110,7 +155,7 @@ tests:
     asserts:
       - lengthEqual:
           path: spec.egress
-          count: 3
+          count: 4
       - equal:
           path: spec.egress[1]
           value:
@@ -127,11 +172,12 @@ tests:
       - equal:
           path: spec.egress[2].ports[0].port
           value: 5432
+      - equal:
+          path: spec.egress[3].to[0].ipBlock.cidr
+          value: 10.0.0.0/8
 
   - it: fails when the tasks namespace is the release namespace
     set:
-      taskNetworkPolicy:
-        enabled: true
       global:
         namespaces:
           tasks: federatednode
@@ -141,8 +187,6 @@ tests:
 
   - it: fails when the tasks namespace is the Keycloak namespace
     set:
-      taskNetworkPolicy:
-        enabled: true
       global:
         namespaces:
           tasks: keycloak
@@ -153,7 +197,6 @@ tests:
   - it: fails on a dataset rule without a destination
     set:
       taskNetworkPolicy:
-        enabled: true
         datasetEgress:
           - ports:
               - protocol: TCP
@@ -165,7 +208,6 @@ tests:
   - it: fails on a dataset rule without ports
     set:
       taskNetworkPolicy:
-        enabled: true
         datasetEgress:
           - to:
               - ipBlock:
@@ -177,7 +219,6 @@ tests:
   - it: fails on an empty DNS destination
     set:
       taskNetworkPolicy:
-        enabled: true
         dns: []
     asserts:
       - failedTemplate:
