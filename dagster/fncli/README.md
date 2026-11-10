@@ -92,7 +92,7 @@ fncli teardown-backend -y
 - `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
 - `teardown-project -y`: deletes the lot, side effects included: nexus-api project and its assignments, then the global dataset, repositories, git provider (unless another project's repositories are still on it) and secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
-- `setup-backend`: nexus-api only, no Gitea call. Side effects: nexus-api project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global git provider, trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `main`). The project stays disabled: enable it with `project-set --enabled true` once `setup-gitea` has run.
+- `setup-backend`: nexus-api only, no Gitea call. Side effects: nexus-api project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global git provider, trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `TEST_TRIGGER_REPO_BASE_BRANCH`, the results one on `TEST_RESULTS_REPO_BASE_BRANCH`). The project stays disabled: enable it with `project-set --enabled true` once `setup-gitea` has run.
 - `setup-gitea`: the Gitea side of an existing backend project, which is the reference (not the `TEST_*_REPO` env vars). Side effects: creates the Gitea repos its trigger and results repository records name, issues a Gitea token for each (`fn-sensor`, `fn-results`), writes it into that record's existing secret and checks Gitea accepts it.
 - `teardown-gitea -y`: deletes the Gitea tokens and repos (with all their PRs) named by the project's backend records. nexus-api is left alone.
 - `teardown-backend -y`: deletes the project (with its assignments), then the global dataset, repositories and secrets (backend and K8s). Gitea is left alone.
@@ -110,7 +110,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 |---|---|
 | `setup-project` | Runs, in order: `init-backend-project`, `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results), `init-dataset-secret`, `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset`, `verify-git-secret` (trigger, results), `project-set --enabled true`, `project-healthcheck` |
 | `open-pr [--kind] [--merge]` | Runs `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, and with `--merge` `merge-gitea-pr` |
-| `setup-backend` | Backend only, no Gitea: `init-backend-project`, `init-backend-secret` (trigger, results, dataset), `init-backend-trigger-repo --base-branch main`, `init-backend-results-repo`, `init-backend-dataset` |
+| `setup-backend` | Backend only, no Gitea: `init-backend-project`, `init-backend-secret` (trigger, results, dataset), `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset` (the two repo steps take their branches from `TEST_TRIGGER_REPO_BASE_BRANCH` and `TEST_RESULTS_REPO_BASE_BRANCH`, which must be set) |
 | `teardown-backend [-y]` | Backend only: `delete-backend-project`, then `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset) |
 | `setup-gitea [--project]` | Gitea only, repos taken from the project's backend records (`--from-backend`): `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results; writes into the record's secret), `verify-git-secret` (trigger, results) |
 | `teardown-gitea [-y] [--project]` | Gitea only, same records: `delete-gitea-token` (trigger, results), `delete-gitea-repo` (trigger, results) |
@@ -193,7 +193,7 @@ endpoints (nexus-api trigger repository vs results repository) are separate comm
 
 Each command reads only the env vars it uses,
 all documented in `.dev.env.example`: the existing ones, plus `TEST_RESULTS_REPO`,
-`TEST_RESULTS_REPO_URI`, `TEST_RESULTS_TARGET_DIR`, `GITEA_RESULTS_TOKEN_NAME` (must differ
+`TEST_RESULTS_REPO_URI`, `TEST_RESULTS_TARGET_DIR`, `TEST_TRIGGER_REPO_BASE_BRANCH`, `TEST_RESULTS_REPO_BASE_BRANCH`, `GITEA_RESULTS_TOKEN_NAME` (must differ
 from `GITEA_TOKEN_NAME`), `DEFAULT_PROJECT_DATASET` and `TEST_PR_IMAGE`.
 
 The dataset defaults to a dummy stand-in. These env vars point it at a real database (all optional, defaults in brackets): `CLUSTER_DATASET_HOST` (`db-datasets.experiments.svc`), `DATASET_PORT` (`5432`), `DATASET_TYPE` (`postgres`), `DATASET_SCHEMA` (`cdm`, the read schema), `DATASET_SCHEMA_WRITE` (`results`), `DATASET_USERNAME` and `DATASET_PASSWORD` (`dummy`, stored in the dataset's secret). `fncli experiment setup NAME` sets them for a real experiment.
