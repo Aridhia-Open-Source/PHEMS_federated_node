@@ -6,9 +6,8 @@ Task pods run partner images that hold a dataset's credentials, so the tasks nam
 in: nothing may reach a task pod, and a task pod reaches only DNS, the private address ranges
 (privateEgress) and the dataset databases on public addresses (datasetEgress), all in
 taskNetworkPolicy in values.yaml. That keeps the public internet and the cloud metadata endpoint
-out of reach. The private ranges cover in-cluster pod and Service IPs on most clusters, so a
-task can still reach in-cluster services (the backend, Keycloak, Postgres); narrow privateEgress
-to the ranges the datasets need to close that.
+out of reach. The private ranges cover in-cluster pod and Service IPs on most clusters, so the
+node's own services shut themselves to the tasks namespace instead (internal-ingress-policy.yaml).
 Dagster needs no path to the pod: pipes starts it and reads its logs through the Kubernetes API.
 
 The policy selects every pod in the tasks namespace rather than a label. Task pods carry only

@@ -67,7 +67,12 @@ The policy breaks nothing a task needs. Results leave through the artifacts volu
 
 **Built today:** `task-network-policy.yaml` creates one NetworkPolicy in the tasks namespace, on by default (`taskNetworkPolicy.enabled: false` turns it off). It selects every pod there (`podSelector: {}`), denies all ingress, and allows egress only to cluster DNS (UDP and TCP 53), to the private ranges in `taskNetworkPolicy.privateEgress` (`10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16` by default, any port) and to the rules in `taskNetworkPolicy.datasetEgress`. So a task cannot reach the public internet. Pod and Service IPs fall in the private ranges on most clusters, so an in-cluster or private-network database needs no listing, and a hospital can narrow or empty `privateEgress`. Each `datasetEgress` rule is a NetworkPolicy egress rule, so a database on a public address (e.g. an Azure SQL public endpoint) is named by address (`ipBlock`) or by namespace and pod label; the list is empty by default. The dev example values name the experiments database (`db-datasets` in the `experiments` namespace, label `app: experiments-postgres`, port 5432) so it stays reachable if `privateEgress` is narrowed.
 
-The private ranges also cover the node's own pods, so a task can reach in-cluster services (the backend, Keycloak, Postgres) unless `privateEgress` is narrowed to the ranges its databases live in. DNS lookups still go through cluster DNS, so low-bandwidth DNS tunnelling remains possible.
+The private ranges also cover the node's own pods, so the node protects itself too, behind the same `taskNetworkPolicy.enabled`:
+
+- **Ingress:** `internal-ingress-policy.yaml` makes Postgres (in the chart), Gitea (ClusterIP), the Dagster webserver and code server and, behind the chart's Traefik, nexus-api, nexus-ui and Keycloak accept ingress from every namespace except the tasks namespace. It names a namespace, not an address range, so it holds on any cluster. Tasks need nothing from them: pipes injects no URL or callback.
+- **Egress:** `internal-egress-policy.yaml` keeps Postgres, nexus-ui, Traefik and Keycloak off the public internet (cluster DNS, pods in any namespace and `privateEgress` only). nexus-api, Dagster and cert-manager stay unrestricted: they need GitHub, Gitea and ACME, and a policy cannot match DNS names.
+- **Keycloak switch:** `keycloak.allowExternalEgress` is a plain on/off, because an external identity provider's addresses change and a policy cannot name them. `true` leaves Keycloak's egress alone.
+- DNS lookups still go through cluster DNS, so low-bandwidth DNS tunnelling remains possible.
 
 The policy selects the whole namespace because task pods carry only Dagster's common labels, and a label selector that missed them would leave them open. That is only right while the namespace holds nothing but task pods, so the chart fails to render if `global.namespaces.tasks` is the release namespace or the Keycloak namespace, and a rule without `to` or without `ports` (which would allow every destination or every port) fails too. Chart tests cover what renders and what it selects.
 
@@ -78,7 +83,7 @@ The policy selects the whole namespace because task pods carry only Dagster's co
 - Storage: one task reading, overwriting or deleting another run's output, and delivery following a link out of the run's folder.
 - Secrets: a task or Dagster reading credentials it was not given, a password sitting in a pod spec, and a disabled Secret still being read.
 - Namespace: a task reaching the node's workloads and Secrets, and a Role in one place covering both.
-- Network: dataset content or credentials leaving over the internet, and a task calling node services or the Kubernetes API.
+- Network: dataset content or credentials leaving over the internet, and a task calling node services (they refuse it) or the Kubernetes API (no token).
 
 None of the four limits what a task does with the dataset its credentials open. Output reaches people only through the reviewed results pull request ([0013](0013-results-delivered-as-branch-and-pull-request.md)).
 
@@ -88,6 +93,9 @@ None of the four limits what a task does with the dataset its credentials open. 
 - One tasks namespace means all tasks share its Role, its policy and its Secrets. Without a token a task cannot read them, but a project cannot be given a different policy, quota or Role from another.
 - A NetworkPolicy does nothing unless the cluster's CNI enforces it. The dev cluster runs kindnet (`kindest/kindnetd`), which enforces NetworkPolicy from kind v0.24 (via kube-network-policies); no test in the repo exercises that. Production needs a CNI that enforces NetworkPolicy, which the deployment guide now lists as a prerequisite.
 - A policy matches pods, namespaces and address ranges, never DNS names. A dataset is created at runtime with any host and port, so a database outside the private ranges is listed by address in `taskNetworkPolicy.datasetEgress`; a dataset registered through the API on a public address is not reachable until it is. The policy can be turned off (`taskNetworkPolicy.enabled: false`) so a hospital can manage the tasks namespace itself (Azure SQL redirect mode, or private endpoints whose IPs change).
+- With `traefik.enabled: false`, nexus-api, nexus-ui and Keycloak are not selected by the ingress policies (your own ingress may reach them from an address), so protect them yourself. A Postgres or Keycloak outside the chart is not a pod and is not covered.
+- Traefik reads its routes from the Kubernetes API, which is not a pod: if the API server is on a public address (a public AKS or GKE control plane), add it to `privateEgress`. A Keycloak database on a public address needs `keycloak.allowExternalEgress: true`.
+- Traefik and the Kubernetes API endpoint stay reachable from a task at the network level; a task holds no token for the API.
 - Deleting the per-task Secret on completion makes cleanup part of the task's lifecycle.
 
 ## Alternatives considered

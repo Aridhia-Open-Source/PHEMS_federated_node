@@ -58,6 +58,11 @@ keycloak:
   # `lookup` is unavailable and credentials would be silently regenerated on every sync. Set this
   # true for a single upgrade if you deleted the secret on purpose.
   recreateMissingSecrets: false
+  # By default Keycloak's pods may reach cluster DNS, pods in the cluster and the private address
+  # ranges (taskNetworkPolicy.privateEgress), and nothing on a public address. Set true to leave
+  # its egress alone, e.g. for an external identity provider or a database on a public address.
+  # Has no effect when taskNetworkPolicy.enabled is false.
+  allowExternalEgress: false
   # Set false to hand realm management entirely to the operator. keycloak-realm-init still manages
   # credentials, but applies neither the realms.json partial import nor any realm migration.
   manageRealm: true
@@ -150,6 +155,10 @@ db:
 # policies on the tasks namespace yourself (e.g. Azure SQL redirect mode, or private endpoints
 # whose IPs change). DNS lookups still go through cluster DNS, so low-bandwidth DNS tunnelling
 # remains possible. Only enforced by a CNI that enforces NetworkPolicy.
+# The same switch also shuts the node's own services to the tasks namespace
+# (templates/internal-ingress-policy.yaml) and keeps Postgres, nexus-ui, Traefik and Keycloak off
+# the public internet (templates/internal-egress-policy.yaml, see keycloak.allowExternalEgress).
+# Add a public Kubernetes API server address to privateEgress, or Traefik cannot read its routes.
 # See templates/task-network-policy.yaml.
 taskNetworkPolicy:
   enabled: true

@@ -1,0 +1,234 @@
+suite: Internal egress policies (no public internet for the services that do not need it)
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+templates:
+  - internal-egress-policy.yaml
+tests:
+  - it: renders by default, for Postgres, Traefik and Keycloak
+    asserts:
+      - hasDocuments:
+          count: 3
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Egress
+      - notExists:
+          path: spec.ingress
+
+  - it: renders nothing when disabled
+    set:
+      taskNetworkPolicy:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: selects the in-chart Postgres and, when deployed, nexus-ui
+    set:
+      nexus:
+        ui:
+          enabled: true
+    documentSelector:
+      path: metadata.name
+      value: federatednode-internal-egress
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: federatednode
+      - equal:
+          path: spec.podSelector
+          value:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - postgres
+                  - nexus-ui
+
+  - it: selects Postgres alone when nexus-ui is off
+    documentSelector:
+      path: metadata.name
+      value: federatednode-internal-egress
+    asserts:
+      - equal:
+          path: spec.podSelector.matchExpressions[0].values
+          value:
+            - postgres
+
+  - it: leaves Postgres out when the database is not in the chart
+    set:
+      create_db_deployment: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: federatednode-traefik-egress
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: federatednode-keycloak-egress
+        documentIndex: 1
+
+  - it: selects Traefik by its name label, in the release namespace
+    documentSelector:
+      path: metadata.name
+      value: federatednode-traefik-egress
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: federatednode
+      - equal:
+          path: spec.podSelector
+          value:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+
+  - it: leaves Traefik out when the chart's Traefik is off
+    set:
+      traefik:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: federatednode-internal-egress
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: federatednode-keycloak-egress
+        documentIndex: 1
+
+  - it: selects Keycloak in its own namespace
+    documentSelector:
+      path: metadata.name
+      value: federatednode-keycloak-egress
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: keycloak
+      - equal:
+          path: spec.podSelector
+          value:
+            matchLabels:
+              app: keycloak
+
+  - it: puts Keycloak's policy in the configured Keycloak namespace
+    set:
+      global:
+        namespaces:
+          keycloak: identities
+    documentSelector:
+      path: metadata.name
+      value: federatednode-keycloak-egress
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: identities
+
+  - it: skips Keycloak when keycloak.allowExternalEgress is true
+    set:
+      keycloak:
+        allowExternalEgress: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.name
+          value: federatednode-internal-egress
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: federatednode-traefik-egress
+        documentIndex: 1
+
+  - it: allows only DNS, pods in the cluster and the private ranges
+    asserts:
+      - lengthEqual:
+          path: spec.egress
+          count: 2
+      - equal:
+          path: spec.egress[0]
+          value:
+            to:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: kube-system
+                podSelector:
+                  matchLabels:
+                    k8s-app: kube-dns
+            ports:
+              - protocol: UDP
+                port: 53
+              - protocol: TCP
+                port: 53
+      - equal:
+          path: spec.egress[1]
+          value:
+            to:
+              - namespaceSelector: {}
+              - ipBlock:
+                  cidr: 10.0.0.0/8
+              - ipBlock:
+                  cidr: 172.16.0.0/12
+              - ipBlock:
+                  cidr: 192.168.0.0/16
+      - notContains:
+          path: spec.egress[1].to
+          content:
+            ipBlock:
+              cidr: 0.0.0.0/0
+
+  - it: follows a narrowed privateEgress and keeps reaching pods in the cluster
+    set:
+      taskNetworkPolicy:
+        privateEgress:
+          - 10.20.0.0/16
+    documentSelector:
+      path: metadata.name
+      value: federatednode-keycloak-egress
+    asserts:
+      - equal:
+          path: spec.egress[1].to
+          value:
+            - namespaceSelector: {}
+            - ipBlock:
+                cidr: 10.20.0.0/16
+
+  - it: still reaches pods in the cluster when privateEgress is empty
+    set:
+      taskNetworkPolicy:
+        privateEgress: []
+    documentSelector:
+      path: metadata.name
+      value: federatednode-keycloak-egress
+    asserts:
+      - equal:
+          path: spec.egress[1].to
+          value:
+            - namespaceSelector: {}
+
+  - it: lets the DNS destination be replaced
+    set:
+      taskNetworkPolicy:
+        dns:
+          - ipBlock:
+              cidr: 169.254.20.10/32
+    documentSelector:
+      path: metadata.name
+      value: federatednode-keycloak-egress
+    asserts:
+      - equal:
+          path: spec.egress[0].to
+          value:
+            - ipBlock:
+                cidr: 169.254.20.10/32
+      - equal:
+          path: spec.egress[0].ports[0].port
+          value: 53
