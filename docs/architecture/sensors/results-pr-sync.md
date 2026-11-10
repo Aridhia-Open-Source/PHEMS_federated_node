@@ -6,7 +6,7 @@ Sensor `results_pull_request_sync_sensor` and its jobs `open_results_pull_reques
 
 Opens the pull request of each pushed result, and records what the git provider says of it: opened, merged or closed. Delivery stops at the push (the result is `PUSHED` and `DELIVERED`); this sensor owns the pull request from there. A pull request that already exists for the result's branch (opened by hand, or by an earlier run whose patch failed) is recorded, not opened again. A failed push is not retried here; see [results delivery](results-delivery.md).
 
-Push-only: a project whose results repository is assigned with `open_pull_requests` false never gets a pull request, its results stay at `PUSHED`. Stopping the sensor in Dagster does the same for the whole node.
+Push-only: a node that wants no results pull requests stops this sensor (Dagster UI, or `PATCH /dagster/sensors/<name>`), and its results stay at `PUSHED`. A result is always a pull request result: stopping the sensor pauses that step, it is not a product mode, and the results PR is the review gate.
 
 ## 2. When it runs
 
@@ -20,7 +20,7 @@ Push-only: a project whose results repository is assigned with `open_pull_reques
 | Who | Call | Filter or note |
 |---|---|---|
 | sensor | `GET /projects` | All projects. |
-| sensor | `GET /projects/{id}/results` | `step=PUSHED` with `open_pull_requests=true` (the project's results repository opens pull requests; a push-only project's results are left out), and `step=OPENED`, any state. `PUSHED` needs its pull request opened, or recorded if it exists; `OPENED` may be merged or closed since. Results with `attempts` at `DAGSTER_DELIVERY_MAX_ATTEMPTS` are dropped. |
+| sensor | `GET /projects/{id}/results` | `step=PUSHED` and `step=OPENED`, any state. `PUSHED` needs its pull request opened, or recorded if it exists; `OPENED` may be merged or closed since. Results with `attempts` at `DAGSTER_DELIVERY_MAX_ATTEMPTS` are dropped. |
 | sensor | `GET /projects/{id}/repositories/results/{repo}` | The project's resource for the repository the result was delivered to, which may not be the project's current one. Read once per repository per tick. A deleted project resource is a 404. |
 | sensor | `GET /projects/{id}/tasks/{task}/config` | `PUSHED` only: the task's pinned `base_branch`, which delivery used. |
 | sensor | git provider | One paged list of the repository's pull requests (`state=all`, most recently updated first, back to the oldest result's creation) per tick, with the ResultsRepository's secret. `PUSHED`: the pull request from the result's branch into the pinned base branch. `OPENED`: the pull request by number. A result with a run in flight is skipped. |
@@ -36,7 +36,7 @@ Sensor (`ResultsPullRequestSyncSensor`, the tick loop of [base](base.md)):
 
 ```mermaid
 flowchart TD
-    A([Tick]) --> B["For every project: GET results at step PUSHED (open_pull_requests=true) and OPENED, attempts below the maximum"]
+    A([Tick]) --> B["For every project: GET results at step PUSHED and OPENED, attempts below the maximum"]
     B --> C{"Next result?"}
     C -->|"none left"| Z{"Any run requested?"}
     C -->|yes| E{"A run of either job for this result in flight?"}
@@ -116,8 +116,7 @@ The pull request's title is the commit message of the delivery, `<trigger repo> 
 
 | State | Effect |
 |---|---|
-| Project disabled or revoked | No effect: all projects are read. |
-| ProjectResultsRepository disabled or revoked, ResultsRepository or GitProvider disabled or revoked | The result is still opened and synced. There is no `active_resource` filter: the pushed branch exists, so its pull request is opened or recorded whatever the project resource says. |
-| ProjectResultsRepository `open_pull_requests` false | Push-only: the backend leaves its `PUSHED` results out of the sensor's query, so no pull request is opened. A result already `OPENED` is still tracked. |
+| Project or ProjectResultsRepository disabled | No effect: all projects are read, there is no `active_resource` filter, and the backend still hands out a token for a disabled one, so the pull request is opened or recorded. |
+| Project or ProjectResultsRepository revoked | The tick still reads the result, but the open job's project-scoped token is refused (403): the run records the error and one more attempt and fails, until the attempts run out. The result stays `PUSHED`, no pull request is opened. A pull request already on the provider is still recorded. |
+| ResultsRepository, GitProvider or Secret disabled or revoked | The backend refuses the sensor's own token for the repository (403). That result's check fails and is logged; the other results are still synced, and the tick fails only if nothing launched. Nothing is opened, the result stays `PUSHED`. |
 | ProjectResultsRepository deleted | A 404: logged, the result is skipped. |
-| Secret disabled | The git client cannot be built (`PermissionError`). That result's check fails and is logged; the other results are still synced, and the tick fails only if nothing launched. |

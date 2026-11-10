@@ -247,3 +247,10 @@ def test_get_task_results_lists_the_tasks_deliveries(api, session):
 
     session.get.assert_called_once_with("/projects/1/tasks/9/results")
     assert [(r.id, r.step, r.state, r.commit_sha) for r in results] == [(4, "OPENED", "DELIVERED", "abc")]
+
+
+def test_get_sensor_status_reads_the_sensor_from_nexus_api(api, session):
+    session.get.return_value = response({"name": "s", "status": "STOPPED", "last_tick": None, "error": False})
+
+    assert api.get_sensor_status("s") == "STOPPED"
+    session.get.assert_called_once_with("/dagster/sensors/s")

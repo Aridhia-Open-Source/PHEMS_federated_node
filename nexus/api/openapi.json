@@ -1090,7 +1090,7 @@
           "projects"
         ],
         "summary": "Put Project Results Repository",
-        "description": "PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global\nresults repository to the project, which has one, 201, and replaces the project's settings\nif it is assigned already, 200. Assigning needs the project disabled. A change of target_dir\nor base_branch is caught by the configuration snapshot of the tasks created before, which then\nfail instead of delivering there.\nBody: {\"target_dir\": \"results\", \"base_branch\": \"main\", \"owned_by_federated_node\": true,\n\"open_pull_requests\": true, \"enabled\": true}; target_dir and base_branch are required, the rest are optional.\nopen_pull_requests false means push-only: no pull request is opened for the results delivered.",
+        "description": "PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global\nresults repository to the project, which has one, 201, and replaces the project's settings\nif it is assigned already, 200. Assigning needs the project disabled. A change of target_dir\nor base_branch is caught by the configuration snapshot of the tasks created before, which then\nfail instead of delivering there.\nBody: {\"target_dir\": \"results\", \"base_branch\": \"main\", \"owned_by_federated_node\": true, \"enabled\": true};\ntarget_dir and base_branch are required, the last two are optional.",
         "operationId": "put_project_results_repository_projects__project_id__repositories_results__repository_id__put",
         "parameters": [
           {
@@ -1150,7 +1150,7 @@
           "projects"
         ],
         "summary": "Patch Project Results Repository",
-        "description": "PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where\nthe project's results go (target_dir, base_branch, owned_by_federated_node, open_pull_requests), at any time (the tasks created\nbefore fail instead of delivering to the new place), or turns the project resource on or\noff (enabled), or revokes and re-grants it\n(revoked), which is admin only and takes effect at once.",
+        "description": "PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where\nthe project's results go (target_dir, base_branch, owned_by_federated_node), at any time (the tasks created\nbefore fail instead of delivering to the new place), or turns the project resource on or\noff (enabled), or revokes and re-grants it\n(revoked), which is admin only and takes effect at once.",
         "operationId": "patch_project_results_repository_projects__project_id__repositories_results__repository_id__patch",
         "parameters": [
           {
@@ -2505,7 +2505,7 @@
           "results"
         ],
         "summary": "Get Results",
-        "description": "GET /projects/<project_id>/results endpoint. Lists the project's results\nQuery params:\n    - step: only the pull request results at this step, repeated for several,\n      e.g. ?step=PUSHED&step=OPENED (optional)\n    - state: only the pull request results in this state, e.g. ?state=FAILED (optional)\n    - active_resource: ?active_resource=true keeps only the results whose project resource for the results repository is active\n      (enabled, not revoked, on an enabled global repository and provider) (optional)\n    - open_pull_requests: ?open_pull_requests=true keeps only the results whose project resource for the results repository\n      opens pull requests, false only those that are push-only (optional)",
+        "description": "GET /projects/<project_id>/results endpoint. Lists the project's results\nQuery params:\n    - step: only the pull request results at this step, repeated for several,\n      e.g. ?step=PUSHED&step=OPENED (optional)\n    - state: only the pull request results in this state, e.g. ?state=FAILED (optional)\n    - active_resource: ?active_resource=true keeps only the results whose project resource for the results repository is active\n      (enabled, not revoked, on an enabled global repository and provider) (optional)",
         "operationId": "get_results_projects__project_id__results_get",
         "parameters": [
           {
@@ -2559,22 +2559,6 @@
                 }
               ],
               "title": "Active Resource"
-            }
-          },
-          {
-            "name": "open_pull_requests",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Open Pull Requests"
             }
           }
         ],
@@ -6777,10 +6761,6 @@
             "type": "boolean",
             "title": "Owned By Federated Node"
           },
-          "open_pull_requests": {
-            "type": "boolean",
-            "title": "Open Pull Requests"
-          },
           "enabled": {
             "type": "boolean",
             "title": "Enabled"
@@ -6801,7 +6781,6 @@
           "target_dir",
           "base_branch",
           "owned_by_federated_node",
-          "open_pull_requests",
           "enabled",
           "revoked",
           "active"
@@ -6892,17 +6871,6 @@
             ],
             "title": "Owned By Federated Node"
           },
-          "open_pull_requests": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Open Pull Requests"
-          },
           "enabled": {
             "anyOf": [
               {
@@ -6946,11 +6914,6 @@
           "owned_by_federated_node": {
             "type": "boolean",
             "title": "Owned By Federated Node",
-            "default": true
-          },
-          "open_pull_requests": {
-            "type": "boolean",
-            "title": "Open Pull Requests",
             "default": true
           },
           "enabled": {

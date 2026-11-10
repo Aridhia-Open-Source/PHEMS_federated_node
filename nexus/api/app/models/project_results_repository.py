@@ -28,8 +28,6 @@ class ProjectResultsRepository(SoftDeleteMixin, db.Model, BaseModel):
     # The controller withdrew the project's access. Never touches enabled, so a re-grant
     # restores the previous state.
     revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
-    # Whether results delivered under this assignment get a pull request opened. False = push-only.
-    open_pull_requests = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
 
     __table_args__ = (
         sa.Index(
@@ -49,7 +47,6 @@ class ProjectResultsRepository(SoftDeleteMixin, db.Model, BaseModel):
         target_dir: str,
         base_branch: str,
         owned_by_federated_node: bool = True,
-        open_pull_requests: bool = True,
         enabled: bool = True,
         revoked: bool = False,
     ):
@@ -58,7 +55,6 @@ class ProjectResultsRepository(SoftDeleteMixin, db.Model, BaseModel):
         self.target_dir = target_dir
         self.base_branch = base_branch
         self.owned_by_federated_node = owned_by_federated_node
-        self.open_pull_requests = open_pull_requests
         self.enabled = enabled
         self.revoked = revoked
 

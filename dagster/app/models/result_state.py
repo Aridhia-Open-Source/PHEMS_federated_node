@@ -7,7 +7,8 @@ class ResultState(str, Enum):
 
     IN_PROGRESS: the delivery is under way, or not started. A failed one that is re-launched
         is IN_PROGRESS again.
-    DELIVERED: the pull request is opened. Its merge or close is tracked in the step.
+    DELIVERED: the branch is pushed. The results pull request, opened and then merged or closed, is
+        tracked in the step.
     FAILED: the delivery failed, and results_delivery_retry_sensor retries it unless its step is final.
     """
 

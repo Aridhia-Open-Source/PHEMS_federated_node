@@ -25,7 +25,7 @@ from fncli.cmds.common import (
 )
 from fncli.cmds.project import find_project
 from fncli.cmds.sensor import SENSORS
-from fncli.cmds.verify import RUN_TO_TASK_STATUS, Links, Report, delivered, opens_pull_requests, require, verify_task
+from fncli.cmds.verify import RUN_TO_TASK_STATUS, Links, Report, delivered, is_push_only, require, verify_task
 from app.models import TriggerState
 from fncli.sensors import DagsterAPI
 
@@ -152,8 +152,8 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
 def wait_for_delivery(backend_api, dagster_api: DagsterAPI, project_id: int, task_id: int):
     """
     Print each change of the task's delivery step until it is delivered (its results PR is opened by the
-    results PR sensor, or for a push-only assignment the results are pushed) or fails (it records an
-    error, from the push or from opening the PR), or the wait ends.
+    results PR sensor or, with that sensor stopped (a push-only node), the results are pushed) or fails
+    (it records an error, from the push or from opening the PR), or the wait ends.
     """
     deadline = time.monotonic() + DELIVERY_SECONDS
     last = ""
@@ -166,7 +166,7 @@ def wait_for_delivery(backend_api, dagster_api: DagsterAPI, project_id: int, tas
         if seen != last:
             last = seen
             logger.info(f"Delivery: {seen or 'waiting for the delivery sensor'}")
-        if error or (result and delivered(result, opens_pull_requests(backend_api, project_id, result))):
+        if error or (result and delivered(result, is_push_only(backend_api))):
             return
         time.sleep(POLL_SECONDS)
     logger.info(f"Delivery not finished after {DELIVERY_SECONDS}s, last seen: {last or None}")

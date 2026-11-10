@@ -83,7 +83,6 @@ export function ResultsUsedBy({ id }: { id: number }) {
             target_dir: resource.target_dir,
             base_branch: resource.base_branch,
             owned_by_federated_node: resource.owned_by_federated_node,
-            open_pull_requests: resource.open_pull_requests,
           },
         }))}
     />

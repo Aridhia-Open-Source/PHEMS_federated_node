@@ -36,7 +36,6 @@ class ProjectResultsRepositoryDTO(DTO):
     target_dir: str
     base_branch: str
     owned_by_federated_node: bool
-    open_pull_requests: bool
     enabled: bool
     revoked: bool
     active: bool
@@ -49,7 +48,6 @@ class ProjectResultsRepositoryDTO(DTO):
             target_dir=obj.target_dir,
             base_branch=obj.base_branch,
             owned_by_federated_node=obj.owned_by_federated_node,
-            open_pull_requests=obj.open_pull_requests,
             enabled=obj.enabled,
             revoked=obj.revoked,
             active=obj.active,
@@ -63,7 +61,6 @@ class ProjectResultsRepositoryRequest(BaseModel):
     target_dir: str = Field(min_length=1)
     base_branch: str = Field(min_length=1)
     owned_by_federated_node: bool = True
-    open_pull_requests: bool = True
     enabled: bool = True
 
 
@@ -74,7 +71,6 @@ class ProjectResultsRepositoryPatchRequest(BaseModel):
     target_dir: str | None = None
     base_branch: str | None = Field(default=None, min_length=1)
     owned_by_federated_node: bool | None = None
-    open_pull_requests: bool | None = None
     enabled: bool | None = None
     revoked: bool | None = None
 

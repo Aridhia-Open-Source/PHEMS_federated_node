@@ -2,9 +2,8 @@
 Opens the results pull requests and tracks them against the git provider. Delivery stops at the
 push, with the result PUSHED and DELIVERED: this sensor opens the pull request of each pushed
 result and moves the result to OPENED, MERGED or CLOSED as the pull request does. It reads the
-provider once per results repository per tick, whatever the number of results. A node, or a
-project, that wants push-only delivery stops this sensor, or has its results repository assigned
-with open_pull_requests false. A failed delivery is not retried here, see app.delivery.results.
+provider once per results repository per tick, whatever the number of results. A node that wants
+push-only delivery stops this sensor. A failed delivery is not retried here, see app.delivery.results.
 """
 from http import HTTPStatus
 from typing import cast
@@ -23,14 +22,14 @@ from app.models import PullRequestResult, PullRequestResultStep, ResultsReposito
 
 def get_synced_results(backend_api: BackendAPI) -> list[PullRequestResult]:
     """
-    The results to sync, of every project, with attempts left: the PUSHED ones whose project opens pull
-    requests, which the backend filters, and the OPENED ones, which may be merged or closed since.
+    The results to sync, of every project, with attempts left: the PUSHED ones, and the OPENED ones, which
+    may be merged or closed since.
     """
     return [
         result
         for project in backend_api.get_projects()
         for result in (
-            *backend_api.get_results_by_step(project.id, [PullRequestResultStep.PUSHED.value], open_pull_requests=True),
+            *backend_api.get_results_by_step(project.id, [PullRequestResultStep.PUSHED.value]),
             *backend_api.get_results_by_step(project.id, [PullRequestResultStep.OPENED.value]),
         )
         if result.attempts < DELIVERY_MAX_ATTEMPTS
@@ -134,7 +133,6 @@ class ResultsPullRequestSyncSensor(LaunchingSensor, GitSensor):
     for each PUSHED or OPENED result with attempts left:
     - PUSHED: the pull request of the result's branch into the task's pinned base_branch exists, and
       sync_results_pull_requests_job records it; or it does not, and open_results_pull_request_job opens it.
-      Only for the projects whose results repository opens pull requests, see open_pull_requests.
     - OPENED: the pull request is MERGED or CLOSED now, and sync_results_pull_requests_job records it.
     A result with no change has no run. The provider is listed once per results repository per tick, the
     pull requests updated since the repository's oldest result, whatever the number of results. The run

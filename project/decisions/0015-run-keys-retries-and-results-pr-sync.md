@@ -12,7 +12,7 @@ A result has two independent writers: the delivery job (`PUSHED`, with `state` `
 
 A result with no change gets no run, so an open pull request starts no pod. The sync run only patches the result with what the sensor found (run config). A failed opening records the error and one more attempt, keeps the state `DELIVERED` and raises, so `results_delivery_retry_sensor`, which takes `FAILED` only, leaves the result alone; the sensor launches the opening again once per retry interval, until `DAGSTER_DELIVERY_MAX_ATTEMPTS`. The backend filters the results by step; the sensor does not filter them again by state. The repository of a result is resolved by id, through an inactive project resource too ([0006](0006-global-resources-and-project-resources.md)).
 
-**Push-only.** The results repository assignment has `open_pull_requests` (default true). With false, `GET /projects/<pid>/results?step=PUSHED&open_pull_requests=true` leaves that project's results out, so they stay `PUSHED`, and `OPENED` results are tracked whatever it says. A node that wants push-only for every project stops the sensor in Dagster.
+**Push-only.** A node that wants no results pull requests stops the sensor (Dagster UI, or `PATCH /dagster/sensors/<name>`): the results stay `PUSHED` and `DELIVERED`. There is no per-project switch. A result is always a pull request result: stopping the sensor pauses that step, it is not a product mode, and the results PR is the review gate.
 
 **State plus slot.** `run_key(kind, item_id, state)` in `sensors/base.py` gives `kind/item_id/state/slot`, with `slot = int(time.time() // retry interval)` (a part that is `None` is left out). A new state gives a new key at once. A failed run with an unchanged state is retried once per retry interval, when the slot moves on.
 
@@ -33,7 +33,7 @@ The git and delivery sensors share `LaunchingSensor` ([0014](0014-dagster-pipeli
 ## Consequences
 
 - A late delivery retry cannot undo what the sensor found, and vice versa.
-- `DELIVERED` means pushed, not that a pull request exists. With the sensor off, or a project push-only, a result stays `PUSHED` and `DELIVERED`.
+- `DELIVERED` means pushed, not that a pull request exists. With the sensor stopped, a result stays `PUSHED` and `DELIVERED`.
 - The provider list reaches back to the oldest result still tracked, so a pull request left open for long makes every tick page further.
 - A retry is never faster than the retry interval, and a new state is acted on at once.
 - `CLOSED` is terminal: a pull request reopened on the provider is not followed; one deleted on the provider stays at its last step.

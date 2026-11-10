@@ -237,6 +237,11 @@ class FncliBackendAPI(BackendAPI):
             return repo
         return self.create_results_repository(provider_id, repo_path_of(uri), secret_label)
 
+    def get_sensor_status(self, name: str) -> str:
+        """The sensor's status on the node, RUNNING or STOPPED: nexus-api's GET /dagster/sensors/<name>"""
+        self.logger.info(f"Fetching the status of sensor {name}")
+        return self.session.get(f"/dagster/sensors/{name}").json()["status"]
+
     def get_project_results_repositories(self, project_id: int) -> list[ProjectResultsRepository]:
         """The project's results repositories (it has at most one), inactive ones included"""
         response = self.session.get(f"/projects/{project_id}/repositories/results")

@@ -6,7 +6,7 @@ Sensor `results_delivery_retry_sensor` (`ResultsDeliveryRetrySensor`) and the jo
 
 ## 1. Purpose
 
-Relaunches `deliver_results_job` for each result whose delivery failed and may still work. The job zips the task's artifacts and pushes them to a branch of the project's results repository. Delivery stops there: the result is `PUSHED` and `DELIVERED`, and `results_pull_request_sync_sensor` opens the pull request ([results PR sync](results-pr-sync.md)).
+Relaunches `deliver_results_job` for each result whose delivery failed and may still work. The job zips the task's artifacts and pushes them to a branch of the project's results repository. Delivery stops there: the result is `PUSHED` and `DELIVERED`, and `results_pull_request_sync_sensor` opens the pull request ([results PR sync](results-pr-sync.md)). A node that wants push-only stops that sensor: the results stay `PUSHED`.
 
 ## 2. When it runs
 

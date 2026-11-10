@@ -153,14 +153,12 @@ def test_an_opened_result_whose_pull_request_is_closed_launches_one_run_without_
     }
 
 
-def test_the_results_are_asked_of_the_backend_pushed_ones_only_of_the_projects_that_open_pull_requests():
+def test_the_pushed_and_the_opened_results_are_asked_of_the_backend():
     yielded, backend_api, git_apis, _, _ = sync_sensor([])
 
     (skip,) = yielded
     assert isinstance(skip, dg.SkipReason)
-    assert backend_api.get_results_by_step.call_args_list == [
-        call(1, ["PUSHED"], open_pull_requests=True), call(1, ["OPENED"]),
-    ]
+    assert backend_api.get_results_by_step.call_args_list == [call(1, ["PUSHED"]), call(1, ["OPENED"])]
     # No result of another step is asked of the provider
     git_apis.for_repository.assert_not_called()
 

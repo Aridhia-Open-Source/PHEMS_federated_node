@@ -372,9 +372,8 @@ def put_project_results_repository(
     if it is assigned already, 200. Assigning needs the project disabled. A change of target_dir
     or base_branch is caught by the configuration snapshot of the tasks created before, which then
     fail instead of delivering there.
-    Body: {"target_dir": "results", "base_branch": "main", "owned_by_federated_node": true,
-    "open_pull_requests": true, "enabled": true}; target_dir and base_branch are required, the rest are optional.
-    open_pull_requests false means push-only: no pull request is opened for the results delivered.
+    Body: {"target_dir": "results", "base_branch": "main", "owned_by_federated_node": true, "enabled": true};
+    target_dir and base_branch are required, the last two are optional.
     """
     project = Project.get_by_id(project_id)
     target_dir = normalise_dir(req.target_dir)
@@ -395,7 +394,6 @@ def put_project_results_repository(
     resource.target_dir = target_dir
     resource.base_branch = req.base_branch
     resource.owned_by_federated_node = req.owned_by_federated_node
-    resource.open_pull_requests = req.open_pull_requests
     resource.enabled = req.enabled
     db.session.flush()
     _check_results_loop(resource)
@@ -410,7 +408,7 @@ def patch_project_results_repository(
 ):
     """
     PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
-    the project's results go (target_dir, base_branch, owned_by_federated_node, open_pull_requests), at any time (the tasks created
+    the project's results go (target_dir, base_branch, owned_by_federated_node), at any time (the tasks created
     before fail instead of delivering to the new place), or turns the project resource on or
     off (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.

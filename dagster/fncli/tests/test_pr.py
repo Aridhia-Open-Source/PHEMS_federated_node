@@ -95,11 +95,11 @@ def test_branch_names_made_in_the_same_second_differ():
 # --watch
 
 class FakeBackend:
-    def __init__(self, prs, task_status="SUCCESS", deliveries=("OPENED",), open_pull_requests=True):
+    def __init__(self, prs, task_status="SUCCESS", deliveries=("OPENED",), sensors=None):
         self.prs = prs
         self.task_status = task_status
         self.deliveries = list(deliveries)
-        self.open_pull_requests = open_pull_requests
+        self.sensors = sensors or {}
 
     def get_task_results(self, project_id, task_id):
         """
@@ -118,9 +118,8 @@ class FakeBackend:
             url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3" if opened else None,
         )]
 
-    def get_results_repository_by_id(self, project_id, repository_id):
-        assert (project_id, repository_id) == (1, 2)
-        return SimpleNamespace(open_pull_requests=self.open_pull_requests)
+    def get_sensor_status(self, name):
+        return self.sensors.get(name, "RUNNING")
 
     def find_repository(self, uri, project_id):
         return SimpleNamespace(trigger_repository=SimpleNamespace(id=7), repo_path="gitea_admin/trigger")
@@ -151,7 +150,7 @@ def pr_of(state, cause=None):
 def watch(monkeypatch):
     """Runs watch_pr against a fake backend and Dagster, returning the exit code."""
 
-    def run(prs, runs=(None,), sensors=None, timeout=300, deliveries=("OPENED",), open_pull_requests=True):
+    def run(prs, runs=(None,), sensors=None, timeout=300, deliveries=("OPENED",)):
         runs = list(runs)
         dagster_api = MagicMock()
         def get_task_run(task_id):
@@ -164,7 +163,7 @@ def watch(monkeypatch):
         dagster_api.get_sensor_state.side_effect = lambda name: {"status": (sensors or {}).get(name, "RUNNING")}
         monkeypatch.setattr(
             pr, "build_backend_api",
-            lambda config: FakeBackend(list(prs), deliveries=deliveries, open_pull_requests=open_pull_requests),
+            lambda config: FakeBackend(list(prs), deliveries=deliveries, sensors=sensors),
         )
         monkeypatch.setattr(pr, "DagsterAPI", lambda url: dagster_api)
         monkeypatch.setattr(pr, "find_project", lambda config, api: SimpleNamespace(id=1))
@@ -240,12 +239,13 @@ def test_watch_a_pushed_result_waits_for_the_results_pr_sensor_to_open_the_pr(wa
     assert "Delivery not finished after 0.05s, last seen: PUSHED" in caplog.text
 
 
-def test_watch_a_push_only_result_is_delivered_once_pushed(watch, caplog, monkeypatch):
+def test_watch_a_result_is_delivered_once_pushed_when_the_results_pr_sensor_is_stopped(watch, caplog, monkeypatch):
     caplog.set_level(logging.INFO, logger="pr")
     monkeypatch.setattr(pr, "DELIVERY_SECONDS", 5)
 
     assert watch(
-        [[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[None, "UNKNOWN", "PUSHED"], open_pull_requests=False
+        [[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[None, "UNKNOWN", "PUSHED"],
+        sensors={"results_pull_request_sync_sensor": "STOPPED"},
     ) == 0
     assert "Delivery: PUSHED" in caplog.text
     assert "Delivery not finished" not in caplog.text

@@ -46,7 +46,7 @@ flowchart TD
     O -->|"delivery failed"| Q["results_delivery_retry_sensor"]
     Q -->|"RunRequest deliver-retry/result/slot"| O
     P --> R["results_pull_request_sync_sensor"]
-    R -->|"open_results_pull_request_job (not if push-only)"| U["Result OPENED"]
+    R -->|"open_results_pull_request_job (while the sensor runs)"| U["Result OPENED"]
     U --> R
     R -->|"sync_results_pull_requests_job"| S(["Result MERGED or CLOSED"])
 ```
