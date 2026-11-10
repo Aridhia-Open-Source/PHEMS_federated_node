@@ -513,6 +513,9 @@ export interface paths {
          * @description PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.
          *     A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
          *     status again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.
+         *     A task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see
+         *     helpers/task_resources): before the status is saved, so that a failed delete leaves the task as it was and
+         *     the next PATCH retries it.
          */
         patch: operations["patch_task_projects__project_id__tasks__task_id__patch"];
         trace?: never;
@@ -646,6 +649,31 @@ export interface paths {
          *     A task that is no longer PENDING is a 409 and nothing changes, so a repeated call is safe.
          */
         post: operations["launch_task_projects__project_id__tasks__task_id__launch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/tasks/{task_id}/runs/{run_id}/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Run Resources
+         * @description POST /projects/<project_id>/tasks/id/runs/<run_id>/resources endpoint. Called by the run before it starts the
+         *     task pod. Creates, in the tasks namespace, the Secret of the task's dataset credentials (if it has a dataset)
+         *     and the ConfigMap of its config file (if it has a config), named task-<task id>-<run id> (the ConfigMap with
+         *     -config) and labelled fn/run_id and fn/task_id. Returns their names, null for one the task does not need.
+         *     Deleted when the task reaches SUCCESS, FAILED or CANCELED (see patch_task). They are never replaced: a name
+         *     that is taken is a 409. The credentials are read here and go to the Secret, not to the caller.
+         */
+        post: operations["post_run_resources_projects__project_id__tasks__task_id__runs__run_id__resources_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2677,6 +2705,17 @@ export interface components {
             task: components["schemas"]["TaskDTO"];
             dataset: components["schemas"]["DatasetDTO"] | null;
         };
+        /**
+         * TaskResourcesDTO
+         * @description The names of the Secret and the ConfigMap made for a run, null for the one it does not need: the Secret
+         *     only for a task with a dataset, the ConfigMap only for a task with a config. See tasks_api.create_run_resources.
+         */
+        TaskResourcesDTO: {
+            /** Secret */
+            secret: string | null;
+            /** Config Map */
+            config_map: string | null;
+        };
         /** TaskSpecDTO */
         TaskSpecDTO: {
             /** Image */
@@ -4283,6 +4322,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskLaunchDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_run_resources_projects__project_id__tasks__task_id__runs__run_id__resources_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                task_id: number;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskResourcesDTO"];
                 };
             };
             /** @description Validation Error */

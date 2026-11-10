@@ -1,20 +1,15 @@
-import json
 import os
 import logging
-from contextlib import contextmanager
-from http import HTTPStatus
 from pathlib import Path
 
 from dagster_k8s import PipesK8sClient
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 from dagster._core.pipes.client import PipesClientCompletedInvocation
-from kubernetes.client import ApiException, CoreV1Api, V1ConfigMap, V1ObjectMeta
-from kubernetes.config import load_incluster_config
 
+from app.backend import BackendAPI
 from app.config import PipesSecurityContextConfig
-from app.secrets import SecretProvider, TaskSecret
-from app.models import SecretProviderType
+from app.models import TaskResources
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,8 +18,14 @@ logger = logging.getLogger(__name__)
 # 30s default to exit before SIGKILL.
 TERMINATION_GRACE_PERIOD_SECONDS = 300
 
-# A task's config, when its spec has one, is a single read-only file in the task pod, from a ConfigMap
-# that only lives as long as the run.
+# What the pod, the Secret and the ConfigMap of a run are labelled with, so nexus-api finds the Secret and the
+# ConfigMap to delete when the task ends (RUN_LABEL and TASK_LABEL in nexus/api/app/helpers/task_resources.py).
+RUN_LABEL = "fn/run_id"
+TASK_LABEL = "fn/task_id"
+
+# A task's config, when its spec has one, is a single read-only file in the task pod, from a ConfigMap that
+# nexus-api makes for the run and deletes when the task ends. The file is the ConfigMap's one key (CONFIG_FILE_NAME
+# in nexus/api/app/helpers/task_resources.py).
 CONFIG_FILE_NAME = "config.json"
 CONFIG_FILE_PATH = f"/etc/task/{CONFIG_FILE_NAME}"
 CONFIG_VOLUME_NAME = "task-config"
@@ -55,23 +56,26 @@ ODBC_DRIVERS = {
                     "type": str,
                     "read_schema": dg.Noneable(str),
                     "write_schema": dg.Noneable(str),
-                    "secret": dg.Shape({"provider": str, "key": str, "namespace": dg.Noneable(str)}),
                 }
             ),
             is_required=False,
         ),
-    }
+    },
+    required_resource_keys={"k8s_pipes_client", "backend_api"},
 )
-def k8s_pipes_op(context: OpExecCtx, k8s_pipes_client: PipesK8sClient) -> dg.Output:
-    pipe = K8sPipe(client=k8s_pipes_client, context=context)
+def k8s_pipes_op(context: OpExecCtx) -> dg.Output:
+    pipe = K8sPipe(client=context.resources.k8s_pipes_client, backend_api=context.resources.backend_api, context=context)
     return pipe().output
 
 
 class K8sPipe:
-    def __init__(self, client: PipesK8sClient, context: OpExecCtx, ext_env=None):
+    def __init__(self, client: PipesK8sClient, backend_api: BackendAPI, context: OpExecCtx, ext_env=None):
         self.client = client
+        self.backend_api = backend_api
         self.context = context
         self.run_id = context.run_id
+        self.task_id = context.dagster_run.tags['fn/task_id']
+        self.project_id = int(context.dagster_run.tags['fn/project_id'])
         self.config = context.op_config
         self.namespace = os.environ["DAGSTER_DEPLOYMENT_NAMESPACE"]
         # Task pods run apart from the release namespace, which holds the backend,
@@ -83,9 +87,6 @@ class K8sPipe:
         self.image = self.config['docker_image']
         self.image_pull_secret = self.config.get('image_pull_secret')
         self.task_config = self.config.get('config')
-        self.config_map_name = (
-            f"task-{context.dagster_run.tags['fn/task_id']}-config" if self.task_config is not None else None
-        )
         self.name = f"pipes-{self.run_id}"
         self.artifact_path = f"{self.mnt_base_path}/{self.run_id}"
         self.security_context = PipesSecurityContextConfig().to_pod_security_context()
@@ -120,30 +121,23 @@ class K8sPipe:
         return env
 
     def __call__(self):
-        # The pod reads its dataset credentials from a Secret of its own, which lives as long as the run.
-        if not self.dataset:
-            return self._launch()
-        with TaskSecret(self.task_secret_name, self.task_namespace, self._get_dataset_creds()):
-            return self._launch()
-
-    @property
-    def task_secret_name(self) -> str:
-        return f"task-{self.context.dagster_run.tags['fn/task_id']}"
-
-    def _launch(self):
         self.log(f"Pipes op starting - {self.image}")
         self.log(f"ARIFACT_PATH: {self.artifact_path}")
         self._prepare_artifact_dir()
-        base_pod_spec = self._build_base_pod_spec()
-        with self._task_config_map():
-            result = self.client.run(
-                base_pod_spec=base_pod_spec,
-                namespace=self.task_namespace,
-                context=self.context,
-                image=self.image,
-                # The pod is killed at its deadline, and Kubernetes then takes up to the grace period to stop it
-                pod_wait_timeout=self.active_deadline_seconds + TERMINATION_GRACE_PERIOD_SECONDS,
-            )
+        # nexus-api makes the run's Secret and ConfigMap, labelled with the run, and deletes them when the task ends.
+        # The pod only names them.
+        resources = self.backend_api.create_task_resources(self.project_id, self.task_id, self.run_id)
+        base_pod_spec = self._build_base_pod_spec(resources)
+        result = self.client.run(
+            base_pod_spec=base_pod_spec,
+            # The name is not ours to set: PipesK8sClient overrides the one in base_pod_meta
+            base_pod_meta={"labels": {RUN_LABEL: self.run_id, TASK_LABEL: self.task_id}},
+            namespace=self.task_namespace,
+            context=self.context,
+            image=self.image,
+            # The pod is killed at its deadline, and Kubernetes then takes up to the grace period to stop it
+            pod_wait_timeout=self.active_deadline_seconds + TERMINATION_GRACE_PERIOD_SECONDS,
+        )
 
         self.log("Pipes op completed")
 
@@ -159,36 +153,6 @@ class K8sPipe:
 
     def warn(self, message: str):
         self.context.log.warning(f"[{self.run_id}] - {message}")
-
-    @contextmanager
-    def _task_config_map(self):
-        """
-        Holds the task's config file as a ConfigMap in the task namespace while the body runs, and deletes it
-        when the body ends, however it ends. Does nothing for a task without a config.
-
-        The name is per task, not per attempt. A run pod killed before it could delete the map leaves it behind,
-        so a conflict is the previous attempt's map: it is replaced.
-        """
-        if self.task_config is None:
-            yield
-            return
-        load_incluster_config()
-        core_api = CoreV1Api()
-        body = V1ConfigMap(
-            metadata=V1ObjectMeta(name=self.config_map_name),
-            data={CONFIG_FILE_NAME: json.dumps(self.task_config)},
-        )
-        try:
-            core_api.create_namespaced_config_map(self.task_namespace, body)
-        except ApiException as exc:
-            if exc.status != HTTPStatus.CONFLICT:
-                raise
-            core_api.delete_namespaced_config_map(self.config_map_name, self.task_namespace)
-            core_api.create_namespaced_config_map(self.task_namespace, body)
-        try:
-            yield
-        finally:
-            core_api.delete_namespaced_config_map(self.config_map_name, self.task_namespace)
 
     def _prepare_artifact_dir(self):
         """
@@ -237,7 +201,7 @@ class K8sPipe:
             except OSError:
                 pass
 
-    def _build_base_pod_spec(self):
+    def _build_base_pod_spec(self, resources: TaskResources):
         # No service account: the task pod runs partner code and never talks to the
         # Kubernetes API, so it gets no token and no identity to borrow.
         spec = {
@@ -247,13 +211,13 @@ class K8sPipe:
             # Kubernetes kills a pod past this, which is what ends a hung task: the Pipes client
             # follows the pod's logs until the container exits, so its own timeout cannot.
             "activeDeadlineSeconds": self.active_deadline_seconds,
-            "volumes": self._pod_volumes(),
+            "volumes": self._pod_volumes(resources),
             "containers": [
                 {
                     "name": self.name,
                     "imagePullPolicy": "Always",
                     "securityContext": self.container_security_context,
-                    "env": self._pod_env(),
+                    "env": self._pod_env(resources),
                     "volumeMounts": self._pod_volume_mounts(),
                 }
             ],
@@ -266,7 +230,7 @@ class K8sPipe:
             spec["securityContext"] = self.security_context
         return spec
 
-    def _pod_volumes(self):
+    def _pod_volumes(self, resources: TaskResources):
         volumes = [
             {
                 "name": self.pvc_name,
@@ -274,22 +238,22 @@ class K8sPipe:
             }
         ]
         if self.task_config is not None:
-            volumes.append({"name": CONFIG_VOLUME_NAME, "configMap": {"name": self.config_map_name}})
+            volumes.append({"name": CONFIG_VOLUME_NAME, "configMap": {"name": resources.config_map}})
         return volumes
 
-    def _pod_env(self):
+    def _pod_env(self, resources: TaskResources):
         env = _dict_to_pod_env(self.env)
         if self.dataset:
             # The kubelet expands $(NAME) from the variables defined above it in the list.
             env += [
-                self._secret_env("DB_USERNAME", "USERNAME"),
-                self._secret_env("DB_PASSWORD", "PASSWORD"),
+                self._secret_env("DB_USERNAME", resources.secret, "USERNAME"),
+                self._secret_env("DB_PASSWORD", resources.secret, "PASSWORD"),
                 {"name": "CONNECTION_STRING", "value": self._get_conn_str("$(DB_USERNAME)", "$(DB_PASSWORD)")},
             ]
         return env
 
-    def _secret_env(self, name: str, key: str):
-        return {"name": name, "valueFrom": {"secretKeyRef": {"name": self.task_secret_name, "key": key}}}
+    def _secret_env(self, name: str, secret_name: str | None, key: str):
+        return {"name": name, "valueFrom": {"secretKeyRef": {"name": secret_name, "key": key}}}
 
     def _pod_volume_mounts(self):
         # Only this run's folder, not the volume: a task must not reach other runs' results
@@ -313,14 +277,6 @@ class K8sPipe:
             return f"driver={{Oracle ODBC Driver}};Uid={username};PSW={password};DBQ={host}:{port}/{name};"
         driver = ODBC_DRIVERS[self.dataset['type']]
         return f"driver={{{driver}}};Uid={username};Pwd={password};Server={host},{port};Database={name};"
-
-    def _get_dataset_creds(self):
-        return {key: self._get_dataset_secret(key) for key in ("USERNAME", "PASSWORD")}
-
-    def _get_dataset_secret(self, key: str) -> str:
-        provider = SecretProvider(SecretProviderType(self.dataset['secret']['provider']))
-        secret = self.dataset['secret']
-        return provider.get(secret['key'], secret['namespace'], key)
 
 
 class K8sPipesResponse:

@@ -14,7 +14,7 @@ set:
 templates:
   - dagster-user-roles.yaml
 tests:
-  - it: lets the run pod create, get and delete the ConfigMap of a task's config file in the tasks namespace
+  - it: gives the run pod no access to ConfigMaps in the tasks namespace, a run's are nexus-api's
     documentIndex: 2
     asserts:
       - equal:
@@ -23,9 +23,12 @@ tests:
       - equal:
           path: metadata.namespace
           value: tasks
-      - contains:
+      - notContains:
           path: rules
           content:
             apiGroups: [""]
             resources: ["configmaps"]
             verbs: ["create", "get", "delete"]
+      - lengthEqual:
+          path: rules
+          count: 3

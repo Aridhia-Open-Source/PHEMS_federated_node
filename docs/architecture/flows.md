@@ -86,8 +86,9 @@ sequenceDiagram
     DG->>BE: POST pull request task (YIELDED) or PATCH REJECTED
     DG->>BE: GET /tasks, the PENDING tasks of enabled projects
     DG->>BE: get the project's dataset assignment, must be active
+    DG->>BE: POST the run's Secret and ConfigMap (the backend makes them, returns their names)
     DG->>K8s: k8s_pipes_job starts the task pod
-    DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS
+    DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS (the backend deletes the run's Secret and ConfigMap on SUCCESS, FAILED or CANCELED)
     DG->>BE: POST /projects/<id>/results (task, global results repository id)
     DG->>Git: clone results repository, push branch with results.zip, spec.json, run.json
     DG->>BE: PATCH result PUSHED, then OPENED (number, url)

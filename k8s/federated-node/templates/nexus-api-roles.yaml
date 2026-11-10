@@ -2,8 +2,10 @@
   What nexus-api may do with Secrets, namespace by namespace:
   - the secrets namespace: store project secrets (secrets-namespace.yaml)
   - quarantine: hold the value of a disabled secret (quarantine-namespace.yaml)
-  - the tasks namespace, here: registry pull secrets. Their names come from the registry, so
-    no resourceNames.
+  - the tasks namespace, here: registry pull secrets, whose names come from the registry, so
+    no resourceNames, and the run's Secret and ConfigMap (helpers/task_resources.py): create
+    them when a run asks, then delete them when the task ends, by their fn/run_id label, which
+    is deletecollection. The registry rule's create and delete already cover the Secrets.
   It never lists secrets, and holds nothing in any other namespace.
 */}}
 apiVersion: rbac.authorization.k8s.io/v1
@@ -15,6 +17,12 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get", "create", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["deletecollection"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create", "deletecollection"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

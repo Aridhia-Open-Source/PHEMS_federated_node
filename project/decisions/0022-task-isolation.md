@@ -1,6 +1,6 @@
 # 0022. Task isolation: storage, secrets, namespace and network
 
-Status: accepted, built. The tasks namespace, the quarantine namespace, the secrets namespace, a task pod without a Kubernetes token, per-task Secrets, narrower access rules, per-run artifact folders, the task pod's limits and the task NetworkPolicy are in the chart (#536).
+Status: accepted, built. The tasks namespace, the quarantine namespace, the secrets namespace, a task pod without a Kubernetes token, per-run Secrets, narrower access rules, per-run artifact folders, the task pod's limits and the task NetworkPolicy are in the chart (#536).
 
 ## Context
 
@@ -30,14 +30,14 @@ Each run has a folder on the artifacts volume, `<mount>/<run id>`. A task pod mo
 - A Secret's value lives only in the store: a Kubernetes Secret named by the row's `key`, in the row's `namespace`. For the `K8S` provider that is the secrets namespace (`global.namespaces.secrets`, default `fn-secrets`), for dataset credentials and git tokens alike ([0007](0007-secrets-and-secret-providers.md)). The chart creates it and passes it to the backend as `SECRETS_NAMESPACE`. The release namespace holds none of them.
 - Disabling a Secret moves its value to the quarantine namespace (`global.namespaces.quarantine`, default `fn-quarantine`). Only the backend's service accounts have a Role there, so Dagster cannot read a disabled Secret ([revoke-and-enabled.md](../../docs/architecture/revoke-and-enabled.md#secrets)).
 - A task pod can read Secrets from no namespace. Its spec sets `automountServiceAccountToken: false` and names no service account, and the tasks namespace's default service account has no Role.
-- Per task, the pipes op reads the dataset's credentials in the run pod and creates a Secret named `task-<task_id>` in the tasks namespace, holding only its `USERNAME` and `PASSWORD`. The pod reads them with `secretKeyRef` as `DB_USERNAME` and `DB_PASSWORD`, and `CONNECTION_STRING` refers to them with `$(DB_USERNAME)` and `$(DB_PASSWORD)`, so task images do not change and the password is no longer a literal in the pod spec. The Secret is deleted when the run ends, whether the task succeeded or not. One left behind by a run that died is replaced by the next run of that task. A task is not given git tokens, Keycloak credentials or a reference to any other Secret. Registry pull secrets sit in the tasks namespace and only the kubelet uses them.
+- Per run, nexus-api creates a Secret named `task-<task_id>-<run_id>` in the tasks namespace, holding only the dataset's `USERNAME` and `PASSWORD`. The run asks for it before it starts the pod (`POST /projects/<id>/tasks/<id>/runs/<run_id>/resources`), and nexus-api reads the credentials itself, so they never pass through Dagster. The same call makes the ConfigMap of the task's config file, `task-<task_id>-<run_id>-config`. Both carry the labels `fn/run_id` and `fn/task_id`, as does the task pod, and a name that is taken is a 409, never replaced. The pod reads the Secret with `secretKeyRef` as `DB_USERNAME` and `DB_PASSWORD`, and `CONNECTION_STRING` refers to them with `$(DB_USERNAME)` and `$(DB_PASSWORD)`, so task images do not change and the password is no longer a literal in the pod spec. When nexus-api moves the task to SUCCESS, FAILED or CANCELED (the run-status and reconcile sensors PATCH it) it deletes the run's Secret and ConfigMap by the `fn/run_id` label, so a run pod that died leaves nothing behind once Dagster reports the run. A task is not given git tokens, Keycloak credentials or a reference to any other Secret. Registry pull secrets sit in the tasks namespace and only the kubelet uses them.
 - Access rules, all namespaced Roles, none a ClusterRole:
-  - Dagster's service accounts (code server and run launcher) `get` Secrets in the secrets namespace only, and `create` and `delete` them in the tasks namespace. They cannot read the release namespace's database and Keycloak Secrets.
-  - The backend creates, reads, patches and deletes Secrets in the secrets, quarantine and tasks namespaces (registry pull secrets, whose names are dynamic, so no `resourceNames`). Nothing lists Secrets.
+  - Dagster's service accounts (code server and run launcher) `get` Secrets in the secrets namespace only, and have no access to Secrets in the tasks namespace. They cannot read the release namespace's database and Keycloak Secrets. Nothing in Dagster reads a Secret any more, so that `get` is left to remove.
+  - The backend creates, reads, patches and deletes Secrets in the secrets, quarantine and tasks namespaces (registry pull secrets, whose names are dynamic, so no `resourceNames`). In the tasks namespace it also creates a run's Secret and ConfigMap and deletes them by label (`deletecollection`, so it needs no `list`). Nothing lists Secrets.
   - The credential rotation job only `patch`es `kc-secrets` and `dagster-keycloak-creds`, in the namespaces that hold them.
 
 **To build**
-- A way to remove a per-task Secret when the run pod dies before it cleans up, other than the next run of the task replacing it. PipesK8sClient gives no hook to set an owner reference on its pod.
+- Name the task pod `task-<task_id>-<run_id>` as well. PipesK8sClient overrides the name in `base_pod_meta` with its own generated one, so the pod carries the run and task labels but not the name.
 
 ### 3. Namespace: all tasks run in one tasks namespace
 
@@ -45,7 +45,7 @@ Every task run launched through Dagster pipes runs in one dedicated tasks namesp
 
 **Built today**
 - The chart creates the namespace (`task-namespace.yaml`). Its name is `global.namespaces.tasks`, default `tasks`; neither `values.yaml` nor the dev values override it. The chart passes it to Dagster as `DAGSTER_TASK_NAMESPACE` and to the backend as `TASK_NAMESPACE` (registry pull secrets), and pipes runs the pod there.
-- The namespace holds one Role, `<release>-dagster-task-pod-role`: create, get, list, watch and delete on pods, get and list on `pods/log`, get, list and watch on events, and create, get and delete on ConfigMaps (the one that holds a task's config file for as long as its run lasts). It is bound to the code server's and the run launcher's service accounts. Pipes passes its context in the environment and reads messages from pod logs through the Kubernetes API, so Dagster needs no network path to the pod.
+- The namespace holds one Role, `<release>-dagster-task-pod-role`: create, get, list, watch and delete on pods, get and list on `pods/log`, get, list and watch on events, and no access to Secrets or ConfigMaps. It is bound to the code server's and the run launcher's service accounts. Pipes passes its context in the environment and reads messages from pod logs through the Kubernetes API, so Dagster needs no network path to the pod.
 - Task pods run as the namespace's default service account with no token and no Role.
 - Pod settings: the container has no `resources` of its own, because the task spec carries none. The container security context allows no privilege escalation, drops all capabilities, uses the runtime's seccomp profile and requires a non-root uid. The pod runs as `fnDagster.artifacts.securityContext` (uid and gid 1001 by default), so an image with no `USER` still starts.
 - A hung task: the pod gets `activeDeadlineSeconds` from `fnDagster.taskPod.activeDeadlineSeconds` (6 hours), which is what ends it, because the Pipes client follows the pod's logs until the container exits. The client's wait timeout is that plus the pod's 300 s grace period, and `dagster.dagsterDaemon.runMonitoring.maxRuntimeSeconds` (7 hours) backstops a run pod that hangs. Helm cannot template it, so it has to stay above the deadline by hand.
@@ -57,7 +57,7 @@ Every task run launched through Dagster pipes runs in one dedicated tasks namesp
 
 **To build**
 - `pipes.py` falls back to the node's namespace when `DAGSTER_TASK_NAMESPACE` is unset. The chart always sets it, so the fallback only hides a missing setting. A missing setting should fail.
-- Built: the Role above also has create and delete on Secrets, for the per-task Secret, and nothing wider.
+- Built: the Role above has nothing on Secrets or ConfigMaps. nexus-api's own Role in the namespace creates a run's Secret and ConfigMap and deletes them by label, and nothing wider.
 
 ### 4. Network: a task pod reaches the database and nothing else
 
@@ -67,7 +67,7 @@ The policy breaks nothing a task needs. Results leave through the artifacts volu
 
 **Built today:** with `taskNetworkPolicy.enabled: true` (off by default), `task-network-policy.yaml` creates one NetworkPolicy in the tasks namespace. It selects every pod there (`podSelector: {}`), denies all ingress, and allows egress only to cluster DNS (UDP and TCP 53) and to the rules in `taskNetworkPolicy.datasetEgress`. Each rule is a NetworkPolicy egress rule, so a database is named by address (`ipBlock`) or by namespace and pod label. The list is empty by default: a task that needs a database then times out on connect until an operator adds it. The dev example values turn the policy on and allow the experiments database (`db-datasets` in the `experiments` namespace, label `app: experiments-postgres`, port 5432).
 
-The policy selects the whole namespace because task pods carry only Dagster's common labels, and a label selector that missed them would leave them open. That is only right while the namespace holds nothing but task pods, so the chart fails to render if `global.namespaces.tasks` is the release namespace or the Keycloak namespace, and a rule without `to` or without `ports` (which would allow every destination or every port) fails too. Chart tests cover what renders and what it selects.
+The policy selects the whole namespace because a label selector that missed a task pod would leave it open, whatever labels the pod carries. That is only right while the namespace holds nothing but task pods, so the chart fails to render if `global.namespaces.tasks` is the release namespace or the Keycloak namespace, and a rule without `to` or without `ports` (which would allow every destination or every port) fails too. Chart tests cover what renders and what it selects.
 
 **To build:** a dev test that a denied connection from a task pod is refused. The chart tests render the policy and do not exercise a CNI.
 
@@ -86,7 +86,7 @@ None of the four limits what a task does with the dataset its credentials open. 
 - One tasks namespace means all tasks share its Role, its policy and its Secrets. Without a token a task cannot read them, but a project cannot be given a different policy, quota or Role from another.
 - A NetworkPolicy does nothing unless the cluster's CNI enforces it. The dev cluster runs kindnet (`kindest/kindnetd`), which enforces NetworkPolicy from kind v0.24 (via kube-network-policies); no test in the repo exercises that. Production needs a CNI that enforces NetworkPolicy, which the deployment guide now lists as a prerequisite.
 - A policy matches pods, namespaces and address ranges, never DNS names. A dataset is created at runtime with any host and port, so with the policy on, an operator lists each database's address or pod in `taskNetworkPolicy.datasetEgress`; a dataset registered through the API is not reachable until they do. The policy is off by default so a hospital can manage the tasks namespace itself (Azure SQL redirect mode, or private endpoints whose IPs change).
-- Deleting the per-task Secret on completion makes cleanup part of the task's lifecycle.
+- Deleting the run's Secret and ConfigMap when the task reaches a final status makes cleanup part of the task's lifecycle, and it is nexus-api's, not the run pod's: it does not depend on the pod surviving. It does depend on the task reaching a final status.
 
 ## Alternatives considered
 
@@ -100,7 +100,7 @@ None of the four limits what a task does with the dataset its credentials open. 
 - Which CNI each production target uses, and a dev test that a denied connection is refused. On the dev cluster, kindnet drops denied traffic to other pods, Services and the internet, but not traffic to node addresses (the kube API at the node's IP, the kubelet, etcd), which it never sees; each production CNI needs that checked too.
 - Whether a task ever needs another GlobalResource. None does today, so the first policy allows the dataset database only.
 - How existing Secrets whose row names the node's namespace move to the secrets namespace. Nothing moves them: their rows keep the old namespace and become unreadable, and a disabled one cannot be enabled, rotated or deleted until it is written again. Writing a Secret again (`PATCH /global/secrets/<label>` with all its values) stores it in the secrets namespace and updates the row.
-- What removes a per-task Secret when the run pod dies before it cleans up, until that task runs again.
+- What removes a run's Secret and ConfigMap for a task that never reaches SUCCESS, FAILED or CANCELED. Nothing does.
 - Whether the tasks namespace carries a Pod Security Standards label.
 
 ## Related

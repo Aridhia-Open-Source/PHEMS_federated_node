@@ -1,10 +1,12 @@
+import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.backend import BackendAPI
 from app.models import (
-    Dataset, GitToken, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TriggerRepository,
+    Dataset, GitToken, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TaskResources, TriggerRepository,
 )
 from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response
 
@@ -171,6 +173,23 @@ class TestPullRequests:
 
         assert session.post.call_args.args[0] == "/projects/1/tasks/9/launch"
         assert (decision.outcome, decision.task.id, decision.dataset) == ("launch", SAMPLE_TASK["id"], None)
+
+    def test_create_task_resources_posts_for_the_run_and_returns_the_names(self, api, session):
+        session.post.return_value = make_response({"secret": "task-9-run-1", "config_map": None})
+
+        resources = api.create_task_resources(1, 9, "run-1")
+
+        assert session.post.call_args.args[0] == "/projects/1/tasks/9/runs/run-1/resources"
+        assert (resources.secret, resources.config_map) == ("task-9-run-1", None)
+
+    def test_a_sample_resources_response_of_the_backend_parses(self):
+        """The sample is checked against the real response by nexus-api's tests/test_task_run_resources.py."""
+        sample = json.loads((Path(__file__).parent / "contract" / "task_resources_response.json").read_text())
+
+        resources = TaskResources.model_validate(sample)
+
+        assert resources.secret == "task-1-5b1f8c2e-0d3a-4c57-9a5e-6f2d1c7b8a90"
+        assert resources.config_map == resources.secret + "-config"
 
     def test_launch_task_of_a_task_no_longer_pending_is_none(self, api, session):
         session.post.return_value = MagicMock(status_code=409, text="not PENDING")

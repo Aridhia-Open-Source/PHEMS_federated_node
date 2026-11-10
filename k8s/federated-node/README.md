@@ -65,7 +65,8 @@ Project secrets (dataset credentials, git tokens) are stored in their own namesp
 `global.namespaces.secrets` (default `fn-secrets`), which the chart creates. The release namespace holds
 none of them. Dagster's service accounts can read only that namespace, and the backend only that one,
 the quarantine and the tasks namespaces. A task gets its dataset credentials from a Secret of its own
-(`task-<task_id>`) in the tasks namespace, which is deleted when the task ends.
+(`task-<task_id>-<run_id>`) in the tasks namespace, which the backend creates when the run starts and
+deletes when the task ends.
 
 **Upgrading** a node that has secrets from before this change: their rows still name the release
 namespace, which Dagster and the backend can no longer read, so tasks and repository checks that use

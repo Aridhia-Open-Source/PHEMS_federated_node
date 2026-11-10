@@ -16,6 +16,7 @@ from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.task import Task
 from app.models.task_config import TaskConfig
+from app.models.task_resources import TaskResources
 from app.models.task_spec import TaskSpec
 from app.models.task_status import TaskStatus
 from app.models.trigger_state import TriggerState
@@ -44,6 +45,7 @@ __all__ = [
     "SecretProviderType",
     "Task",
     "TaskConfig",
+    "TaskResources",
     "TaskSpec",
     "TaskStatus",
     "TaskTrigger",
