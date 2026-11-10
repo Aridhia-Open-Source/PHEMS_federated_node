@@ -34,6 +34,7 @@ class ProjectResultsRepository(BaseModel):
     - base_branch: the branch the project's results pull requests go into.
     - target_dir: the directory of the repository the project's results go under.
     - owned_by_federated_node: whether the node owns the repository.
+    - open_pull_requests: whether the results delivered here get a pull request, false means push-only.
     - enabled: a person turned the repository on for the project.
     - revoked: the controller withdrew the project's access.
     - active: the global repository is enabled, and the project resource is enabled and not revoked.
@@ -45,6 +46,7 @@ class ProjectResultsRepository(BaseModel):
     base_branch: str
     target_dir: str
     owned_by_federated_node: bool
+    open_pull_requests: bool = True
     enabled: bool
     revoked: bool
     active: bool

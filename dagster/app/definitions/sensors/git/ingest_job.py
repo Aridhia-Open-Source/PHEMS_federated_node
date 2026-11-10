@@ -34,7 +34,7 @@ def ingest_pull_requests(context: OpExecCtx):
     git_api = git_apis.for_repository(repo)
 
     context.log.info(f"Fetching PRs for {repo.repo_path} since {repo.pr_cursor}")
-    merged = git_api.get_new_merged_pulls(repo_path=repo.repo_path, merged_after=repo.pr_cursor)
+    merged = git_api.get_pulls(repo_path=repo.repo_path, since=repo.pr_cursor, state="closed", merged_only=True)
     context.log.info(f"Git provider returned {len(merged)} PRs for {repo.repo_path}")
 
     pull_requests = sorted(

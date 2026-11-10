@@ -404,6 +404,18 @@ class TestResults:
         assert result.step == PullRequestResultStep.OPENED
         session.get.assert_called_once_with("/projects/1/results", params={"step": ["PUSHED", "OPENED"]})
 
+    @pytest.mark.parametrize("open_pull_requests, param", [(True, "true"), (False, "false")])
+    def test_list_by_step_filters_by_whether_the_project_opens_pull_requests(
+        self, api, session, open_pull_requests, param
+    ):
+        session.get.return_value = make_response([{**self.RESULT, "step": "PUSHED"}])
+
+        api.get_results_by_step(1, ["PUSHED"], open_pull_requests=open_pull_requests)
+
+        session.get.assert_called_once_with(
+            "/projects/1/results", params={"step": ["PUSHED"], "open_pull_requests": param}
+        )
+
     def test_list_by_state(self, api, session):
         session.get.return_value = make_response([{**self.RESULT, "state": "FAILED"}])
 

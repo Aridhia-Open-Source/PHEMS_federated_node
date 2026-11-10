@@ -19,7 +19,7 @@ All sensors are registered by `dagster/app/definitions/__init__.py`, which takes
 | `task_reconcile_sensor` | interval | patches the task's status from its run's current status | [task-reconcile](task-reconcile.md) |
 | `task_results_delivery_sensor` | run status (`SUCCESS`) | `deliver_results_job` | [run-status](run-status.md) (the job: [results-delivery](results-delivery.md)) |
 | `results_delivery_retry_sensor` | interval | `deliver_results_job` | [results-delivery](results-delivery.md) |
-| `results_pull_request_sync_sensor` | interval | `sync_results_pull_requests_job` | [results-pr-sync](results-pr-sync.md) |
+| `results_pull_request_sync_sensor` | interval | `open_results_pull_request_job`, `sync_results_pull_requests_job` | [results-pr-sync](results-pr-sync.md) |
 
 Shared helpers (`BaseSensor`, `run_key`, `run_in_flight`, the launching tick loop): [base](base.md).
 
@@ -42,10 +42,12 @@ flowchart TD
     K -.->|"a missed event"| T["task_reconcile_sensor patches the task"]
     K -->|"run SUCCESS"| N["task_results_delivery_sensor"]
     N -->|"RunRequest deliver/task/attempt"| O["deliver_results_job"]
-    O -->|"branch pushed, pull request opened"| P["Result PUSHED, then OPENED"]
+    O -->|"branch pushed"| P["Result PUSHED, state DELIVERED"]
     O -->|"delivery failed"| Q["results_delivery_retry_sensor"]
     Q -->|"RunRequest deliver-retry/result/slot"| O
     P --> R["results_pull_request_sync_sensor"]
+    R -->|"open_results_pull_request_job (not if push-only)"| U["Result OPENED"]
+    U --> R
     R -->|"sync_results_pull_requests_job"| S(["Result MERGED or CLOSED"])
 ```
 

@@ -80,9 +80,11 @@ def verify_gitea_accepts_bearer_token(config: RepoConfig, token: str, gitea_repo
     """Raises if Gitea rejects the token, as the sensor would when it polls."""
     # base_uri is keyword-only in practice: the second positional parameter is a session.
     sensor_api = GiteaAPI(GiteaClient(token, base_uri=config.gitea_host_api_uri))
-    merged_pulls = sensor_api.get_new_merged_pulls(
+    merged_pulls = sensor_api.get_pulls(
         repo_path=gitea_repo["full_name"],
-        merged_after="",
+        since="1970-01-01T00:00:00Z",
+        state="closed",
+        merged_only=True,
     )
     logger.info(
         f"Gitea accepted the token as a bearer token: "

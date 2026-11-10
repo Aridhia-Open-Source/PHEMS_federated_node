@@ -32,34 +32,35 @@ class GiteaAPI:
         )
         return response.json()
 
-    def get_new_merged_pulls(self, repo_path: str, merged_after: str) -> list[dict]:
-        """Fetch merged PRs since merged_after timestamp. Gitea doesn't have search API, so fetch and filter."""
-        self.logger.info(f"Fetching merged PRs for {repo_path}, after {merged_after}")
+    def get_pulls(self, repo_path: str, since: str, state: str = "all", merged_only: bool = False) -> list[dict]:
+        """
+        Fetch the PRs in state (open, closed or all) updated after since, or with merged_only just those merged
+        after since. Gitea doesn't have search API, so list PRs most recently updated first and filter.
+        """
+        self.logger.info(f"Fetching {state} PRs for {repo_path}, updated after {since}")
 
+        since_dt = dt.fromisoformat(since.replace('Z', '+00:00'))
         page = 1
         results = []
-
-        merged_after_dt = dt.fromisoformat(merged_after.replace('Z', '+00:00')) if merged_after else None
 
         # Gitea pages with limit/page (it ignores per_page). Its page cap
         # is configurable, so only an empty page ends the loop.
         while True:
             response = self.client.request(
                 "GET", f"repos/{repo_path}/pulls",
-                params={"state": "closed", "limit": GITEA_PAGE_SIZE, "page": page}
+                params={"state": state, "sort": "recentupdate", "limit": GITEA_PAGE_SIZE, "page": page}
             )
             items = response.json()
-            self.logger.info(f"Fetched {len(items)} closed PRs from Gitea for repository {repo_path} (page {page})")
+            self.logger.info(f"Fetched {len(items)} {state} PRs from Gitea for repository {repo_path} (page {page})")
 
             for item in items:
-                if item.get("merged_at"):
-                    merged_at = item["merged_at"]
-                    if isinstance(merged_at, str):
-                        merged_at_dt = dt.fromisoformat(merged_at.replace('Z', '+00:00'))
-                        if merged_after_dt is None or merged_at_dt > merged_after_dt:
-                            results.append(item)
-                    else:
-                        results.append(item)
+                # updated_at is never before merged_at, so nothing older can be newly merged
+                if dt.fromisoformat(item["updated_at"].replace('Z', '+00:00')) <= since_dt:
+                    return results
+                if not merged_only or (
+                    item["merged_at"] and dt.fromisoformat(item["merged_at"].replace('Z', '+00:00')) > since_dt
+                ):
+                    results.append(item)
 
             if not items:
                 return results
@@ -104,17 +105,6 @@ class GiteaAPI:
         """The repository's default branch, the one results pull requests go into."""
         response = self.client.request("GET", f"repos/{repo_path}")
         return response.json()["default_branch"]
-
-    def find_pull_request_by_branch(self, repo_path: str, head_branch: str, base_branch: str) -> dict | None:
-        """Fetch the open or closed PR from head_branch into base_branch, or None if there is none."""
-        self.logger.info(f"Looking up PR {head_branch} -> {base_branch} in {repo_path}")
-        response = self.client.request(
-            "GET", f"repos/{repo_path}/pulls/{base_branch}/{head_branch}", raise_for_status=False
-        )
-        if response.status_code == 404:
-            return None
-        response.raise_for_status()
-        return response.json()
 
     def create_pull_request(
         self, repo_path: str, head_branch: str, base_branch: str, title: str, body: str

@@ -32,8 +32,20 @@ RUN_TO_TASK_STATUS = {
     "CANCELED": "CANCELED",
 }
 TASK_JOB = "k8s_pipes_job"
-# The delivery steps past PUSHED: its results PR is opened.
+# The delivery steps past PUSHED: its results PR is opened (by the results PR sensor).
 PAST_PUSHED = ["OPENED", "MERGED", "CLOSED"]
+
+
+def opens_pull_requests(backend_api, project_id: int, result) -> bool:
+    """Whether the result's project results repository opens a pull request for its results, or is push-only."""
+    return backend_api.get_results_repository_by_id(project_id, result.results_repository_id).open_pull_requests
+
+
+def delivered(result, open_pull_requests: bool) -> bool:
+    """A result is delivered once its results PR is opened, or, if its assignment is push-only, once it is pushed."""
+    if result.step in PAST_PUSHED:
+        return True
+    return not open_pull_requests and result.step == "PUSHED" and result.state == "DELIVERED"
 
 
 class Report:
@@ -235,8 +247,9 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
 
 def verify_delivery(report: Report, backend_api, project_id: int, task_id: int):
     """
-    A succeeded task's results are delivered: one result, past PUSHED (OPENED, MERGED or
-    CLOSED), with a commit and a results PR.
+    A succeeded task's results are delivered: one result with a commit, past PUSHED (its results PR
+    opened by the results PR sensor: OPENED, MERGED or CLOSED, with a number and url). A result of a
+    push-only assignment (open_pull_requests false) is delivered at PUSHED and has no results PR.
     """
     results = report.check(
         f"Task {task_id} has one results delivery: GET /projects/{project_id}/tasks/{task_id}/results",
@@ -245,12 +258,15 @@ def verify_delivery(report: Report, backend_api, project_id: int, task_id: int):
     )
     if results is None:
         return
+    open_pull_requests = opens_pull_requests(backend_api, project_id, results)
     report.record(
-        results.step in PAST_PUSHED,
-        "Results PR was opened",
+        delivered(results, open_pull_requests),
+        "Results PR was opened" if open_pull_requests else "Results were pushed (push-only)",
         f"{results.step}, {results.state}" + (f": {results.error}" if results.error else ""),
     )
     report.record(results.commit_sha is not None, "Delivery has a commit_sha", str(results.commit_sha))
+    if not open_pull_requests:
+        return
     report.record(
         results.number is not None and results.url is not None,
         "Delivery has a results PR",

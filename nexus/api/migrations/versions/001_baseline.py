@@ -193,6 +193,7 @@ def upgrade() -> None:
         sa.Column('owned_by_federated_node', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('enabled', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
+        sa.Column('open_pull_requests', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),

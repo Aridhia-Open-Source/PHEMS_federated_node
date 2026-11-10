@@ -136,6 +136,7 @@ export function ResultsResourcePage({ projectId }: { projectId: number }) {
         target_dir: data?.target_dir,
         base_branch: data?.base_branch,
         owned_by_federated_node: data?.owned_by_federated_node,
+        open_pull_requests: data?.open_pull_requests,
       }}
       busy={toggle.isPending}
       onToggle={(enabled) => toggle.mutate(enabled)}

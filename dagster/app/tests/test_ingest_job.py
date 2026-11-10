@@ -23,7 +23,7 @@ def git_pr(number, merged_at="2026-06-26T10:00:00Z"):
 
 def fake_git_api(merged_numbers, files=({"filename": "spec.json", "status": "added"},)):
     git_api = MagicMock()
-    git_api.get_new_merged_pulls.return_value = [{"number": n} for n in merged_numbers]
+    git_api.get_pulls.return_value = [{"number": n} for n in merged_numbers]
     git_api.get_pull_request.side_effect = lambda repo_path, number: git_pr(number)
     git_api.get_pull_request_files.return_value = list(files)
     return git_api
@@ -47,7 +47,9 @@ def test_the_repository_is_read_again_for_a_fresh_cursor():
     backend_api = run(git_api, repo(1, pr_cursor="2026-03-03T03:03:03Z"))
 
     backend_api.get_trigger_repository.assert_called_once_with(1)
-    git_api.get_new_merged_pulls.assert_called_once_with(repo_path="org/repo", merged_after="2026-03-03T03:03:03Z")
+    git_api.get_pulls.assert_called_once_with(
+        repo_path="org/repo", since="2026-03-03T03:03:03Z", state="closed", merged_only=True
+    )
 
 
 def test_posts_the_new_prs_with_the_facts_and_the_changed_paths():
@@ -106,7 +108,7 @@ def test_a_batch_the_backend_refuses_fails_the_run():
 
 def test_a_failing_provider_fails_the_run():
     git_api = MagicMock()
-    git_api.get_new_merged_pulls.side_effect = RuntimeError("provider down")
+    git_api.get_pulls.side_effect = RuntimeError("provider down")
 
     with pytest.raises(RuntimeError, match="provider down"):
         run(git_api)

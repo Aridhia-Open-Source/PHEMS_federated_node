@@ -27,6 +27,7 @@ const resultsFields: Field[] = [
   { name: "target_dir", required: true, help: "Directory in the repository results are delivered to" },
   { name: "base_branch", required: true, help: "Branch results pull requests start from and go into" },
   { name: "owned_by_federated_node", type: "checkbox" },
+  { name: "open_pull_requests", type: "checkbox", help: "Off: results are pushed to a branch, no pull request is opened." },
   { name: "enabled", type: "checkbox" },
 ];
 const enabledOnly: Field[] = [{ name: "enabled", type: "checkbox" }];
@@ -160,11 +161,12 @@ function ResultsResources({ projectId }: { projectId: number }) {
         { header: "Target dir", cell: (r) => r.target_dir },
         { header: "Base branch", cell: (r) => r.base_branch },
         { header: "Owned by node", cell: (r) => String(r.owned_by_federated_node) },
+        { header: "Open pull requests", cell: (r) => String(r.open_pull_requests) },
       ]}
       options={global.data?.map((r) => ({ value: String(r.id), label: r.repo_path }))}
       pickLabel="Results repository"
       fields={resultsFields}
-      initial={{ owned_by_federated_node: true, enabled: true }}
+      initial={{ owned_by_federated_node: true, open_pull_requests: true, enabled: true }}
       help={`A project has one results repository, and assigning needs the project disabled. ${ADD_HELP}`}
       busy={add.isPending}
       onAdd={(id, body) => add.mutate({ id: Number(id), body: body as ResultsRequest })}

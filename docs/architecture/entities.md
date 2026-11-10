@@ -296,12 +296,12 @@ The run-status sensors write the status, the reconcile sensor repairs one they m
 stateDiagram-v2
     [*] --> UNKNOWN : POST /projects/<id>/results (idempotent)
     UNKNOWN --> PUSHED : branch pushed (delivery job)
-    PUSHED --> OPENED : results PR opened (delivery job)
-    PUSHED --> OPENED : PR found by branch (sync sensor)
+    PUSHED --> OPENED : results PR opened (results PR sensor)
+    PUSHED --> OPENED : PR found by branch (results PR sensor)
     OPENED --> MERGED : PR merged (sync sensor)
     OPENED --> CLOSED : PR closed unmerged (sync sensor)
-    PUSHED --> MERGED : delivery found its PR already merged
-    PUSHED --> CLOSED : delivery found its PR already closed
+    PUSHED --> MERGED : sensor found its PR already merged
+    PUSHED --> CLOSED : sensor found its PR already closed
     [*] --> REVOKED : POST /projects/<id>/results when something the task uses is revoked or deleted
     UNKNOWN --> REVOKED : the same POST again, something is revoked by now
     PUSHED --> REVOKED : the same POST again, something is revoked by now
@@ -312,4 +312,4 @@ stateDiagram-v2
     STALE --> [*]
 ```
 
-Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED = REVOKED = STALE`. A PATCH to the same step is accepted; to an earlier step, or out of `MERGED`, `CLOSED`, `REVOKED` or `STALE`, is a 409. The step is ordered by `RESULT_ORDER`. `state` (`IN_PROGRESS`, `DELIVERED`, `FAILED`) is a separate column with no move table. A failed delivery leaves the step, sets state `FAILED` and records `error` and `attempts`.
+Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED = REVOKED = STALE`. A PATCH to the same step is accepted; to an earlier step, or out of `MERGED`, `CLOSED`, `REVOKED` or `STALE`, is a 409. The step is ordered by `RESULT_ORDER`. `state` (`IN_PROGRESS`, `DELIVERED`, `FAILED`) is a separate column with no move table. A failed push leaves the step, sets state `FAILED` and records `error` and `attempts`. A push sets `PUSHED` with state `DELIVERED`; a failed opening of the results PR records `error` and `attempts` and leaves the state `DELIVERED`. A result whose project results repository has `open_pull_requests` false stays at `PUSHED`.

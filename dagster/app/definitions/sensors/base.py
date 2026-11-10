@@ -91,6 +91,10 @@ class LaunchingSensor(BaseSensor):
     def tags(self, item: Any) -> dict[str, str]:
         """The tags of the item's run, which also find its runs in flight."""
 
+    def in_flight(self, item: Any) -> bool:
+        """Whether the item has a run queued or started. A sensor that launches more than one job overrides it."""
+        return run_in_flight(self.context, self.job, self.tags(item))
+
     @abstractmethod
     def ready(self, item: Any) -> bool:
         """Whether the item needs a run now. May call the backend or the git provider."""
@@ -112,7 +116,7 @@ class LaunchingSensor(BaseSensor):
         failed = []
         for item in self.items():
             try:
-                if run_in_flight(self.context, self.job, self.tags(item)):
+                if self.in_flight(item):
                     self.log.info(f"{self.describe(item)} is already in flight")
                     continue
                 if not self.ready(item):

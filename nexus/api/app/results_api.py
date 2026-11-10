@@ -55,6 +55,7 @@ def get_results(
     step: list[str] = Query(default_factory=list),
     state: str | None = None,
     active_resource: str | None = None,
+    open_pull_requests: bool | None = None,
 ):
     """
     GET /projects/<project_id>/results endpoint. Lists the project's results
@@ -64,6 +65,8 @@ def get_results(
         - state: only the pull request results in this state, e.g. ?state=FAILED (optional)
         - active_resource: ?active_resource=true keeps only the results whose project resource for the results repository is active
           (enabled, not revoked, on an enabled global repository and provider) (optional)
+        - open_pull_requests: ?open_pull_requests=true keeps only the results whose project resource for the results repository
+          opens pull requests, false only those that are push-only (optional)
     """
     Project.get_by_id(project_id)
     # step and state are columns of the pull request results
@@ -83,6 +86,8 @@ def get_results(
     results = query.order_by(Result.id).all()
     if active_resource == 'true':
         results = [r for r in results if r.assignment.active]
+    if open_pull_requests is not None:
+        results = [r for r in results if r.assignment.open_pull_requests == open_pull_requests]
     return [dump_result(r) for r in results]
 
 

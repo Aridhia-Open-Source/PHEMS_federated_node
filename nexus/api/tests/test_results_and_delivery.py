@@ -199,6 +199,38 @@ def test_patch_resource_settings(client, admin_headers, project, global_results_
     assert response.json()["target_dir"] == "new/dir"
 
 
+def test_open_pull_requests_defaults_to_true_and_put_and_patch_set_it(
+    client, admin_headers, project, global_results_repo, assigned_results_repo
+):
+    url = resource_url(project, global_results_repo)
+    assert assigned_results_repo["open_pull_requests"] is True
+    assert client.get(url, headers=admin_headers).json()["open_pull_requests"] is True
+
+    response = client.patch(url, json={"open_pull_requests": False}, headers=admin_headers)
+    assert response.status_code == 200 and response.json()["open_pull_requests"] is False
+    assert client.get(url, headers=admin_headers).json()["open_pull_requests"] is False
+    assert client.patch(url, json={"open_pull_requests": None}, headers=admin_headers).status_code == 400
+    assert client.patch(url, json={"open_pull_requests": "no"}, headers=admin_headers).status_code == 400
+
+    # PUT replaces: omitted goes back to the default, given is set
+    set_enabled(project, False)
+    body = {"target_dir": "results", "base_branch": "main"}
+    assert client.put(url, json=body, headers=admin_headers).json()["open_pull_requests"] is True
+    response = client.put(url, json={**body, "open_pull_requests": False}, headers=admin_headers)
+    assert response.status_code == 200 and response.json()["open_pull_requests"] is False
+
+
+def test_assigning_with_open_pull_requests_false_creates_it_push_only(
+    client, admin_headers, disabled_project, global_results_repo
+):
+    response = client.put(
+        resource_url(disabled_project, global_results_repo),
+        json={"target_dir": "results", "base_branch": "main", "open_pull_requests": False}, headers=admin_headers
+    )
+    assert response.status_code == 201 and response.json()["open_pull_requests"] is False
+    assert resources(client, admin_headers, disabled_project)[0]["open_pull_requests"] is False
+
+
 # ---------------------------------------------------------------- loop refusal (results dir vs watched dir)
 
 
@@ -814,6 +846,30 @@ def test_list_filter_by_active_resource(client, admin_headers, system_headers, p
         assert [r["id"] for r in client.get(f"{results_url(project)}?state=FAILED", headers=admin_headers).json()] == [rid]
         switch_on()
     assert [r["id"] for r in client.get(url, headers=admin_headers).json()] == [rid]
+
+
+def test_list_filter_by_open_pull_requests(
+    client, admin_headers, system_headers, project, global_results_repo, assigned_results_repo, make_task
+):
+    rid = new_result(client, system_headers, project, make_task(), global_results_repo)
+    assert patch_result(client, system_headers, project, rid, {"step": "PUSHED"}).status_code == 200
+    url = results_url(project)
+
+    def listed(query):
+        return [r["id"] for r in client.get(f"{url}?step=PUSHED{query}", headers=admin_headers).json()]
+
+    assert listed("&open_pull_requests=true") == [rid]
+    assert listed("&open_pull_requests=false") == []
+    assert listed("") == [rid]
+
+    assert client.patch(resource_url(project, global_results_repo), json={"open_pull_requests": False},
+                        headers=admin_headers).status_code == 200
+    assert listed("&open_pull_requests=true") == []
+    assert listed("&open_pull_requests=false") == [rid]
+    # without the filter the result is still listed
+    assert listed("") == [rid]
+    # alone it needs no step or state
+    assert [r["id"] for r in client.get(f"{url}?open_pull_requests=false", headers=admin_headers).json()] == [rid]
 
 
 def test_post_result_through_a_switched_off_resource_is_failed_and_waits(

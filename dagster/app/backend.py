@@ -266,10 +266,18 @@ class BackendAPI:
         response = self.session.patch(f"/projects/{project_id}/results/{result_id}", json=data)
         return PullRequestResult(**response.json())
 
-    def get_results_by_step(self, project_id: int, steps: list[str]) -> list[PullRequestResult]:
-        """Get the project's results at any of the steps"""
+    def get_results_by_step(
+        self, project_id: int, steps: list[str], open_pull_requests: bool | None = None
+    ) -> list[PullRequestResult]:
+        """
+        Get the project's results at any of the steps, only those whose project results repository opens
+        pull requests if open_pull_requests is true, only those that are push-only if it is false.
+        """
         self.logger.info(f"Fetching results of project {project_id} at {', '.join(steps)}")
-        response = self.session.get(f"/projects/{project_id}/results", params={"step": steps})
+        params: dict = {"step": steps}
+        if open_pull_requests is not None:
+            params["open_pull_requests"] = "true" if open_pull_requests else "false"
+        response = self.session.get(f"/projects/{project_id}/results", params=params)
         return [PullRequestResult(**result) for result in response.json()]
 
     def get_results_by_state(self, project_id: int, state: str, active_resource: bool = False) -> list[PullRequestResult]:

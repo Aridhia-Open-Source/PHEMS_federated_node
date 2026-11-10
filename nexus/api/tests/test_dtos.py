@@ -36,7 +36,7 @@ class TestProjectResultsRepositoryDTO:
     def test_fields(self, results_assignment):
         assert set(ProjectResultsRepositoryDTO.from_model(results_assignment).dump()) == {
             "project_id", "results_repository", "target_dir", "base_branch", "owned_by_federated_node",
-            "enabled", "revoked", "active",
+            "open_pull_requests", "enabled", "revoked", "active",
         }
 
     def test_values(self, results_assignment):

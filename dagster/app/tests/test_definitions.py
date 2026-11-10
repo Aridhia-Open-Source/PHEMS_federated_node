@@ -14,6 +14,7 @@ class TestCodeLocation:
 
         assert {"noop_job", "k8s_pipes_job",
                 "evaluate_repository_pull_requests_job", "deliver_results_job",
+                "sync_results_pull_requests_job", "open_results_pull_request_job",
                 "ingest_pull_requests_job"} <= names
 
     def test_sensors_are_registered(self):

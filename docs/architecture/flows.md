@@ -21,21 +21,21 @@ flowchart TD
     H -->|"PATCH /projects/{project_id}/tasks/id"| T[Task status mirrors the run]
     G -->|"run SUCCESS"| J[task_results_delivery_sensor]
     J -->|"RunRequest deliver/task/attempt"| K[deliver_results_job]
-    K -->|"zip, spec.json, run.json pushed to a branch"| L[result PUSHED]
-    K -->|"PR from branch into default branch"| M[result OPENED]
-    M --> N[results_pull_request_sync_sensor]
-    L --> N
+    K -->|"zip, spec.json, run.json pushed to a branch"| L["result PUSHED, state DELIVERED"]
+    L --> N[results_pull_request_sync_sensor]
+    N -->|"open_results_pull_request_job (not for a push-only assignment)"| M[result OPENED]
+    M --> N
     N -->|"sync_results_pull_requests_job"| O{provider state}
     O -->|merged| Q([result MERGED])
     O -->|closed| R([result CLOSED])
     O -->|open| M
 ```
 
-All sensors are STOPPED by default and started by the operator, `fncli start-sensor --group all`, in any order (the reconcile sensor repairs a task status a run-status sensor missed; [0014](../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md)). The delivery job only runs after a task run succeeds; a failed delivery is relaunched by `results_delivery_retry_sensor`. Run keys carry a retry slot (`DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS`, default 60 s), so a failed run is retried at most once per interval; see [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
+All sensors are STOPPED by default and started by the operator, `fncli start-sensor --group all`, in any order (the reconcile sensor repairs a task status a run-status sensor missed; [0014](../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md)). The delivery job only runs after a task run succeeds and stops at the push; a failed delivery is relaunched by `results_delivery_retry_sensor`. The results pull request is opened by `results_pull_request_sync_sensor`, unless the project's results repository is assigned with `open_pull_requests` false (push-only: the result stays `PUSHED`). Run keys carry a retry slot (`DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS`, default 60 s), so a failed run is retried at most once per interval; see [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
 
 ## Global resources and assignments
 
-Secrets, datasets, git providers, trigger repositories and results repositories belong to no project ([0006](../../project/decisions/0006-global-resources-and-project-resources.md)). They are created once, with `POST`, at `/global/secrets`, `/global/datasets`, `/global/providers`, `/global/repositories/triggers` and `/global/repositories/results` (admin only), then assigned to a project with `PUT /projects/<id>/secrets/<label>`, `/projects/<id>/datasets/<id>`, `/projects/<id>/repositories/triggers/<id>` or `/projects/<id>/repositories/results/<id>`, where the id is the global resource's, never the project resource row's. `PUT` assigns (201 the first time, 200 after, replacing the project's settings), `PATCH` changes some, `DELETE` unassigns, and `GET` lists the collection or reads one project resource. The project resource holds what is per project: `watch_dir` and `base_branch` for a trigger repository, with a cursor set when it is assigned (after the latest pull request stored, or at the project resource's creation when none is) that no request changes, `target_dir` for the results repository, and the `enabled` and `revoked` flags. An assignment is active when `enabled` and not `revoked`; only an active one is used. The first dataset assigned becomes the project's default, and a project has one results repository.
+Secrets, datasets, git providers, trigger repositories and results repositories belong to no project ([0006](../../project/decisions/0006-global-resources-and-project-resources.md)). They are created once, with `POST`, at `/global/secrets`, `/global/datasets`, `/global/providers`, `/global/repositories/triggers` and `/global/repositories/results` (admin only), then assigned to a project with `PUT /projects/<id>/secrets/<label>`, `/projects/<id>/datasets/<id>`, `/projects/<id>/repositories/triggers/<id>` or `/projects/<id>/repositories/results/<id>`, where the id is the global resource's, never the project resource row's. `PUT` assigns (201 the first time, 200 after, replacing the project's settings), `PATCH` changes some, `DELETE` unassigns, and `GET` lists the collection or reads one project resource. The project resource holds what is per project: `watch_dir` and `base_branch` for a trigger repository, with a cursor set when it is assigned (after the latest pull request stored, or at the project resource's creation when none is) that no request changes, `target_dir` and `open_pull_requests` (false: push-only, no results pull request) for the results repository, and the `enabled` and `revoked` flags. An assignment is active when `enabled` and not `revoked`; only an active one is used. The first dataset assigned becomes the project's default, and a project has one results repository.
 
 - There is no cross-project list. The ingest sensor reads `GET /global/repositories/triggers?pollable=true`, the enabled repositories on an enabled provider with an enabled secret (project resources do not matter), each carrying the `pr_cursor` to poll from. The evaluate sensor loops over enabled projects and reads `GET /projects/<id>/repositories/triggers` for each.
 - A task runs only on an active dataset assignment. The launcher fails a PENDING task, with the cause in the task's `state_cause`, when something it uses is revoked or deleted ("revoked: ..."), its configuration changed since it was created, its dataset assignment is inactive or its dataset's secret is disabled (an error while checking a task leaves it PENDING for the next tick); a manual retry (which clears it) launches it once the cause is gone. Delivery to a revoked or deleted results assignment records a `REVOKED` result (final, nothing delivered); to a disabled one it records "results resource switched off", FAILED, which the retry sensor delivers once the project resource is active again. Neither raises.
@@ -90,8 +90,10 @@ sequenceDiagram
     DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS
     DG->>BE: POST /projects/<id>/results (task, global results repository id)
     DG->>Git: clone results repository, push branch with results.zip, spec.json, run.json
-    DG->>BE: PATCH result PUSHED, then OPENED (number, url)
-    DG->>Git: open PR from branch
+    DG->>BE: PATCH result PUSHED, state DELIVERED
+    DG->>Git: list the results repository's PRs (sync sensor), none for the branch
+    DG->>Git: open PR from branch (open_results_pull_request_job)
+    DG->>BE: PATCH result OPENED (number, url)
     Dev->>CLI: merge-results-pr
     CLI->>Git: merge results PR
     DG->>Git: get PR state (sync sensor)
@@ -167,7 +169,8 @@ The 12 sensors have `default_status=STOPPED` (`fnDagster.sensors.initialStatus`)
 | `task_queued_sensor`, `task_started_sensor`, `task_success_sensor`, `task_failure_sensor`, `task_canceled_sensor` | run-status sensors on `k8s_pipes_job` | runs tagged `trigger=task` | `PATCH /tasks/<id>` status, run id, times | `sensors/task/run_status.py` |
 | `task_results_delivery_sensor` | run-status sensor (SUCCESS) on `k8s_pipes_job` | succeeded task runs | `deliver_results_job`, key `deliver/<task>/<attempt>`, tags `trigger=delivery`, `delivery_task_id` | `sensors/task/delivery.py` |
 | `results_delivery_retry_sensor` | sensor | results in state FAILED at a non-final step, project resource active, fewer than `DAGSTER_DELIVERY_MAX_ATTEMPTS` (5) attempts | `deliver_results_job`, key `deliver-retry/<result>/<slot>`, same tags as the delivery sensor, unless one is in flight | `sensors/task/delivery.py` |
-| `deliver_results_job` | job (run pod) | artifacts volume, task, the project's results repository assignment | branch, results PR, result PUSHED then OPENED | `delivery/results.py`, `git_push.py` |
-| `results_pull_request_sync_sensor` | sensor | results PUSHED or OPENED (inactive assignments still resolve) and their provider pull requests | `sync_results_pull_requests_job` per result whose pull request changed, unless in flight | `sensors/task/pull_request_sync.py` |
+| `deliver_results_job` | job (run pod) | artifacts volume, task, the project's results repository assignment | pushed branch, result PUSHED with state DELIVERED (no pull request) | `delivery/results.py`, `git_push.py` |
+| `results_pull_request_sync_sensor` | sensor | results PUSHED (of assignments with `open_pull_requests`) or OPENED (inactive assignments still resolve), and one list of the provider's pull requests per results repository | `open_results_pull_request_job` per PUSHED result with no pull request, `sync_results_pull_requests_job` per result whose pull request exists and differs, unless in flight | `sensors/task/pull_request_sync.py` |
+| `open_results_pull_request_job` | job | the result, its branch and the task's pinned base branch (run config) | results PR, result OPENED, number, url | `sensors/task/pull_request_sync.py` |
 | `sync_results_pull_requests_job` | job | the patch the sensor found (run config) | result OPENED, MERGED or CLOSED, number, url, merge fields | `sensors/task/pull_request_sync.py` |
 | `noop_job` | job | nothing | smoke test of the code location and run launcher | `definitions/jobs.py` |

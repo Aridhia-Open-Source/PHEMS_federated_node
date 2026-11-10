@@ -4,7 +4,8 @@ Delivery of one task's results to its project's results repository.
 task_results_delivery_sensor launches a delivery once per task attempt. A failed delivery is
 relaunched by results_delivery_retry_sensor up to DAGSTER_DELIVERY_MAX_ATTEMPTS attempts, then by
 hand, and resumes from where it stopped.
-results_pull_request_sync_sensor only heals a pull request opened but not recorded.
+Delivery stops at the push: the results are DELIVERED once the branch is pushed.
+results_pull_request_sync_sensor opens the pull request and tracks it to MERGED or CLOSED.
 """
 
 import tempfile
@@ -28,34 +29,39 @@ SPEC_NAME = "spec.json"
 MAX_ERROR_LENGTH = 1000
 REVOKED_ERROR = "results repository access revoked"
 SWITCHED_OFF_ERROR = "results resource switched off"
-# Past these the pull request is opened, so there is nothing left to deliver.
-PAST_PUSHED = {PullRequestResultStep.OPENED, PullRequestResultStep.MERGED, PullRequestResultStep.CLOSED}
+# From PUSHED on the branch is on the remote, so there is nothing left to deliver.
+PUSHED_OR_BEYOND = {
+    PullRequestResultStep.PUSHED, PullRequestResultStep.OPENED, PullRequestResultStep.MERGED, PullRequestResultStep.CLOSED,
+}
 # REVOKED and STALE are final too, but nothing was delivered.
-FINAL = PAST_PUSHED | {PullRequestResultStep.REVOKED, PullRequestResultStep.STALE}
+FINAL = PUSHED_OR_BEYOND | {PullRequestResultStep.REVOKED, PullRequestResultStep.STALE}
+
+
+def results_title(pull_request: TaskTrigger, task_id: int) -> str:
+    """The commit message of a task's results and the title of their pull request."""
+    return f"{pull_request.trigger_repository.repo_path} PR{pull_request.number} - task {task_id} - results"
 
 
 class ResultsDelivery:
     """
     Zips a task's artifacts and pushes them with the pull request's spec file and a run.json to a new
-    branch of the project's results repository, opens a pull request from it into the assignment's
-    base_branch, and records each step on the task's result as soon as it is done.
+    branch of the project's results repository, and records the step PUSHED and the state DELIVERED on
+    the task's result. It opens no pull request: results_pull_request_sync_sensor does.
     Delivery never touches the task's own status.
     """
 
-    def __init__(self, backend_api: BackendAPI, git_apis, config: ResultsDeliveryConfig, log):
+    def __init__(self, backend_api: BackendAPI, config: ResultsDeliveryConfig, log):
         self.backend_api = backend_api
-        self.git_apis = git_apis
         self.config = config
         self.log = log
 
     def __call__(self, project_id: int, task_id: int, run_id: str) -> None:
         """
         Deliver the results of a task run, whose artifacts are in a folder named after run_id,
-        which the sensor read from the finished run: record the step PUSHED once the branch is
-        pushed, then OPENED and the state DELIVERED once its pull request is opened. A result
-        past PUSHED is left alone, and one in UNKNOWN or PUSHED resumes, a FAILED one back to
-        IN_PROGRESS: a branch already on the remote is not pushed again, and its pull request
-        is looked up before one is opened.
+        which the sensor read from the finished run: record the step PUSHED and the state DELIVERED
+        once the branch is pushed, with its attempts and error reset for the pull request's opening.
+        A result at PUSHED or beyond is left alone, and one in UNKNOWN resumes, a FAILED one back to
+        IN_PROGRESS: a branch already on the remote is not pushed again.
         Where to deliver (the results repository's id, its base_branch and the target_dir) comes from the task's pinned
         configuration, not from the project's results resource, which may be deleted by now. The backend's
         POST /results is the only gate: no result is created when it refuses with a 409 (the task is not
@@ -66,7 +72,7 @@ class ResultsDelivery:
         A revoked or deleted project resource gives a result at the final step REVOKED, nothing is delivered and nothing is raised.
         A project resource that is not active for another reason fails the result with an error and
         raises nothing: its error is "results resource switched off", and the retry sensor delivers it once the resource is active again.
-        Any failure is recorded on the result as an error with one more attempt, its step
+        A failed push is recorded on the result as an error with one more attempt, its step
         left where it was and its state FAILED, and raised, so the Dagster run fails visibly.
         """
         try:
@@ -83,7 +89,7 @@ class ResultsDelivery:
         if result.step == PullRequestResultStep.STALE:
             self.log.warning(f"Results of task {task.id} not delivered: {result.error}")
             return
-        if result.step in PAST_PUSHED:
+        if result.step in PUSHED_OR_BEYOND:
             self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")
             return
         if result.state == ResultState.FAILED and result.error == SWITCHED_OFF_ERROR and result.attempts == 0:
@@ -100,37 +106,29 @@ class ResultsDelivery:
         if result.state == ResultState.FAILED:
             self.backend_api.patch_result(task.project_id, result.id, {"state": ResultState.IN_PROGRESS.value})
 
-        pushed = {}
         try:
             pull_request = self._find_pull_request(task)
-            title = f"{pull_request.trigger_repository.repo_path} PR{pull_request.number} - task {task.id} - results"
-            base_branch = results["base_branch"]
-            branch, commit_sha = self._push(task, run_id, repository, base_branch, results["target_dir"], pull_request.trigger_repository, pull_request, title)
-            pushed = {"branch": branch, "commit_sha": commit_sha}
-            self.backend_api.patch_result(task.project_id, result.id, {"step": PullRequestResultStep.PUSHED.value, **pushed})
-            results_pr = self._open_pull_request(repository, branch, base_branch, title, pull_request, task.project_id)
-            # An earlier attempt's PR may be merged or closed already: record what it is
-            step = PullRequestResultStep.from_git(results_pr)
+            branch, commit_sha = self._push(
+                task, run_id, repository, results["base_branch"], results["target_dir"], pull_request.trigger_repository,
+                pull_request, results_title(pull_request, task.id),
+            )
+            # The pull request's opening starts from no attempts and no error
             self.backend_api.patch_result(task.project_id, result.id, {
-                "step": step.value,
+                "step": PullRequestResultStep.PUSHED.value,
                 "state": ResultState.DELIVERED.value,
-                "attempts": result.attempts + 1,
+                "attempts": 0,
                 "error": None,
-                "number": results_pr["number"],
-                "url": results_pr["html_url"],
-                "merged_at": results_pr["merged_at"],
-                # GitHub fills merge_commit_sha on an unmerged PR with its test merge
-                "merge_commit_sha": results_pr["merge_commit_sha"] if step == PullRequestResultStep.MERGED else None,
+                "branch": branch,
+                "commit_sha": commit_sha,
             })
         except Exception as e:
             self.backend_api.patch_result(task.project_id, result.id, {
                 "state": ResultState.FAILED.value,
                 "attempts": result.attempts + 1,
                 "error": f"{type(e).__name__}: {e}"[:MAX_ERROR_LENGTH],
-                **pushed,
             })
             raise
-        self.log.info(f"Delivered results of task {task.id} in {results_pr['html_url']}")
+        self.log.info(f"Delivered results of task {task.id} to branch {branch}")
 
     def _stop_if_refused(self, task_id: int, error: requests.HTTPError) -> None:
         """
@@ -215,22 +213,6 @@ class ResultsDelivery:
             (out_dir / RUN_NAME).write_text(run.model_dump_json(indent=2) + "\n")
 
             return branch, git_push.commit_and_push(clone_dir, message, env)
-
-    def _open_pull_request(
-        self, repository: ResultsRepository, branch: str, base_branch: str, title: str, pull_request: TaskTrigger,
-        project_id: int,
-    ) -> dict:
-        """Open the pull request of the branch, or return the one an earlier attempt opened."""
-        git_api = self.git_apis.for_repository(repository, project_id)
-        existing = git_api.find_pull_request_by_branch(repository.repo_path, branch, base_branch)
-        if existing:
-            self.log.info(f"Branch {branch} already has pull request #{existing['number']}")
-            return existing
-        body = (
-            f"Results of the task run for pull request #{pull_request.number}, "
-            f"merged at {pull_request.merge_commit_sha}."
-        )
-        return git_api.create_pull_request(repository.repo_path, branch, base_branch, title, body)
 
     def _find_pull_request(self, task: Task) -> TaskTrigger:
         """The pull request that yielded the task, with its trigger repository. A task without one is a 404."""

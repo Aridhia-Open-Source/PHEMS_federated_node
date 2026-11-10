@@ -329,8 +329,9 @@ export interface paths {
          *     if it is assigned already, 200. Assigning needs the project disabled. A change of target_dir
          *     or base_branch is caught by the configuration snapshot of the tasks created before, which then
          *     fail instead of delivering there.
-         *     Body: {"target_dir": "results", "base_branch": "main", "owned_by_federated_node": true, "enabled": true};
-         *     target_dir and base_branch are required, the last two are optional.
+         *     Body: {"target_dir": "results", "base_branch": "main", "owned_by_federated_node": true,
+         *     "open_pull_requests": true, "enabled": true}; target_dir and base_branch are required, the rest are optional.
+         *     open_pull_requests false means push-only: no pull request is opened for the results delivered.
          */
         put: operations["put_project_results_repository_projects__project_id__repositories_results__repository_id__put"];
         post?: never;
@@ -346,7 +347,7 @@ export interface paths {
         /**
          * Patch Project Results Repository
          * @description PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
-         *     the project's results go (target_dir, base_branch, owned_by_federated_node), at any time (the tasks created
+         *     the project's results go (target_dir, base_branch, owned_by_federated_node, open_pull_requests), at any time (the tasks created
          *     before fail instead of delivering to the new place), or turns the project resource on or
          *     off (enabled), or revokes and re-grants it
          *     (revoked), which is admin only and takes effect at once.
@@ -753,6 +754,8 @@ export interface paths {
          *         - state: only the pull request results in this state, e.g. ?state=FAILED (optional)
          *         - active_resource: ?active_resource=true keeps only the results whose project resource for the results repository is active
          *           (enabled, not revoked, on an enabled global repository and provider) (optional)
+         *         - open_pull_requests: ?open_pull_requests=true keeps only the results whose project resource for the results repository
+         *           opens pull requests, false only those that are push-only (optional)
          */
         get: operations["get_results_projects__project_id__results_get"];
         put?: never;
@@ -2183,6 +2186,8 @@ export interface components {
             base_branch: string;
             /** Owned By Federated Node */
             owned_by_federated_node: boolean;
+            /** Open Pull Requests */
+            open_pull_requests: boolean;
             /** Enabled */
             enabled: boolean;
             /** Revoked */
@@ -2219,6 +2224,8 @@ export interface components {
             base_branch?: string | null;
             /** Owned By Federated Node */
             owned_by_federated_node?: boolean | null;
+            /** Open Pull Requests */
+            open_pull_requests?: boolean | null;
             /** Enabled */
             enabled?: boolean | null;
             /** Revoked */
@@ -2238,6 +2245,11 @@ export interface components {
              * @default true
              */
             owned_by_federated_node?: boolean;
+            /**
+             * Open Pull Requests
+             * @default true
+             */
+            open_pull_requests?: boolean;
             /**
              * Enabled
              * @default true
@@ -4430,6 +4442,7 @@ export interface operations {
                 step?: string[];
                 state?: string | null;
                 active_resource?: string | null;
+                open_pull_requests?: boolean | null;
             };
             header?: never;
             path: {
