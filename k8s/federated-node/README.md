@@ -32,7 +32,8 @@ The necessary values are:
 |-|-|-|
 |token|life|Duration in seconds for tokens|
 |-|-|-|
-|taskNetworkPolicy|datasetEgress|Where task pods may reach their dataset database, as NetworkPolicy egress rules (`to` and `ports`), by address or by namespace and pod label. Empty by default: task pods then reach DNS only, and a task that needs a database times out on connect. Needs a CNI that enforces NetworkPolicy|
+|taskNetworkPolicy|enabled|Create the NetworkPolicy in the tasks namespace: no ingress, and egress only to DNS and `datasetEgress`. `false` by default; leave it off to manage policies there yourself. Needs a CNI that enforces NetworkPolicy|
+|taskNetworkPolicy|datasetEgress|Where task pods may reach their dataset database when `enabled`, as NetworkPolicy egress rules (`to` and `ports`), by address or by namespace and pod label. Empty by default: task pods then reach DNS only, and a task that needs a database times out on connect|
 |taskNetworkPolicy|dns|Where task pods may send DNS lookups (UDP and TCP 53), as NetworkPolicy peers. Defaults to kube-dns in `kube-system`|
 |-|-|-|
 |integrations|domains|The list of third party host that can reach the Federated Node. Otherwise these will be blocked by CSP policies. This will not affect direct user API usage.|
