@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.."
 FILES="-f docker-bake.hcl"
 TARGETS="default"
 for file in experiments/*/docker-bake.hcl; do
-  # Skip an experiment whose build context is missing: UC1's source is a clone the repo does not hold
+  # Skip an experiment whose build context is not checked out
   context="$(sed -n 's/^ *context *= *"\(.*\)".*/\1/p' "$file")"
   [[ -d "$context" ]] || continue
   FILES+=" -f $file"
