@@ -1,5 +1,5 @@
 # Every image the node builds. Run from the repo root:
-#   docker buildx bake -f docker-bake.hcl $(scripts/bake_files.sh) [TARGET...] --push
+#   scripts/build_images.sh [TARGET...]
 # or use `make images`, `make image NAME=<target>`, `make images-release TAG=x`.
 # Each experiment brings its own file, experiments/NAME/docker-bake.hcl.
 

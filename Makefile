@@ -46,19 +46,18 @@ pip_compile:
 
 # Images are docker buildx bake targets, see docker-bake.hcl. Dev images are tagged latest and pushed to localhost:5001.
 # make images | image NAME=nexus-api-fn | image-reload NAME=nexus-api-fn | images-release TAG=1.2.3
-BAKE = docker buildx bake -f docker-bake.hcl $$(scripts/bake_files.sh)
 # NAME also exists in some shells' environments (the host name), so only the command line counts
 IMAGE_NAME = $(if $(filter command line,$(origin NAME)),$(NAME),$(error usage: make $@ NAME=<bake target>))
 
 .PHONY: images image image-reload images-release
 images:
-	$(BAKE) default $$(scripts/bake_files.sh targets) --push
+	scripts/build_images.sh
 
 image:
-	$(BAKE) $(IMAGE_NAME) --push
+	scripts/build_images.sh $(IMAGE_NAME)
 
 image-reload:
-	$(BAKE) $(IMAGE_NAME) --push && kubectl rollout restart deployment
+	scripts/build_images.sh $(IMAGE_NAME) && kubectl rollout restart deployment
 
 # The ghcr.io images the release publishes, tagged TAG and loaded into the local docker, not pushed
 images-release:
