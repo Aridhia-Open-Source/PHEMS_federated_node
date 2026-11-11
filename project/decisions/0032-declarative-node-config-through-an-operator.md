@@ -1,35 +1,56 @@
-# 0032. Node config as custom resources, applied by an operator
+# 0032. Node config as declarative files, applied by an operator
 
 Status: Proposed, 2026-11-11.
 
 ## Context
 
-- **Node config today is fncli bootstrap files.** Git providers, repositories, secret references, projects and datasets are applied by fncli from files ([0025](0025-fncli-bootstrap-files-diff-apply-delete.md)).
-- **Apply is additive and cannot remove.** What a file no longer lists stays in nexus-api ([0026](0026-apply-is-additive-delete-is-a-soft-delete.md)), so a revert commit cannot undo an added project.
-- **Delivery is by Flux** ([0031](0031-gitops-delivery-with-helm-and-flux.md)), and a revert there should put config back as well as the chart.
+- **Node config is what a node needs before it can run a task:** git providers, secrets (where credentials live), trigger and results repositories, datasets, and projects with their assignments ([0006](0006-global-resources-and-project-resources.md)).
+- **In dev it is set up by fncli from env files** ([0018](0018-fncli-dev-ops-tool.md)). About 30 `TEST_*` and related variables in `.dev.env` drive group commands such as `setup-project`, `setup-backend` and `setup-gitea`, and their step commands.
+- **Those commands only create.** Each step reuses what exists and never changes it: edit `TEST_RESULTS_TARGET_DIR`, run again, and nothing changes. There is no preview, and removal is a separate `teardown-*` command.
+- **One project per env file.** A second project or a different repository means another env file or editing this one.
+- **On a deployed node it is set up by hand,** through the API or the UI. Nothing records what a node should hold, so it cannot be reviewed, repeated on another node, or reverted.
+- **Delivery moves to Flux** ([0031](0031-gitops-delivery-with-helm-and-flux.md)). A revert there puts the chart back; config should follow the same path.
 
 ## Decision
 
-- **Node config becomes custom resources.** CRDs: `GitProvider`, `Secret` (a reference only, never the value), `Repository`, `Project`, `Dataset`. The site's Helm values list them and the chart templates them into custom resources.
-- **An operator applies them.** It is written in Python with Kopf, and reuses fncli's nexus-api calls to sync each resource: create, update and, when one is removed, a soft delete under the rules of [0026](0026-apply-is-additive-delete-is-a-soft-delete.md), never `?force=true`.
-- **Removal and drift.** Removing a project from the values and upgrading deletes it, so a revert works for config as it does for the chart. Drift from edits made in the UI is corrected.
-- **This replaces** the "prune with `state: absent`" idea in 0026 and fncli's apply engine.
-- **The operator's scope is nexus-api only.** It never touches the git server: no repository creation, no Gitea OAuth apps. Those stay dev-only fncli steps, or a one-time job run by the client.
+- **Node config is described in declarative YAML files**, kept in git: providers, secrets, repositories, datasets and projects. A secret entry names where its value comes from, never the value.
+- **On a node, the config becomes custom resources.** CRDs: `GitProvider`, `Secret` (a reference only), `Repository`, `Dataset`, `Project`. The site's Helm values hold the config in the same shape as the files, and the chart templates it into custom resources.
+- **An operator applies them.** It is written in Python with Kopf, and uses the nexus-api client fncli and Dagster already share. For each resource it creates, updates, and on removal soft-deletes the record in nexus-api ([0008](0008-enabled-revoked-and-soft-delete.md)).
+- **Removal is safe on a shared node.** The operator never deletes with `?force=true`. A global resource another project still uses is refused by nexus-api with a 409; the operator reports it in the resource's status and keeps the record.
+- **Removal and drift.** Removing an entry from the values and upgrading deletes it, so a revert works for config as it does for the chart. Edits made in the UI that differ from the config are put back.
+- **The operator's scope is nexus-api only.** It never touches the git server: no repository creation, no Gitea OAuth apps. Those stay dev-only fncli steps, or a one-time job run by the site.
 - **CRDs ship as chart templates** (or a small separate chart), because Helm installs files in `crds/` but never upgrades them.
-- **fncli keeps the bootstrap file format**, which becomes the custom resource spec and the values schema. `fncli apply`, `diff` and `delete` write, diff (with `kubectl diff`) and delete the custom resources in dev, so dev uses the operator path too.
-- **fncli keeps the non-config work:** `trigger`, `demo`, `delete-gitea-token`, and the Gitea repository and OAuth setup.
+- **fncli reads the same files in dev.** `fncli diff`, `apply` and `delete` take a file, write the custom resources to the dev cluster (diff with `kubectl diff`), and the operator does the rest, so dev runs the production path. The env-driven `setup-*` and `teardown-*` commands go.
+- **fncli keeps the non-config work:** opening and merging test pull requests, `demo`, `delete-gitea-token`, and the Gitea repository and OAuth setup.
 
 ## Examples
 
-### Today: fncli bootstrap files
+### Today: env file and group commands
 
-fncli sets up a node from YAML files, the way `kubectl apply` does for Kubernetes. The files describe the node; fncli works out what differs on the node and makes the changes.
+```bash
+# .dev.env (excerpt): one project, its two repositories and its dataset
+TEST_PROJECT_NAME=fn-dev
+TEST_TRIGGER_REPO=fn-trigger-repo
+TEST_TRIGGER_REPO_URI=http://gitea.fn.svc:4000/gitea_admin/fn-trigger-repo
+TEST_TRIGGER_REPO_WATCH_DIR=specs/
+TEST_TRIGGER_REPO_BASE_BRANCH=main
+TEST_RESULTS_REPO=fn-results-repo
+TEST_RESULTS_REPO_URI=http://gitea.fn.svc:4000/gitea_admin/fn-results-repo
+TEST_RESULTS_TARGET_DIR=results/
+TEST_RESULTS_REPO_BASE_BRANCH=main
+DEFAULT_PROJECT_DATASET=dev-dataset
+```
 
-- `bootstrap/context.yaml`: which node and cluster fncli talks to, and the default project.
-- A globals file: the shared pieces, meaning git providers, repositories and their credentials. It never holds a secret value, only where to read it from.
-- A project file: a project and what it is assigned (datasets, the trigger repository it watches, the results repository).
+```bash
+fncli setup-backend       # provider, secrets, repositories, dataset
+fncli setup-project       # the project and its assignments
+fncli open-pr --kind watched
+fncli teardown-project    # the only way to remove
+```
 
-A globals file:
+### Proposed: config files
+
+Shared pieces, used by any number of projects:
 
 ```yaml
 version: 1
@@ -51,7 +72,7 @@ repositories:
       secret: analysis-repo-creds
 ```
 
-A project file:
+A project and what it is assigned:
 
 ```yaml
 version: 1
@@ -69,21 +90,18 @@ projects:
         base_branch: main
 ```
 
-Usage, from an empty node to a results pull request:
+In dev:
 
 ```bash
-fncli diff   -f globals.yaml                  # preview: what would be created or changed
+fncli diff   -f globals.yaml                  # preview what would change
 fncli apply  -f globals.yaml                  # provider, repositories, credentials
 fncli apply  -f projects/cohort-study.yaml    # the project and its assignments
-fncli demo   -f projects/cohort-study.yaml    # pull request -> task -> results pull request
 fncli delete -f projects/cohort-study.yaml    # soft delete; skips what another project still uses
 ```
 
-Taking `cohort-study` out of the file and running `apply` again changes nothing on the node ([0026](0026-apply-is-additive-delete-is-a-soft-delete.md)). That is the gap this ADR closes.
+### Proposed: the same config on a deployed node
 
-### With the operator: the same config in the site's Helm values
-
-The site repository ([0031](0031-gitops-delivery-with-helm-and-flux.md)) holds the values. The shape is the bootstrap file's; only the secret sources change, from local env and files to Kubernetes Secrets (which SOPS or External Secrets fill).
+The site repository ([0031](0031-gitops-delivery-with-helm-and-flux.md)) holds it as Helm values. The shape is the file's; only the secret sources change, from local env and files to Kubernetes Secrets, which SOPS or External Secrets fill.
 
 ```yaml
 nodeConfig:
@@ -118,7 +136,7 @@ nodeConfig:
 The chart turns each entry into a custom resource, for example:
 
 ```yaml
-apiVersion: fn.aridhia.com/v1alpha1
+apiVersion: fn.aridhia.com/v1alpha1     # group name to be decided
 kind: Project
 metadata:
   name: cohort-study
@@ -145,20 +163,21 @@ Usage:
 - **Remove:** delete the entry, or `git revert` the commit that added it. Helm deletes the `Project`; the operator soft-deletes it in nexus-api.
 - **See the state:** `kubectl get projects,repositories,datasets -n fn` shows each resource and whether it is synced, with the operator's message when it is not.
 - **Without Flux:** `helm upgrade --install` with the same values has the same effect.
-- **In dev:** `fncli apply -f projects/cohort-study.yaml` writes the same custom resources to the dev cluster, and `fncli diff` runs `kubectl diff` on them. `fncli demo` and `fncli trigger` are unchanged.
 
 ## Consequences
 
-- A config revert works like a chart revert: through Flux, or by hand with `helm rollback`.
-- Dev exercises the same operator path as production.
+- Node config is reviewed, repeated and reverted in git, the same way as the chart version.
+- Dev and deployed nodes take config the same way, through the operator.
+- Several projects share providers, repositories and datasets without one env file each.
 - The operator is a new component to build, test and run in every node.
-- The fncli apply engine and its prune plans are no longer needed.
-- Secrets stay out of the custom resources: a `Secret` names where the value lives.
+- The env-driven setup and teardown commands, and the `TEST_*` variables behind them, are removed.
+- Secrets stay out of the config and the custom resources: a `Secret` names where the value lives.
 
 ## Alternatives considered
 
-- **`fncli apply --prune` run as a Flux Job**, with ownership tags or a state ConfigMap: a second engine, Job plumbing, and prune and ownership logic built by hand where the operator path gets them from Flux and Kubernetes.
+- **fncli applies the files straight to nexus-api, with no operator:** works in dev, but a deployed node then needs fncli run by hand or as a Flux Job, and removal needs ownership tags or a state store built by hand. The operator gets removal and drift from Kubernetes and Flux.
+- **Keep the env files and add update and preview to the step commands:** still one project per file, and a second engine beside anything that runs on a deployed node.
 - **Crossplane:** needs a nexus-api provider, which is the same effort as our own operator, and it is heavier to run.
-- **An operator that also creates git repositories and OAuth apps:** not needed in production, and the hardest part to get right.
+- **An operator that also creates git repositories and OAuth apps:** not needed on a deployed node, and the hardest part to get right.
 
 Delivery of the chart and the operator itself is covered in [0031](0031-gitops-delivery-with-helm-and-flux.md).
