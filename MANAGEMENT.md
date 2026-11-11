@@ -172,12 +172,13 @@ curl -sS -X PUT "$FN/projects/$PROJECT_ID/repositories/triggers/$TRIGGER_ID" "${
   "watch_dir": "specs/", "base_branch": "main"
 }' | jq
 
-# Results repository: the directory results go under. A project has one
+# Results repository: the directory results go under, and the branch results pull requests start from and go into. A project has one
 curl -sS -X PUT "$FN/projects/$PROJECT_ID/repositories/results/$RESULTS_ID" "${AUTH[@]}" -d '{
-  "target_dir": "results/"
+  "target_dir": "results/", "base_branch": "main"
 }' | jq
 ```
 
+- `base_branch` is required for both repositories: it is never guessed from the repository's default branch.
 - `watch_dir` must not be empty: only a pull request that adds a `.json` file under it becomes a task.
 - The trigger resource's cursor is set when you assign it, and pull requests merged before it are not run (there is no backfill unless you ask for one when enabling the project).
 
@@ -355,7 +356,7 @@ PROJECT2_ID=$(curl -sS -X POST "$FN/projects" "${AUTH[@]}" -d '{"name": "second-
 
 curl -sS -X PUT "$FN/projects/$PROJECT2_ID/datasets/$DATASET_ID" "${AUTH[@]}" -d '{}'
 curl -sS -X PUT "$FN/projects/$PROJECT2_ID/repositories/triggers/$TRIGGER_ID" "${AUTH[@]}" -d '{"watch_dir": "specs/", "base_branch": "main"}'
-curl -sS -X PUT "$FN/projects/$PROJECT2_ID/repositories/results/$RESULTS_ID" "${AUTH[@]}" -d '{"target_dir": "results-two/"}'
+curl -sS -X PUT "$FN/projects/$PROJECT2_ID/repositories/results/$RESULTS_ID" "${AUTH[@]}" -d '{"target_dir": "results-two/", "base_branch": "main"}'
 curl -sS -X PATCH "$FN/projects/$PROJECT2_ID" "${AUTH[@]}" -d '{"enabled": true}'
 ```
 

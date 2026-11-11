@@ -46,7 +46,7 @@ CONFIG = {
     "current": True, "changes": [], "config_hash": "h",
     "config_snapshot": {"version": 1, "results": {
         "repository_id": 2, "repository": "http://gitea.fn.svc:3000/fn/results",
-        "api_uri": "http://gitea.fn.svc:3000/api/v1", "target_dir": "/results/",
+        "api_uri": "http://gitea.fn.svc:3000/api/v1", "base_branch": "main", "target_dir": "/results/",
     }, "dataset": None},
 }
 # Not what a serialiser would write: odd spacing, no trailing newline, a non-ASCII character
@@ -236,6 +236,45 @@ def test_a_task_without_a_pull_request_fails_the_delivery(backend_api, remote, a
 
     (fields,) = patches(backend_api)
     assert fields["error"].startswith("HTTPError")
+
+
+def test_delivery_branches_from_and_opens_the_pull_request_into_the_pinned_base_branch_not_the_default_one(
+    backend_api, remote, artifacts, tmp_path, git_api, git_apis
+):
+    seed = tmp_path / "seed"
+    git("switch", "-c", "release", cwd=seed)
+    (seed / "RELEASE.md").write_text("release\n")
+    git("add", ".", cwd=seed)
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-m", "release", cwd=seed)
+    git("push", str(remote), "release", cwd=seed)
+    release_sha = git("rev-parse", "release", cwd=remote)
+    snapshot = json.loads(json.dumps(CONFIG))
+    snapshot["config_snapshot"]["results"]["base_branch"] = "release"
+    backend_api.get_task_config.return_value = snapshot
+
+    deliver(backend_api, remote, artifacts, git_apis)
+
+    assert git("rev-parse", f"{BRANCH}^", cwd=remote) == release_sha
+    assert git("rev-list", "--count", "main", cwd=remote) == "1"
+    git_api.find_pull_request_by_branch.assert_called_once_with("fn/results", BRANCH, "release")
+    repo_path, head, base, _, _ = git_api.create_pull_request.call_args.args
+    assert (repo_path, head, base) == ("fn/results", BRANCH, "release")
+
+
+def test_a_base_branch_missing_from_the_results_repository_fails_the_delivery_and_pushes_nothing(
+    backend_api, remote, artifacts, git_api, git_apis
+):
+    snapshot = json.loads(json.dumps(CONFIG))
+    snapshot["config_snapshot"]["results"]["base_branch"] = "gone"
+    backend_api.get_task_config.return_value = snapshot
+
+    with pytest.raises(RuntimeError, match="git clone failed"):
+        deliver(backend_api, remote, artifacts, git_apis)
+
+    (fields,) = patches(backend_api)
+    assert (fields["state"], "step" in fields) == ("FAILED", False)
+    git_api.create_pull_request.assert_not_called()
+    assert git("rev-list", "--count", "main", cwd=remote) == "1"
 
 
 def test_delivery_takes_the_target_dir_from_the_pinned_configuration_and_reads_no_resource(

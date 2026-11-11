@@ -35,6 +35,7 @@ def build_snapshot(project, dataset) -> dict:
             "repository": repository.uri,
             "api_uri": repository.provider.api_uri,
             "target_dir": resource.target_dir,
+            "base_branch": resource.base_branch,
         }
     return {
         "version": SNAPSHOT_VERSION,

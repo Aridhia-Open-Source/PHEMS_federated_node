@@ -34,8 +34,8 @@ GLOBAL_REPOSITORY = ResultsRepository(
     secret=SAMPLE_SECRET, enabled=True,
 )
 REPOSITORY = ProjectResultsRepository(
-    id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, target_dir="results",
-    owned_by_federated_node=True, enabled=True, revoked=False, active=True,
+    id=5, project_id=1, results_repository=GLOBAL_REPOSITORY, base_branch="main",
+    target_dir="results", owned_by_federated_node=True, enabled=True, revoked=False, active=True,
 )
 
 
@@ -70,7 +70,7 @@ def server_error(*args):
     raise http_error(500)
 
 
-def sync_sensor(results, prs_by_number=None, prs_by_branch=None, repositories=None, in_flight=False):
+def sync_sensor(results, prs_by_number=None, prs_by_branch=None, repositories=None, in_flight=False, base_branch="main"):
     """One tick of the sensor: what it yields, the backend, the git clients factory, the git client and the context"""
     backend_api = MagicMock()
     backend_api.get_projects.return_value = [Project(id=1, name="p")]
@@ -80,10 +80,10 @@ def sync_sensor(results, prs_by_number=None, prs_by_branch=None, repositories=No
     )
     git_api = MagicMock()
     git_api.get_pull_request.side_effect = lambda repo_path, number: (prs_by_number or {})[number]()
-    git_api.get_default_branch.return_value = "main"
     git_api.find_pull_request_by_branch.side_effect = (
         lambda repo_path, branch, base: (prs_by_branch or {}).get(branch)
     )
+    backend_api.get_task_config.return_value = {"config_snapshot": {"results": {"base_branch": base_branch}}}
     git_apis = MagicMock()
     git_apis.for_repository.return_value = git_api
     context = MagicMock()
@@ -116,6 +116,7 @@ def test_an_opened_result_whose_pull_request_is_merged_launches_one_run_that_rec
     backend_api.get_results_repository_by_id.assert_called_once_with(1, 5)
     git_apis.for_repository.assert_called_once_with(GLOBAL_REPOSITORY)
     git_api.get_pull_request.assert_called_once_with("fn/results", 3)
+    backend_api.get_task_config.assert_not_called()
     backend_api.patch_result.assert_not_called()
 
 
@@ -128,7 +129,9 @@ def test_an_opened_result_whose_pull_request_is_closed_launches_one_run_without_
 
 
 def test_a_pushed_result_with_a_pull_request_launches_one_run_that_records_it():
-    yielded, _, _, git_api, _ = sync_sensor([result(9, "PUSHED")], prs_by_branch={"branch-9": git_pr(number=5)})
+    yielded, backend_api, _, git_api, _ = sync_sensor(
+        [result(9, "PUSHED")], prs_by_branch={"branch-9": git_pr(number=5)}, base_branch="release"
+    )
 
     (request,) = yielded
     assert re.fullmatch(r"sync-result/9/OPENED/\d+", request.run_key)
@@ -136,8 +139,11 @@ def test_a_pushed_result_with_a_pull_request_launches_one_run_that_records_it():
         "number": 5, "url": "http://g/pulls/5", "state": "DELIVERED", "step": "OPENED", "merged_at": None,
         "merge_commit_sha": None,
     }
-    git_api.get_default_branch.assert_called_once_with("fn/results")
-    git_api.find_pull_request_by_branch.assert_called_once_with("fn/results", "branch-9", "main")
+    # The base branch is the task's pinned one: neither the repository's default nor the assignment's current one
+    backend_api.get_task_config.assert_called_once_with(1, 7)
+    backend_api.get_results_repository_by_id.assert_called_once_with(1, 5)
+    git_api.get_default_branch.assert_not_called()
+    git_api.find_pull_request_by_branch.assert_called_once_with("fn/results", "branch-9", "release")
     git_api.get_pull_request.assert_not_called()
 
 

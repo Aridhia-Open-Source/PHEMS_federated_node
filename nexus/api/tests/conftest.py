@@ -335,7 +335,7 @@ def assign_trigger(client, project, secret):
         ).one_or_none()
         if repo is None:
             repo = new_repo(TriggerRepository, uri, secret.id, provider, api_uri)
-        assignment = ProjectTriggerRepository(project.id, repo.id, watch_dir=watch_dir)
+        assignment = ProjectTriggerRepository(project.id, repo.id, watch_dir=watch_dir, base_branch="main")
         assignment.add()
         return assignment
     return _assign
@@ -349,7 +349,7 @@ def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret,
     dataset.add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
 
-    assignment = ProjectTriggerRepository(project.id, trigger_repo.id, watch_dir="")
+    assignment = ProjectTriggerRepository(project.id, trigger_repo.id, watch_dir="", base_branch="main")
     assignment.initial_cursor = dt(2026, 1, 1)
     assignment.add()
     return assignment
@@ -365,7 +365,7 @@ def results_repo(client, secret) -> ResultsRepository:
 @fixture
 def results_assignment(client, project, results_repo) -> ProjectResultsRepository:
     """The project's assignment of the results repository."""
-    assignment = ProjectResultsRepository(project.id, results_repo.id, target_dir="results")
+    assignment = ProjectResultsRepository(project.id, results_repo.id, target_dir="results", base_branch="main")
     assignment.add()
     return assignment
 
@@ -450,7 +450,7 @@ def assigned_trigger_repo(client, admin_headers, project, global_trigger_repo) -
     """PUT /projects/<pid>/repositories/triggers/<repo id>, watching "triggers"; the project resource as returned."""
     response = client.put(
         f"/projects/{project.id}/repositories/triggers/{global_trigger_repo.id}",
-        json={"watch_dir": "triggers"}, headers=admin_headers
+        json={"watch_dir": "triggers", "base_branch": "main"}, headers=admin_headers
     )
     assert response.status_code == 201, response.json()
     return response.json()
@@ -464,7 +464,7 @@ def assigned_results_repo(client, admin_headers, project, global_results_repo) -
     db.session.commit()
     response = client.put(
         f"/projects/{project.id}/repositories/results/{global_results_repo.id}",
-        json={"target_dir": "results"}, headers=admin_headers
+        json={"target_dir": "results", "base_branch": "main"}, headers=admin_headers
     )
     assert response.status_code == 201, response.json()
     project.enabled = True
@@ -565,7 +565,7 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, se
 
     # Then the repository, assigned to the project
     repo = new_repo(TriggerRepository, "github.com/organisation/repository", secret.id)
-    ProjectTriggerRepository(project.id, repo.id, watch_dir="").add()
+    ProjectTriggerRepository(project.id, repo.id, watch_dir="", base_branch="main").add()
 
     return dataset
 

@@ -145,14 +145,14 @@ def setup():
         verify_gitea_accepts_bearer_token(config, init_git_secret(config, gitea_api, backend_api), gitea_repo)
     for repo in LAYOUT.results_repos:
         config = results_config(repo)
-        init_gitea_repo(config, gitea_api)
+        default_branch[repo] = init_gitea_repo(config, gitea_api)["default_branch"]
         init_git_secret(config, gitea_api, backend_api)
 
     for name, spec in LAYOUT.projects.items():
         project = init_backend_project(ProjectConfig(project_name=name), backend_api)
         for repo in spec["triggers"]:
             init_backend_trigger_repo(trigger_config(repo), backend_api, project, default_branch[repo])
-        init_backend_results_repo(results_config(spec["results"]), backend_api, project)
+        init_backend_results_repo(results_config(spec["results"]), backend_api, project, default_branch[spec["results"]])
         backend_api.patch_project(project.id, {"enabled": True})  # new projects start disabled
         logger.info(f"Project {name} ready")
 

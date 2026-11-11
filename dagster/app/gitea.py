@@ -1,6 +1,9 @@
 import base64
 import logging
+import time
 from datetime import datetime as dt
+
+import requests
 
 from app.utils import HttpClient
 
@@ -124,3 +127,21 @@ class GiteaAPI:
             json={"title": title, "body": body, "head": head_branch, "base": base_branch},
         )
         return response.json()
+
+    # fncli merges the results pull requests with this, with the same signature as GithubAPI's.
+
+    def merge_pull_request(self, repo_path: str, pr_number: int) -> None:
+        """Merge the pull request with a merge commit. Retries on 405 (mergeability computing)."""
+        self.logger.info(f"Merging PR #{pr_number} in {repo_path}")
+        max_attempts = 10
+        for attempt in range(1, max_attempts + 1):
+            try:
+                self.client.request(
+                    "POST", f"repos/{repo_path}/pulls/{pr_number}/merge", json={"Do": "merge"}
+                )
+                return
+            except requests.HTTPError as e:
+                if e.response.status_code != 405 or attempt == max_attempts:
+                    raise
+                self.logger.info(f"Merge returned 405, retrying (attempt {attempt}/{max_attempts})")
+                time.sleep(3)

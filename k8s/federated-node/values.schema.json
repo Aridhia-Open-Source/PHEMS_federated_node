@@ -346,8 +346,13 @@
         },
         "taskNetworkPolicy": {
             "type": "object",
-            "description": "Network access of task pods. The tasks namespace denies all ingress, and all egress except DNS and datasetEgress",
+            "description": "Network access of task pods. When enabled, the tasks namespace denies all ingress, and all egress except DNS and datasetEgress",
             "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Create the NetworkPolicy in the tasks namespace. Off by default: leave it off to manage policies there yourself (e.g. Azure SQL redirect mode, or private endpoints whose IPs change). When on, each database must be listed in datasetEgress"
+                },
                 "dns": {
                     "type": "array",
                     "description": "NetworkPolicy peers task pods may send DNS lookups to (UDP and TCP 53). Defaults to kube-dns in kube-system"

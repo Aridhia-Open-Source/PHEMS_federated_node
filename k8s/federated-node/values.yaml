@@ -143,10 +143,15 @@ db:
     # keycloak:
     # dagster:
 
-# Task pods run partner images that hold a dataset's credentials, so the tasks namespace
-# (global.namespaces.tasks) denies all ingress, and all egress except what is listed here.
+# Task pods run partner images that hold a dataset's credentials, so with `enabled` the tasks
+# namespace (global.namespaces.tasks) denies all ingress, and all egress except what is listed here.
 # Only enforced by a CNI that enforces NetworkPolicy. See templates/task-network-policy.yaml.
 taskNetworkPolicy:
+  # Off by default. When on, the tasks namespace denies all ingress and all egress except DNS
+  # and the datasetEgress rules below, so each hospital must list its databases. Leave it off
+  # to manage policies on the tasks namespace yourself (e.g. Azure SQL redirect mode, or
+  # private endpoints whose IPs change).
+  enabled: false
   # Where DNS lookups may go (UDP and TCP 53). The default is the cluster DNS of most
   # distributions; change it for another one (a NodeLocal DNSCache is an ipBlock).
   dns:
