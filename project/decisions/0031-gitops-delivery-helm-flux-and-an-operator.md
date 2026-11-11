@@ -61,7 +61,6 @@ spec:
 - microk8s-on-VM sites stop running helm by hand. They run `flux install` once.
 - The same release goes everywhere, including OpenShift, AWS and GCP.
 - The operator is a new component to build, test and run in every node.
-- Estimate: about 2 to 2.5 weeks for the CRDs, the Kopf operator, the chart templates, rewiring fncli, end-to-end tests and a site repository template.
 - OpenTofu modules for AWS and GCP come later, only for sites that hand us an account.
 
 ## Alternatives considered
