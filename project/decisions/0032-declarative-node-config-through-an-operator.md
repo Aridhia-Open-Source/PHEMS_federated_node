@@ -166,12 +166,27 @@ Usage:
 
 ## Consequences
 
-- Node config is reviewed, repeated and reverted in git, the same way as the chart version.
-- Dev and deployed nodes take config the same way, through the operator.
-- Several projects share providers, repositories and datasets without one env file each.
-- The operator is a new component to build, test and run in every node.
-- The env-driven setup and teardown commands, and the `TEST_*` variables behind them, are removed.
-- Secrets stay out of the config and the custom resources: a `Secret` names where the value lives.
+What it replaces:
+
+- **The env-driven setup:** the `setup-*` and `teardown-*` commands, their step commands, and the `TEST_*` variables behind them.
+- **Setting up deployed nodes by hand** through the API or the UI.
+- **Hand-built removal and drift logic:** no ownership tags, state store or prune code in fncli. Kubernetes and Helm track what exists, and the operator only maps each resource to nexus-api.
+
+What it gives:
+
+- **Node config is reviewed, repeated and reverted in git,** the same way as the chart version.
+- **One path for dev and deployed nodes:** config always goes through the operator, so dev tests what runs at a site.
+- **Several projects share** providers, repositories and datasets, without one env file each.
+- **Status on each resource:** `kubectl get` shows what is synced and why something is not.
+- **Secrets stay out** of the config and the custom resources: a `Secret` names where the value lives.
+
+What it does not need:
+
+- **Flux is optional.** The config-file workflow works on any node with the chart installed: `fncli apply -f` in dev, or `helm upgrade` with the values on a site that upgrades by hand. Flux only automates the `helm upgrade`.
+
+What it costs:
+
+- **The operator is a new component** to build, test and run in every node. It is small: the nexus-api client already exists, and Kopf handles the watch loop, retries and status.
 
 ## Alternatives considered
 
