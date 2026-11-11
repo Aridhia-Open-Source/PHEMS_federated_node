@@ -4,9 +4,9 @@ Status: Proposed, 2026-11-11.
 
 ## Context
 
-- **Sites differ.** GOSH (us), HUS and Erasmus are on Azure. SJD is on AWS, reached through Denodo. Later: Warsaw (self-hosted), Vienna (OpenShift), Oslo (a private cloud, not yet known) and Leuven (GCP). Some "Azure" clients really run microk8s on a single Azure VM and run `helm upgrade` by hand.
+- **Sites differ.** Nodes run on managed Kubernetes in Azure, AWS and GCP, on OpenShift, on self-hosted clusters, and on microk8s on a single VM where `helm upgrade` is run by hand.
 - **There is no continuous delivery today.** Each site upgrades when someone runs a command, and nothing records what was applied or lets it be reverted.
-- **Sites are hospital networks.** Inbound access to their clusters is unlikely to be granted; outbound HTTPS usually is. Data controllers need to sign off on what reaches their node.
+- **Sites are locked-down networks.** Inbound access to their clusters is unlikely to be granted; outbound HTTPS usually is. Data controllers need to sign off on what reaches their node.
 
 ## Decision
 
