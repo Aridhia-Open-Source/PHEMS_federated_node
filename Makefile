@@ -44,9 +44,9 @@ show-db-passwords:
 pip_compile:
 	./scripts/pip_compile.sh $(filter-out $@,$(MAKECMDGOALS))
 
-# Images are docker buildx bake targets, see docker-bake.hcl. Tag and registry come from .dev.env's DOCKER_TAG and localhost:5001.
+# Images are docker buildx bake targets, see docker-bake.hcl. Dev images are tagged latest and pushed to localhost:5001.
 # make images | image NAME=nexus-api-fn | image-reload NAME=nexus-api-fn | images-release TAG=1.2.3
-BAKE = source .dev.env && TAG=$$DOCKER_TAG docker buildx bake -f docker-bake.hcl $$(scripts/bake_files.sh)
+BAKE = docker buildx bake -f docker-bake.hcl $$(scripts/bake_files.sh)
 # NAME also exists in some shells' environments (the host name), so only the command line counts
 IMAGE_NAME = $(if $(filter command line,$(origin NAME)),$(NAME),$(error usage: make $@ NAME=<bake target>))
 

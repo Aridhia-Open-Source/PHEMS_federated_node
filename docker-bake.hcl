@@ -7,7 +7,7 @@ variable "REGISTRY" {
   default = "localhost:5001"
 }
 
-# Make and deploy.sh pass DOCKER_TAG
+# Dev builds use latest; releases pass TAG (make images-release TAG=x). Tilt tags by content hash instead.
 variable "TAG" {
   default = "latest"
 }

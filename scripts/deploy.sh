@@ -72,7 +72,7 @@ done
 echo
 echo "=== Building Docker Images(s) ========================================"
 
-TAG="$DOCKER_TAG" docker buildx bake -f docker-bake.hcl $(scripts/bake_files.sh) default $(scripts/bake_files.sh targets) --push
+docker buildx bake -f docker-bake.hcl $(scripts/bake_files.sh) default $(scripts/bake_files.sh targets) --push
 
 echo
 echo "=== Creating Namespace ==================================================="

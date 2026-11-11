@@ -5,7 +5,7 @@ set -euo pipefail
 source .dev.env
 
 echo "=== Building Dagster and nexus-api images ==="
-TAG="$DOCKER_TAG" docker buildx bake -f docker-bake.hcl dagster-fn nexus-api-fn --push
+docker buildx bake -f docker-bake.hcl dagster-fn nexus-api-fn --push
 
 echo
 echo "=== Restarting Dagster pods ==="

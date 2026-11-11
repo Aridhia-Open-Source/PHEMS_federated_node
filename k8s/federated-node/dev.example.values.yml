@@ -49,12 +49,14 @@ storage:
     dbpath: /data/db                   # postgres data
     artifacts: /data/dagster/artifacts # dagster artifacts volume
 
-# Locally built images; devTag must match DOCKER_TAG in .dev.env. On a real cluster
+# Locally built images. Tilt tags them by content hash and overrides these tags; other dev deploys
+# (make images, deploy.sh) use the latest tag, and the chart pulls with pullPolicy Always (its
+# default), so a redeploy picks up new builds. On a real cluster
 # you set none of this - the chart's images track its appVersion.
 nexus:
   api:
     image: localhost:5001/nexus-api-fn
-    tag: &devTag "v1"
+    tag: &devTag "latest"
   ui:
     enabled: true
     devServer: true                    # Vite with hot reload; Tilt syncs nexus/ui into it

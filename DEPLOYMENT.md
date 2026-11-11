@@ -51,7 +51,7 @@ Run these from the repo root.
    cp k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
    ```
 
-2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`), and `DOCKER_TAG` must match the tag in the values file. The file explains every other variable.
+2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`). The file explains every other variable.
 
 3. Fetch the chart's subcharts. `charts/` is gitignored, so a fresh checkout has none and Helm refuses to render.
 
