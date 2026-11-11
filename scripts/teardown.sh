@@ -127,19 +127,23 @@ echo "=== Clearing local PV data ===============================================
 # Deleted from inside the node rather than from the host, because these files belong to
 # the uids the containers ran as (postgres is 70) and the host user cannot always
 # remove them - which is what used to make this step need sudo.
-if kubectl get nodes >/dev/null 2>&1; then
+#
+# No $NAMESPACE means an earlier teardown already got to the end, wipe included.
+if ! kubectl get nodes >/dev/null 2>&1; then
+  echo "No cluster reachable, so nothing was wiped. $FN_DATA_DIR is still on disk:"
+  echo "delete it before reinstalling, or keep the password secrets that go with it."
+  exit 1
+elif ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+  echo "namespace $NAMESPACE is gone, so an earlier teardown already wiped /data"
+else
   echo "wiping /data in the node ($FN_DATA_DIR on the host)"
-  kubectl delete pod fn-data-wipe --ignore-not-found >/dev/null 2>&1
-  kubectl run fn-data-wipe --rm -i --restart=Never --image=busybox:1.36 --quiet \
+  kubectl delete pod fn-data-wipe -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1
+  kubectl run fn-data-wipe -n "$NAMESPACE" --rm -i --restart=Never --image=busybox:1.36 --quiet \
     --overrides='{"spec":{"containers":[{"name":"fn-data-wipe","image":"busybox:1.36",
       "command":["sh","-c","find /host -mindepth 1 -maxdepth 1 ! -name experiments -exec rm -rf {} + 2>/dev/null; echo remaining entries: $(ls -A /host | wc -l)"],
       "securityContext":{"runAsUser":0},
       "volumeMounts":[{"name":"host","mountPath":"/host"}]}],
       "volumes":[{"name":"host","hostPath":{"path":"/data"}}]}}'
-else
-  echo "No cluster reachable, so nothing was wiped. $FN_DATA_DIR is still on disk:"
-  echo "delete it before reinstalling, or keep the password secrets that go with it."
-  exit 1
 fi
 
 echo

@@ -11,7 +11,7 @@ A complete local development environment for the federated_node project that rep
 vi dagster/app/definitions/jobs.py
 
 # Manually rebuild
-./scripts/build_image.sh dagster v40
+TAG=v40 docker buildx bake -f docker-bake.hcl dagster-fn --push
 
 # Manually restart
 kubectl rollout restart deployment/fn-dev-dagster-user-deployments-dagster-fn -n fn

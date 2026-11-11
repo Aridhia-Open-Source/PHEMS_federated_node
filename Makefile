@@ -41,29 +41,27 @@ show-db-passwords:
 	@kubectl get secret -l federatednode.com/generated-password=true \
 		-o go-template='{{range .items}}{{printf "%-26s" .metadata.name}}{{range $$k, $$v := .data}}{{$$k}}={{$$v | base64decode}}{{end}}{{"\n"}}{{end}}'
 
-build_keycloak:
-	docker build build/keycloak -t ghcr.io/aridhia-open-source/federated_keycloak:${TAG}
-
-build_alpine:
-	docker build build/alpine -t ghcr.io/aridhia-open-source/alpine:${TAG}
-
-build_kc_init:
-	docker build build/kc-init -t ghcr.io/aridhia-open-source/keycloak_initializer:${TAG}
-
-build_dagster:
-	docker build dagster -t ghcr.io/aridhia-open-source/dagster_fn:${TAG}
-
 pip_compile:
 	./scripts/pip_compile.sh $(filter-out $@,$(MAKECMDGOALS))
 
-build_reload:
-	./scripts/build_image.sh $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS)) && kubectl rollout restart deployment
+# Images are docker buildx bake targets, see docker-bake.hcl. Dev images are tagged latest and pushed to localhost:5001.
+# make images | image NAME=nexus-api-fn | image-reload NAME=nexus-api-fn | images-release TAG=1.2.3
+# NAME also exists in some shells' environments (the host name), so only the command line counts
+IMAGE_NAME = $(if $(filter command line,$(origin NAME)),$(NAME),$(error usage: make $@ NAME=<bake target>))
 
-build_image:
-	./scripts/build_image.sh $(word 2,$(MAKECMDGOALS)) $(word 3,$(MAKECMDGOALS))
+.PHONY: images image image-reload images-release
+images:
+	scripts/build_images.sh
 
-build_all_images:
-	./scripts/build_all_images.sh $(word 2,$(MAKECMDGOALS))
+image:
+	scripts/build_images.sh $(IMAGE_NAME)
+
+image-reload:
+	scripts/build_images.sh $(IMAGE_NAME) && kubectl rollout restart deployment
+
+# The ghcr.io images the release publishes, tagged TAG and loaded into the local docker, not pushed
+images-release:
+	TAG=$(TAG) docker buildx bake -f docker-bake.hcl release --load
 
 reload_app:
 	./scripts/reload_app.sh
@@ -85,6 +83,13 @@ portfwd:
 
 deploy-owner:
 	./scripts/deploy_owner.sh show
+
+# New sibling worktree with the gitignored dev config copied in
+# make worktree NAME=wt-foo BRANCH=feature/foo [BASE=main]
+.PHONY: worktree
+worktree:
+	@test "$(origin NAME)" = "command line" -a "$(origin BRANCH)" = "command line" -a -n "$(NAME)" -a -n "$(BRANCH)" || { echo "usage: make worktree NAME=<dir> BRANCH=<branch> [BASE=<ref>]" >&2; exit 1; }
+	@./scripts/new-worktree.sh "$(NAME)" "$(BRANCH)" $(if $(filter command line,$(origin BASE)),"$(BASE)")
 
 upgrade:
 	./scripts/upgrade.sh
