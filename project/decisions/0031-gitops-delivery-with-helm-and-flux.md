@@ -13,7 +13,8 @@ Status: Proposed, 2026-11-11.
 - **Two layers.** OpenTofu (open-source Terraform) builds infrastructure only where we own it, Azure first: AKS, network, Key Vault, storage, DNS. Existing resources are brought in with `import` blocks or referenced with `data` sources. Sites that give us a cluster or a VM need no OpenTofu. Helm is never run from OpenTofu: no `helm_release`.
 - **Releases.** GitHub Actions builds, tests and publishes the chart and the images as versioned OCI artifacts.
 - **Delivery is by Flux, running in each site's cluster.** Flux pulls, so nothing needs inbound access. Flux was chosen over Argo CD because it runs real Helm releases (`helm history` and `helm rollback` still work), it is light, it fits one cluster per site, and it has no web UI to expose. Argo CD suits one central server managing many clusters, which we will not run.
-- **A client-owned site repository** holds the Flux setup, a `HelmRelease` that pins the chart version, the site's values, and the OpenTofu code if used. We have read-only access or none.
+- **No assumptions about the site beyond Kubernetes and outbound HTTPS.** Flux is a few controllers inside the site's own cluster, wherever that is: managed Kubernetes, OpenShift, a self-hosted cluster, or microk8s on a VM. It pulls releases out; nothing reaches into the site's network. Where a site cannot or will not run Flux, the same versioned release is applied by hand (see the fallback below).
+- **A site-owned repository** holds the Flux setup, a `HelmRelease` that pins the chart version, the site's values, and the OpenTofu code if used. We have read-only access or none.
   - Secrets are never in plain text: they are SOPS-encrypted, or pulled from Key Vault by External Secrets.
   - Renovate opens version-bump pull requests. The client merging one is their sign-off.
 - **Rollback.**
@@ -59,4 +60,4 @@ spec:
 
 - **Argo CD:** it suits one central server managing many clusters, which we will not run. For one cluster per site, Flux is lighter, has no web UI to expose, and keeps real Helm releases.
 - **Helm through Terraform `helm_release`:** state drift, slow plans, and a painful rollback.
-- **Push from our CI into client clusters:** needs inbound access and credentials to every site.
+- **Push from our CI into site clusters:** needs inbound access and credentials to every site.
