@@ -174,7 +174,7 @@ def set_project(
 
 def set_resource(
     api: FncliBackendAPI, name: str, kind: str, enabled: str | None, revoked: str | None, expect: int | None,
-    target_dir: str | None = None, admin_api: FncliBackendAPI | None = None,
+    target_dir: str | None = None, base_branch: str | None = None, admin_api: FncliBackendAPI | None = None,
 ) -> int:
     data = {}
     if enabled is not None:
@@ -185,8 +185,12 @@ def set_resource(
         if kind != "results":
             raise click.UsageError("--target-dir is only for the results resource")
         data["target_dir"] = target_dir
+    if base_branch is not None:
+        if kind not in ("trigger", "results"):
+            raise click.UsageError("--base-branch is only for the trigger and results resources")
+        data["base_branch"] = base_branch
     if not data:
-        raise click.UsageError("Give --enabled, --revoked and/or --target-dir")
+        raise click.UsageError("Give --enabled, --revoked, --target-dir and/or --base-branch")
     project = find_project(api, name)
     key = resource_key(kind, first_resource(api, project.id, kind))
     # Revoking is admin only: the system user the rest of fncli logs in as is refused with a 403
@@ -235,7 +239,8 @@ def setup_second_project(api: FncliBackendAPI, config: ProjectConfig, name: str)
         for resource in found["trigger"]
     ]
     steps += [
-        ("PUT", resource_path("results", pid, resource["results_repository"]["id"]), {"target_dir": resource["target_dir"]})
+        ("PUT", resource_path("results", pid, resource["results_repository"]["id"]),
+         {"target_dir": resource["target_dir"], "base_branch": resource["base_branch"]})
         for resource in found["results"]
     ]
     steps.append(("PATCH", f"/projects/{pid}", {"enabled": True}))
@@ -300,14 +305,16 @@ def project_set_command(enabled, revoked, backfill, project, expect):
 @click.option("--enabled", type=BOOL, default=None)
 @click.option("--revoked", type=BOOL, default=None, help="Admin only (logs in as the first Keycloak user). Takes effect immediately.")
 @click.option("--target-dir", default=None, help="The results resource's target directory. Tasks created before the change then fail.")
+@click.option("--base-branch", default=None, help="The trigger or results resource's branch: the one the project watches, or the one its results pull requests go into.")
 @project_option
 @expect_option
-def resource_set_command(kind, enabled, revoked, target_dir, project, expect):
-    """Set the enabled and/or revoked flag, or the target directory of a results resource, of the project's resource of that KIND."""
+def resource_set_command(kind, enabled, revoked, target_dir, base_branch, project, expect):
+    """Set the enabled and/or revoked flag, the target directory of a results resource or the base branch of a trigger or results resource, of the project's resource of that KIND."""
     config = ProjectConfig()
     admin_api = build_admin_backend_api(config) if revoked is not None else None
     finish(set_resource(
-        build_backend_api(config), project or config.project_name, kind, enabled, revoked, expect, target_dir, admin_api
+        build_backend_api(config), project or config.project_name, kind, enabled, revoked, expect, target_dir,
+        base_branch, admin_api
     ))
 
 

@@ -6,6 +6,7 @@ that ties the steps together: the file and the PR title are derived from it.
 
 import json
 import logging
+import posixpath
 import secrets
 import time
 from datetime import datetime, timezone
@@ -20,11 +21,11 @@ from fncli.cmds.common import (
     TriggerRepoConfig,
     build_backend_api,
     build_git_api,
+    build_researcher_git_api,
 )
 from fncli.cmds.project import find_project
-from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.sensor import SENSORS
-from fncli.cmds.verify import PAST_PUSHED, RUN_TO_TASK_STATUS, Links, Report, verify_task
+from fncli.cmds.verify import PAST_PUSHED, RUN_TO_TASK_STATUS, Links, Report, require, verify_task
 from app.models import TriggerState
 from fncli.sensors import DagsterAPI
 
@@ -63,6 +64,17 @@ branch_option = click.option(
 )
 
 
+def get_pr_base_branch(config: PrConfig) -> str:
+    """The branch a PR goes into: TEST_TRIGGER_REPO_BASE_BRANCH, else the one the project's trigger repository record watches."""
+    if config.base_branch:
+        return config.base_branch
+    backend_api = build_backend_api(config)
+    project = require(backend_api.find_project(config.project_name), f"Project {config.project_name}")
+    return require(
+        backend_api.find_repository(config.repo_uri, project.id), f"Trigger repository {config.repo_uri} in the project"
+    ).base_branch
+
+
 def new_branch_name() -> str:
     """Unique per run, so every command can be re-run, even twice in one second."""
     return f"pr-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(3)}"
@@ -84,18 +96,16 @@ def file_for(config: PrConfig, branch: str, kind: str) -> tuple[str, str]:
     if kind == "invalid":
         # The backend's TaskSpecRequest forbids unknown fields
         spec["unknown_field"] = True
-    return f"{config.watch_dir}{branch}.json", json.dumps({"spec": spec}, indent=2) + "\n"
+    return posixpath.join(config.watch_dir, f"{branch}.json"), json.dumps({"spec": spec}, indent=2) + "\n"
 
 
 @click.command("create-gitea-branch")
 @click.option("--branch", default=None, help="Branch name. Default: unique, from the time.")
 def create_gitea_branch_command(branch):
-    """Create a branch off the trigger repo's default branch."""
+    """Create a branch off the trigger repo's base branch."""
     config = PrConfig()
     branch = branch or new_branch_name()
-    gitea_api = build_git_api(config)
-    gitea_repo = init_gitea_repo(config, gitea_api)
-    gitea_api.create_branch(config.repo_path, branch, gitea_repo["default_branch"])
+    build_researcher_git_api(config).create_branch(config.repo_path, branch, get_pr_base_branch(config))
     logger.info(f"Created branch {branch}")
 
 
@@ -106,7 +116,7 @@ def commit_gitea_file_command(branch, kind):
     """Commit one new file to the branch, of a kind that decides what the sensor does."""
     config = PrConfig()
     file_path, content = file_for(config, branch, kind)
-    build_git_api(config).create_file(
+    build_researcher_git_api(config).create_file(
         config.repo_path, file_path, content, message=f"Add {file_path}", branch=branch
     )
     logger.info(f"Committed {kind} file {file_path} to {branch}")
@@ -116,14 +126,12 @@ def commit_gitea_file_command(branch, kind):
 @branch_option
 @click.option("--kind", type=click.Choice(KINDS), default="watched", show_default=True)
 def create_gitea_pr_command(branch, kind):
-    """Open a PR from the branch into the trigger repo's default branch."""
+    """Open a PR from the branch into the trigger repo's base branch."""
     config = PrConfig()
-    gitea_api = build_git_api(config)
-    gitea_repo = init_gitea_repo(config, gitea_api)
-    pr = gitea_api.create_pull_request(
+    pr = build_researcher_git_api(config).create_pull_request(
         config.repo_path,
         head_branch=branch,
-        base_branch=gitea_repo["default_branch"],
+        base_branch=get_pr_base_branch(config),
         title=f"{kind} {branch}",
         body=f"A {kind} pull request, opened by fncli",
     )
@@ -253,7 +261,7 @@ timeout_option = click.option(
 def merge_gitea_pr_command(number, watch, timeout):
     """Merge a PR in the trigger repo, which is what makes the sensor pick it up."""
     config = PrConfig()
-    build_git_api(config).merge_pull_request(config.repo_path, number)
+    build_researcher_git_api(config).merge_pull_request(config.repo_path, number)
     logger.info(f"Merged PR #{number}")
     if watch:
         watch_pr(config, number, timeout)

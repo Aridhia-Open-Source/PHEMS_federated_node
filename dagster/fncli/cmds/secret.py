@@ -15,12 +15,12 @@ from fncli.cmds.common import (
     RepoConfig,
     build_backend_api,
     build_git_api,
+    build_gitea_api,
     entity_option,
 )
-from fncli.cmds.repository import backend_source_options, init_gitea_repo, load_repo_config
+from fncli.cmds.repository import backend_source_options, load_repo_config
 from fncli.backend import FncliBackendAPI
 from app.gitea import GiteaAPI, GiteaClient
-from app.github import GithubAPI, GithubClient
 from fncli.gitea import GiteaAdminAPI
 from fncli.k8s import get_k8s_secret
 
@@ -32,28 +32,26 @@ GIT_PLACEHOLDER = {"TOKEN": "unset"}
 
 def init_git_secret(
     config: RepoConfig,
-    gitea_api: GiteaAdminAPI | GithubAPI,
+    gitea_api: GiteaAdminAPI | None,
     backend_api: FncliBackendAPI,
     static_token: bool = False,
 ) -> str | None:
     """
     Store the credentials the backend mints the repo's git tokens from, and return a token that works
-    now (None for a GitHub App, which fncli cannot mint a token for).
-    - GitHub: APP_ID, INSTALLATION_ID and PRIVATE_KEY from GH_APP_ID, GH_INSTALLATION_ID and GH_PRIVATE_KEY,
-      or else TOKEN from GH_TOKEN.
+    now (None for a GitHub App, which fncli cannot mint a token for). gitea_api is None for a GitHub repo.
+    - GitHub: APP_ID, INSTALLATION_ID and PRIVATE_KEY from GH_APP_ID, GH_INSTALLATION_ID and GH_PRIVATE_KEY.
     - Gitea: CLIENT_ID, CLIENT_SECRET and REFRESH_TOKEN of an OAuth2 application authorised as the admin user,
       or with static_token a TOKEN, a fresh Gitea personal access token.
     """
     token = None
-    if config.is_github and config.github_app_id:
+    if config.is_github:
         values = {
             "APP_ID": config.github_app_id,
             "INSTALLATION_ID": config.github_installation_id,
             "PRIVATE_KEY": config.github_private_key,
         }
-    elif config.is_github:
-        token = config.github_token
-        values = {"TOKEN": token}
+        if not all(values.values()):
+            raise click.ClickException("A GitHub repo needs GH_APP_ID, GH_INSTALLATION_ID and GH_PRIVATE_KEY")
     elif static_token:
         token = gitea_api.replace_token(config.token_name, [config.token_scope])
         values = {"TOKEN": token}
@@ -78,23 +76,8 @@ def init_git_secret(
     return token
 
 
-def get_git_token(entity: str, config: RepoConfig, backend_api: FncliBackendAPI) -> str:
-    """A token the backend mints for the repo's global record from whatever its secret holds, as Dagster gets it."""
-    find = backend_api.find_trigger_repository if entity == "trigger" else backend_api.find_results_repository
-    repository = find(config.repo_uri)
-    if repository is None:
-        raise click.ClickException(
-            f"Backend {entity} repository {config.repo_uri} does not exist (run init-backend-{entity}-repo first)"
-        )
-    return backend_api.get_repository_token(entity, repository.id).token
-
-
 def verify_gitea_accepts_bearer_token(config: RepoConfig, token: str, gitea_repo: dict):
     """Raises if Gitea rejects the token, as the sensor would when it polls."""
-    if config.is_github:
-        branch = GithubAPI(GithubClient(token)).get_default_branch(gitea_repo["full_name"])
-        logger.info(f"GitHub accepted the token: {gitea_repo['full_name']} (default branch {branch})")
-        return
     # base_uri is keyword-only in practice: the second positional parameter is a session.
     sensor_api = GiteaAPI(GiteaClient(token, base_uri=config.gitea_host_api_uri))
     merged_pulls = sensor_api.get_new_merged_pulls(
@@ -128,12 +111,12 @@ def init_dataset_secret(config: DatasetConfig, backend_api: FncliBackendAPI) -> 
 def init_git_secret_command(entity, static_token, from_backend, project):
     """
     Store the credentials the backend mints a repo's git tokens from in its K8s secret. Gitea: an
-    OAuth2 application, authorised without a browser. GitHub: a GitHub App if GH_APP_ID is set, else GH_TOKEN.
+    OAuth2 application, authorised without a browser. GitHub: a GitHub App, from GH_APP_ID, GH_INSTALLATION_ID and GH_PRIVATE_KEY.
     """
     config = load_repo_config(entity, from_backend, project)
     init_git_secret(
         config=config,
-        gitea_api=build_git_api(config),
+        gitea_api=None if config.is_github else build_gitea_api(config),
         backend_api=build_backend_api(config),
         static_token=static_token,
     )
@@ -177,9 +160,8 @@ def init_backend_secret_command(entity):
 def verify_git_secret_command(entity, from_backend, project):
     """Check the backend can mint a token from the repo's secret and the provider accepts it."""
     config = load_repo_config(entity, from_backend, project)
-    gitea_repo = init_gitea_repo(config, build_git_api(config))
-    token = get_git_token(entity, config, build_backend_api(config))
-    verify_gitea_accepts_bearer_token(config=config, token=token, gitea_repo=gitea_repo)
+    build_git_api(config).get_default_branch(config.repo_path)  # any read does: it fails if the provider rejects the token
+    logger.info(f"The {config.git_provider} provider accepted the token for {config.repo_path}")
 
 
 @click.command("delete-secret")
@@ -207,9 +189,9 @@ def delete_gitea_token_command(entity, from_backend, project):
     """Delete the Gitea token and OAuth2 application (with the tokens it issued) that init-git-secret created for a repo."""
     config = load_repo_config(entity, from_backend, project)
     if config.is_github:
-        logger.info("Not deleting the GitHub credentials: they are GH_TOKEN or the GitHub App, not ones fncli minted")
+        logger.info("Not deleting the GitHub credentials: they are the GitHub App's, not ones fncli minted")
         return
-    gitea_api = build_git_api(config)
+    gitea_api = build_gitea_api(config)
     if gitea_api.delete_token(config.token_name):
         logger.info(f"Deleted Gitea token {config.token_name!r}")
     else:

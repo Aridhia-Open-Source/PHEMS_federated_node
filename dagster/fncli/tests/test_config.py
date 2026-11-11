@@ -1,15 +1,28 @@
+import subprocess
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import click
 import pytest
 from pydantic import ValidationError
 
+from fncli.cmds import common
 from fncli.cmds.common import (
     DatasetConfig,
     GiteaConfig,
     RepoConfig,
     ResultsRepoConfig,
     TriggerRepoConfig,
+    build_researcher_git_api,
+    build_git_api,
+    get_repository,
     to_host_url,
 )
 from app.config import EnvConfig
+from app.gitea import GiteaAPI
+from app.github import GithubAPI
+from app.models import GitToken, ResultsRepository, TriggerRepository
+from app.tests.conftest import SAMPLE_PROVIDER, SAMPLE_TRIGGER_REPOSITORY
 
 
 def test_gitea_config_defaults_to_the_port_forwarded_address(monkeypatch):
@@ -117,3 +130,144 @@ def test_dataset_config_takes_the_uc1_values_from_the_env(monkeypatch):
     )
     assert (config.dataset_read_schema, config.dataset_write_schema) == ("omop", "omop_results")
     assert (config.dataset_username, config.dataset_password) == ("uc1", "s3cret")
+
+
+# The provider and the repo's API client
+
+def test_a_github_com_repo_uri_is_a_github_repo(monkeypatch):
+    monkeypatch.setenv("TEST_TRIGGER_REPO_URI", "https://GitHub.com/aridhia/trigger.git")
+
+    config = TriggerRepoConfig()
+
+    assert (config.git_provider, config.is_github) == ("github", True)
+
+
+def test_any_other_repo_uri_is_a_gitea_repo():
+    config = TriggerRepoConfig()
+
+    assert (config.git_provider, config.is_github) == ("gitea", False)
+
+
+def test_the_backend_records_provider_type_wins_over_the_repo_uri():
+    config = TriggerRepoConfig(backend_provider_type="github")
+
+    assert config.is_github
+
+
+def test_the_provider_is_not_an_env_var(monkeypatch):
+    monkeypatch.setenv("TEST_GIT_PROVIDER", "github")
+    monkeypatch.setenv("GH_TOKEN", "ghp_x")
+
+    assert not TriggerRepoConfig().is_github
+
+
+def test_each_repo_config_knows_its_entity():
+    assert (TriggerRepoConfig.entity, ResultsRepoConfig.entity) == ("trigger", "results")
+
+
+def test_get_repository_finds_the_global_record_of_the_repo_uri():
+    backend_api = MagicMock()
+
+    repository = get_repository(ResultsRepoConfig(), backend_api)
+
+    backend_api.find_results_repository.assert_called_once_with("http://gitea.fn.svc:3000/gitea_admin/results")
+    assert repository is backend_api.find_results_repository.return_value
+
+
+def test_get_repository_names_the_command_that_registers_a_missing_repository():
+    backend_api = MagicMock()
+    backend_api.find_trigger_repository.return_value = None
+
+    with pytest.raises(click.ClickException, match="init-backend-trigger-repo"):
+        get_repository(TriggerRepoConfig(), backend_api)
+
+
+def gitea_repository(cls=TriggerRepository):
+    provider = {**SAMPLE_PROVIDER, "type": "gitea", "uri": "http://gitea.fn.svc:3000", "api_uri": "http://gitea.fn.svc:3000/api/v1"}
+    return cls(**{**SAMPLE_TRIGGER_REPOSITORY, "provider": provider})
+
+
+@pytest.fixture
+def backend_api(monkeypatch):
+    api = MagicMock()
+    api.get_repository_token.return_value = GitToken(token="minted", expires_at="2026-01-01T01:00:00Z")
+    monkeypatch.setattr(common, "build_backend_api", lambda config: api)
+    return api
+
+
+def test_the_git_api_of_a_gitea_repo_is_a_token_client_through_the_port_forward(backend_api):
+    backend_api.find_trigger_repository.return_value = gitea_repository()
+
+    git_api = build_git_api(TriggerRepoConfig())
+
+    assert isinstance(git_api, GiteaAPI)
+    assert git_api.client._base_uri == "http://localhost:3000/api/v1"
+    assert git_api.client.token == "minted"
+    backend_api.get_repository_token.assert_called_once_with("trigger", 1, None)
+
+
+def test_the_git_api_of_a_results_repo_gets_a_results_token(backend_api):
+    backend_api.find_results_repository.return_value = gitea_repository(ResultsRepository)
+
+    build_git_api(ResultsRepoConfig())
+
+    backend_api.get_repository_token.assert_called_once_with("results", 1, None)
+
+
+def test_the_git_api_of_a_github_repo_is_a_github_client(backend_api):
+    backend_api.find_trigger_repository.return_value = TriggerRepository(**SAMPLE_TRIGGER_REPOSITORY)
+
+    git_api = build_git_api(TriggerRepoConfig())
+
+    assert isinstance(git_api, GithubAPI)
+    assert git_api.client._base_uri == "https://api.github.com"
+
+
+# The researcher's writes to the trigger repo
+
+@pytest.fixture
+def github_trigger(monkeypatch):
+    monkeypatch.setenv("TEST_TRIGGER_REPO_URI", "https://github.com/aridhia/trigger")
+    monkeypatch.delenv("RESEARCHER_GIT_TOKEN", raising=False)
+
+
+def test_the_researcher_writes_to_a_gitea_repo_as_the_gitea_admin(monkeypatch):
+    monkeypatch.setattr(common, "build_gitea_api", lambda config: "admin api")
+
+    assert build_researcher_git_api(TriggerRepoConfig()) == "admin api"
+
+
+def test_the_researcher_writes_to_a_github_repo_with_researcher_git_token(monkeypatch, github_trigger):
+    monkeypatch.setenv("RESEARCHER_GIT_TOKEN", "ghp_mine")
+    monkeypatch.setattr(common.subprocess, "run", lambda *args, **kwargs: pytest.fail("gh is only the fallback"))
+
+    git_api = build_researcher_git_api(TriggerRepoConfig())
+
+    assert isinstance(git_api, GithubAPI)
+    assert git_api.client.token == "ghp_mine"
+
+
+def test_without_researcher_git_token_the_researcher_uses_the_gh_cli_token(monkeypatch, github_trigger):
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(stdout="gho_cli\n")
+
+    monkeypatch.setattr(common.subprocess, "run", run)
+
+    git_api = build_researcher_git_api(TriggerRepoConfig())
+
+    assert calls == [["gh", "auth", "token"]]
+    assert git_api.client.token == "gho_cli"
+
+
+@pytest.mark.parametrize("failure", [FileNotFoundError("gh"), subprocess.CalledProcessError(1, "gh")])
+def test_a_github_write_with_neither_token_fails_and_says_what_to_set(monkeypatch, github_trigger, failure):
+    def run(command, **kwargs):
+        raise failure
+
+    monkeypatch.setattr(common.subprocess, "run", run)
+
+    with pytest.raises(click.ClickException, match="RESEARCHER_GIT_TOKEN"):
+        build_researcher_git_api(TriggerRepoConfig())
