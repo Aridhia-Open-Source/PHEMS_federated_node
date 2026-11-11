@@ -7,6 +7,7 @@ Status: Proposed, 2026-11-11.
 - **Sites differ.** Nodes run on managed Kubernetes in Azure, AWS and GCP, on OpenShift, on self-hosted clusters, and on microk8s on a single VM where `helm upgrade` is run by hand.
 - **There is no continuous delivery today.** Each site upgrades when someone runs a command, and nothing records what was applied or lets it be reverted.
 - **Sites are locked-down networks.** Inbound access to their clusters is unlikely to be granted; outbound HTTPS usually is. Data controllers need to sign off on what reaches their node.
+- **Sites have already accepted an in-cluster GitOps controller.** Earlier node versions ran Argo CD inside the node, where it launched tasks (an antipattern since replaced by Dagster). An in-cluster controller is not new to their security review, and Flux asks for less: no web UI, no inbound access, and it only installs and upgrades the node.
 
 ## Decision
 
