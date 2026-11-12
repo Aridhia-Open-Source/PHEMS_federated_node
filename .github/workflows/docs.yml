@@ -60,15 +60,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Deploy 1.x to gh-pages docs/manual
+      - name: Deploy 1.x to gh-pages docs/docs
         run: |
           # Commit onto the latest gh-pages and push; if the release job pushed in between,
           # start again from the new gh-pages, up to 5 times.
           for attempt in 1 2 3 4 5; do
             git fetch origin gh-pages --depth=1
             git branch -f gh-pages FETCH_HEAD
-            mike deploy --deploy-prefix docs/manual --update-aliases 1.x
-            mike set-default --deploy-prefix docs/manual 1.x
+            mike deploy --deploy-prefix docs/docs --update-aliases 1.x
+            mike set-default --deploy-prefix docs/docs 1.x
             if git push origin gh-pages; then
               exit 0
             fi
