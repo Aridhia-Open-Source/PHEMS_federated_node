@@ -10,7 +10,8 @@
   },
   "runArgs": ["--network=host"],
   "mounts": [
-    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube,type=bind",
+    // Host kubeconfig, read-only; copied to ~/.kube on each start so the container can change its own copy
+    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube-host,type=bind,readonly",
     // Installed tools survive rebuilds and are shared by every worktree's container
     "source=fn-mise-data,target=/home/vscode/.local/share/mise,type=volume"
   ],
@@ -19,6 +20,9 @@
   // mise's tools on PATH for non-interactive shells too
   "remoteEnv": { "PATH": "/home/vscode/.local/share/mise/shims:${containerEnv:PATH}" },
   "remoteUser": "vscode",
+  // Fresh copy of the host kubeconfig on every start (picks up a recreated cluster), with fn as the
+  // default namespace for the kind-fn context. The host's own kubeconfig is never written to.
+  "postStartCommand": "mkdir -p ~/.kube && cp ~/.kube-host/config ~/.kube/config && chmod 600 ~/.kube/config && (kubectl config set-context kind-fn --namespace=fn >/dev/null 2>&1 || true)",
   "postCreateCommand": "sudo apt-get update -qq && sudo apt-get install -y -qq libpq-dev build-essential && sudo chown -R vscode:vscode /home/vscode/.local && mise trust --all && mise run setup",
   "customizations": {
     "vscode": {
