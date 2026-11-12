@@ -58,6 +58,11 @@ keycloak:
   # `lookup` is unavailable and credentials would be silently regenerated on every sync. Set this
   # true for a single upgrade if you deleted the secret on purpose.
   recreateMissingSecrets: false
+  # By default Keycloak's pods may reach cluster DNS, pods in the cluster and the private address
+  # ranges (taskNetworkPolicy.privateEgress), and nothing on a public address. Set true to leave
+  # its egress alone, e.g. for an external identity provider or a database on a public address.
+  # Has no effect when taskNetworkPolicy.enabled is false.
+  allowExternalEgress: false
   # Set false to hand realm management entirely to the operator. keycloak-realm-init still manages
   # credentials, but applies neither the realms.json partial import nor any realm migration.
   manageRealm: true
@@ -143,15 +148,27 @@ db:
     # keycloak:
     # dagster:
 
-# Task pods run partner images that hold a dataset's credentials, so with `enabled` the tasks
-# namespace (global.namespaces.tasks) denies all ingress, and all egress except what is listed here.
-# Only enforced by a CNI that enforces NetworkPolicy. See templates/task-network-policy.yaml.
+# Task pods run partner images that hold a dataset's credentials. On by default, the tasks
+# namespace (global.namespaces.tasks) denies all ingress and blocks the public internet: egress
+# goes only to cluster DNS, the private address ranges below and the datasetEgress rules.
+# A database on a public address must be listed in datasetEgress. Set `enabled: false` to manage
+# policies on the tasks namespace yourself (e.g. Azure SQL redirect mode, or private endpoints
+# whose IPs change). DNS lookups still go through cluster DNS, so low-bandwidth DNS tunnelling
+# remains possible. Only enforced by a CNI that enforces NetworkPolicy.
+# The same switch also shuts the node's own services to the tasks namespace
+# (templates/internal-ingress-policy.yaml) and keeps Postgres, nexus-ui, Traefik and Keycloak off
+# the public internet (templates/internal-egress-policy.yaml, see keycloak.allowExternalEgress).
+# Add a public Kubernetes API server address to privateEgress, or Traefik cannot read its routes.
+# See templates/task-network-policy.yaml.
 taskNetworkPolicy:
-  # Off by default. When on, the tasks namespace denies all ingress and all egress except DNS
-  # and the datasetEgress rules below, so each hospital must list its databases. Leave it off
-  # to manage policies on the tasks namespace yourself (e.g. Azure SQL redirect mode, or
-  # private endpoints whose IPs change).
-  enabled: false
+  enabled: true
+  # Private address ranges task pods may reach on any port, as CIDRs. Pod and Service IPs fall in
+  # these on most clusters, so in-cluster and private-network databases work without listing.
+  # Narrow it to your own ranges, or set `[]` to allow DNS and datasetEgress only.
+  privateEgress:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
   # Where DNS lookups may go (UDP and TCP 53). The default is the cluster DNS of most
   # distributions; change it for another one (a NodeLocal DNSCache is an ipBlock).
   dns:
@@ -161,13 +178,13 @@ taskNetworkPolicy:
       podSelector:
         matchLabels:
           k8s-app: kube-dns
-  # Where tasks may reach their dataset's database. Empty by default: a task that needs a
-  # database then times out on connect. One NetworkPolicy egress rule per database, each
+  # Databases on public addresses (e.g. an Azure SQL public endpoint), which the private ranges
+  # above do not cover. Empty by default. One NetworkPolicy egress rule per database, each
   # with both `to` and `ports`; a policy matches addresses, pods and namespaces, never DNS names.
   # An external database, by address:
   #   - to:
   #       - ipBlock:
-  #           cidr: 10.20.30.0/28
+  #           cidr: 203.0.113.0/28
   #     ports:
   #       - protocol: TCP
   #         port: 1433

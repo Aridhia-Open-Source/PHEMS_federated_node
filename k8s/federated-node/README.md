@@ -29,11 +29,13 @@ The necessary values are:
 |nexus.api|url|In-cluster URL Dagster, fncli and the smoke tests use to reach nexus-api (default `http://nexus-api.<namespace>.svc:<port>`)|
 |nexus.api.db|name/user/secret|nexus-api database, role and password secret (default `fn_nexus`, `fn_nexus`, `nexus-db`)|
 |keycloak.db|name/user/secret|Keycloak database, role and password secret|
+|keycloak|allowExternalEgress|`false` by default: Keycloak may reach DNS, cluster pods and `privateEgress` only. Set `true` for an external identity provider, or a database on a public address, to leave its egress alone. No effect when `taskNetworkPolicy.enabled` is `false`|
 |-|-|-|
 |token|life|Duration in seconds for tokens|
 |-|-|-|
-|taskNetworkPolicy|enabled|Create the NetworkPolicy in the tasks namespace: no ingress, and egress only to DNS and `datasetEgress`. `false` by default; leave it off to manage policies there yourself. Needs a CNI that enforces NetworkPolicy|
-|taskNetworkPolicy|datasetEgress|Where task pods may reach their dataset database when `enabled`, as NetworkPolicy egress rules (`to` and `ports`), by address or by namespace and pod label. Empty by default: task pods then reach DNS only, and a task that needs a database times out on connect|
+|taskNetworkPolicy|enabled|Create the NetworkPolicy in the tasks namespace: no ingress, and egress only to DNS, `privateEgress` and `datasetEgress`, so task pods cannot reach the public internet. Also shuts Postgres, Gitea, Dagster and (behind the chart's Traefik) nexus-api, nexus-ui and Keycloak to the tasks namespace, and keeps Postgres, nexus-ui, Traefik and Keycloak off the public internet. Add a public Kubernetes API server address to `privateEgress` (Traefik reads its routes from it). `true` by default; set `false` to manage policies yourself. Needs a CNI that enforces NetworkPolicy|
+|taskNetworkPolicy|privateEgress|Private address ranges (CIDRs) task pods may reach on any port. Defaults to `10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16`, which cover in-cluster and private-network databases. Narrow it, or set `[]` to allow DNS and `datasetEgress` only|
+|taskNetworkPolicy|datasetEgress|Dataset databases on public addresses (e.g. an Azure SQL public endpoint), as NetworkPolicy egress rules (`to` and `ports`), by address or by namespace and pod label. Empty by default; not needed for a database in the private ranges|
 |taskNetworkPolicy|dns|Where task pods may send DNS lookups (UDP and TCP 53), as NetworkPolicy peers. Defaults to kube-dns in `kube-system`|
 |-|-|-|
 |integrations|domains|The list of third party host that can reach the Federated Node. Otherwise these will be blocked by CSP policies. This will not affect direct user API usage.|

@@ -1,0 +1,63 @@
+{{- if .Values.taskNetworkPolicy.enabled }}
+{{- /*
+Renders with the task network policy (taskNetworkPolicy.enabled, on by default).
+
+The pods that only talk inside the cluster get no route to the public internet: egress goes to
+cluster DNS (taskNetworkPolicy.dns), to pods in any namespace, and to the private ranges
+(taskNetworkPolicy.privateEgress). Pods are allowed by namespace rather than address, so narrowing
+privateEgress for task pods cannot cut the node off from itself.
+- Postgres (when the chart runs it) and nexus-ui, which call nothing outside the cluster.
+- Traefik, which only forwards to backends in the cluster and reads its routes from the Kubernetes
+  API. The API server is not a pod: if yours is on a public address (a public AKS or GKE control
+  plane), add it to privateEgress, or Traefik cannot read its routes.
+- Keycloak, unless keycloak.allowExternalEgress is true (an identity provider, or a database, on a
+  public address).
+nexus-api, Dagster and cert-manager are not selected: they reach GitHub, Gitea and the ACME servers.
+
+A NetworkPolicy does nothing on a CNI that does not enforce it.
+*/ -}}
+{{- $apps := list }}
+{{- if .Values.create_db_deployment }}
+{{- $apps = append $apps "postgres" }}
+{{- end }}
+{{- if .Values.nexus.ui.enabled }}
+{{- $apps = append $apps "nexus-ui" }}
+{{- end }}
+{{- $policies := list }}
+{{- if $apps }}
+{{- $policies = append $policies (dict "name" "internal-egress" "namespace" .Release.Namespace "selector" (dict "matchExpressions" (list (dict "key" "app" "operator" "In" "values" $apps)))) }}
+{{- end }}
+{{- if .Values.traefik.enabled }}
+{{- $policies = append $policies (dict "name" "traefik-egress" "namespace" .Release.Namespace "selector" (dict "matchLabels" (dict "app.kubernetes.io/name" "traefik"))) }}
+{{- end }}
+{{- if not .Values.keycloak.allowExternalEgress }}
+{{- $policies = append $policies (dict "name" "keycloak-egress" "namespace" (include "kc_namespace" .) "selector" (dict "matchLabels" (dict "app" "keycloak"))) }}
+{{- end }}
+{{- range $policies }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $.Release.Name }}-{{ .name }}
+  namespace: {{ .namespace }}
+spec:
+  podSelector:
+    {{- toYaml .selector | nindent 4 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        {{- toYaml $.Values.taskNetworkPolicy.dns | nindent 8 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector: {}
+      {{- range $.Values.taskNetworkPolicy.privateEgress }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+      {{- end }}
+{{- end }}
+{{- end }}
