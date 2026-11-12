@@ -1,0 +1,89 @@
+We recommend using ArgoCD to manage deployments of the Federated Node, this article explains how to install it for use with the FN. Additionally, where the FN is deployed in [outbound mode](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Outbound-connection-only-mode) ArgoCD is used to detect new tasks. 
+
+# ArgoCD files
+Navigate to the [ArgoCD folder](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/install_argocd) and run the [installation script](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/install_argocd/install_argocd/install_argocd.sh) 
+
+This will:
+- add the argoCD helm repository locally (just as listing)
+- install the latest argo version with some of our custom configuration
+- add the two github repository as available sources when adding a new application.
+
+Once the installation is completed, argo can be accessed by "bridging" a connection:
+```sh
+kubectl port-forward service/argocd-server -n argocd 8000:443
+```
+This will allow you to access the UI at localhost:8000
+
+You will need a set of credentials, which are stored in a kubernetes secret
+```sh
+kubectl -n argocd get secret argocd-initial-admin-secret -o json | jq -r '.data | .[] |= @base64d'
+```
+Note that this should be used as a temporary password, and should be changed after the first login. More details in the [ArgoCD official docs](https://github.com/argoproj/argo-cd/blob/master/docs/getting_started.md)
+
+# Add an application
+In terms of Argo ecosystem, an application can be interchangeably used as deployment. This can be done in two ways:
+- via the CLI using a `.yaml` file
+- via the UI
+
+Most cases within the Federated Node we will be dealing with an helm chart as an application.
+
+## Via the UI
+Once logged in, you will be greeted with this screen:
+
+![1 - First step](https://github.com/user-attachments/assets/3fe69450-7918-4454-a361-e61ffacd7d68)
+---
+
+By clicking on `Create application`, the following will appear:
+![2 - config1](https://github.com/user-attachments/assets/f709c632-4976-4a04-ab11-466533c3a616)
+- Fill up the form, by setting the `Application Name` to something it can be recognized.
+- Set the project name to `default`, it should be a dropdown menu.
+- Set the sync policy to `Manual` if you want to have control when to perform an update, or `Automatic` if you want to install them as they come
+---
+
+This section is mostly autocomplete/dropdown choices
+![3 - sources](https://github.com/user-attachments/assets/75601bcc-aae3-4a3a-8355-4681363cb2e9)
+- Set the repository name to the `PHEMS_federated_node` option
+- `Revision` in case of a git repository refers to the branch you want to monitor and pull changes from, let's say this is going to be `main`. Deleting the existing field value `HEAD` will prompt with all the available branches
+- `Path` will be updated automatically after the `Revision`. Argo will autodetect suitable paths, at this time should be `k8s/federated-node`
+
+---
+
+Here we should tell where to install the application
+![4 - destination](https://github.com/user-attachments/assets/a0d5d029-ef42-4756-8f1c-bb44a5889b84)
+- `Cluster URL` should be the only available choice `https://kubernetes.default.svc`.
+- Namespace should be the base where the application will be installed to. Set it to `default` (no autocomplete here) if no preference.
+---
+
+Here we set the specific helm chart related configuration
+![5 - helm](https://github.com/user-attachments/assets/8e032dd4-34d3-4c9e-ad48-27b1f9398bc0)
+
+in the red-highlighted box the contents of the `values.yaml` file should be pasted. These values should be set if they differ from the default ones. For more info, have a look at the [deployment instructions](Helm-Values-Reference.md)
+
+## Via the CLI
+
+It would be preferable for the CLI to be installed (The CLI should be installed as part of the argo installation script). This can be verified by running:
+```sh
+argocd version
+```
+if succesful something like this should be returned
+```
+argocd: v2.13.1+af54ef8
+  BuildDate: 2024-11-20T16:54:29Z
+  GitCommit: af54ef8db5adfa77a08d4d05b1318a2198084c22
+  GitTreeState: clean
+  GoVersion: go1.22.9
+  Compiler: gc
+  Platform: linux/amd64
+```
+
+To add an application you would need a `yaml` file representing the app, an example is provided [here](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/install_argocd/fn_application.yaml)
+
+Once this file exists with the appropriate contents
+```sh
+argocd app create <application-name> --file <path-to-yaml-file>
+```
+Or
+```sh
+kubectl apply -f fn_application.yaml
+```
+More details [here](https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd_app_create/)
