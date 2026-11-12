@@ -131,6 +131,44 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 
 More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
+### Every task, and what replaced make
+
+`mise tasks` lists them all (it replaces `make help`). Run any of them from the repo root with `mise run <task>`. Arguments are `--flags`; nothing is passed as `NAME=value`. Task names use hyphens where the make targets used underscores.
+
+| What it does | Old (make) | New (mise) |
+|---|---|---|
+| List the tasks | `make help` | `mise tasks` |
+| Install the pinned tools and both virtualenvs | (manual) | `mise run setup` |
+| Create `.dev.env` and `dev.values.yaml` | `make init-conf` | `mise run init-conf` |
+| Lint the Dockerfiles | `make hadolint` | `mise run hadolint` |
+| Lint nexus-api | `make pylint` | `mise run pylint` |
+| Lint Dagster | `make pylint_dagster` | `mise run pylint-dagster` |
+| Run the Dagster tests the way CI does | `make tests_dagster` | `mise run tests-dagster` |
+| Run the chart's unit tests | `make helm_tests` | `mise run helm-tests` |
+| Build the chart's subcharts | `make helm_deps` | `mise run helm-deps` |
+| Lint the chart (builds subcharts first) | `make helm_lint` | `mise run helm-lint` |
+| Render the chart with no cluster (builds subcharts first) | `make helm_template` | `mise run helm-template` |
+| Print the generated database passwords | `make show-db-passwords` | `mise run show-db-passwords` |
+| Lock a component's requirements | `make pip-compile DIR=nexus/api` | `mise run pip-compile --dir nexus/api` |
+| ...to another file | `make pip-compile DIR=nexus/api OUT=requirements-dev.txt` | `mise run pip-compile --dir nexus/api --out requirements-dev.txt` |
+| ...with extra pip-compile flags | `make pip-compile DIR=nexus/api ARGS="--upgrade"` | `mise run pip-compile --dir nexus/api -- --upgrade` |
+| Build and push every image | `make images` | `mise run images` |
+| Build and push one image | `make image NAME=nexus-api-fn` | `mise run image --target nexus-api-fn` |
+| ...and restart the deployments | `make image-reload NAME=nexus-api-fn` | `mise run image-reload --target nexus-api-fn` |
+| Build the release images locally | `make images-release TAG=1.2.3` | `mise run images-release --tag 1.2.3` |
+| Rebuild the Dagster and nexus-api images, restart their pods | `make reload_app` | `mise run reload-app` |
+| Start the kind cluster and registries | `make cluster-up` | `mise run cluster-up` |
+| Delete the cluster, keep the registries | `make cluster-down` | `mise run cluster-down` |
+| ...and delete the registries | `make cluster-down ARGS=--remove-registries` | `mise run cluster-down --remove-registries` |
+| Build images and install or upgrade the release | `make deploy` | `mise run deploy` |
+| ...taking the cluster over from another worktree | `make deploy FORCE_OWNER=1` | `mise run deploy --force-owner` |
+| Remove the release and its data | `make teardown` | `mise run teardown` |
+| Port-forward the node's services (without Tilt) | `make portfwd` | `mise run portfwd` |
+| Show which worktree owns the cluster | `make deploy-owner` | `mise run deploy-owner` |
+| New sibling worktree | `make worktree NAME=wt-foo BRANCH=feature/foo BASE=main` | `mise run worktree --name wt-foo --branch feature/foo --base main` |
+
+`--force-owner` also works on `cluster-down`, and `--base` is optional (it defaults to `HEAD`).
+
 ### One owner at a time
 
 There is one dev cluster and one worktree owns it. `mise run deploy` claims it, `mise run teardown` releases it. A deploy from another worktree fails while it is owned: tear down from the owner, or rerun with `mise run deploy --force-owner` to take over. `mise run deploy-owner` shows who owns it.
