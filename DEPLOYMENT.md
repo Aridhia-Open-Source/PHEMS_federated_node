@@ -40,7 +40,7 @@ The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image re
 - `kind`, `kubectl`, `helm` (v3), `tilt`, `jq`
 - [mise](https://mise.jdx.dev/): install it and activate it in your shell (`mise run` works without activation; activating adds automatic tool and venv switching on `cd`), then run `mise run setup` and `mise run init-conf`.
 - Personal overrides go in `mise.local.toml` (gitignored).
-- Or open the repo in its dev container (`.devcontainer/`): it has the tools and venvs, and uses the host's Docker and kind cluster.
+- Or use the dev container instead (see [Dev container](#dev-container) below).
 - Python 3.12+ and `pipx`, for `fncli` (the ops tool, see [MANAGEMENT.md](MANAGEMENT.md))
 
 ### First time
@@ -148,6 +148,16 @@ kubectl get secret fn-nexus-db -n fn -o jsonpath='{.data.password}' | base64 -d
 ### Loading real sample data
 
 Experiments, each with its own seeded database, run from their own release in the `experiments` namespace. See [experiments/README.md](experiments/README.md).
+
+### Dev container
+
+An optional alternative to installing the tools on your machine. Open the repo in VS Code and choose **Reopen in Container**; on first create it runs `mise run setup`.
+
+- It uses your machine's Docker (socket), kind cluster and `~/.kube`, and shares its network, so `kubectl`, `kind` and Tilt work against the same cluster.
+- Port-forwards from Tilt land on your machine's `localhost` (nexus-api on `localhost:5000` as usual). Run Tilt in one place at a time, or the ports clash.
+- Its venvs live in the container (`/home/vscode/venvs/`), not in the checkout, so they don't clash with yours.
+- Installed tools are kept in the `fn-mise-data` volume, so rebuilds and other worktrees' containers reuse them.
+- The cluster ownership rules apply inside it as well: it's the same cluster.
 
 ## Deploy to production
 

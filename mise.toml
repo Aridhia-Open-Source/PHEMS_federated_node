@@ -24,7 +24,6 @@ run = [
   "mise -C dagster install",
   # requirements-dev.txt is a superset of requirements.txt (adds pytest, pylint)
   "mise -C nexus/api exec -- python -m pip install -r requirements-dev.txt",
-  "mise -C nexus/api exec -- python -m pip install --no-deps -e .",
   "mise -C dagster exec -- python -m pip install -r requirements.txt",
   "mise -C dagster exec -- python -m pip install --no-deps -e '.[cli]'",
   # Print only, never edits the shell config. `mise run` works without activation;
