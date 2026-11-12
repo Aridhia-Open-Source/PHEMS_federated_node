@@ -74,7 +74,28 @@ Leave `CLUSTER_NAME=fn`, `NAMESPACE=fn` and `RELEASE_NAME=fn-dev` as they are, a
 In `k8s/federated-node/dev.values.yaml`, set `nodeId` to a name for your node (any text; it is required, and names the node in the results it delivers). Leave `db.host` as `db.fn.svc`, which has to match `NAMESPACE`, and every image `tag` as `latest`. The Gitea block is already switched on, and the chart generates its admin password.
 
 
-## 4. Cluster and deploy
+## 4. Install fncli
+
+Do this before the deploy in step 5: `make deploy` runs `fncli experiment deploy`.
+
+```sh
+pipx ensurepath          # then open a new terminal
+pipx install --force --editable './dagster[cli]'
+fncli hello-world        # Hello, world!
+```
+
+The editable install points at the checkout it was run from. To use another checkout, run the same `pipx install` from there.
+
+Make your **context file**. It says which node fncli works on, and which project and way `fncli trigger` uses when you do not say. It is gitignored, so it stays local:
+
+```sh
+cp bootstrap/examples/context.yaml bootstrap/context.yaml
+```
+
+The example already matches this guide: nexus-api at `http://localhost:5000`, the kubectl context `kind-fn`, the Keycloak namespace, and `.dev.env` as the env file. Set `defaults.project` to the demo you run: `demo-gitea` or `demo-github`.
+
+
+## 5. Cluster and deploy
 
 ```sh
 make helm_deps       # fetch the chart's subcharts (a fresh clone has none)
@@ -114,25 +135,6 @@ curl -sS -X POST localhost:5000/login \
 ```
 
 The login prints a token when nexus-api and Keycloak work. Do not paste it anywhere.
-
-
-## 5. Install fncli
-
-```sh
-pipx ensurepath          # then open a new terminal
-pipx install --force --editable './dagster[cli]'
-fncli hello-world        # Hello, world!
-```
-
-The editable install points at the checkout it was run from. To use another checkout, run the same `pipx install` from there.
-
-Make your **context file**. It says which node fncli works on, and which project and way `fncli trigger` uses when you do not say. It is gitignored, so it stays local:
-
-```sh
-cp bootstrap/examples/context.yaml bootstrap/context.yaml
-```
-
-The example already matches this guide: nexus-api at `http://localhost:5000`, the kubectl context `kind-fn`, the Keycloak namespace, and `.dev.env` as the env file. Set `defaults.project` to the demo you run: `demo-gitea` or `demo-github`.
 
 
 ## 6. The demo database and the sensors

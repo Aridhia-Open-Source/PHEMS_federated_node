@@ -5,11 +5,11 @@
 Run from the repo root.
 
 - `kubectl config use-context kind-fn && kubectl config current-context`
-- `mise run teardown`
-- `mise run helm-deps`
-- `mise run deploy`
+- `make teardown`
+- `make helm_deps`
+- `pipx install --force --editable './dagster[cli]'` (`make deploy` runs `fncli experiment deploy`)
+- `make deploy`
 - `tilt up --stream` (in a second terminal; wait until it's green)
-- `pipx install --force --editable './dagster[cli]'`
 
 ## Test the trigger → task → run flow
 

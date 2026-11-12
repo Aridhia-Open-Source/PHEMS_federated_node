@@ -8,8 +8,8 @@ The source of truth is the repo: [DEPLOYMENT.md](DEPLOYMENT.md), [MANAGEMENT.md]
 - [2. Install the tools](#2-install-the-tools)
 - [3. Clone](#3-clone)
 - [4. Local config](#4-local-config)
-- [5. Cluster and deploy](#5-cluster-and-deploy)
-- [6. Install fncli](#6-install-fncli)
+- [5. Install fncli](#5-install-fncli)
+- [6. Cluster and deploy](#6-cluster-and-deploy)
 - [7. The demo database and the sensors](#7-the-demo-database-and-the-sensors)
 - [8. The Gitea demo](#8-the-gitea-demo)
 - [9. The GitHub demo with your own repo](#9-the-github-demo-with-your-own-repo)
@@ -41,7 +41,7 @@ You need these. The repo pins only two versions: Helm v3 and Python 3.12 or newe
    python3 --version        # must be 3.12 or newer
    ```
 
-   If your `python3` is older, install 3.12 your own way and pass `--python python3.12` to `pipx install` in step 6.
+   If your `python3` is older, install 3.12 your own way and pass `--python python3.12` to `pipx install` in step 5.
 
 2. Docker. The command below is Docker's own installer, not from this repo. Any Docker works as long as `docker ps` runs without `sudo`.
 
@@ -108,11 +108,11 @@ make worktree NAME=wt-mine BRANCH=my-branch [BASE=<ref>]
 cd ../wt-mine
 ```
 
-Then install fncli from it (step 6) and run `make helm_deps && make deploy`.
+Then install fncli from it (step 5) and run `make helm_deps && make deploy`.
 
 ## 4. Local config
 
-Two files, both gitignored. Do this before step 5: `scripts/cluster.sh` and `scripts/deploy.sh` read `.dev.env`.
+Two files, both gitignored. Do this before step 6: `scripts/cluster.sh` and `scripts/deploy.sh` read `.dev.env`.
 
 1. Copy them.
 
@@ -129,7 +129,7 @@ Two files, both gitignored. Do this before step 5: `scripts/cluster.sh` and `scr
    | `KEYCLOAK_FIRST_USER_PASSWORD` | a password you will remember | Same. Quote it if it has special characters, because the file is `source`d by bash |
 
 
-   Leave `CLUSTER_NAME=fn`, `NAMESPACE=fn`, `RELEASE_NAME=fn-dev` and `DOCKER_TAG=v1` as they are. They are written into more than this file: the Tiltfile allows only `kind-fn`, the context file names `kind-fn` and the node files name `gitea.fn.svc`, fncli translates only hosts ending in `fn.svc`, `scripts/portfwd.sh` uses `-n fn`, and the values file names `db.fn.svc` and tag `v1`. Your own names go in your own files under `bootstrap/` (steps 6, 8 and 9), not here.
+   Leave `CLUSTER_NAME=fn`, `NAMESPACE=fn`, `RELEASE_NAME=fn-dev` and `DOCKER_TAG=v1` as they are. They are written into more than this file: the Tiltfile allows only `kind-fn`, the context file names `kind-fn` and the node files name `gitea.fn.svc`, fncli translates only hosts ending in `fn.svc`, `scripts/portfwd.sh` uses `-n fn`, and the values file names `db.fn.svc` and tag `v1`. Your own names go in your own files under `bootstrap/` (steps 5, 8 and 9), not here.
 
    That is all `.dev.env` holds: deploy settings, the first Keycloak user and the optional GitHub ids. The node's address, kubectl context, Keycloak namespace and Gitea admin user are in `bootstrap/context.yaml`, and a project's repositories and dataset are read from the node.
 
@@ -143,7 +143,29 @@ Two files, both gitignored. Do this before step 5: `scripts/cluster.sh` and `scr
 
 No CA files or `cadir` are needed: nothing in the repo's scripts, Tiltfile or chart reads them.
 
-## 5. Cluster and deploy
+## 5. Install fncli
+
+Do this before the deploy in step 6: `make deploy` runs `fncli experiment deploy`.
+
+```bash
+pipx ensurepath          # then open a new terminal
+pipx install --force --editable './dagster[cli]'
+fncli hello-world        # Hello, world!
+```
+
+The editable install points at the checkout it was run from. To use another checkout or worktree, run the same `pipx install` from there. A stale one shows as `No module named 'fncli'`, or as commands missing.
+
+fncli finds `.dev.env` by searching up from the current directory, so run it from inside the repo. It reads cluster secrets from the current kubectl context, which must be `kind-fn`.
+
+Make your context file. It says which node fncli works on, and which project and way `fncli trigger` uses when you do not say. Every command that talks to the node reads it; fncli finds `bootstrap/context.yaml` from the current directory up. It is gitignored, so it stays local.
+
+```bash
+cp bootstrap/examples/context.yaml bootstrap/context.yaml
+```
+
+The example matches this guide: `url: http://localhost:5000`, `kube_context: kind-fn`, `keycloak_namespace: keycloak`, `env_file: .dev.env`. Change `defaults.project` to the name of your project when you have one (steps 8 and 9). `FNCLI_DEFAULT_PROJECT` and `FNCLI_DEFAULT_TRIGGER_TYPE` in the shell win over `defaults:`, and a flag wins over both. A command that uses a default says so on its first line.
+
+## 6. Cluster and deploy
 
 1. Fetch the chart's subcharts. `charts/` is gitignored, so a fresh clone has none and Helm will not render.
 
@@ -205,29 +227,9 @@ No CA files or `cadir` are needed: nothing in the repo's scripts, Tiltfile or ch
 
    The login prints a token when nexus-api and Keycloak work. Do not paste it anywhere.
 
-## 6. Install fncli
-
-```bash
-pipx ensurepath          # then open a new terminal
-pipx install --force --editable './dagster[cli]'
-fncli hello-world        # Hello, world!
-```
-
-The editable install points at the checkout it was run from. To use another checkout or worktree, run the same `pipx install` from there. A stale one shows as `No module named 'fncli'`, or as commands missing.
-
-fncli finds `.dev.env` by searching up from the current directory, so run it from inside the repo. It reads cluster secrets from the current kubectl context, which must be `kind-fn`.
-
-Make your context file. It says which node fncli works on, and which project and way `fncli trigger` uses when you do not say. Every command that talks to the node reads it; fncli finds `bootstrap/context.yaml` from the current directory up. It is gitignored, so it stays local.
-
-```bash
-cp bootstrap/examples/context.yaml bootstrap/context.yaml
-```
-
-The example matches this guide: `url: http://localhost:5000`, `kube_context: kind-fn`, `keycloak_namespace: keycloak`, `env_file: .dev.env`. Change `defaults.project` to the name of your project when you have one (steps 8 and 9). `FNCLI_DEFAULT_PROJECT` and `FNCLI_DEFAULT_TRIGGER_TYPE` in the shell win over `defaults:`, and a flag wins over both. A command that uses a default says so on its first line.
-
 ## 7. The demo database and the sensors
 
-Both demos use one dataset, `demo-db`. It is a tiny Postgres in its own `experiments` release and namespace. `make experiments` calls `fncli`, so step 6 comes first.
+Both demos use one dataset, `demo-db`. It is a tiny Postgres in its own `experiments` release and namespace. These are `fncli` commands, so step 5 comes first.
 
 ```bash
 make experiments deploy
@@ -237,7 +239,7 @@ fncli experiment setup demo
 
 - `up` installs the `experiments` release: a Postgres with a database, a role and a generated password secret for each experiment under `experiments/`. Safe to rerun.
 - `seed demo` loads `cdm.person` (three rows) and an empty `results` schema into `demo-db`, as `demo_user`. Safe to rerun.
-- `setup demo` checks `experiments/demo/dataset.yaml` against its `values.yaml`, then applies it (it needs your context file from step 6): the node gets the `demo-db` dataset and its secret. The demo project files only assign it, so run this before them.
+- `setup demo` checks `experiments/demo/dataset.yaml` against its `values.yaml`, then applies it (it needs your context file from step 5): the node gets the `demo-db` dataset and its secret. The demo project files only assign it, so run this before them.
 - Check: `kubectl get pods -n experiments` shows the database `Running`.
 
 Start the Dagster sensors. Every sensor starts stopped, and `fncli demo` does not start them. Without them a merged pull request is never picked up.
@@ -398,12 +400,12 @@ Only what the repo's scripts and docs already call out.
 |---|---|
 | fncli: `... is for kubectl context kind-fn, but the current one is ...` | `kubectl config use-context kind-fn` |
 | fncli: `node.env_file ... not found` | The env file must exist in or above the context file's directory. Make `.dev.env` (step 4) |
-| fncli: `context.yaml not found, as given or under bootstrap/ from here up` | `cp bootstrap/examples/context.yaml bootstrap/context.yaml` (step 6), or give `--context FILE` |
-| `Nothing was applied, these secret values cannot be read`, or `missing` in the diff | Set what it names: `GH_APP_ID` and `GH_INSTALLATION_ID` in `.dev.env`, the key file at the path in your globals file, and for the demo database the `make experiments` steps in step 7 |
-| `The node cannot connect to the dataset's database` | `make experiments deploy`, then `fncli experiment seed demo` |
-| `No experiments deployment: run fncli experiment deploy first` | `make experiments deploy` |
+| fncli: `context.yaml not found, as given or under bootstrap/ from here up` | `cp bootstrap/examples/context.yaml bootstrap/context.yaml` (step 5), or give `--context FILE` |
+| `Nothing was applied, these secret values cannot be read`, or `missing` in the diff | Set what it names: `GH_APP_ID` and `GH_INSTALLATION_ID` in `.dev.env`, the key file at the path in your globals file, and for the demo database the `fncli experiment` steps in step 7 |
+| `The node cannot connect to the dataset's database` | `fncli experiment deploy`, then `fncli experiment seed demo` |
+| `No experiments deployment: run fncli experiment deploy first` | `fncli experiment deploy` |
 | `fncli: command not found` | `pipx ensurepath`, then a new terminal |
-| `make experiments`: `No such command`, or `No module named 'fncli'` | Reinstall from this checkout (step 6) |
+| `fncli experiment`: `No such command`, or `No module named 'fncli'` | Reinstall from this checkout (step 5) |
 | `Writing to a GitHub repo needs RESEARCHER_GIT_TOKEN, or gh auth login` | Step 9, item 7 |
 | A merged pull request does nothing | `fncli sensor-status`. Sensors are stopped by default: `fncli start-sensor --group all` |
 | `fncli demo`: `The node does not match ... yet` | `fncli apply -f <your globals file>`, then `fncli apply -f <the project file>`, then the demo again |
