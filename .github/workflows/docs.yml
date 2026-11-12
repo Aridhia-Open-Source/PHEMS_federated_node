@@ -37,7 +37,7 @@ jobs:
           path: site/
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Shared with the release job in build.yml: both push to gh-pages
     concurrency:
