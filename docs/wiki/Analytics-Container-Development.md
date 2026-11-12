@@ -140,16 +140,92 @@ The pod runs next to your data and runs an image the node's operators did not wr
 The design is [ADR 0022](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0022-task-isolation.md). The dataset database is only reachable if the operator has listed it in the chart's `taskNetworkPolicy.datasetEgress`: if your container hangs on connecting, start there ([Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset)).
 
 
-## Changed from 1.x
+## Container requirements
 
-| In 1.x | In 2.x |
-|---|---|
-| `DB_USER`, `DB_PSW` | `DB_USERNAME`, `DB_PASSWORD` |
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SCHEMA`, `DB_ARGS`, `ORACLE_SID` | Gone. Use `CONNECTION_STRING`. The read schema is `CDM_SCHEMA` |
-| Results written to `/mnt/data` | Results written to `$ARTIFACT_PATH` |
-| `INPUT_PATH`, `DATASET_TYPE`, `DATASET_PATH` (file datasets, pre-fetch) | Gone. DuckDB and SQLite datasets are not in the beta |
-| `env` in `executors[0]` of the API request | `spec.env` in the task spec file |
-| Image from a registered registry | The image named in the spec, pulled as it is |
+The pod runs your container as a non-root user (uid and gid 1001 by default) with all Linux capabilities dropped. Your image must work like that:
+
+- Do not require `root` for the entrypoint or at runtime.
+- The pod runs as the node's configured user whatever the image's `USER` says, so a `USER root` line in the Dockerfile does not give you root.
+- Avoid anything that needs elevated privileges, such as installing packages when the container starts. Install everything when you build the image.
+- Write only to `ARTIFACT_PATH` and temporary folders.
+
+The base images already comply.
+
+
+## Resource limits
+
+A task gets the node's default CPU and memory unless its spec asks for something else under `spec.compute`: `requests` and `limits`, each with an optional `cpu` and `memory`.
+
+```json
+"compute": {
+  "requests": {"cpu": "500m", "memory": "1Gi"},
+  "limits": {"cpu": "2", "memory": "4Gi"}
+}
+```
+
+CPU accepts millicores (`500m`, `1`, `0.5`). Memory accepts Kubernetes units (`128Mi`, `2Gi`, `512M`). A limit cannot be lower than its request, and nothing can be over the node's maximum, or the pull request is rejected. The chart's defaults are requests of 500m and 1Gi, limits of 2 CPU and 4Gi, and a maximum of 4 CPU and 16Gi (`taskCompute` in the chart values). Your admin can tell you what your node uses. A container that goes over its memory limit is killed and the task fails.
+
+
+## Minimal working example
+
+A complete Python analysis that reads from the database and writes a summary.
+
+`analysis.py`:
+
+```python
+import json
+import os
+
+import pandas as pd
+import pyodbc
+
+conn = pyodbc.connect(os.environ["CONNECTION_STRING"])
+
+schema = os.environ["CDM_SCHEMA"]
+cohort = os.environ.get("COHORT", "all")
+
+query = f"""
+    SELECT age, diagnosis, COUNT(*) AS count
+    FROM {schema}.patients
+    WHERE cohort = ?
+    GROUP BY age, diagnosis
+"""
+
+df = pd.read_sql(query, conn, params=[cohort])
+
+out = os.environ["ARTIFACT_PATH"]
+df.to_csv(os.path.join(out, "summary.csv"), index=False)
+with open(os.path.join(out, "run-notes.json"), "w") as f:
+    json.dump({"cohort": cohort, "rows": len(df)}, f)
+
+print(f"Done. {len(df)} rows written to {out}/summary.csv")
+```
+
+`Dockerfile`:
+
+```dockerfile
+FROM ghcr.io/aridhia-open-source/python-base:<tag>
+
+RUN pip install pandas
+
+COPY analysis.py /app/
+
+CMD ["python", "/app/analysis.py"]
+```
+
+The task spec the researcher commits to the trigger repository:
+
+```json
+{
+  "spec": {
+    "image": "ghcr.io/your-org/cohort-summary:1.0",
+    "dataset": "my-dataset",
+    "env": {"COHORT": "paediatric"}
+  }
+}
+```
+
+`pandas` may warn that it prefers SQLAlchemy over a raw `pyodbc` connection. The query still runs.
 
 
 ## Testing your image

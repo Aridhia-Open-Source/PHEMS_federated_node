@@ -80,7 +80,41 @@ kubectl port-forward -n federated-node svc/federatednode-dagster-webserver 3000:
 Open http://localhost:3000 and check that the code location loads with no error. Under **Automation** you should see twelve sensors, all stopped. That is how a new node starts, and it is correct for now.
 
 
-## 6. Run the chart's own tests
+## 6. Register a test dataset
+
+A dataset registration tells the node where a research database lives. The node stores the connection details and never copies the data. This step proves the node can reach a database from inside the cluster. Use a database you have, with a login that can read it. The full list of fields and types is in [Datasets](./Datasets).
+
+Store the login as a secret (the keys are `USERNAME` and `PASSWORD`), then register the dataset:
+
+```sh
+AUTH=(-H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
+
+curl -sS -X POST "$FN_HOST/global/secrets" "${AUTH[@]}" -d '{
+  "label": "test-dataset-creds",
+  "provider": "K8S",
+  "values": {"USERNAME": "db-user", "PASSWORD": "db-password"}
+}' | jq
+
+DATASET_ID=$(curl -sS -X POST "$FN_HOST/global/datasets" "${AUTH[@]}" -d '{
+  "name": "test_dataset",
+  "host": "your-database-host.example.com",
+  "port": 5432,
+  "type": "postgres",
+  "secret_label": "test-dataset-creds",
+  "read_schema": "public"
+}' | jq -r '.id')
+
+curl -sS "$FN_HOST/global/datasets/$DATASET_ID/healthcheck" "${AUTH[@]}" | jq
+```
+
+The healthcheck connects to the database with the stored login. A failure is reported in the body, with a status of 200. If it fails, the message says why: a wrong host or port, a wrong login, or a cluster firewall in between. The healthcheck works for PostgreSQL and SQL Server datasets only.
+
+If you registered a throwaway dataset, remove it so the name is free: `DELETE /global/datasets/$DATASET_ID`, and then `DELETE /global/secrets/test-dataset-creds`.
+
+Whether a **task** can reach the database is a separate question, because task pods are limited by the network policy. A database on a private address works by default. For any other address, list it in `taskNetworkPolicy.datasetEgress` ([Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset)).
+
+
+## 7. Run the chart's own tests
 
 ```sh
 helm test federatednode -n federated-node --logs
@@ -91,5 +125,7 @@ With `smoketests: true` in your values, the tests also create and delete real ro
 
 ## Next steps
 
+- [Datasets](./Datasets): register the databases tasks will read from.
+- Set up a project: its repositories, its dataset, and the sensors. The repo's [MANAGEMENT.md](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/MANAGEMENT.md) walks through it.
 - [Researcher guide](./Researcher-Guide): how a researcher asks for a task, once the project is enabled.
 - [Operations](./Operations): looking after a running node.

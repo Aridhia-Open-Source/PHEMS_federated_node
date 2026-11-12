@@ -24,6 +24,7 @@ Everything below is deployed by a single Helm chart. Some parts are subcharts yo
 | **cert-manager** | `fn-certmanager` | Optional subchart. Renews TLS certificates. |
 | **Gitea** | release namespace | Optional (`gitea.enabled`). A git host for development only. |
 | **Task pods** | `tasks` | One per task, created by Dagster. They run the researcher's image. |
+| **Secrets** | `fn-secrets` | Holds project secrets: dataset logins and git tokens. Only nexus-api and Dagster can read it. The release namespace holds none. |
 | **Quarantine** | `fn-quarantine` | Holds the value of a secret that has been switched off. |
 
 Task pods get their own namespace on purpose: it holds nothing but task pods, so the network rules and permissions there can be strict.
@@ -93,7 +94,7 @@ None of this limits what a task does with the dataset it was given. What leaves 
 
 ## Access
 
-Logins are Keycloak users. Creating the global resources, and revoking things, needs the admin role. The 1.x per-dataset permissions, data access requests and image whitelisting are not part of the beta, so access control for a normal login is not yet as fine-grained as in 1.x. Researchers do not need a login for the common case: they work in git.
+Logins are Keycloak users, with the realm roles `Users`, `Administrator`, `Super Administrator` and `System` ([Using the API](./Using-The-API#users)). Creating the global resources, and revoking things, needs an admin role. In the beta, access control for a normal login is coarse: there are no permissions per dataset for each user. Researchers do not need a login for the common case: they work in git.
 
 
 ## Decisions you need to make
@@ -108,7 +109,19 @@ Logins are Keycloak users. Creating the global resources, and revoking things, n
 
 **What is the network around the node?** Outbound HTTPS to `ghcr.io` (images), to your git host, and to wherever the analytics images live. No inbound access is needed for tasks.
 
-**Shared storage.** Task results and Dagster's artifacts need `ReadWriteMany` storage: Azure Files, AWS EFS, NFS, or a local path on a single node. [Deploy: Core](./Deploy-Core#shared-storage) has the details.
+**Shared storage.** Task results and Dagster's artifacts need `ReadWriteMany` storage: Azure Files, AWS EFS, NFS, or a local path on a single node. The choice is made at install time and is awkward to change later, because it means recreating the volumes. The per-run folders are not removed after delivery, so size it for every run you keep. [Deploy: Core](./Deploy-Core#shared-storage) has the details.
+
+**Is the database connection encrypted?** Set `db.enforceSSL: true`, with `dagster.postgresql.postgresqlParams.sslmode: require`. It is off by default. Turn it on unless the database is on the same host. Managed services such as Azure require it.
+
+**What do you back up?** nexus-api's database and Keycloak's, which are separate databases on the same server. Restoring only nexus-api's gives you a node that knows its datasets and projects but has lost every login.
+
+**Which account does a dataset use?** A dedicated, read-only database account scoped to exactly the schema you intend to expose, not an application or admin account. Task pods connect to the research database directly, so if it is outside the cluster that path must be open: databases in the private ranges are allowed by default, and any other needs a `taskNetworkPolicy.datasetEgress` rule ([Datasets](./Datasets)).
+
+**Who can reach the node?** In production, one public or VPN-reachable HTTPS endpoint fronted by Traefik. nexus-api and the Keycloak login are both behind it. Outbound, the cluster needs `ghcr.io`, your git host and your analytics image registries. If it has no internet egress, mirror those images into an internal registry. The results pull request is a deliberate data egress path, and a person reviews it.
+
+**How are secrets protected?** The Keycloak admin password is in the `kc-secrets` secret in the `keycloak` namespace, and anyone holding it can act as any user. Store it somewhere sensible, and rotate it (`keycloak.credentialGeneration`, or `keycloak.credentialRotation.enabled`). Kubernetes secrets are base64 encoded, not encrypted, unless you have enabled encryption at rest on etcd or use an external secrets provider. Check which is true for your cluster.
+
+**How will you upgrade?** nexus-api applies its database migrations itself, in an init container, on every deploy. A Helm rollback does not roll the schema back, so take a database snapshot before upgrading. You install the Gateway API and Traefik CRDs, so you also upgrade them ([Prerequisites](./Prerequisites#install-the-gateway-api-and-traefik-crds)).
 
 
 ## Where next

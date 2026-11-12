@@ -62,6 +62,39 @@ The pattern for each kind of resource is the same: `GET` lists or reads, `POST` 
 - **Bad input.** An invalid request body is a `400`. A move a record's state does not allow is a `409`.
 
 
+## Users
+
+Logins are Keycloak users. An admin creates and lists them through the API:
+
+```sh
+# Create a user. The response shows a temporary password, once.
+curl -sS -X POST "$FN/global/users" "${AUTH[@]}" -d '{
+  "email": "researcher@your-institution.example.com",
+  "firstName": "Ada",
+  "lastName": "Researcher",
+  "role": "Users"
+}' | jq
+
+# List users, with their roles and whether they still have to set a password
+curl -sS "$FN/global/users" "${AUTH[@]}" | jq
+```
+
+Only `email` is required. `username` defaults to the email, and `role` to `Users`. A user that already exists is a `400`.
+
+The new user changes the temporary password with `PUT /global/users/reset-password` and the body `{"email": "...", "tempPassword": "...", "newPassword": "..."}`, which needs no login.
+
+The node's roles are realm roles in Keycloak:
+
+| Role | Used for |
+|---|---|
+| `Users` | A basic login. Researchers do not need one in the common case: they work in git. |
+| `Administrator` | Registers and revokes the global resources, creates users, and manages projects. |
+| `Super Administrator` | Everything an `Administrator` can do, plus the wider Keycloak realm permissions. |
+| `System` | Integrations. Dagster logs in to nexus-api as a system user. |
+
+The first admin is created at install time from `firstUserSecret` ([Deploy: Core](./Deploy-Core#3-create-the-namespace-and-the-secrets-you-must-provide)).
+
+
 ## Datasets, repositories, projects
 
 These are covered where you set them up:
