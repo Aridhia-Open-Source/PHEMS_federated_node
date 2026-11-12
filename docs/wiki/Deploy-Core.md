@@ -72,7 +72,7 @@ Start from this example, then replace its `storage` block with the one in your p
 # The public hostname. Needs a DNS record pointing at Traefik, and a certificate.
 host: fn.your-institution.example.com
 
-# Names this node (hospital) in the results it delivers (run.json, node.id). Required.
+# Names this node in the results it delivers (run.json, node.id). Required.
 nodeId: your-institution
 
 # One external Postgres server shared by every component.
