@@ -1,6 +1,6 @@
 # Every image the node builds. Run from the repo root:
 #   scripts/build_images.sh [TARGET...]
-# or use `mise run images`, `mise run image <target>`, `mise run images-release --tag x`.
+# or use `mise run images`, `mise run image --target <target>`, `mise run images-release --tag x`.
 # Each experiment brings its own file, experiments/NAME/docker-bake.hcl.
 
 variable "REGISTRY" {

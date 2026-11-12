@@ -91,11 +91,11 @@ kubectl get secret -l federatednode.com/generated-password=true \
   -o go-template='{% raw %}{{range .items}}{{printf "%-26s" .metadata.name}}{{range $k, $v := .data}}{{$k}}={{$v | base64decode}}{{end}}{{"\n"}}{{end}}{% endraw %}'
 '''
 
-# mise run pip-compile nexus/api [--out requirements-dev.txt] [-- --upgrade]
+# mise run pip-compile --dir nexus/api [--out requirements-dev.txt] [-- --upgrade]
 [tasks.pip-compile]
 description = "Lock a component's requirements"
 usage = '''
-arg "<dir>" help="Component directory, e.g. nexus/api"
+flag "--dir <dir>" required=#true help="Component directory, e.g. nexus/api"
 flag "--out <file>" help="Output file (default requirements.txt)"
 arg "[flags]..." var=#true help="Extra pip-compile flags, e.g. --upgrade"
 '''
@@ -107,13 +107,13 @@ description = "Build and push every image to localhost:5001"
 run = "scripts/build_images.sh"
 
 [tasks.image]
-description = "Build and push one image, e.g. nexus-api-fn"
-usage = 'arg "<target>" help="docker-bake.hcl target"'
+description = "Build and push one image, e.g. --target nexus-api-fn"
+usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
 run = 'scripts/build_images.sh "$usage_target"'
 
 [tasks.image-reload]
 description = "Build and push one image, then restart the deployments"
-usage = 'arg "<target>" help="docker-bake.hcl target"'
+usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
 run = 'scripts/build_images.sh "$usage_target" && kubectl rollout restart deployment'
 
 # The ghcr.io images the release publishes, tagged and loaded into the local docker, not pushed
@@ -134,12 +134,16 @@ run = "./scripts/cluster.sh up"
 [tasks.cluster-down]
 description = "Delete the kind cluster, keep the registries"
 quiet = true
-usage = 'flag "--remove-registries" help="Also delete the registries"'
-run = './scripts/cluster.sh down ${usage_remove_registries:+--remove-registries}'
+usage = '''
+flag "--remove-registries" help="Also delete the registries"
+flag "--force-owner" help="Delete the cluster even if another worktree owns it"
+'''
+run = 'env ${usage_force_owner:+FORCE_OWNER=1} ./scripts/cluster.sh down ${usage_remove_registries:+--remove-registries}'
 
 [tasks.deploy]
 description = "Build images, install or upgrade the Helm release, restart the app pods"
-run = "./scripts/deploy.sh"
+usage = 'flag "--force-owner" help="Take over the dev cluster from another worktree"'
+run = 'env ${usage_force_owner:+FORCE_OWNER=1} ./scripts/deploy.sh'
 
 [tasks.teardown]
 description = "Remove the deployment and its persistent data"
@@ -158,8 +162,8 @@ run = "./scripts/deploy_owner.sh show"
 description = "New sibling worktree with the dev config"
 quiet = true
 usage = '''
-arg "<name>" help="Directory name of the new sibling worktree"
-arg "<branch>" help="Branch to create"
-arg "[base]" help="Base ref (default HEAD)"
+flag "--name <name>" required=#true help="Directory name of the new sibling worktree"
+flag "--branch <branch>" required=#true help="Branch to create"
+flag "--base <ref>" help="Base ref (default HEAD)"
 '''
 run = './scripts/new-worktree.sh "$usage_name" "$usage_branch" ${usage_base:+"$usage_base"}'

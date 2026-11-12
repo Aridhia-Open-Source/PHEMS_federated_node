@@ -54,9 +54,9 @@ Run `mise run setup` once per checkout (installs the pinned tools and the per-pa
 
 ### Worktrees and cluster ownership
 
-- Work in a git worktree per branch: `mise run worktree <dir> <branch> [<ref>]` creates a sibling worktree and copies in the gitignored dev config (`.dev.env`, `dev.values.yaml`).
+- Work in a git worktree per branch: `mise run worktree --name <dir> --branch <branch> [--base <ref>]` creates a sibling worktree and copies in the gitignored dev config (`.dev.env`, `dev.values.yaml`).
 - One worktree owns the shared dev cluster at a time (`scripts/deploy_owner.sh claim|check|show|release`). `mise run deploy` claims it and refuses if another worktree owns it.
-- Before deploy or teardown, check `mise run deploy-owner`. Never take over another worktree's cluster (`FORCE_OWNER=1`) without asking.
+- Before deploy or teardown, check `mise run deploy-owner`. Never take over another worktree's cluster (`mise run deploy --force-owner`) without asking.
 - A dev container (`.devcontainer/`) can be used instead of local tools; it shares the host's Docker, kind cluster and network, so the ownership rules above apply inside it too.
 - Clean up behind you: remove a worktree you made for temporary work as soon as it is no longer needed, and remove a branch's worktree once the branch is merged or its PR closed (`git worktree remove <dir>`, then `git worktree prune`). Only remove worktrees with no uncommitted changes; release the cluster first if the worktree owns it.
 
@@ -67,13 +67,13 @@ Testing rule: first run only the unit tests for the files or package you changed
 Images:
 
 - `mise run images` - build every dev image with `docker buildx bake` (`scripts/build_images.sh`), tagged `latest`, pushed to `localhost:5001`.
-- `mise run image nexus-api-fn` - one bake target; `mise run image-reload <target>` also restarts deployments.
+- `mise run image --target nexus-api-fn` - one bake target; `mise run image-reload --target <target>` also restarts deployments.
 - `mise run images-release --tag x.y.z` - build the release images locally.
 
 Dependencies (Python):
 
-- Declare in the component's `pyproject.toml`, then `mise run pip-compile <dir>` (e.g. `mise run pip-compile nexus/api`). This runs `scripts/pip_compile.sh`, which writes a hashed, pinned `requirements.txt`. Commit both.
-- `mise run pip-compile nexus/api --out requirements-dev.txt` writes the dev requirements; extra flags after the directory (for example `--upgrade`) go to pip-compile.
+- Declare in the component's `pyproject.toml`, then `mise run pip-compile --dir <dir>` (e.g. `mise run pip-compile --dir nexus/api`). This runs `scripts/pip_compile.sh`, which writes a hashed, pinned `requirements.txt`. Commit both.
+- `mise run pip-compile --dir nexus/api --out requirements-dev.txt` writes the dev requirements; extra flags after `--` (for example `-- --upgrade`) go to pip-compile.
 
 Tests and lint:
 
@@ -103,7 +103,7 @@ Tests and lint:
 - Start from the router (`nexus/api/app/<resource>_api.py`), DTO, model, then helper; on the Dagster side, from the sensor in `dagster/app/definitions/sensors/`.
 - Follow the testing rule above; pass the test path to `run_tests.sh`.
 - Generated files, and how to regenerate them:
-  - `requirements.txt` / `requirements-dev.txt` - `mise run pip-compile <dir>`.
+  - `requirements.txt` / `requirements-dev.txt` - `mise run pip-compile --dir <dir>`.
   - `nexus/api/openapi.json` - `cd nexus/api && python dump_openapi.py` (needs the API's dependencies).
   - `nexus/ui/src/api/schema.d.ts` - `cd nexus/ui && npm run gen:api` (from `openapi.json`).
   - Migrations: see `nexus/api/migrations/README` and ADR 0023 before adding one.

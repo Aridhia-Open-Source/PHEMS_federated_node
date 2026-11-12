@@ -68,7 +68,7 @@ tilt trigger fn-dev-dagster-user-deployments-dagster-fn
 
 ## Dev cluster ownership
 
-The single dev cluster is owned by one worktree at a time. `mise run deploy` claims it (recorded in the `fn-dev-owner` ConfigMap in `default`) and `mise run teardown` releases it. A deploy from another worktree fails while it is owned; tear down from the owner, or rerun with `FORCE_OWNER=1` to take it over. `DEPLOY_BY` overrides the recorded user (default `$USER`). `mise run deploy-owner` shows the current owner.
+The single dev cluster is owned by one worktree at a time. `mise run deploy` claims it (recorded in the `fn-dev-owner` ConfigMap in `default`) and `mise run teardown` releases it. A deploy from another worktree fails while it is owned; tear down from the owner, or rerun with `mise run deploy --force-owner` to take it over. `DEPLOY_BY` overrides the recorded user (default `$USER`). `mise run deploy-owner` shows the current owner.
 
 ## Troubleshooting
 

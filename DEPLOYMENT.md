@@ -76,7 +76,7 @@ Run these from the repo root.
    mise run deploy
    ```
 
-   It claims the dev cluster (see [one owner at a time](#one-owner-at-a-time)), renders the chart as a check, prepares the host directories, builds every image into `localhost:5001` (`docker-bake.hcl`; `mise run image nexus-api-fn` rebuilds one), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). At the end it prints the database passwords the chart generated.
+   It claims the dev cluster (see [one owner at a time](#one-owner-at-a-time)), renders the chart as a check, prepares the host directories, builds every image into `localhost:5001` (`docker-bake.hcl`; `mise run image --target nexus-api-fn` rebuilds one), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). At the end it prints the database passwords the chart generated.
 
 6. Start Tilt for the port-forwards and live reload.
 
@@ -133,9 +133,9 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 ### One owner at a time
 
-There is one dev cluster and one worktree owns it. `mise run deploy` claims it, `mise run teardown` releases it. A deploy from another worktree fails while it is owned: tear down from the owner, or rerun with `FORCE_OWNER=1` to take over. `mise run deploy-owner` shows who owns it.
+There is one dev cluster and one worktree owns it. `mise run deploy` claims it, `mise run teardown` releases it. A deploy from another worktree fails while it is owned: tear down from the owner, or rerun with `mise run deploy --force-owner` to take over. `mise run deploy-owner` shows who owns it.
 
-To start another worktree, run `mise run worktree <dir> <branch> [<ref>]` from this checkout. It creates `../<dir>` and copies over the gitignored `.dev.env`, `dev.values.yaml` and other `.env`/`.yaml` files; then `cd ../<dir> && mise run helm-deps && mise run deploy`.
+To start another worktree, run `mise run worktree --name <dir> --branch <branch> [--base <ref>]` from this checkout. It creates `../<dir>` and copies over the gitignored `.dev.env`, `dev.values.yaml` and other `.env`/`.yaml` files; then `cd ../<dir> && mise run helm-deps && mise run deploy`.
 
 ### Development database passwords
 
