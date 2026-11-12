@@ -1,0 +1,22 @@
+{
+  // Dev tools in a container; Docker and the kind cluster stay on the host.
+  // Builds and `kind` use the host's Docker socket, kubectl and Tilt use the host's
+  // kubeconfig, and host networking keeps the port-forwards on localhost.
+  "name": "Federated Node",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers-extra/features/mise:1": {}
+  },
+  "runArgs": ["--network=host"],
+  "mounts": [
+    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube,type=bind"
+  ],
+  "remoteUser": "vscode",
+  "postCreateCommand": "mise trust --all && mise run setup",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-kubernetes-tools.vscode-kubernetes-tools"]
+    }
+  }
+}

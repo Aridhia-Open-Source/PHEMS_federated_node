@@ -40,6 +40,7 @@ The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image re
 - `kind`, `kubectl`, `helm` (v3), `tilt`, `jq`
 - [mise](https://mise.jdx.dev/): install it and activate it in your shell (`mise run` works without activation; activating adds automatic tool and venv switching on `cd`), then run `mise run setup` and `mise run init-conf`.
 - Personal overrides go in `mise.local.toml` (gitignored).
+- Or open the repo in its dev container (`.devcontainer/`): it has the tools and venvs, and uses the host's Docker and kind cluster.
 - Python 3.12+ and `pipx`, for `fncli` (the ops tool, see [MANAGEMENT.md](MANAGEMENT.md))
 
 ### First time
