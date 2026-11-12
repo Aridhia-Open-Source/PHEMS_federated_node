@@ -18,7 +18,6 @@ on:
       - 'images/**'
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/PULL_REQUEST_TEMPLATE/**'
-      - 'Makefile'
       - '.gitignore'
       - 'sub-license/**'
       - 'environment/*.md'
@@ -37,7 +36,6 @@ on:
       - 'images/**'
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/PULL_REQUEST_TEMPLATE/**'
-      - 'Makefile'
       - '.gitignore'
       - 'sub-license/**'
       - 'environment/*.md'
@@ -46,6 +44,8 @@ env:
   TAG: ''
   OWNER_LC: ''
   HELM_CHANNEL: stable
+  # mise run only uses the tools a job installs; the rest come from the runner
+  MISE_TASK_RUN_AUTO_INSTALL: 'false'
   IS_TAG: ${{ github.ref_type == 'tag' }}
 
 permissions:
@@ -119,23 +119,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The lint tasks run in docker, so no tool needs installing
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+
       # Both linters write their reports here.
       - name: Create artifacts directory
         run: mkdir -p artifacts
 
       - name: Run pylint
         run: |
-          make pylint
+          mise run pylint
 
       # Runs even if the nexus-api lint fails, so both reports land in one run.
       - name: Run pylint (dagster)
         if: ${{ !cancelled() }}
         run: |
-          make pylint_dagster
+          mise run pylint-dagster
 
       - name: Run hadolint
         run: |
-          make hadolint
+          mise run hadolint
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -158,6 +163,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Only helm is needed here, the pinned one from mise.toml
+      - uses: jdx/mise-action@v2
+        with:
+          install_args: helm
+
       # run_tests.sh copies coverage.xml out of the container into here.
       - name: Create artifacts directory
         run: mkdir -p artifacts
@@ -167,12 +177,12 @@ jobs:
       # renders for ArgoCD, `helm diff` and CI - this is what holds that.
       - name: Lint and render the chart without a cluster
         run: |
-          make helm_lint
-          make helm_template
+          mise run helm-lint
+          mise run helm-template
 
       - name: Run Helm unittests
         run: |
-          make helm_tests
+          mise run helm-tests
 
       - name: Run Python Tests
         working-directory: nexus/api
@@ -181,7 +191,7 @@ jobs:
 
       - name: Run Dagster Tests
         run: |
-          make tests_dagster
+          mise run tests-dagster
 
       - name: Run Keycloak Integration Tests
         working-directory: nexus/api

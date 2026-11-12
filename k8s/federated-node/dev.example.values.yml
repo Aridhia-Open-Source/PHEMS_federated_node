@@ -2,12 +2,12 @@
 #
 #   cp .dev.env.example .dev.env                 # then fill it in
 #   cp dev.example.values.yml dev.values.yaml    # dev.values.yaml is gitignored
-#   ./scripts/cluster.sh up && make deploy
+#   ./scripts/cluster.sh up && mise run deploy
 #
 # Images come from the kind registry at localhost:5001 (docker-bake.hcl).
 # Everything else comes from values.yaml, including every database password:
 #
-#   make show-db-passwords
+#   mise run show-db-passwords
 #
 # For a real deployment see the wiki: Prerequisites, Deploy-Core and your platform page.
 
@@ -52,7 +52,7 @@ storage:
     artifacts: /data/dagster/artifacts # dagster artifacts volume
 
 # Locally built images. Tilt tags them by content hash and overrides these tags; other dev deploys
-# (make images, deploy.sh) use the latest tag, and the chart pulls with pullPolicy Always (its
+# (mise run images, deploy.sh) use the latest tag, and the chart pulls with pullPolicy Always (its
 # default), so a redeploy picks up new builds. On a real cluster
 # you set none of this - the chart's images track its appVersion.
 nexus:

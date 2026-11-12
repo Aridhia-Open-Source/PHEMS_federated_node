@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Emit the K8s deployment manifests Tilt should manage for live development.
 
-Helm (`make deploy`) owns the real cluster state. Tilt only needs the
+Helm (`mise run deploy`) owns the real cluster state. Tilt only needs the
 deployments whose images we rebuild so it can inject freshly built images and
 live_update code into the running containers.
 
@@ -12,7 +12,7 @@ Transformations applied for dev workflow:
 
   For the nexus-api deployment:
       - Drop initContainers (wait-for-db, db-migrations). They already ran
-        during the initial `make deploy`, and the DB persists, so the dev pod
+        during the initial `mise run deploy`, and the DB persists, so the dev pod
         only needs the long-running server.
 
   The dagster user-deployment gets DAGSTER_CURRENT_IMAGE pointed at RUN_IMAGE_TAG. Run
@@ -43,7 +43,7 @@ def main():
         text=True,
     )
     if out.returncode != 0:
-        # No deployments yet (e.g. before `make deploy`): emit empty list.
+        # No deployments yet (e.g. before `mise run deploy`): emit empty list.
         items = []
     else:
         doc = json.loads(out.stdout)

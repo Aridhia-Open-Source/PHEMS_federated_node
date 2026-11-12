@@ -78,7 +78,7 @@ Counts are `def test_` lines; a parametrised test counts once.
 
 ### How to run
 
-- `cd dagster && ./run_tests.sh [ci] [pytest args]` (Docker Compose, the test image is built from the local Dagster image), or `make tests_dagster` from the repo root (the `ci` variant). `pytest_args` default to `.`; the paths in `dagster/pyproject.toml` are `app/tests` and `fncli/tests`, so the fncli tests run with them. The end-to-end tests are skipped unless `--e2e` is given.
+- `cd dagster && ./run_tests.sh [ci] [pytest args]` (Docker Compose, the test image is built from the local Dagster image), or `mise run tests-dagster` from the repo root (the `ci` variant). `pytest_args` default to `.`; the paths in `dagster/pyproject.toml` are `app/tests` and `fncli/tests`, so the fncli tests run with them. The end-to-end tests are skipped unless `--e2e` is given.
 - `dagster/app/tests/test_enum_drift.py` needs the whole checkout (it parses nexus-api source) and skips in the test image. Run it from the repo root: `pytest dagster/app/tests/test_enum_drift.py`.
 - The end-to-end README runs pytest from the repo root with `dagster/.venv/bin/python -m pytest dagster ...`.
 
@@ -132,12 +132,12 @@ They cannot show that a command works against the real cluster; that is what the
 
 ### What they need
 
-- The local dev cluster only (`kubectl` context `kind-fn`, Tilt green). Never a shared or production cluster, and never `make teardown` to run them. Work from the worktree that owns the cluster.
+- The local dev cluster only (`kubectl` context `kind-fn`, Tilt green). Never a shared or production cluster, and never `mise run teardown` to run them. Work from the worktree that owns the cluster.
 - nexus-api (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answering on localhost (the Tilt port-forwards).
 - All sensors already running: `fncli start-sensor --group all`. The suites do not start or stop them.
 - `.dev.env` in the repo root, with the `TEST_*` values from `.dev.env.example`.
 - An admin login: revoking is admin only, so fncli logs in as the first Keycloak user, whose credentials `deploy.sh` stores in the `keycloak-first-user` secret from `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD` in `.dev.env`. (The end-to-end README calls these `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD`; the code reads the secret. Check.) The failure suite checks the login first and fails with the cause.
-- Images built from the branch under test (`make deploy`), including `pypipes-fn`: the failing-task group needs the run image to honour `PYPIPES_EXIT_CODE`.
+- Images built from the branch under test (`mise run deploy`), including `pypipes-fn`: the failing-task group needs the run image to honour `PYPIPES_EXIT_CODE`.
 
 ### How to run
 

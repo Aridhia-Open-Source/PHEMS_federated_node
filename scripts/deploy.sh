@@ -62,7 +62,7 @@ for path in "${HOST_MOUNT_PATHS[@]}"; do
   # 0700 - Postgres refuses to start on a group- or world-accessible data directory - so on
   # any later run this chmod is both impossible (the directory now belongs to uid 70 and we
   # are not root) and wrong (it would put PGDATA back into a state Postgres rejects). Under
-  # `set -e` that failure aborted the deploy, so `make deploy` only ever worked once per
+  # `set -e` that failure aborted the deploy, so `mise run deploy` only ever worked once per
   # fresh data directory.
   #
   # Tested with -O rather than emptiness: a 0700 directory owned by another uid is one we

@@ -6,8 +6,8 @@
 
 #
 # Prerequisites:
-# - Kind cluster running (make cluster-up)
-# - Helm deployed (make deploy)
+# - Kind cluster running (mise run cluster-up)
+# - Helm deployed (mise run deploy)
 # Then: tilt up
 
 load('ext://restart_process', 'docker_build_with_restart')
@@ -33,7 +33,7 @@ DEV_URLS = []
 # Allow Tilt to control what K8s cluster to deploy to
 allow_k8s_contexts('kind-fn')
 
-# K8s resources are managed by Helm via `make deploy`. Tilt needs to know about
+# K8s resources are managed by Helm via `mise run deploy`. Tilt needs to know about
 # them to inject the restart wrapper.
 k8s_yaml(local(
   'python3 scripts/tilt_manifests.py {ns} nexus-api {dagster} nexus-ui'.format(
@@ -199,14 +199,14 @@ DEV_URLS.append(('Keycloak', 'http://localhost:8080'))
 
 local_resource(
   'deployment-check',
-  cmd='kubectl get deployment nexus-api -n {ns} >/dev/null 2>&1 && echo "OK: deployments ready" || echo "MISSING: run make deploy"'.format(ns=NAMESPACE),
+  cmd='kubectl get deployment nexus-api -n {ns} >/dev/null 2>&1 && echo "OK: deployments ready" || echo "MISSING: run mise run deploy"'.format(ns=NAMESPACE),
   trigger_mode=TRIGGER_MODE_MANUAL,
   labels=['infrastructure'],
 )
 
 local_resource(
   'helm-status',
-  cmd='helm status {rel} -n {ns} >/dev/null 2>&1 && echo "OK: helm release {rel} deployed" || echo "MISSING: run make deploy"'.format(rel=RELEASE_NAME, ns=NAMESPACE),
+  cmd='helm status {rel} -n {ns} >/dev/null 2>&1 && echo "OK: helm release {rel} deployed" || echo "MISSING: run mise run deploy"'.format(rel=RELEASE_NAME, ns=NAMESPACE),
   trigger_mode=TRIGGER_MODE_MANUAL,
   labels=['infrastructure'],
 )

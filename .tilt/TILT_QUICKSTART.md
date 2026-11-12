@@ -7,10 +7,10 @@
 curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
 
 # 2. Start cluster + registries
-make cluster-up
+mise run cluster-up
 
 # 3. Deploy Helm (one time)
-make deploy
+mise run deploy
 
 # 4. Start Tilt
 tilt up
@@ -55,9 +55,9 @@ tilt trigger fn-dev-dagster-user-deployments-dagster-fn
 
 | Task | Command |
 |------|---------|
-| Start cluster (one time) | `make cluster-up` |
-| Deploy Helm (one time) | `make deploy` |
-| Show who owns the dev cluster | `make deploy-owner` |
+| Start cluster (one time) | `mise run cluster-up` |
+| Deploy Helm (one time) | `mise run deploy` |
+| Show who owns the dev cluster | `mise run deploy-owner` |
 | Start Tilt | `tilt up` |
 | Stop Tilt | `tilt down` |
 | View dashboard | `tilt open` |
@@ -68,14 +68,14 @@ tilt trigger fn-dev-dagster-user-deployments-dagster-fn
 
 ## Dev cluster ownership
 
-The single dev cluster is owned by one worktree at a time. `make deploy` claims it (recorded in the `fn-dev-owner` ConfigMap in `default`) and `make teardown` releases it. A deploy from another worktree fails while it is owned; tear down from the owner, or rerun with `FORCE_OWNER=1` to take it over. `DEPLOY_BY` overrides the recorded user (default `$USER`). `make deploy-owner` shows the current owner.
+The single dev cluster is owned by one worktree at a time. `mise run deploy` claims it (recorded in the `fn-dev-owner` ConfigMap in `default`) and `mise run teardown` releases it. A deploy from another worktree fails while it is owned; tear down from the owner, or rerun with `FORCE_OWNER=1` to take it over. `DEPLOY_BY` overrides the recorded user (default `$USER`). `mise run deploy-owner` shows the current owner.
 
 ## Troubleshooting
 
 ### Resources not deploying?
-Make sure you've run `make deploy` before starting Tilt:
+Make sure you've run `mise run deploy` before starting Tilt:
 ```bash
-make deploy
+mise run deploy
 kubectl get all -n fn
 ```
 
@@ -100,9 +100,9 @@ netstat -tlnp | grep 5000  # Should show tilt process
 ### Need to reset everything?
 ```bash
 tilt down
-make cluster-down
-make cluster-up
-make deploy
+mise run cluster-down
+mise run cluster-up
+mise run deploy
 tilt up
 ```
 

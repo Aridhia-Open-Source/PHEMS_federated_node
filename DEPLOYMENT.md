@@ -38,6 +38,8 @@ The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image re
 
 - Docker
 - `kind`, `kubectl`, `helm` (v3), `tilt`, `jq`
+- [mise](https://mise.jdx.dev/): install it and activate it in your shell (`mise run` works without activation; activating adds automatic tool and venv switching on `cd`), then run `mise run setup` and `mise run init-conf`.
+- Personal overrides go in `mise.local.toml` (gitignored).
 - Python 3.12+ and `pipx`, for `fncli` (the ops tool, see [MANAGEMENT.md](MANAGEMENT.md))
 
 ### First time
@@ -56,13 +58,13 @@ Run these from the repo root.
 3. Fetch the chart's subcharts. `charts/` is gitignored, so a fresh checkout has none and Helm refuses to render.
 
    ```bash
-   make helm_deps
+   mise run helm-deps
    ```
 
 4. Create the cluster and the registries.
 
    ```bash
-   make cluster-up
+   mise run cluster-up
    ```
 
    This starts a registry at `localhost:5001` (your images) and two pull-through mirrors (`localhost:5002` Docker Hub, `localhost:5003` GHCR), then a kind cluster named `fn` with its context `kind-fn`. Local volumes live in `~/.fn/data` (set `FN_DATA_DIR` to move it; the cluster must be recreated for that to take effect).
@@ -70,10 +72,10 @@ Run these from the repo root.
 5. Build the images and install the chart.
 
    ```bash
-   make deploy
+   mise run deploy
    ```
 
-   It claims the dev cluster (see [one owner at a time](#one-owner-at-a-time)), renders the chart as a check, prepares the host directories, builds every image into `localhost:5001` (`docker-bake.hcl`; `make image NAME=nexus-api-fn` rebuilds one), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). At the end it prints the database passwords the chart generated.
+   It claims the dev cluster (see [one owner at a time](#one-owner-at-a-time)), renders the chart as a check, prepares the host directories, builds every image into `localhost:5001` (`docker-bake.hcl`; `mise run image nexus-api-fn` rebuilds one), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). At the end it prints the database passwords the chart generated.
 
 6. Start Tilt for the port-forwards and live reload.
 
@@ -112,31 +114,31 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 | `nexus/api/app/`, `dagster/app/` | Files are synced and the process restarts. For Dagster, `dagster-reload` then reloads the code location once the new code server is serving |
 | `dagster/fncli/`, `dagster/app/tests/`, docs under `dagster/` | Nothing: the code server and run pods don't use them |
 | `requirements.txt`, `setup.py`, `alembic.ini`, migrations | The image is rebuilt |
-| The chart (`k8s/federated-node`) | Run `make deploy` (helm upgrade, then restarts the app deployments) |
+| The chart (`k8s/federated-node`) | Run `mise run deploy` (helm upgrade, then restarts the app deployments) |
 
 | Task | Command |
 |---|---|
 | Stop or open Tilt | `tilt down`, `tilt open` |
 | Rebuild one service | `tilt trigger nexus-api` |
-| Read the generated database passwords | `make show-db-passwords` |
-| Lint and render the chart without a cluster | `make helm_lint helm_template` |
-| Chart unit tests | `make helm_tests` |
-| Dagster tests, pylint | `make tests_dagster`, `make pylint`, `make pylint_dagster` |
-| Remove the release and its data, keep the cluster | `make teardown` |
-| Start completely again (teardown, new cluster, deploy) | `make teardown && make cluster-down && make cluster-up && make deploy` |
-| Delete the cluster, keep the registries | `make cluster-down` |
+| Read the generated database passwords | `mise run show-db-passwords` |
+| Lint and render the chart without a cluster | `mise run helm-lint && mise run helm-template` |
+| Chart unit tests | `mise run helm-tests` |
+| Dagster tests, pylint | `mise run tests-dagster`, `mise run pylint`, `mise run pylint-dagster` |
+| Remove the release and its data, keep the cluster | `mise run teardown` |
+| Start completely again (teardown, new cluster, deploy) | `mise run teardown && mise run cluster-down && mise run cluster-up && mise run deploy` |
+| Delete the cluster, keep the registries | `mise run cluster-down` |
 
 More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 ### One owner at a time
 
-There is one dev cluster and one worktree owns it. `make deploy` claims it, `make teardown` releases it. A deploy from another worktree fails while it is owned: tear down from the owner, or rerun with `FORCE_OWNER=1` to take over. `make deploy-owner` shows who owns it.
+There is one dev cluster and one worktree owns it. `mise run deploy` claims it, `mise run teardown` releases it. A deploy from another worktree fails while it is owned: tear down from the owner, or rerun with `FORCE_OWNER=1` to take over. `mise run deploy-owner` shows who owns it.
 
-To start another worktree, run `make worktree NAME=<dir> BRANCH=<branch> [BASE=<ref>]` from this checkout. It creates `../<dir>` and copies over the gitignored `.dev.env`, `dev.values.yaml` and other `.env`/`.yaml` files; then `cd ../<dir> && make helm_deps && make deploy`.
+To start another worktree, run `mise run worktree <dir> <branch> [<ref>]` from this checkout. It creates `../<dir>` and copies over the gitignored `.dev.env`, `dev.values.yaml` and other `.env`/`.yaml` files; then `cd ../<dir> && mise run helm-deps && mise run deploy`.
 
 ### Development database passwords
 
-The chart generates every database password and reuses it on each upgrade, so `.dev.env` holds none. Read them with `make show-db-passwords`, or one at a time:
+The chart generates every database password and reuses it on each upgrade, so `.dev.env` holds none. Read them with `mise run show-db-passwords`, or one at a time:
 
 ```bash
 kubectl get secret fn-nexus-db -n fn -o jsonpath='{.data.password}' | base64 -d
@@ -401,7 +403,7 @@ Keycloak's platform credentials stay put across upgrades. To rotate them on purp
 
 **Reinstall with the chart's own Postgres** (`create_db_deployment: true`, development) is the exception. Postgres only reads its password when it first creates the data directory, so the data and the superuser secret go together: keep both or neither. If you delete only the secret, the install stops with a "stale postgres data" message that lists the two ways out.
 
-For a throwaway development cluster, `make teardown` does all of this for you. Never run it against production: it deletes the namespaces and the data.
+For a throwaway development cluster, `mise run teardown` does all of this for you. Never run it against production: it deletes the namespaces and the data.
 
 ## Where versions come from
 

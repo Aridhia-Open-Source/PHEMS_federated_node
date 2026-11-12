@@ -5,7 +5,7 @@ set -euo pipefail
 # New worktree - creates a sibling worktree and copies over the gitignored dev
 # config (.dev.env, k8s/federated-node/dev.values.yaml, ...) that a fresh
 # checkout lacks.
-# Usage: new-worktree.sh <name> <branch> [<base-ref>]   (or make worktree NAME= BRANCH= BASE=)
+# Usage: new-worktree.sh <name> <branch> [<base-ref>]   (or mise run worktree <name> <branch> [<base>])
 ###############################################################################
 
 NAME="${1:?usage: $0 <name> <branch> [<base-ref>]}"
@@ -51,4 +51,4 @@ echo "=== Copying gitignored dev config ========================================
 
 echo
 echo "=== Next ======================================================================="
-echo "cd $DEST && make helm_deps && make deploy"
+echo "cd $DEST && mise run helm-deps && mise run deploy"
