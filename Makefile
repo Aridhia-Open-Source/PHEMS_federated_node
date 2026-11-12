@@ -4,12 +4,12 @@ TAG := $(or $(TAG), 1.0)
 .DEFAULT_GOAL := help
 
 # Lists every target that has a `## description` after its name
-.PHONY: help init cluster-up cluster-down pip-compile
+.PHONY: help init-conf cluster-up cluster-down pip-compile
 help: ## List the targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-18s %s\n", $$1, $$2}'
 
-init: ## Create .dev.env and dev.values.yaml from the examples, ask for the first Keycloak user
-	./scripts/init.sh
+init-conf: ## Create .dev.env and dev.values.yaml from the examples, ask for the first Keycloak user
+	./scripts/init_conf.sh
 
 hadolint: ## Lint the Dockerfiles
 	./scripts/run_hadolint.sh
