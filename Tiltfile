@@ -6,7 +6,7 @@
 
 #
 # Prerequisites:
-# - Kind cluster running (make cluster up)
+# - Kind cluster running (make cluster-up)
 # - Helm deployed (make deploy)
 # Then: tilt up
 

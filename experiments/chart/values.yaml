@@ -11,10 +11,10 @@ postgres:
     key: password
 
 # One entry per experiment, from experiments/projects/<name>/values.yaml:
-#   uc1:
-#     name: uc1-omop          database, and the dataset's name in the node
-#     user: uc1_omop_user
+#   study:
+#     name: study-omop          database, and the dataset's name in the node
+#     user: study_omop_user
 #     secret:
-#       name: db-datasets-uc1
+#       name: db-datasets-study
 #       key: password
 dbs: {}

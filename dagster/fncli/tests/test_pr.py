@@ -33,10 +33,10 @@ def test_watched_file_is_under_the_watch_dir_with_a_valid_spec(config):
 
 
 def test_watched_file_carries_the_extra_env_from_test_pr_env(monkeypatch):
-    monkeypatch.setenv("TEST_PR_ENV", '{"UC1_DEV": "1"}')
+    monkeypatch.setenv("TEST_PR_ENV", '{"EXAMPLE_FLAG": "1"}')
     _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
 
-    assert spec_of(content)["env"] == {"UC1_DEV": "1"}
+    assert spec_of(content)["env"] == {"EXAMPLE_FLAG": "1"}
 
 
 def test_watched_file_carries_the_tags_from_test_pr_tags(monkeypatch):

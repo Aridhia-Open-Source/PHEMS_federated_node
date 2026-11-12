@@ -246,7 +246,7 @@ fncli experiment teardown NAME   # remove NAME's node project, global resources 
 fncli experiment down            # teardown every experiment, then uninstall the release (secrets and database files stay)
 ```
 
-`up` runs `helm upgrade --install` of the `experiments` release. `seed` and `setup` check it is installed (if not, they tell you to run `up`). `seed` runs the project's `seed.sh` over `kubectl exec` (which recreates its schemas). `setup` runs `setup-project` with `CLUSTER_DATASET_HOST=db-datasets.experiments.svc`, `DATASET_PORT=5432` and the generated database password. `make experiments seed NAME` and `make experiments setup NAME` call them. See [experiments/README.md](../../experiments/README.md).
+`up` runs `helm upgrade --install` of the `experiments` release. `seed` and `setup` check it is installed (if not, they tell you to run `up`). `seed` runs the project's `seed.sh` over `kubectl exec` (which recreates its schemas). `setup` runs `setup-project` with `CLUSTER_DATASET_HOST=db-datasets.experiments.svc`, `DATASET_PORT=5432` and the generated database password. `fncli experiment seed NAME` and `fncli experiment setup NAME` call them. See [experiments/README.md](../../experiments/README.md).
 
 ## Maintenance
 

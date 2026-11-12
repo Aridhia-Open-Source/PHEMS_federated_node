@@ -37,7 +37,7 @@ vi dagster/app/definitions/jobs.py
 
 ```bash
 # 1. Start cluster + registries
-make cluster up
+make cluster-up
 
 # 2. Deploy Helm (one time)
 make deploy
@@ -121,18 +121,18 @@ federated_node/
 
 ```bash
 # Cluster management
-make cluster up              # Start Kind + registries
-make cluster down            # Stop Kind, keep registries
-make cluster down --remove-registries  # Full cleanup
+make cluster-up              # Start Kind + registries
+make cluster-down            # Stop Kind, keep registries
+make cluster-down ARGS=--remove-registries  # Full cleanup
 
 # Helm deployment (one time)
 make deploy             # Deploy all K8s resources + Helm release
 
 # Tilt development
-make tilt-up                 # Start Tilt
-make tilt-down               # Stop Tilt
-make tilt-open               # Open dashboard
-make tilt-logs               # View logs
+tilt up                      # Start Tilt
+tilt down                    # Stop Tilt
+tilt open                    # Open dashboard
+tilt logs                    # View logs
 ```
 
 ## Access Points
@@ -166,8 +166,8 @@ Once everything is running:
 
 ### Makefile Additions
 
-- `make cluster up/down` — Manage Kind cluster
-- `make tilt-up/down` — Manage Tilt
+- `make cluster-up` / `make cluster-down` — Manage Kind cluster
+- `tilt up` / `tilt down` — Manage Tilt
 
 ### No Changes Needed To
 
@@ -203,7 +203,7 @@ Once everything is running:
 ## Next Steps
 
 1. Read `.tilt/TILT_QUICKSTART.md` for quick reference
-2. Run `make cluster up` to start the cluster
+2. Run `make cluster-up` to start the cluster
 3. Run `make deploy` to deploy (one time)
 4. Run `tilt up` to start developing
 5. Read `.tilt/TILT.md` for detailed documentation
@@ -226,8 +226,8 @@ kubectl get all -n fn
 **Need to reset?**
 ```bash
 tilt down
-make cluster down
-make cluster up
+make cluster-down
+make cluster-up
 make deploy
 tilt up
 ```

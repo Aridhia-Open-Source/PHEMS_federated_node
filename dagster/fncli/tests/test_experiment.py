@@ -132,14 +132,14 @@ def test_a_project_env_missing_a_value_is_rejected(repo, monkeypatch):
         load_project("x")
 
 
-def test_the_committed_uc1_project_env_is_a_complete_config():
-    load_dotenv(REPO_ROOT / "experiments" / "projects" / "uc1" / "project.env", override=True)
+def test_the_committed_attacker_project_env_is_a_complete_config():
+    load_dotenv(REPO_ROOT / "experiments" / "projects" / "attacker" / "project.env", override=True)
 
     config = ExperimentConfig()
 
-    assert config.dev_env == {"UC1_DEV": "1"}
-    assert config.run_timeout == 1800
-    assert config.database == "uc1-omop"
+    assert config.dev_env == {}
+    assert config.run_timeout == 600
+    assert config.database == "attacker-db"
 
 
 def test_up_installs_the_release_with_every_project_database(repo, commands):

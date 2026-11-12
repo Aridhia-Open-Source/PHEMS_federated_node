@@ -9,7 +9,6 @@ Dagster code location's BackendAPI (dagster/app/backend.py) are pointed at it wi
 Skipped when ../dagster is not there (the CI container mounts only tests and app).
 """
 import importlib
-import importlib.util
 import sys
 import threading
 import time
@@ -22,7 +21,6 @@ from tests.conftest import SYSTEM_TOKEN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DAGSTER_DIR = REPO_ROOT / "dagster"
-SCRIPTS_DIR = REPO_ROOT / "scripts"
 
 if not (DAGSTER_DIR / "fncli" / "backend.py").is_file():
     pytest.skip("dagster/fncli is not available", allow_module_level=True)
@@ -47,10 +45,7 @@ def _load_dagster_client():
         models = importlib.import_module("app.models")
         fncli_backend = importlib.import_module("fncli.backend")
         fncli_state = importlib.import_module("fncli.cmds.state")
-        spec = importlib.util.spec_from_file_location("e2e_check", SCRIPTS_DIR / "e2e_check.py")
-        e2e_check = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(e2e_check)
-        return backend.BackendAPI, utils, models, fncli_backend.FncliBackendAPI, fncli_state, e2e_check
+        return backend.BackendAPI, utils, models, fncli_backend.FncliBackendAPI, fncli_state
     except Exception:  # pragma: no cover
         return None
     finally:
@@ -63,7 +58,7 @@ def _load_dagster_client():
 _dagster = _load_dagster_client()
 if _dagster is None:
     pytest.skip("dagster/app and dagster/fncli are not importable", allow_module_level=True)
-DagsterBackendAPI, _utils, fn_models, FnBackendAPI, state, e2e = _dagster
+DagsterBackendAPI, _utils, fn_models, FnBackendAPI, state = _dagster
 
 
 @pytest.fixture
@@ -410,30 +405,6 @@ def test_dagster_client_full_flow(dagster_api, api, world, raw):
     with pytest.raises(requests.HTTPError) as exc:
         d.create_repository("github.com/org/live-triggers", "github", "https://api.github.com", "live-creds")
     assert exc.value.response.status_code == 409
-
-
-def test_e2e_check_script_reads_the_real_routes(api, raw, world):
-    """scripts/e2e_check.py (used by scripts/e2e_shared_resources.sh) against the real routes and response shapes."""
-    from types import SimpleNamespace
-    w = world
-    pid, tid = w["project"].id, w["trigger"].id
-    config, args = SimpleNamespace(project_name=w["project"].name), SimpleNamespace(timeout=5)
-
-    # a watched PR (gets a task), an invalid one (REJECTED), and an unwatched one on another branch (no trigger)
-    api.create_pull_requests_batch(tid, [pr(1), pr(2), pr(3, base_branch="dev")])
-    task = raw.ok("POST", f"/projects/{pid}/repositories/triggers/{tid}/pull_requests/1/task", 201,
-                  json={"spec_raw": SPEC_RAW})
-    api.patch_pull_request(pid, tid, 2, {"state": "REJECTED", "state_cause": "bad spec"})
-
-    snap = e2e.snapshot(api, config.project_name)
-    assert len(snap["trigger_resources"]) == 1 and snap["trigger_resources"][0]["active"] is True
-    assert {p["number"]: p["state"] for p in snap["trigger_resources"][0]["pull_requests"]} == {1: "YIELDED", 2: "REJECTED"}
-    assert [t["id"] for t in snap["tasks"]] == [task["id"]]
-
-    assert e2e.command_wait_prs(api, config, args) == 0
-    assert e2e.command_wait_tasks(api, config, args) == 1  # the task is still PENDING
-    raw.ok("PATCH", f"/projects/{pid}/tasks/{task['id']}", 200, json={"status": "SUCCESS"})
-    assert e2e.command_wait_tasks(api, config, args) == 0
 
 
 def test_fncli_state_commands_against_the_real_routes(api, admin_api, raw, world):

@@ -87,11 +87,11 @@ def test_launches_a_pending_task_with_one_call():
 
 
 def test_the_specs_tags_are_run_tags_under_user_and_cannot_shadow_the_system_ones():
-    spec_tags = {"study": "uc1", "trigger": "user", "fn/task_id": "0", "dagster-k8s/config": "{}"}
+    spec_tags = {"study": "study", "trigger": "user", "fn/task_id": "0", "dagster-k8s/config": "{}"}
     result = run(make_backend([project()], {1: [task(tags=spec_tags)]}))
 
     assert result[0].tags == {
-        "user/study": "uc1", "user/trigger": "user", "user/fn/task_id": "0", "user/dagster-k8s/config": "{}",
+        "user/study": "study", "user/trigger": "user", "user/fn/task_id": "0", "user/dagster-k8s/config": "{}",
         "fn/trigger": "task", "fn/task_id": "9", "fn/attempt": "1", "fn/project_id": "1", **artifacts_volume_tags(),
     }
 
