@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+      - dagster-main
+      - dagster-develop
     paths:
       - 'docs/wiki/**'
 
@@ -18,8 +20,9 @@ concurrency:
 
 jobs:
   sync:
-    # A manual run from another branch would publish that branch's pages.
-    if: github.ref == 'refs/heads/main'
+    # Only these three branches publish. A manual run from any other branch would publish
+    # that branch's pages.
+    if: contains(fromJSON('["refs/heads/main","refs/heads/dagster-main","refs/heads/dagster-develop"]'), github.ref)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
