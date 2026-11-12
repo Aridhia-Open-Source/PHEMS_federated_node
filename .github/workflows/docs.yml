@@ -8,7 +8,7 @@ on:
       - "docs-requirements.txt"
   push:
     branches:
-      - develop
+      - main
     paths:
       - "wiki/**"
       - "mkdocs.yml"
