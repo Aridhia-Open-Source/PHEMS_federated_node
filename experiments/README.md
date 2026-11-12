@@ -27,23 +27,23 @@ Needs the dev cluster up with Tilt (port-forwards for nexus-api 5000, Gitea 4000
 `sources/uc1`. Dev mode (`UC1_DEV`) needs its R changes for that, which are not merged there yet.
 
 ```bash
-make experiments up                    # the release: Postgres with every project's database
-make experiments build uc1             # localhost:5001/uc1-fn:latest (slow: renv restore)
-make experiments seed uc1              # dummy OMOP data into uc1-omop
-make experiments setup uc1             # project "uc1" in the node, with its global resources
+fncli experiment up                    # the release: Postgres with every project's database
+fncli experiment build uc1             # localhost:5001/uc1-fn:latest (slow: renv restore)
+fncli experiment seed uc1              # dummy OMOP data into uc1-omop
+fncli experiment setup uc1             # project "uc1" in the node, with its global resources
 fncli experiment run uc1 --local       # optional: image straight against the DB, no node
-make experiments run uc1               # trigger PR -> task -> results PR in uc1-results-repo
+fncli experiment run uc1               # trigger PR -> task -> results PR in uc1-results-repo
 ```
 
 These call `fncli experiment up|seed|setup|build|run` (also `teardown NAME` and `down`, see Clean
 up). `--local` needs fncli directly, since make takes `--` options as its own. `seed` and `setup`
 fail and tell you to run `up` if the release isn't installed. `up`, `seed`, `setup`, `run` and
-`teardown` can be rerun after a failure. If `make experiments`
+`teardown` can be rerun after a failure. If `fncli experiment`
 says "No such command", reinstall fncli from this checkout:
 `pipx install --force --editable './dagster[cli]'`.
 
 `run` and `run --local` pass the project's `DEV_ENV` (JSON, from `project.env`) to the task.
-For UC1 that is `UC1_DEV=1`, a quick run with fewer cohorts. `FULL=1 make experiments run
+For UC1 that is `UC1_DEV=1`, a quick run with fewer cohorts. `FULL=1 fncli experiment run
 uc1` runs the whole study.
 
 ## Add an experiment
@@ -52,7 +52,7 @@ uc1` runs the whole study.
    (a full ODBC string, e.g. `driver={PostgreSQL ANSI};Uid=;Pwd=;Server=host,port;Database=;`), `CDM_SCHEMA`, `WRITE_SCHEMA`, and writes results
    to `ARTIFACT_PATH`.
 2. Copy `projects/uc1` to `projects/NAME`, then change the names and the seed.
-3. Run `make experiments up` (it upgrades the release with the new database, so this works
+3. Run `fncli experiment up` (it upgrades the release with the new database, so this works
    on a running cluster), then `build NAME`, `seed NAME`, `setup NAME` and `run NAME`.
 
 ## Check task isolation
@@ -69,9 +69,9 @@ name to try to read) and `SLEEP_SECONDS` (to hang the task and see the pod's dea
 
 ## Clean up
 
-- `make experiments teardown NAME` removes what `setup` registered in the node for NAME. The
+- `fncli experiment teardown NAME` removes what `setup` registered in the node for NAME. The
   release and its database stay.
-- `make experiments down` tears down every experiment's node project, then uninstalls the
+- `fncli experiment down` tears down every experiment's node project, then uninstalls the
   release. The secrets and database files stay, so a later `setup` gets the same data back.
 - Start from empty: `kubectl delete ns experiments`, then delete
   `~/.fn/data/experiments` (Postgres owns it, so you need root or the kind node).

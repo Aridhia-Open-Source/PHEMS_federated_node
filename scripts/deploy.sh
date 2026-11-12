@@ -2,7 +2,9 @@
 set -euo pipefail
 
 ###############################################################################
-# Helm Deployment - Sets up namespaces, secrets, and deploys Helm release
+# Helm Deployment - Sets up namespaces, secrets, and deploys Helm release.
+# Safe to rerun: it upgrades the release and restarts the app pods, so new images
+# (tagged latest) are picked up. There is no separate upgrade script.
 ###############################################################################
 
 source .dev.env
@@ -27,6 +29,9 @@ HOST_MOUNT_PATHS=(
 
 echo
 echo "=== Terminating tilt sessions =================================================="
+
+# Tilt injects a `command` the chart does not manage, so Helm's three-way merge keeps it
+# while resetting the image, and the pod then dies on a missing /tilt-restart-wrapper.
 
 if command -v tilt &> /dev/null; then
   if pgrep -f "tilt up" > /dev/null; then
@@ -100,20 +105,38 @@ fi
 echo
 echo "=== Deploying Helm Release =============================================="
 
+# A first deploy has no pods running old images, so only a rerun needs the restart below.
+RELEASE_EXISTS=false
+if helm status "$RELEASE_NAME" --namespace "$NAMESPACE" > /dev/null 2>&1; then
+  RELEASE_EXISTS=true
+fi
+
 cd k8s/federated-node
 
-echo "Helm install command:"
-echo "  helm install $RELEASE_NAME . -f $VALUES_FILE --timeout 10m --namespace $NAMESPACE --debug"
+echo "Helm command:"
+echo "  helm upgrade --install $RELEASE_NAME . -f $VALUES_FILE --timeout 30m --namespace $NAMESPACE --debug"
 echo
 
-helm install "$RELEASE_NAME" . \
+helm upgrade --install "$RELEASE_NAME" . \
   -f "$VALUES_FILE" \
-  --timeout 10m \
+  --timeout 30m \
   --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
   --namespace "$NAMESPACE" \
   --debug
 
 cd - > /dev/null
+
+# The image tag is latest, so Helm sees no change: restart the app deployments to pick up
+# a new build. Only these, not Keycloak and the Postgres instances too.
+if [ "$RELEASE_EXISTS" = "true" ]; then
+  echo
+  echo "=== Restarting the app deployments ======================================"
+  kubectl rollout restart -n "$NAMESPACE" \
+    deployment/nexus-api \
+    "deployment/${RELEASE_NAME}-${DAGSTER_USER_DEPLOYMENT:-dagster-fn}" \
+    "deployment/${RELEASE_NAME}-dagster-daemon" \
+    "deployment/${RELEASE_NAME}-dagster-webserver"
+fi
 
 kubectl config set-context \
   --current --namespace="$NAMESPACE"

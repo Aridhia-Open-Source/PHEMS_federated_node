@@ -53,7 +53,7 @@ Testing and open items:
 Operations:
 
 - [DEPLOYMENT.md](../DEPLOYMENT.md), [k8s/federated-node/README.md](../k8s/federated-node/README.md): install and chart values.
-- [dagster/README.md](../dagster/README.md), [dagster/fncli/README.md](../dagster/fncli/README.md): the Dagster code location and the fncli tool.
+- [dagster/fncli/README.md](../dagster/fncli/README.md): the Dagster code location and the fncli tool.
 
 ## Suggested reading order
 

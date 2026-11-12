@@ -9,16 +9,16 @@ mechanics are in [README.md](README.md).
 
 Needs the dev cluster up with Tilt (or the port-forwards for nexus-api 5000, Gitea 4000 and
 Dagster 3000), `fncli` on PATH, and `.dev.env` at the repo root. Run everything from the repo
-root. If `make experiments` says "No such command", reinstall fncli from this checkout:
+root. If `fncli experiment` says "No such command", reinstall fncli from this checkout:
 `pipx install --force --editable './dagster[cli]'`.
 
 ```bash
 git clone https://github.com/PHDS-centralized-services/MVP-Code experiments/sources/uc1
-make experiments up          # the experiments release, with the uc1-omop database
-make experiments build uc1   # localhost:5001/uc1-fn:latest (slow: R package restore)
-make experiments seed uc1    # dummy OMOP data into uc1-omop
-make experiments setup uc1   # project "uc1" in the node
-make experiments run uc1     # trigger PR -> task -> results PR in Gitea uc1-results-repo
+fncli experiment up          # the experiments release, with the uc1-omop database
+fncli experiment build uc1   # localhost:5001/uc1-fn:latest (slow: R package restore)
+fncli experiment seed uc1    # dummy OMOP data into uc1-omop
+fncli experiment setup uc1   # project "uc1" in the node
+fncli experiment run uc1     # trigger PR -> task -> results PR in Gitea uc1-results-repo
 ```
 
 `up`, `seed`, `setup` and `run` can be rerun after a failure. `fncli experiment run uc1 --local` runs the
@@ -39,11 +39,11 @@ small (832 patients); the time goes on the many small queries the R packages run
 ### Tear down and redeploy
 
 ```bash
-make experiments teardown uc1   # remove project "uc1", its global resources and Gitea repos
-make experiments down           # or: teardown every experiment, then uninstall the release
-make experiments up             # back again (the database files survive `down`)
-make experiments setup uc1      # `seed uc1` too if you wiped the data
-make experiments run uc1        # `build uc1` first only if the source changed
+fncli experiment teardown uc1   # remove project "uc1", its global resources and Gitea repos
+fncli experiment down           # or: teardown every experiment, then uninstall the release
+fncli experiment up             # back again (the database files survive `down`)
+fncli experiment setup uc1      # `seed uc1` too if you wiped the data
+fncli experiment run uc1        # `build uc1` first only if the source changed
 ```
 
 To start from empty data, after `down`: `kubectl delete ns experiments` and
@@ -52,14 +52,14 @@ To start from empty data, after `down`: `kubectl delete ns experiments` and
 ### Dev mode
 
 `run` and `run --local` pass `DEV_ENV` from `projects/uc1/project.env` (`UC1_DEV=1`) to the
-task: fewer cohorts, for proving the pipeline. `FULL=1 make experiments run uc1` runs the
+task: fewer cohorts, for proving the pipeline. `FULL=1 fncli experiment run uc1` runs the
 whole study. `UC1_DEV` needs R changes that are not on MVP-Code's main yet. Without them
 the variable is ignored and the full study runs, which still works, only slower.
 
 ## Planned: one command
 
 ```bash
-make experiments all uc1
+fncli experiment all uc1
 ```
 
 Not built yet. It would run, in order:

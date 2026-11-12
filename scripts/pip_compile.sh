@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# usage ./compile.sh {dir} [output-file] --{opt1} --{opt2}
+# usage ./pip_compile.sh {dir} [output-file] --{opt1} --{opt2}
 # --generate-hashes                 generate hashes for security
 # --no-header                       disable requirements file argument header
 # --no-emit-options                 disable requirements file options header

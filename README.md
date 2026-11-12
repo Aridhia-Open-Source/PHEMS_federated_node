@@ -48,29 +48,29 @@ python -m pip install pip-tools
 
 #### Locking Requirements
 
-Run `make pip_compile` with the target component directory as an argument:
+Run `make pip-compile` with the target component directory as `DIR`:
 
 ```bash
 # Lock dependencies for nexus/api
-make pip_compile nexus/api
+make pip-compile DIR=nexus/api
 
 # Lock dependencies for a build component
-make pip_compile build/kc-init
+make pip-compile DIR=build/kc-init
 ```
 
-By default this writes `requirements.txt` in the given directory. To write to a different output file, pass it as a second positional argument:
+By default this writes `requirements.txt` in the given directory. To write to a different output file, pass it as `OUT`:
 
 ```bash
-make pip_compile nexus/api requirements-dev.txt
+make pip-compile DIR=nexus/api OUT=requirements-dev.txt
 ```
 
-Any additional flags supported by `pip-compile` can be appended after the directory (and optional output file) arguments.
-To view the default flags see `scripts/pip-compile.sh`.
+Any additional flags supported by `pip-compile` can be passed as `ARGS="--upgrade"`.
+To view the default flags see `scripts/pip_compile.sh`.
 
 #### Modifying Dependencies
 
 1. Edit the `dependencies` list in the relevant `pyproject.toml`. Use `[project.optional-dependencies]` for dev/test-only extras.
-2. Re-run `make pip_compile <dir>` to regenerate the locked `requirements.txt`.
+2. Re-run `make pip-compile DIR=<dir>` to regenerate the locked `requirements.txt`.
 3. Commit both `pyproject.toml` and `requirements.txt`.
 
 Use `~=` (compatible-release) specifiers in `pyproject.toml` to constrain the minor version while allowing patch updates, e.g. `"fastapi~=0.162.0"`. The locked `requirements.txt` pins exact versions with hashes for reproducible installs.

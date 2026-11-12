@@ -125,7 +125,6 @@ They cannot show that a command works against the real cluster; that is what the
 ## Other checks
 
 - `nexus/api/integration_tests/` (run with `nexus/api/run_integration_tests.sh`): the Keycloak initialiser against a real Keycloak over several runs on the same database (first install, migrations run once, operator config survives, secret and password rotation). It is about deployment, not the pipeline. Check before relying on it for a given release.
-- `scripts/e2e_shared_resources.sh` and `scripts/e2e_check.py`: an older shell run of the shared-GlobalResources flow on the dev cluster. The pytest end-to-end suites below are the maintained version; check before using it.
 
 ## End-to-end tests
 
