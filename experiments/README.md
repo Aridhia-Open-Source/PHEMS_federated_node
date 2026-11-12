@@ -35,8 +35,7 @@ fncli experiment run <name> --local    # optional: image straight against the DB
 fncli experiment run <name>            # trigger PR -> task -> results PR in the project's results repo
 ```
 
-These call `fncli experiment up|seed|setup|build|run` (also `teardown NAME` and `down`, see Clean
-up). `--local` needs fncli directly, since make takes `--` options as its own. `seed` and `setup`
+See Clean up for `fncli experiment teardown NAME` and `down`. `seed` and `setup`
 fail and tell you to run `up` if the release isn't installed. `up`, `seed`, `setup`, `run` and
 `teardown` can be rerun after a failure. If `fncli experiment`
 says "No such command", reinstall fncli from this checkout:

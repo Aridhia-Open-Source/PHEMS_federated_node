@@ -64,7 +64,7 @@ By default this writes `requirements.txt` in the given directory. To write to a 
 mise run pip-compile nexus/api --out requirements-dev.txt
 ```
 
-Any additional flags supported by `pip-compile` can be passed as `ARGS="--upgrade"`.
+Any additional flags supported by `pip-compile` go after `--`, e.g. `mise run pip-compile nexus/api -- --upgrade`.
 To view the default flags see `scripts/pip_compile.sh`.
 
 #### Modifying Dependencies
