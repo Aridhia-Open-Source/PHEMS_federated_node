@@ -1,6 +1,6 @@
 # Federated Node - Documentation
 
-> **2.x beta.** This documentation covers the 2.x Federated Node, which is in beta. Running a 1.x release? The [1.x documentation](./1.x-Home) is still there and unchanged.
+> **2.x beta.** This documentation covers the 2.x Federated Node, which is in beta.
 
 This documentation covers deploying, setting up, testing, and using the PHEMS Federated Node (FN) 2.x.
 
@@ -38,7 +38,7 @@ You also need a git host for the trigger and results repositories: GitHub (with 
 
 **Trying it on your own machine first:** [Run locally](./Run-Locally) takes a Linux or WSL2 machine from nothing to a working demo, on a local cluster with a Gitea inside it.
 
-**Deploying for the first time:** [Prerequisites](./Prerequisites), then [Deploy: Core](./Deploy-Core), then [Post-deploy testing](./Post-Deploy-Testing).
+**Deploying for the first time:** [Prerequisites](./Prerequisites), then [Deploy: Core](./Deploy-Core) with the guide for your platform, then [Post-deploy testing](./Post-Deploy-Testing). The platform guides are [Azure (AKS)](./Deploy-Azure), [AWS (EKS)](./Deploy-AWS), [GCP (GKE)](./Deploy-GCP) and [On-Premises](./Deploy-On-Premises).
 
 **Setting up a project for researchers:** [Set up a project](./Set-Up-A-Project) covers the git provider, repositories, dataset and project, in the order they have to be made.
 
@@ -46,16 +46,10 @@ You also need a git host for the trigger and results repositories: GitHub (with 
 
 **Building an analytics container:** [Analytics container development](./Analytics-Container-Development) covers the environment variables, where to write results, and what the pod is and is not allowed to do.
 
+**Registering the databases tasks read from:** [Datasets](./Datasets).
+
 **Looking after a running node:** [Operations](./Operations).
 
 **Developing against the node:** [Using fncli](./Using-fncli) and [Experiments](./Experiments).
 
-
-## What is different from 1.x
-
-- The Flask backend is replaced by nexus-api.
-- There is no Task Controller. The node reads the trigger repository itself.
-- Tasks are started by a merged pull request, and results come back as a pull request.
-- Datasets, secrets, git hosts and repositories are set up once by an admin and then assigned to **projects**.
-
-Not in the beta: container registry registration and image whitelisting, per-dataset user permissions, task review, and DuckDB and SQLite file datasets. A 1.x to 2.x upgrade path is not documented: plan on a fresh install, and do not reuse a 1.x values file.
+What changed in each release is in the [release notes](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/releases).

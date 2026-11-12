@@ -11,42 +11,48 @@ Before deploying the Federated Node 2.x, make sure the following are in place.
 | `helm` (v3+) | Deploy the FN chart | [helm.sh/docs/intro/install](https://helm.sh/docs/intro/install/) |
 | `jq` | Parse API responses in shell examples | [stedolan.github.io/jq](https://stedolan.github.io/jq/download/) |
 
-An example `values.yaml` is in [Deploy: Core](./Deploy-Core).
+An example `values.yaml` is in [Deploy: Core](./Deploy-Core), and the platform guides add the storage, ingress and certificate settings for each platform.
 
 
 ## Required infrastructure
 
 ### Kubernetes cluster
 
-Any CNCF-conformant Kubernetes cluster works. The FN is tested on:
+Any CNCF-conformant Kubernetes cluster works. Each platform has its own guide with its prerequisites and known issues:
 
-- Azure Kubernetes Service (AKS)
-- AWS Elastic Kubernetes Service (EKS)
-- Google Kubernetes Engine (GKE)
-- On-premises (RKE2)
+- [Azure Kubernetes Service (AKS)](./Deploy-Azure)
+- [AWS Elastic Kubernetes Service (EKS)](./Deploy-AWS)
+- [Google Kubernetes Engine (GKE)](./Deploy-GCP)
+- [On-premises (RKE2, k3s, kubeadm)](./Deploy-On-Premises)
 
-Size the cluster for the base pods plus your analytics task pods. A baseline of 4 vCPU / 8 GB RAM per node worked for 1.x, and Dagster adds to it, so start larger.
+Size the cluster for the base pods plus your analytics task pods. Start with 4 vCPU and 8 GB RAM per node. A task pod gets 500m CPU and 1 GiB of memory by default and may use up to 2 CPU and 4 GiB, and a task spec may ask for up to 4 CPU and 16 GiB. These are `taskCompute.default` and `taskCompute.max`, so size your nodes for the number of tasks you expect to run at once.
 
-The cluster's network plugin (CNI) must **enforce NetworkPolicy**: Calico, Cilium, or your cloud's network policy add-on. The chart denies a task pod all traffic except DNS and its dataset database. On a CNI that ignores NetworkPolicy, that rule does nothing.
+The cluster's network plugin (CNI) must **enforce NetworkPolicy**: Calico, Cilium, or your cloud's network policy add-on. The chart denies a task pod all traffic except cluster DNS, the private address ranges in `taskNetworkPolicy.privateEgress` and the dataset databases you list in `taskNetworkPolicy.datasetEgress`. On a CNI that ignores NetworkPolicy, that rule does nothing.
 
 ### PostgreSQL
 
-The FN needs a PostgreSQL server that the cluster can reach, with an admin login. It needs its own databases on it (nexus-api, Keycloak and Dagster), not your research data. By default the chart creates them for you.
+The FN needs a PostgreSQL server that the cluster can reach, with an admin login. It needs its own databases on it (`fn_nexus` for nexus-api, `keycloak_db` and `dagster`), not your research data. By default the chart creates them and their roles for you, and nexus-api creates its tables on first start.
+
+Have ready the hostname, the port, and the admin login and password. On a managed service (Azure, RDS, Cloud SQL) the admin is not called `postgres`: you set it in `db.superuser`. If the server requires TLS, set `db.enforceSSL`.
 
 If a DBA owns the databases and you have no admin login, the chart can instead use roles and databases that already exist. [Deploy: Core](./Deploy-Core#databases) covers both.
+
+Back up Keycloak's database as well as nexus-api's. They are separate databases on the same server. Restoring only nexus-api's gives you a node that knows its datasets and projects but has lost every login.
 
 ### Shared storage
 
 Task pods and Dagster's run pods write results to the same volume, so it must be **ReadWriteMany**. ReadWriteOnce disks do not work. Supported backends:
 
 - **Azure Files** - for AKS
-- **AWS EFS** - for EKS
-- **NFS** - cloud-agnostic, on-prem friendly
+- **AWS EFS** - for EKS (the EFS CSI driver and an access point are needed)
+- **NFS** - cloud-agnostic, on-prem friendly. On GKE, use Filestore
 - **Local host path** - single node and development only
+
+Google Cloud Storage is not a supported backend. The choice is made at install time and is awkward to change later, because it means recreating the volumes. The per-run result folders are not removed after delivery, so size the volume for the output of every run you expect to keep.
 
 ### A hostname and a certificate
 
-The node needs a DNS name, and a TLS certificate for it (or cert-manager to get one).
+The node needs a DNS name pointing at Traefik, and a TLS certificate for it. Either create the certificate yourself, or have cert-manager get and renew one. The chart's own cert-manager issuer covers Azure DNS and Route 53. Your platform guide says what to do elsewhere.
 
 ### A git host and two repositories
 
@@ -57,7 +63,9 @@ Tasks are asked for through git, so every project needs a **trigger repository**
 
 ### Network access
 
-Outbound HTTPS to `ghcr.io` (images), to your git host (`api.github.com` for GitHub), and to wherever your analytics images live. Nothing needs to call into the node to start a task.
+Outbound HTTPS to `ghcr.io` (images), to your git host (`api.github.com` for GitHub), and to wherever your analytics images live. If the cluster has no internet egress, mirror the FN images and your analytics images into an internal registry.
+
+Nothing needs to call into the node to start a task. Admins who use the API reach nexus-api over HTTPS through Traefik, so one address must be reachable from their workstations or VPN.
 
 
 ## Install the Gateway API and Traefik CRDs
@@ -88,4 +96,9 @@ Git and dataset credentials are not Helm secrets. You register them through the 
 
 ## Next step
 
-Follow [Deploy: Core](./Deploy-Core). The platform guides for [Azure](./1.x-Deploy-Azure), [AWS](./1.x-Deploy-AWS), [GCP](./1.x-Deploy-GCP) and [On-Premises](./1.x-Deploy-On-Premises) were written for 1.x and have not been checked for 2.x.
+Follow [Deploy: Core](./Deploy-Core), which covers the steps common to every platform, and add the guide for your platform alongside it:
+
+- [Deploy: Azure (AKS)](./Deploy-Azure)
+- [Deploy: AWS (EKS)](./Deploy-AWS)
+- [Deploy: GCP (GKE)](./Deploy-GCP)
+- [Deploy: On-Premises](./Deploy-On-Premises)

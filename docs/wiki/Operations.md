@@ -92,6 +92,7 @@ A succeeded task whose results do not appear: check the task's results (`GET /pr
 - The per-run folders on the shared results volume are not removed after delivery. Watch the volume's size.
 - A result over the size cap has no other route: it fails.
 - Cancelling a task, reading its logs through the API, and approving or blocking results are not built.
+- Not built yet: registering container registries and allowing only listed images, permissions per dataset for each user, review of a task before its results leave, and file datasets (DuckDB, SQLite).
 - The Dagster UI has no login. Reach it only by port-forward.
 
 The repo's [known issues](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/QA/known-issues.md) list the open items, with what the node does today.

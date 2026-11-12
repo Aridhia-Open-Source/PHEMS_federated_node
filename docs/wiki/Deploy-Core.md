@@ -1,8 +1,20 @@
 # Deploy: Core
 
-This guide installs the Federated Node 2.x on a cluster you already have. It covers the steps common to **all platforms**. Work through [Prerequisites](./Prerequisites) first.
+This guide installs the Federated Node 2.x on a cluster you already have. It covers the steps common to **all platforms**. Work through [Prerequisites](./Prerequisites) first, then use the guide for your platform alongside this one.
 
-The platform guides ([Azure](./1.x-Deploy-Azure), [AWS](./1.x-Deploy-AWS), [GCP](./1.x-Deploy-GCP) and [On-Premises](./1.x-Deploy-On-Premises)) were written for 1.x and have not been checked for 2.x. Their storage, ingress and TLS sections may still help, but where they disagree with this page, follow this page. Do not reuse a 1.x values file: the 2.x chart has different values (`db.*`, `nodeId`, `dagster`), and no upgrade path from 1.x is documented.
+
+## Platform guides
+
+Each platform has its own prerequisites, storage, database, ingress and DNS, and certificate settings, and its own known issues. This page does not repeat them.
+
+| Platform | Guide | Results storage | Automatic certificates |
+|---|---|---|---|
+| Azure (AKS) | [Deploy: Azure](./Deploy-Azure) | Azure Files (`storage.azure`) | Azure DNS (`certs.azure`) |
+| AWS (EKS) | [Deploy: AWS](./Deploy-AWS) | EFS (`storage.aws`) | Route 53 (`certs.aws`) |
+| Google (GKE) | [Deploy: GCP](./Deploy-GCP) | Filestore over NFS (`storage.nfs`) | Your own cert-manager with Cloud DNS |
+| On-premises (RKE2, k3s, kubeadm) | [Deploy: On-Premises](./Deploy-On-Premises) | NFS (`storage.nfs`), or a local path on one node | Your own certificate or cert-manager |
+
+Everything below applies on every platform.
 
 
 ## 1. Add the Helm repository
@@ -54,7 +66,7 @@ Git and dataset credentials are **not** Helm secrets. You register them through 
 
 ## 4. Write your values file
 
-Start from this example, then add the storage block for your platform. It renders cleanly with `helm template`.
+Start from this example, then replace its `storage` block with the one in your platform guide. It renders cleanly with `helm template`.
 
 ```yaml
 # The public hostname. Needs a DNS record pointing at Traefik, and a certificate.
@@ -83,7 +95,7 @@ firstUserSecret:
   firstName: Admin
   lastName: User
 
-# Shared storage for results. Use ONE of azure, aws, nfs, local (see below).
+# Shared storage for results. Use ONE of azure, aws, nfs, local (see Shared storage below).
 storage:
   capacity: 50Gi
   nfs:
@@ -125,36 +137,38 @@ Things that are easy to get wrong:
 - **Task CPU and memory** come from `taskCompute.default` and `taskCompute.max`. A task spec that asks for more than the max is rejected.
 - Optional: `smoketests: true` lets `helm test` create and delete real rows.
 
-Every value, with comments, is in the chart's [values.yaml](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/k8s/federated-node/values.yaml). There is no 2.x values reference page yet.
+Every value, with comments, is in the chart's [values.yaml](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/k8s/federated-node/values.yaml), and `values.schema.json` beside it says which are required.
 
 ### Shared storage
 
 Set exactly one backend under `storage`. The same volume class is used for task results and for Dagster's artifacts.
 
-| Platform | Values | Also needs |
-|---|---|---|
-| Azure Files (AKS) | `on_aks: true`, `storage.azure.secretName`, `storage.azure.shareName` | The file share exists already, plus the storage secret |
-| AWS EFS (EKS) | `on_eks: true`, `storage.aws.fileSystemId`, optional `accessPointId` | The EFS CSI driver |
-| NFS | `storage.nfs.url`, `.path`, `.provisioner` | The export is writable by uid 1000: `chown 1000:1000` and `chmod 775` |
-| Local path | `storage.local.path`, `.dbpath`, `.artifacts` | Single node only; the pods are pinned to the node that holds the data |
+| Backend | Values | Also needs | Guide |
+|---|---|---|---|
+| Azure Files | `storage.azure.secretName`, `.shareName` | The file share exists already, plus the storage secret | [Azure](./Deploy-Azure#1-storage-azure-files) |
+| AWS EFS | `storage.aws.fileSystemId`, `.accessPointId` (both required) | The EFS CSI driver, and an access point | [AWS](./Deploy-AWS#1-storage-efs) |
+| NFS | `storage.nfs.url`, `.path`, `.provisioner` | The export is writable by uid 1000: `chown 1000:1000` and `chmod 775` | [On-Premises](./Deploy-On-Premises#nfs-recommended-for-multi-node-clusters), [GCP](./Deploy-GCP#1-storage-filestore-over-nfs) |
+| Local path | `storage.local.artifacts` (and `.dbpath` for the chart's own development Postgres) | Single node only; the pods are pinned to the node that holds the data | [On-Premises](./Deploy-On-Premises#local-host-path-single-node-only) |
+
+The schema allows exactly one of `azure`, `aws`, `nfs` and `local`. Google Cloud Storage is not a backend.
 
 Set `storage.nfs.provisioner` (for example `nfs.csi.k8s.io`) even without that driver installed: the chart writes it into the artifacts StorageClass, which is invalid empty.
 
 ### TLS
 
-Either create the `tls` secret yourself (step 3), or let cert-manager renew it: `cert-manager.enabled: true` plus `certs.azure.*` or `certs.aws` for DNS-01. For another CA, run cert-manager yourself and point `tls.secretName` at the secret it produces.
+Either create the `tls` secret yourself (step 3), or let cert-manager renew it. The chart's own issuer exists for Azure DNS and Route 53 only: `cert-manager.enabled: true` plus `certs.azure.*` ([Azure](./Deploy-Azure#4-tls)) or `certs.aws` ([AWS](./Deploy-AWS#4-tls)). For any other CA or DNS provider (GCP, on-premises), run cert-manager yourself and point `tls.secretName` at the secret it produces, and leave `cert-manager.enabled` off. Setting it on a platform with no chart issuer leaves the chart's ClusterIssuer without a solver.
 
 ### Databases
 
-By default the chart manages the databases: three init jobs connect as `db.superuser` and create `backend`, `keycloak_db` and `dagster` with their own roles and generated passwords. Re-running them is harmless.
+By default the chart manages the databases: three init jobs connect as `db.superuser` and create `fn_nexus` (nexus-api), `keycloak_db` and `dagster`, each with its own role and a generated password. Re-running them is harmless. The names come from `nexus.api.db.name`, `keycloak.db.name` and `dagster.postgresql.postgresqlDatabase`.
 
 If a DBA owns the databases and you have no admin login, set `db.manageRolesAndDatabases: false`. The chart then needs no superuser, creates nothing, and each role's password becomes a secret you supply. Install once and it prints the exact SQL and `kubectl` commands for your names. A `db-check` hook verifies the roles before anything else installs.
 
-For ArgoCD, `helm diff`, External Secrets or Vault, set `db.createPasswordSecrets: false` and let that tool own the password secrets. The chart reads them at runtime and never needs the value at render time. The [ArgoCD page](./1.x-Installing-ArgoCD) was written for 1.x and has not been checked for 2.x.
+For `helm diff`, External Secrets, Sealed Secrets or Vault, set `db.createPasswordSecrets: false` and let that tool own the password secrets. The chart reads them at runtime and never needs the value at render time. Left to generate one, a render without cluster access would emit a new password secret every time.
 
 ### Let tasks reach their dataset
 
-The chart puts a NetworkPolicy in the tasks namespace: no traffic in, and out only to DNS and to the databases you list. The list is empty by default, so **a task whose dataset database is not listed times out when it connects**. List each dataset database, by address or by namespace and pod label:
+The chart puts a NetworkPolicy in the tasks namespace: no traffic in, and out only to cluster DNS, to the private address ranges in `taskNetworkPolicy.privateEgress` (`10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16` by default), and to the rules in `taskNetworkPolicy.datasetEgress`. A dataset database on a private address needs no listing. **A task whose dataset database is on any other address, such as a public endpoint, times out when it connects** unless you list it in `datasetEgress`, by address or by namespace and pod label:
 
 ```yaml
 taskNetworkPolicy:
@@ -167,7 +181,7 @@ taskNetworkPolicy:
           port: 5432
 ```
 
-A rule needs both `to` and `ports`, or the chart refuses to render. The policy only works if your cluster's network plugin enforces NetworkPolicy.
+A rule needs both `to` and `ports`, or the chart refuses to render. The policy only works if your cluster's network plugin enforces NetworkPolicy. To manage the tasks namespace's policies yourself, set `taskNetworkPolicy.enabled: false`.
 
 
 ## 5. Install
@@ -210,6 +224,11 @@ kubectl label namespace tasks          pod-security.kubernetes.io/enforce=baseli
 ```
 
 The chart creates a `ClusterRole` for the backend, so the user running `helm install` must be allowed to create cluster roles. The tasks namespace must hold nothing but task pods: the chart refuses to render if `global.namespaces.tasks` is the release or Keycloak namespace.
+
+With the same switch the node's own services refuse traffic from the tasks namespace, and Postgres, nexus-ui, Traefik and Keycloak get no route to the public internet: only cluster DNS, cluster pods and `privateEgress`. Two things follow:
+
+- If your cluster's Kubernetes API server is on a public address, add it to `taskNetworkPolicy.privateEgress`, or Traefik cannot read its routes.
+- If Keycloak must reach an external identity provider, or a database on a public address, set `keycloak.allowExternalEgress: true`.
 
 
 ## Upgrade, uninstall, reinstall
