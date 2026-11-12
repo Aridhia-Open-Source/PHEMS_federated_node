@@ -160,7 +160,7 @@ def show_pull_request(demo, state):
 
 
 def show_results_pr(demo, state):
-    result = get(demo.api, f"/projects/{state['project']['id']}/results/{state['results'][0]['id']}")
+    result = get(demo.api, f"/projects/{state['project']['id']}/results/{state['results'][-1]['id']}")
     return "\n".join(result_lines(demo, result))
 
 
@@ -227,9 +227,9 @@ def trigger_by_pr(ctx, demo):
 
 
 def merge_results_pr(ctx, demo):
-    """The project's first results pull request, looked up when the step runs"""
+    """The latest results pull request, looked up when the step runs"""
     ctx.invoke(
-        merge_results_pr_command, number=snapshot(demo.api, demo.project.name)["results"][0]["number"],
+        merge_results_pr_command, number=snapshot(demo.api, demo.project.name)["results"][-1]["number"],
         context=demo.context, project=demo.project.name,
     )
 
@@ -277,12 +277,12 @@ STEPS = [
         "Merge the results pull request",
         "Merges the PR the task's results were delivered in. The sync sensor records it "
         "as MERGED within about a minute.",
-        "fncli merge-results-pr --project {project} --number \"$(fncli project-show --project {project} | jq '.results[0].number')\"",
+        "fncli merge-results-pr --project {project} --number \"$(fncli project-show --project {project} | jq '.results[-1].number')\"",
         merge_results_pr,
         # The results sync sensor records the merge on one of its ticks
         wait_for=Wait(
             "the results pull request to be recorded as MERGED",
-            lambda state: state["results"][0]["step"] == "MERGED",
+            lambda state: state["results"][-1]["step"] == "MERGED",
             timeout=180,
         ),
         show=show_results_pr,

@@ -449,8 +449,8 @@ def test_a_step_without_a_wait_shows_what_it_made_once(ran, run_demo, monkeypatc
     assert result.output.count("--- now:\nmade by the api") == 1
 
 
-def test_merge_results_pr_gets_the_number_of_the_first_results_pr(ran, monkeypatch):
-    FakeState(monkeypatch, snapshot_of(results=[{"number": 7}, {"number": 5}]))
+def test_merge_results_pr_gets_the_number_of_the_latest_results_pr(ran, monkeypatch):
+    FakeState(monkeypatch, snapshot_of(results=[{"number": 5}, {"number": 7}]))
     monkeypatch.setattr(demo, "merge_results_pr_command", recorder(ran, "merge-results-pr"))
 
     with click.Context(click.Command("demo")) as ctx:
@@ -459,6 +459,15 @@ def test_merge_results_pr_gets_the_number_of_the_first_results_pr(ran, monkeypat
         )
 
     assert ran == [("merge-results-pr", {"number": 7, "context": "the context", "project": "demo-gitea"})]
+
+
+def test_the_merged_wait_follows_the_latest_results_pr_not_an_earlier_runs():
+    merge_step = next(step for step in demo.STEPS if step.title == "Merge the results pull request")
+    earlier_run_merged = snapshot_of(results=[{"step": "MERGED"}, {"step": "OPEN"}])
+    this_run_merged = snapshot_of(results=[{"step": "MERGED"}, {"step": "MERGED"}])
+
+    assert not merge_step.wait_for.done(earlier_run_merged)
+    assert merge_step.wait_for.done(this_run_merged)
 
 
 def test_the_steps_are_the_checks_and_the_pull_request_walk_in_order():
