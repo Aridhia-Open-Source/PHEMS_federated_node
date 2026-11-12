@@ -243,7 +243,8 @@ class FncliBackendAPI(BackendAPI):
         return [ProjectResultsRepository(**a) for a in response.json()]
 
     def get_or_assign_results_repository(
-        self, project_id: int, repo: ResultsRepository, target_dir: str, owned_by_federated_node: bool | None = None
+        self, project_id: int, repo: ResultsRepository, target_dir: str, base_branch: str,
+        owned_by_federated_node: bool | None = None,
     ) -> ProjectResultsRepository:
         """Reuse the project's results repository if there is one, else assign the repository"""
         assignments = self.get_project_results_repositories(project_id)
@@ -253,7 +254,7 @@ class FncliBackendAPI(BackendAPI):
             )
             return assignments[0]
         self.logger.info(f"Assigning results repository {repo.uri} to project {project_id}")
-        data = {"target_dir": target_dir}
+        data = {"target_dir": target_dir, "base_branch": base_branch}
         if owned_by_federated_node is not None:
             data["owned_by_federated_node"] = owned_by_federated_node
         response = self.session.put(f"/projects/{project_id}/repositories/results/{repo.id}", json=data)

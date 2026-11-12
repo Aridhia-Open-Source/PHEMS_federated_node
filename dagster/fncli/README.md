@@ -92,7 +92,7 @@ fncli teardown-backend -y
 - `open-pr`: opens a PR in the trigger repo for the sensor to find. Side effects: a new branch, one new file and a PR in Gitea; with `--merge` the PR is merged, which is what the sensor picks up.
 - `teardown-project -y`: deletes the lot, side effects included: nexus-api project and its assignments, then the global dataset, repositories, git provider (unless another project's repositories are still on it) and secrets (backend and K8s), the Gitea tokens and both Gitea repos with all their PRs. `-y` skips the prompt.
 
-- `setup-backend`: nexus-api only, no Gitea call. Side effects: nexus-api project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global git provider, trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `main`). The project stays disabled: enable it with `project-set --enabled true` once `setup-gitea` has run.
+- `setup-backend`: nexus-api only, no Gitea call. Side effects: nexus-api project, the three global secrets (K8s, holding placeholders: git secrets `{"TOKEN": "unset"}`, the dataset's credentials), the global git provider, trigger repository, results repository and dataset, and the project's assignment of each (the trigger one watching `TEST_TRIGGER_REPO_BASE_BRANCH`, the results one on `TEST_RESULTS_REPO_BASE_BRANCH`). The project stays disabled: enable it with `project-set --enabled true` once `setup-gitea` has run.
 - `setup-gitea`: the Gitea side of an existing backend project, which is the reference (not the `TEST_*_REPO` env vars). Side effects: creates the Gitea repos its trigger and results repository records name, issues a Gitea token for each (`fn-sensor`, `fn-results`), writes it into that record's existing secret and checks Gitea accepts it.
 - `teardown-gitea -y`: deletes the Gitea tokens and repos (with all their PRs) named by the project's backend records. nexus-api is left alone.
 - `teardown-backend -y`: deletes the project (with its assignments), then the global dataset, repositories and secrets (backend and K8s). Gitea is left alone.
@@ -110,7 +110,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 |---|---|
 | `setup-project` | Runs, in order: `init-backend-project`, `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results), `init-dataset-secret`, `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset`, `verify-git-secret` (trigger, results), `project-set --enabled true`, `project-healthcheck` |
 | `open-pr [--kind] [--merge]` | Runs `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, and with `--merge` `merge-gitea-pr` |
-| `setup-backend` | Backend only, no Gitea: `init-backend-project`, `init-backend-secret` (trigger, results, dataset), `init-backend-trigger-repo --base-branch main`, `init-backend-results-repo`, `init-backend-dataset` |
+| `setup-backend` | Backend only, no Gitea: `init-backend-project`, `init-backend-secret` (trigger, results, dataset), `init-backend-trigger-repo`, `init-backend-results-repo`, `init-backend-dataset` (the two repo steps take their branches from `TEST_TRIGGER_REPO_BASE_BRANCH` and `TEST_RESULTS_REPO_BASE_BRANCH`, which must be set) |
 | `teardown-backend [-y]` | Backend only: `delete-backend-project`, then `delete-backend-dataset`, `delete-backend-results-repo`, `delete-backend-trigger-repo`, `delete-secret` (trigger, results, dataset) |
 | `setup-gitea [--project]` | Gitea only, repos taken from the project's backend records (`--from-backend`): `init-gitea-repo` (trigger, results), `init-git-secret` (trigger, results; writes into the record's secret), `verify-git-secret` (trigger, results) |
 | `teardown-gitea [-y] [--project]` | Gitea only, same records: `delete-gitea-token` (trigger, results), `delete-gitea-repo` (trigger, results) |
@@ -132,8 +132,8 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 |---|---|
 | `init-gitea-repo [--entity]` | Finds or creates the repo in Gitea |
 | `delete-gitea-repo [--entity] [-y]` | Deletes the repo from Gitea, after asking. Backend records are left alone |
-| `init-backend-trigger-repo [--base-branch]` | Creates the global git provider (the Gitea host: the API's scheme and the repo uri's host) and then the global trigger repository on it if missing and assigns it to the project (watch_dir, base_branch), so the sensor polls it. Without `--base-branch` the branch is the repo's default branch in Gitea (a Gitea call) |
-| `init-backend-results-repo` | Creates the global git provider if missing and then the global results repository on it if missing and assigns it to the project (target_dir) as its results repository |
+| `init-backend-trigger-repo [--base-branch]` | Creates the global git provider (type from the repo uri's host, github.com is GitHub, any other is Gitea; the API's scheme and the repo uri's host) and then the global trigger repository on it if missing and assigns it to the project (watch_dir, base_branch), so the sensor polls it. `--base-branch`, else `TEST_TRIGGER_REPO_BASE_BRANCH`, is required: it is never guessed from the repo's default branch, so there is no provider call |
+| `init-backend-results-repo [--base-branch]` | Creates the global git provider if missing and then the global results repository on it if missing and assigns it to the project (target_dir, base_branch) as its results repository. `--base-branch`, else `TEST_RESULTS_REPO_BASE_BRANCH`, is required: results pull requests start from it and go into it |
 | `delete-backend-trigger-repo`, `delete-backend-results-repo` | Delete that global repository from nexus-api, and with it every project's assignment of it. The trigger one is refused while any of its assignments has pull requests (delete the project first) |
 | `delete-backend-provider` | Deletes the Gitea git provider from nexus-api, unless a repository (of any project) is still on it, in which case it is left. Run after the two repository deletes |
 
@@ -141,7 +141,7 @@ on its own or re-run after a failure. Deletes of something already gone are logg
 
 | Command | What it does |
 |---|---|
-| `init-git-secret [--entity] [--static-token]` | Stores what nexus-api mints the repo's one-hour git tokens from (ADR 0023) in the repo's K8s secret. Gitea: `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN` of an OAuth2 application named after `GITEA_TOKEN_NAME` / `GITEA_RESULTS_TOKEN_NAME`, created or reused as the Gitea admin user and authorised over HTTP with no browser or prompt (a re-run gives the application a new secret and a new refresh token). With `--static-token`: `TOKEN`, a fresh personal access token (`read:repository` for trigger, `write:repository` for results). GitHub: `APP_ID`, `INSTALLATION_ID` and `PRIVATE_KEY` from `GH_APP_ID`, `GH_INSTALLATION_ID` and `GH_PRIVATE_KEY` if `GH_APP_ID` is set, else `TOKEN` from `GH_TOKEN` |
+| `init-git-secret [--entity] [--static-token]` | Stores what nexus-api mints the repo's one-hour git tokens from (ADR 0023) in the repo's K8s secret. Gitea: `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN` of an OAuth2 application named after `GITEA_TOKEN_NAME` / `GITEA_RESULTS_TOKEN_NAME`, created or reused as the Gitea admin user and authorised over HTTP with no browser or prompt (a re-run gives the application a new secret and a new refresh token). With `--static-token`: `TOKEN`, a fresh personal access token (`read:repository` for trigger, `write:repository` for results). GitHub: `APP_ID`, `INSTALLATION_ID` and `PRIVATE_KEY` from `GH_APP_ID`, `GH_INSTALLATION_ID` and `GH_PRIVATE_KEY` (all three are required there) |
 | `init-backend-secret [--entity trigger\|results\|dataset]` | Creates the global secret in nexus-api (`POST /global/secrets`) with placeholder values (`{"TOKEN": "unset"}`, or the dataset's dummies), with no Gitea call. An existing secret is left alone, so a real token is never overwritten |
 | `init-dataset-secret` | Stores `USERNAME` and `PASSWORD` (`DATASET_USERNAME`, `DATASET_PASSWORD`, default `dummy`) in the dataset's secret (`<dataset>-dataset-creds`) |
 | `verify-git-secret [--entity]` | Asks nexus-api for a token for the repo (`POST /global/repositories/{triggers,results}/{id}/token`, so the repo must be registered) and checks the provider accepts it |
@@ -193,7 +193,7 @@ endpoints (nexus-api trigger repository vs results repository) are separate comm
 
 Each command reads only the env vars it uses,
 all documented in `.dev.env.example`: the existing ones, plus `TEST_RESULTS_REPO`,
-`TEST_RESULTS_REPO_URI`, `TEST_RESULTS_TARGET_DIR`, `GITEA_RESULTS_TOKEN_NAME` (must differ
+`TEST_RESULTS_REPO_URI`, `TEST_RESULTS_TARGET_DIR`, `TEST_TRIGGER_REPO_BASE_BRANCH`, `TEST_RESULTS_REPO_BASE_BRANCH`, `GITEA_RESULTS_TOKEN_NAME` (must differ
 from `GITEA_TOKEN_NAME`), `DEFAULT_PROJECT_DATASET` and `TEST_PR_IMAGE`.
 
 The dataset defaults to a dummy stand-in. These env vars point it at a real database (all optional, defaults in brackets): `CLUSTER_DATASET_HOST` (`db-datasets.experiments.svc`), `DATASET_PORT` (`5432`), `DATASET_TYPE` (`postgres`), `DATASET_SCHEMA` (`cdm`, the read schema), `DATASET_SCHEMA_WRITE` (`results`), `DATASET_USERNAME` and `DATASET_PASSWORD` (`dummy`, stored in the dataset's secret). `fncli experiment setup NAME` sets them for a real experiment.
@@ -208,7 +208,7 @@ check the 409 rules. `KIND` is `trigger`, `results`, `dataset` or `secret`; `--p
 |---|---|
 | `project-show [--project]` | JSON of the project's resources (enabled, revoked, active), their pull requests (state, task), tasks and results. Read-only; stdout is clean JSON, so it pipes into `jq` |
 | `project-set [--enabled true\|false] [--revoked true\|false] [--backfill]` | Enables or disables the project, or revokes or restores it (admin only) (`PATCH /projects/<id>`). A new project is disabled; enabling it skips the pull requests stored while it was off, unless `--backfill` (with `--enabled true`, on a disabled project) creates their triggers |
-| `resource-set KIND --enabled/--revoked true\|false` | Sets the flags of the project's resource for a global resource. `--revoked` is admin only and immediate |
+| `resource-set KIND --enabled/--revoked true\|false [--target-dir DIR] [--base-branch BRANCH]` | Sets the flags of the project's resource for a global resource. `--revoked` is admin only and immediate. `--target-dir` is for the results resource, `--base-branch` for the trigger or results resource |
 | `global-set KIND [--enabled true\|false] [--revoked true\|false]` | Turns the global resource behind the project's resource on or off; `--revoked` (admin only, trigger and results) withdraws it from every project |
 | `secret-set [--entity trigger\|results\|dataset] --enabled true\|false` | Turns a secret on or off. Off also disables the repositories and datasets that use it, and they stay off when it is turned on |
 | `second-project-setup NAME` | Creates a second project assigned the same global resources (secrets, dataset, trigger and results repositories), enabled |
@@ -224,12 +224,12 @@ fncli demo                       # step by step
 fncli demo -y                    # every step without asking (no teardown)
 fncli demo --from 8              # start at step 8, e.g. after a step failed
 cp .demo-github.env.example .demo-github.env
-fncli demo -y --env-file .demo-github.env   # the same on GitHub (phems-sandbox)
+fncli --env-file .demo-github.env demo -y   # the same on GitHub (phems-sandbox)
 ```
 
 It needs the dev cluster with Tilt running and the Dagster sensors already running. The secrets, git provider, repository records and dataset are global (they belong to no project) and only the project's resources for them belong to the project, while the Gitea repos live only in Gitea; each step says which it touches. The demo's own project, repos and dataset names are in `.demo.env`, which overrides `.dev.env`, so it never touches the e2e project; the steps are idempotent, so it can be rerun.
 
-On GitHub (`TEST_GIT_PROVIDER=github`, see `.demo-github.env.example`) the repo must already exist and `GH_TOKEN` in `.dev.env` is stored as both repos' secret, or, if `GH_APP_ID`, `GH_INSTALLATION_ID` and `GH_PRIVATE_KEY` are set (quote the multi-line key in the env file), those are stored instead and the backend mints installation tokens from them; `GH_TOKEN` is still what fncli's own GitHub calls use. fncli never creates or deletes GitHub repos, tokens or Apps. It uses the sensors' own client, `app/github.py`. `GIT_PROVIDER` is not the switch: `.dev.env` sets that for other tools.
+On GitHub (a github.com repo uri, see `.demo-github.env.example`) the repo must already exist and `GH_APP_ID`, `GH_INSTALLATION_ID` and `GH_PRIVATE_KEY` are stored as both repos' secret (quote the multi-line key in the env file), and the backend mints installation tokens from them. fncli works out the provider from the repo uri's host, or from the backend's record once there is one, so there is no provider setting. Everything the node does (reading the repos, `verify-git-secret`, `merge-results-pr`) uses tokens the backend mints, built like Dagster's clients (`GitAPIFactory`). The trigger repo's branches, files and pull requests (`open-pr`, `create-gitea-branch`, `commit-gitea-file`, `create-gitea-pr`, `merge-gitea-pr`) are the researcher's work: on Gitea the admin login, on GitHub `RESEARCHER_GIT_TOKEN`, or else the token of `gh auth login`. fncli never creates or deletes GitHub repos, tokens or Apps. Run another env file over `.dev.env` with `fncli --env-file .demo-github.env <command>` or `FNCLI_ENV_FILE`; `demo` reads `.demo.env` unless one is given.
 
 ## Real experiments
 

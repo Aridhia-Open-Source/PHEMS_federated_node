@@ -116,12 +116,7 @@ class GithubAPI:
         )
         return response.json()
 
-    # fncli's GitHub mode (TEST_GIT_PROVIDER=github) opens and merges pull requests with these,
-    # with the same signatures as fncli.gitea.GiteaAdminAPI.
-
-    def get_repo(self, repo_path: str) -> dict:
-        """The repository: full_name, html_url, default_branch."""
-        return self.client.request("GET", f"repos/{repo_path}").json()
+    # fncli opens and merges pull requests with these, with the same signatures as fncli.gitea.GiteaAdminAPI.
 
     def create_branch(self, repo_path: str, new_branch: str, old_branch: str) -> None:
         """Create new_branch from the head of old_branch."""

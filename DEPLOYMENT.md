@@ -25,7 +25,7 @@ One Helm chart, `k8s/federated-node`, installs:
 | Traefik + Gateway API routes | release namespace | Optional subchart. Serves nexus-api and Keycloak on `host` |
 | cert-manager | `fn-certmanager` | Optional subchart, for certificate renewal |
 | Gitea | release namespace | Optional, `gitea.enabled`. A git host for development only |
-| Task pods | `tasks` | Created per task by Dagster. A NetworkPolicy leaves them DNS and their dataset database only |
+| Task pods | `tasks` | Created per task by Dagster. A NetworkPolicy blocks the public internet: they reach cluster DNS, private address ranges and listed databases |
 | Quarantine | `fn-quarantine` | Holds the value of a disabled secret |
 
 The components and the network between them are drawn in [docs/architecture/flows.md](docs/architecture/flows.md#components-and-network).
@@ -51,7 +51,7 @@ Run these from the repo root.
    cp k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
    ```
 
-2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`), and `DOCKER_TAG` must match the tag in the values file. The file explains every other variable.
+2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`). The file explains every other variable.
 
 3. Fetch the chart's subcharts. `charts/` is gitignored, so a fresh checkout has none and Helm refuses to render.
 
@@ -73,7 +73,7 @@ Run these from the repo root.
    make deploy
    ```
 
-   It claims the dev cluster (see [one owner at a time](#one-owner-at-a-time)), renders the chart as a check, prepares the host directories, builds every image into `localhost:5001`, creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). At the end it prints the database passwords the chart generated.
+   It claims the dev cluster (see [one owner at a time](#one-owner-at-a-time)), renders the chart as a check, prepares the host directories, builds every image into `localhost:5001` (`docker-bake.hcl`; `make image NAME=nexus-api-fn` rebuilds one), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). At the end it prints the database passwords the chart generated.
 
 6. Start Tilt for the port-forwards and live reload.
 
@@ -132,6 +132,8 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 There is one dev cluster and one worktree owns it. `make deploy` and `make upgrade` claim it, `make teardown` releases it. A deploy from another worktree fails while it is owned: tear down from the owner, or rerun with `FORCE_OWNER=1` to take over. `make deploy-owner` shows who owns it.
 
+To start another worktree, run `make worktree NAME=<dir> BRANCH=<branch> [BASE=<ref>]` from this checkout. It creates `../<dir>` and copies over the gitignored `.dev.env`, `dev.values.yaml` and other `.env`/`.yaml` files; then `cd ../<dir> && make helm_deps && make deploy`.
+
 ### Development database passwords
 
 The chart generates every database password and reuses it on each upgrade, so `.dev.env` holds none. Read them with `make show-db-passwords`, or one at a time:
@@ -155,7 +157,7 @@ Production is the same chart with different values: an external Postgres, Traefi
 - A PostgreSQL server the cluster can reach, with an admin login. The FN needs its own databases on it, not your research data. The chart creates them (see [Databases](#databases)).
 - A hostname for the node, and a TLS certificate for it (or cert-manager).
 - `ReadWriteMany` shared storage: Azure Files, AWS EFS, NFS, or a local path (single node only). Dagster task pods and the run pods write results to the same volume, so ReadWriteOnce disks do not work.
-- A CNI that enforces NetworkPolicy (Calico, Cilium or your cloud's network policy add-on; kind's default does). The chart denies a task pod all traffic but DNS and its dataset database, and on a CNI that ignores NetworkPolicy that does nothing.
+- A CNI that enforces NetworkPolicy (Calico, Cilium or your cloud's network policy add-on; kind's default does). By default the chart denies a task pod all ingress and all egress but DNS and private address ranges, and on a CNI that ignores NetworkPolicy that does nothing.
 - Outbound HTTPS to `ghcr.io` (images), to your git host (GitHub: `api.github.com`) and to wherever your analytics images live.
 
 ### 2. Install the CRDs, once per cluster
@@ -377,7 +379,9 @@ kubectl label namespace keycloak       pod-security.kubernetes.io/enforce=restri
 kubectl label namespace tasks          pod-security.kubernetes.io/enforce=baseline
 ```
 
-The chart creates a `ClusterRole` for the backend (pods, PVs, PVCs, jobs, secrets: it creates storage and task pods per task), so the user running `helm install` must be allowed to create cluster roles. With `taskNetworkPolicy.enabled: true` (off by default) the chart also creates a NetworkPolicy in the tasks namespace: no ingress, and egress only to DNS and to the databases you list in `taskNetworkPolicy.datasetEgress`, by address or by namespace and pod label ([ADR 0022](project/decisions/0022-task-isolation.md)). The list is empty by default, so once the policy is on, a task that needs a dataset database times out on connect until you add it. Leave it off to manage policies on the tasks namespace yourself. The tasks namespace must hold nothing but task pods: the chart refuses to render if `global.namespaces.tasks` is the release or Keycloak namespace.
+The chart creates a `ClusterRole` for the backend (pods, PVs, PVCs, jobs, secrets: it creates storage and task pods per task), so the user running `helm install` must be allowed to create cluster roles. The chart also creates a NetworkPolicy in the tasks namespace (`taskNetworkPolicy.enabled`, on by default): no ingress, and no public internet for task pods. Egress goes only to cluster DNS, to the private ranges in `taskNetworkPolicy.privateEgress` (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` by default, so in-cluster and private-network databases need no listing) and to the rules in `taskNetworkPolicy.datasetEgress` ([ADR 0022](project/decisions/0022-task-isolation.md)). A database on a public address (e.g. an Azure SQL public endpoint) must be listed in `datasetEgress`, or a task that needs it times out on connect. Narrow `privateEgress` to your own ranges, or set `taskNetworkPolicy.enabled: false` to manage policies on the tasks namespace yourself. DNS lookups still go through cluster DNS, so low-bandwidth DNS tunnelling remains possible. The tasks namespace must hold nothing but task pods: the chart refuses to render if `global.namespaces.tasks` is the release or Keycloak namespace.
+
+With the same switch the node's own services refuse the tasks namespace, and Postgres, nexus-ui, Traefik and Keycloak get no public internet (cluster DNS, cluster pods and `privateEgress` only; [ADR 0022](project/decisions/0022-task-isolation.md)). Add a public Kubernetes API server address to `taskNetworkPolicy.privateEgress` so Traefik can read its routes, and set `keycloak.allowExternalEgress: true` for an external identity provider or a database on a public address.
 
 ## Upgrade, uninstall, reinstall
 

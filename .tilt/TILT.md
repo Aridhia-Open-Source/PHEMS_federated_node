@@ -158,7 +158,7 @@ Tilt uses the `docker_build_with_restart` extension to:
 3. **K8s Pulls**: Cluster sees imagePullPolicy: Always and fetches new image
 4. **Restart**: Pod restarts with new image
 
-All images are tagged with your configured `DOCKER_TAG` from `.dev.env`.
+Tilt tags each image by a hash of its content, so every change is a new tag. Other dev deploys (`make images`, `deploy.sh`) use the `latest` tag.
 
 ## Services Managed
 

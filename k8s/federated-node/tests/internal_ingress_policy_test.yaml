@@ -1,0 +1,257 @@
+suite: Internal ingress policies (tasks cannot reach the node's own services)
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+templates:
+  - internal-ingress-policy.yaml
+tests:
+  - it: renders by default, for the release namespace and Keycloak's
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: NetworkPolicy
+      - equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+      - notExists:
+          path: spec.egress
+
+  - it: renders nothing when disabled
+    set:
+      taskNetworkPolicy:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: selects only the internal pods that take no traffic from outside, never Traefik
+    documentSelector:
+      path: metadata.name
+      value: federatednode-internal-ingress
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: federatednode
+      - equal:
+          path: spec.podSelector
+          value:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - nexus-api
+                  - postgres
+
+  - it: selects Keycloak in its own namespace
+    documentSelector:
+      path: metadata.name
+      value: federatednode-keycloak-ingress
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: keycloak
+      - equal:
+          path: spec.podSelector
+          value:
+            matchLabels:
+              app: keycloak
+
+  - it: accepts ingress from every namespace except the tasks namespace
+    documentSelector:
+      path: metadata.name
+      value: federatednode-internal-ingress
+    asserts:
+      - equal:
+          path: spec.ingress
+          value:
+            - from:
+                - namespaceSelector:
+                    matchExpressions:
+                      - key: kubernetes.io/metadata.name
+                        operator: NotIn
+                        values:
+                          - tasks
+
+  - it: excludes the tasks namespace from Keycloak's ingress too
+    documentSelector:
+      path: metadata.name
+      value: federatednode-keycloak-ingress
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchExpressions[0].values
+          value:
+            - tasks
+
+  - it: follows global.namespaces.tasks
+    set:
+      global:
+        namespaces:
+          tasks: partner-tasks
+    documentSelector:
+      path: metadata.name
+      value: federatednode-internal-ingress
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchExpressions
+          value:
+            - key: kubernetes.io/metadata.name
+              operator: NotIn
+              values:
+                - partner-tasks
+
+  - it: puts Keycloak's policy in the configured Keycloak namespace
+    set:
+      global:
+        namespaces:
+          keycloak: identities
+    documentSelector:
+      path: metadata.name
+      value: federatednode-keycloak-ingress
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: identities
+
+  - it: leaves Postgres out when the database is not in the chart
+    set:
+      create_db_deployment: false
+    documentSelector:
+      path: metadata.name
+      value: federatednode-internal-ingress
+    asserts:
+      - equal:
+          path: spec.podSelector.matchExpressions[0].values
+          value:
+            - nexus-api
+
+  - it: adds nexus-ui when it is deployed
+    set:
+      nexus:
+        ui:
+          enabled: true
+    documentSelector:
+      path: metadata.name
+      value: federatednode-internal-ingress
+    asserts:
+      - equal:
+          path: spec.podSelector.matchExpressions[0].values
+          value:
+            - nexus-api
+            - nexus-ui
+            - postgres
+
+  - it: leaves nexus-api, nexus-ui and Keycloak open when the chart's Traefik is off
+    set:
+      traefik:
+        enabled: false
+      nexus:
+        ui:
+          enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: federatednode-internal-ingress
+      - equal:
+          path: spec.podSelector.matchExpressions[0].values
+          value:
+            - postgres
+
+  - it: renders nothing when Traefik is off and nothing else is internal-only
+    set:
+      traefik:
+        enabled: false
+      create_db_deployment: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: adds Gitea when it is a ClusterIP service
+    set:
+      gitea:
+        enabled: true
+        admin:
+          user: gitea_admin
+          email: admin@example.com
+          secret:
+            name: gitea-admin
+            key: password
+    documentSelector:
+      path: metadata.name
+      value: federatednode-internal-ingress
+    asserts:
+      - equal:
+          path: spec.podSelector.matchExpressions[0].values
+          value:
+            - nexus-api
+            - postgres
+            - gitea
+
+  - it: leaves Gitea out when its service is reachable from outside
+    set:
+      gitea:
+        enabled: true
+        service:
+          http:
+            type: NodePort
+        admin:
+          user: gitea_admin
+          email: admin@example.com
+          secret:
+            name: gitea-admin
+            key: password
+    documentSelector:
+      path: metadata.name
+      value: federatednode-internal-ingress
+    asserts:
+      - equal:
+          path: spec.podSelector.matchExpressions[0].values
+          value:
+            - nexus-api
+            - postgres
+
+  - it: adds a policy for the Dagster webserver and code server when Dagster is on
+    set:
+      dagster:
+        enabled: true
+        postgresql:
+          postgresqlHost: db.default.svc   # values-local's db.host
+      fnDagster:
+        createDB: true
+    asserts:
+      - hasDocuments:
+          count: 3
+
+  - it: selects the Dagster pods by component, in the release namespace
+    set:
+      dagster:
+        enabled: true
+        postgresql:
+          postgresqlHost: db.default.svc   # values-local's db.host
+      fnDagster:
+        createDB: true
+    documentSelector:
+      path: metadata.name
+      value: federatednode-dagster-ingress
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: federatednode
+      - equal:
+          path: spec.podSelector
+          value:
+            matchExpressions:
+              - key: component
+                operator: In
+                values:
+                  - dagster-webserver
+                  - dagster-code-server
+      - equal:
+          path: spec.ingress[0].from[0].namespaceSelector.matchExpressions[0].values
+          value:
+            - tasks

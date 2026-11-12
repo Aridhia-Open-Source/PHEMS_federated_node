@@ -47,7 +47,7 @@ import pytest
 from requests import HTTPError
 
 from fncli.cmds.actions import SETUP_STEPS, TEARDOWN_STEPS
-from fncli.cmds.common import TriggerRepoConfig, build_admin_backend_api, build_git_api
+from fncli.cmds.common import TriggerRepoConfig, build_admin_backend_api, build_gitea_api
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.secret import verify_gitea_accepts_bearer_token
 from fncli.cmds.state import (
@@ -455,7 +455,7 @@ def failure_text(error: Exception) -> str:
 
 def assert_gitea_accepts(*tokens: str):
     config = TriggerRepoConfig()
-    gitea_repo = init_gitea_repo(config, build_git_api(config))
+    gitea_repo = init_gitea_repo(config, build_gitea_api(config))
     for token in tokens:
         verify_gitea_accepts_bearer_token(config, token, gitea_repo)
 

@@ -304,3 +304,58 @@ def test_a_failing_file_is_a_valid_spec_whose_task_exits_non_zero(config):
     assert path.startswith(config.watch_dir)
     assert spec["env"] == {"PYPIPES_EXIT_CODE": "1"}
     assert "unknown_field" not in spec
+
+
+@pytest.fixture
+def researcher(monkeypatch):
+    """The researcher's client, which the trigger repo's writes must use: never the node's (a token the backend mints)."""
+    researcher = MagicMock()
+    monkeypatch.setattr(pr, "build_researcher_git_api", lambda config: researcher)
+    monkeypatch.setattr(pr, "build_git_api", lambda config: pytest.fail("the trigger repo's writes are the researcher's"))
+    return researcher
+
+
+def test_create_branch_is_the_researchers_off_the_base_branch_in_the_env(researcher, monkeypatch):
+    monkeypatch.setenv("TEST_TRIGGER_REPO_BASE_BRANCH", "release")
+
+    result = CliRunner().invoke(pr.create_gitea_branch_command, ["--branch", "b1"])
+
+    assert result.exit_code == 0, result.output
+    researcher.create_branch.assert_called_once_with("gitea_admin/trigger", "b1", "release")
+
+
+def test_commit_file_is_the_researchers(researcher):
+    result = CliRunner().invoke(pr.commit_gitea_file_command, ["--branch", "b1"])
+
+    assert result.exit_code == 0, result.output
+    assert researcher.create_file.call_args.args[:2] == ("gitea_admin/trigger", "specs/b1.json")
+
+
+def test_create_pr_is_the_researchers_into_the_base_branch_in_the_env(researcher, monkeypatch):
+    monkeypatch.setenv("TEST_TRIGGER_REPO_BASE_BRANCH", "release")
+    researcher.create_pull_request.return_value = {"number": 4, "html_url": "http://gitea/pulls/4"}
+
+    result = CliRunner().invoke(pr.create_gitea_pr_command, ["--branch", "b1"])
+
+    assert result.exit_code == 0, result.output
+    assert researcher.create_pull_request.call_args.kwargs["head_branch"] == "b1"
+    assert researcher.create_pull_request.call_args.kwargs["base_branch"] == "release"
+
+
+def test_without_the_env_var_the_pr_base_branch_is_the_one_the_projects_assignment_watches(monkeypatch):
+    monkeypatch.delenv("TEST_TRIGGER_REPO_BASE_BRANCH", raising=False)
+    backend_api = MagicMock()
+    backend_api.find_repository.return_value = SimpleNamespace(base_branch="develop")
+    monkeypatch.setattr(pr, "build_backend_api", lambda config: backend_api)
+
+    assert pr.get_pr_base_branch(PrConfig()) == "develop"
+    backend_api.find_repository.assert_called_once_with(
+        "http://gitea.fn.svc:3000/gitea_admin/trigger", backend_api.find_project.return_value.id
+    )
+
+
+def test_merge_gitea_pr_is_the_researchers(researcher):
+    result = CliRunner().invoke(pr.merge_gitea_pr_command, ["--number", "4"])
+
+    assert result.exit_code == 0, result.output
+    researcher.merge_pull_request.assert_called_once_with("gitea_admin/trigger", 4)

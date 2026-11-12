@@ -4,7 +4,7 @@
 #   cp dev.example.values.yml dev.values.yaml    # dev.values.yaml is gitignored
 #   ./scripts/cluster.sh up && make deploy
 #
-# Images come from the kind registry at localhost:5001 (scripts/build_all_images.sh).
+# Images come from the kind registry at localhost:5001 (docker-bake.hcl).
 # Everything else comes from values.yaml, including every database password:
 #
 #   make show-db-passwords
@@ -14,10 +14,11 @@
 local_development: true      # http instead of https, in-cluster test URLs
 create_db_deployment: true   # run Postgres in the cluster instead of a managed one
 
-# With the policy on, task pods reach only DNS and the dataset database
-# (templates/task-network-policy.yaml). This allows the dev dataset database, experiments/chart.
+# The task network policy is on by default: task pods reach cluster DNS, the private ranges and
+# datasetEgress (templates/task-network-policy.yaml). The dev dataset database, experiments/chart,
+# is in the private ranges already; this rule names it by pod label so it stays reachable if
+# privateEgress is narrowed.
 taskNetworkPolicy:
-  enabled: true
   datasetEgress:
     - to:
         - namespaceSelector:
@@ -50,12 +51,14 @@ storage:
     dbpath: /data/db                   # postgres data
     artifacts: /data/dagster/artifacts # dagster artifacts volume
 
-# Locally built images; devTag must match DOCKER_TAG in .dev.env. On a real cluster
+# Locally built images. Tilt tags them by content hash and overrides these tags; other dev deploys
+# (make images, deploy.sh) use the latest tag, and the chart pulls with pullPolicy Always (its
+# default), so a redeploy picks up new builds. On a real cluster
 # you set none of this - the chart's images track its appVersion.
 nexus:
   api:
     image: localhost:5001/nexus-api-fn
-    tag: &devTag "v1"
+    tag: &devTag "latest"
   ui:
     enabled: true
     devServer: true                    # Vite with hot reload; Tilt syncs nexus/ui into it

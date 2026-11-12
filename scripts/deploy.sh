@@ -72,7 +72,7 @@ done
 echo
 echo "=== Building Docker Images(s) ========================================"
 
-./scripts/build_all_images.sh $DOCKER_TAG
+scripts/build_images.sh
 
 echo
 echo "=== Creating Namespace ==================================================="

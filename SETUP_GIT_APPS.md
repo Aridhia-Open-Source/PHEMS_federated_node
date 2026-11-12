@@ -18,7 +18,7 @@ the API client.
 4. Store the credentials and register the repositories:
 
 ```bash
-set -a; source .demo-github.env; set +a        # TEST_GIT_PROVIDER=github and the repo URIs
+export FNCLI_ENV_FILE=.demo-github.env          # the repo URIs: github.com makes fncli use GitHub
 export GH_APP_ID=<app id> GH_INSTALLATION_ID=<installation id>
 export GH_PRIVATE_KEY="$(cat path/to/key.pem)"
 fncli init-git-secret --entity trigger

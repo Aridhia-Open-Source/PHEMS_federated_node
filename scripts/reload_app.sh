@@ -4,11 +4,8 @@ set -euo pipefail
 # Load env
 source .dev.env
 
-echo "=== Building Dagster image ==="
-./scripts/build_image.sh dagster "$DOCKER_TAG"
-
-echo "=== Building nexus-api image ==="
-./scripts/build_image.sh nexus/api "$DOCKER_TAG" nexus-api-fn
+echo "=== Building Dagster and nexus-api images ==="
+scripts/build_images.sh dagster-fn nexus-api-fn
 
 echo
 echo "=== Restarting Dagster pods ==="

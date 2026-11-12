@@ -188,6 +188,11 @@
                         }
                     }
                 },
+                "allowExternalEgress": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Leave Keycloak's egress unrestricted. By default (with taskNetworkPolicy.enabled) its pods reach only cluster DNS, pods in the cluster and taskNetworkPolicy.privateEgress, so set true for an external identity provider or a database on a public address."
+                },
                 "manageRealm": {
                     "type": "boolean",
                     "default": true,
@@ -346,12 +351,19 @@
         },
         "taskNetworkPolicy": {
             "type": "object",
-            "description": "Network access of task pods. When enabled, the tasks namespace denies all ingress, and all egress except DNS and datasetEgress",
+            "description": "Network access of task pods. On by default: the tasks namespace denies all ingress, and all egress except DNS, privateEgress and datasetEgress, so task pods cannot reach the public internet",
             "properties": {
                 "enabled": {
                     "type": "boolean",
-                    "default": false,
-                    "description": "Create the NetworkPolicy in the tasks namespace. Off by default: leave it off to manage policies there yourself (e.g. Azure SQL redirect mode, or private endpoints whose IPs change). When on, each database must be listed in datasetEgress"
+                    "default": true,
+                    "description": "Create the NetworkPolicy in the tasks namespace, and the policies that shut the node's own services (Postgres, Gitea, Dagster and, behind the chart's Traefik, nexus-api, nexus-ui and Keycloak) to the tasks namespace and keep Postgres, nexus-ui, Traefik and Keycloak off the public internet. On by default. Set false to manage policies yourself (e.g. Azure SQL redirect mode, or private endpoints whose IPs change). A database on a public address must be listed in datasetEgress"
+                },
+                "privateEgress": {
+                    "type": "array",
+                    "description": "Private address ranges (CIDRs) task pods may reach on any port. Defaults to 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16, which cover in-cluster pod and Service IPs on most clusters. Narrow it, or set [] to allow DNS and datasetEgress only",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "dns": {
                     "type": "array",
@@ -359,7 +371,7 @@
                 },
                 "datasetEgress": {
                     "type": "array",
-                    "description": "NetworkPolicy egress rules for the dataset databases task pods may reach. Every rule needs both `to` and `ports`. Empty by default: a task that needs a database times out on connect",
+                    "description": "NetworkPolicy egress rules for dataset databases on public addresses, which privateEgress does not cover. Every rule needs both `to` and `ports`. Empty by default",
                     "items": {
                         "type": "object"
                     }
