@@ -18,7 +18,7 @@ check_owner() {
   here="$(git rev-parse --show-toplevel)"
   owner="$(kubectl get configmap "$CM" -n "$NS" -o jsonpath='{.data.worktree}' --ignore-not-found)"
   if [ -n "$owner" ] && [ "$owner" != "$here" ] && [ "${FORCE_OWNER:-}" != "1" ]; then
-    echo "dev cluster is owned by $(field branch) ($owner) since $(field at). Tear it down from there, or rerun with `mise run deploy --force-owner` to take it over." >&2
+    echo "dev cluster is owned by $(field branch) ($owner) since $(field at). Tear it down from there, or rerun with 'mise run deploy --force-owner' to take it over." >&2
     exit 1
   fi
 }
