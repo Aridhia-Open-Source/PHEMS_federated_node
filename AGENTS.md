@@ -38,11 +38,11 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
 
 Run from the repo root. First-time setup (`.dev.env`, `dev.values.yaml`) is in `DEPLOYMENT.md` ("Run it locally").
 
-1. Cluster: `make cluster up` / `make cluster down` (`scripts/cluster.sh`) create or delete the kind cluster `fn` and the local registry at `localhost:5001`. Run `make helm_deps` once first (`charts/` is gitignored).
+1. Cluster (human developers only): `make cluster up` / `make cluster down` (`scripts/cluster.sh`) create or delete the kind cluster `fn` and the local registry at `localhost:5001`. Agents never run these, nor `make nuke`; they work against a cluster that already exists. Run `make helm_deps` once first (`charts/` is gitignored).
 2. Release:
    - `make deploy` - build all images and `helm install` with dev values (claims the cluster for this worktree).
    - `make upgrade` - helm upgrade after chart changes, then restart the app deployments.
-   - `make teardown` - remove the release and its data, keep the cluster; `make nuke` - teardown, new cluster, deploy.
+   - `make teardown` - remove the release and its data, keep the cluster; `make nuke` - teardown, new cluster, deploy (human developers only).
    - `make deploy-owner` - which worktree owns the cluster; `make show-db-passwords` - generated DB passwords.
 3. Tilt: `make tilt-up` (or `tilt up`), `make tilt-down`.
    - Live reload: edits in `nexus/api/app/` and `dagster/app/` are synced and the process restarts.
@@ -50,6 +50,12 @@ Run from the repo root. First-time setup (`.dev.env`, `dev.values.yaml`) is in `
    - Port-forwards: nexus-api `localhost:5000` (docs at `/docs`), nexus-ui `8088`, Dagster UI `3000`, Gitea `4000`, Keycloak `8080`, Postgres `5432`, Tilt dashboard `10350`.
    - Wait for readiness: `tilt wait --for=condition=Ready uiresource/nexus-api --timeout=180s`.
 4. Typical loop: edit code -> Tilt reloads the pod -> run the unit tests for what you changed -> widen to the package suite.
+
+### Worktrees and cluster ownership
+
+- Work in a git worktree per branch: `make worktree NAME=<dir> BRANCH=<branch> [BASE=<ref>]` creates a sibling worktree and copies in the gitignored dev config (`.dev.env`, `dev.values.yaml`).
+- One worktree owns the shared dev cluster at a time (`scripts/deploy_owner.sh claim|check|show|release`). `make deploy` and `make upgrade` claim it and refuse if another worktree owns it.
+- Before deploy, upgrade or teardown, check `make deploy-owner`. Never take over another worktree's cluster (`FORCE_OWNER=1`) without asking.
 
 Testing rule: first run only the unit tests for the files or package you changed. Widen to the full package suite only when those pass or the change is cross-cutting. Do not run the e2e suites unless explicitly asked: they need a deployed cluster and take a long time.
 
