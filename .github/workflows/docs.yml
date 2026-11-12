@@ -39,10 +39,11 @@ jobs:
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    # Shared with the release job in build.yml: both push to gh-pages
+    # One docs deploy at a time; the newest wins. The chart release (build.yml) also pushes
+    # gh-pages, so the deploy retries on a rejected push instead of sharing a lock with it.
     concurrency:
-      group: gh-pages
-      cancel-in-progress: false
+      group: docs-deploy
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,5 +62,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Deploy 1.x to gh-pages docs/manual
         run: |
-          mike deploy --deploy-prefix docs/manual --push --update-aliases 1.x
-          mike set-default --deploy-prefix docs/manual --push 1.x
+          # Commit onto the latest gh-pages and push; if the release job pushed in between,
+          # start again from the new gh-pages, up to 5 times.
+          for attempt in 1 2 3 4 5; do
+            git fetch origin gh-pages --depth=1
+            git branch -f gh-pages FETCH_HEAD
+            mike deploy --deploy-prefix docs/manual --update-aliases 1.x
+            mike set-default --deploy-prefix docs/manual 1.x
+            if git push origin gh-pages; then
+              exit 0
+            fi
+            echo "gh-pages moved, retrying ($attempt/5)"
+            sleep $((attempt * 5))
+          done
+          exit 1

@@ -222,9 +222,6 @@ jobs:
       DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   release:
     uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
-    concurrency:
-      group: gh-pages
-      cancel-in-progress: false
     if: always() && !failure() && !cancelled()
     needs:
       - init
