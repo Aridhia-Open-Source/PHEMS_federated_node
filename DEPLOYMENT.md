@@ -4,7 +4,7 @@ How to run the Federated Node (FN) on your own machine, and how to deploy it to 
 
 This guide is for the 2.x chart (the Dagster line). Once the node is up, set up your first project with [MANAGEMENT.md](MANAGEMENT.md).
 
-The [wiki](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki) still has useful platform pages (Azure, AWS, GCP, on-premises storage and TLS). But its **Deploy: Core** page describes the 1.x chart (a single `db.name`, a `fn-db-secret` you create, a Postgres you provide). Where the wiki and this page disagree, follow this page.
+The [wiki](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki) has a deploy page per platform: [Azure](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-Azure), [AWS](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-AWS), [GCP](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-GCP) and [On-Premises](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-On-Premises). Follow the page for your provider together with [Deploy-Core](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-Core). The platform pages are marked untested; where one disagrees with this page, follow this page.
 
 - [What gets deployed](#what-gets-deployed)
 - [Run it locally](#run-it-locally)
@@ -357,7 +357,7 @@ Set exactly one backend under `storage`. The same volume class is used for task 
 | NFS | `storage.nfs.url`, `.path`, `.provisioner` | The export is writable by uid 1000: `chown 1000:1000` and `chmod 775` |
 | Local path | `storage.local.path`, `.dbpath`, `.artifacts` | Single node only; the pods are pinned to the node that holds the data |
 
-Set `storage.nfs.provisioner` (for example `nfs.csi.k8s.io`) even without that driver installed: the chart writes it into the artifacts StorageClass, which is invalid empty. The wiki's per-platform pages have the full walk-throughs for [Azure](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-Azure), [AWS](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-AWS), [GCP](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-GCP) and [on-premises](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-On-Premises) (MetalLB or NodePort for Traefik, an existing ingress controller, pod security labels). Take only their storage, ingress and TLS parts.
+Set `storage.nfs.provisioner` (for example `nfs.csi.k8s.io`) even without that driver installed: the chart writes it into the artifacts StorageClass, which is invalid empty. The wiki has a full walk-through per platform: [Azure](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-Azure), [AWS](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-AWS), [GCP](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-GCP) and [on-premises](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-On-Premises) (MetalLB or NodePort for Traefik, an existing ingress controller, pod security labels). Follow the page for your provider together with [Deploy-Core](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Deploy-Core).
 
 #### TLS
 
@@ -365,11 +365,11 @@ Either create the `tls` secret yourself (step 4), or let cert-manager renew it: 
 
 #### Databases
 
-By default the chart manages the databases: three init jobs connect as `db.superuser` and create `backend`, `keycloak_db` and `dagster` with their own roles and generated passwords. Re-running them is harmless.
+By default the chart manages the databases: three init jobs connect as `db.superuser` and create `fn_nexus`, `keycloak_db` and `dagster` with their own roles and generated passwords. Re-running them is harmless.
 
 If a DBA owns the databases and you have no admin login, set `db.manageRolesAndDatabases: false`. The chart then needs no superuser, creates nothing, and each role's password becomes a secret you supply. Install once and it prints the exact SQL and `kubectl` commands for your names. A `db-check` hook verifies the roles before anything else installs.
 
-For ArgoCD, `helm diff`, External Secrets or Vault, set `db.createPasswordSecrets: false` and let that tool own the password secrets. The chart reads them at runtime and never needs the value at render time. See the wiki's [Installing ArgoCD](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Installing-ArgoCD).
+For ArgoCD, `helm diff`, External Secrets or Vault, set `db.createPasswordSecrets: false` and let that tool own the password secrets. The chart reads them at runtime and never needs the value at render time.
 
 ### 6. Install
 
