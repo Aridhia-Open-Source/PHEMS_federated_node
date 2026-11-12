@@ -10,10 +10,16 @@
   },
   "runArgs": ["--network=host"],
   "mounts": [
-    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube,type=bind"
+    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube,type=bind",
+    // Installed tools survive rebuilds and are shared by every worktree's container
+    "source=fn-mise-data,target=/home/vscode/.local/share/mise,type=volume"
   ],
+  // Venvs go to the container's home (mise.devcontainer.toml), not the shared checkout
+  "containerEnv": { "MISE_ENV": "devcontainer" },
+  // mise's tools on PATH for non-interactive shells too
+  "remoteEnv": { "PATH": "/home/vscode/.local/share/mise/shims:${containerEnv:PATH}" },
   "remoteUser": "vscode",
-  "postCreateCommand": "mise trust --all && mise run setup",
+  "postCreateCommand": "sudo apt-get update -qq && sudo apt-get install -y -qq libpq-dev build-essential && sudo chown -R vscode /home/vscode/.local/share/mise && mise trust --all && mise run setup",
   "customizations": {
     "vscode": {
       "extensions": ["ms-python.python", "ms-kubernetes-tools.vscode-kubernetes-tools"]
