@@ -75,6 +75,15 @@ class TaskLaunchDTO(DTO):
     dataset: DatasetDTO | None
 
 
+class TaskResourcesDTO(DTO):
+    """
+    The names of the Secret and the ConfigMap made for a run, null for the one it does not need: the Secret
+    only for a task with a dataset, the ConfigMap only for a task with a config. See tasks_api.create_run_resources.
+    """
+    secret: str | None
+    config_map: str | None
+
+
 class NewTaskDTO(DTO):
     """
     The columns of a Task that has yet to be created.

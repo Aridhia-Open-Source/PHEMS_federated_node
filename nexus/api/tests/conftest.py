@@ -215,7 +215,22 @@ def v1_mock(mocker):
         ),
         "create_namespaced_secret_mock": mocker.patch(
             'app.helpers.kubernetes.KubernetesClient.create_namespaced_secret'
+        ),
+        "create_namespaced_config_map_mock": mocker.patch(
+            'app.helpers.kubernetes.KubernetesClient.create_namespaced_config_map'
         )
+    }
+
+
+@fixture(autouse=True)
+def run_resources_deletes(mocker, k8s_config):
+    """
+    What a task reaching SUCCESS, FAILED or CANCELED deletes in the tasks namespace (its run's Secret and
+    ConfigMap, by label), for every test that PATCHes a task to one of them.
+    """
+    return {
+        "secrets": mocker.patch('app.helpers.kubernetes.KubernetesClient.delete_collection_namespaced_secret'),
+        "config_maps": mocker.patch('app.helpers.kubernetes.KubernetesClient.delete_collection_namespaced_config_map'),
     }
 
 

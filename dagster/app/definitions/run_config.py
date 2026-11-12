@@ -1,18 +1,10 @@
 from pydantic import BaseModel
 
-from app.models import Dataset, SecretProviderType, TaskSpec
-
-
-class PipesSecretConfig(BaseModel):
-    """Where a dataset's secret is: the store that holds it and what it is called there."""
-
-    provider: SecretProviderType
-    key: str
-    namespace: str | None
+from app.models import Dataset, TaskSpec
 
 
 class PipesDatasetConfig(BaseModel):
-    """The dataset a task runs against, as k8s_pipes_op takes it."""
+    """The dataset a task runs against, as k8s_pipes_op takes it. Its credentials are not here: nexus-api puts them in the run's Secret."""
 
     name: str
     host: str
@@ -20,7 +12,6 @@ class PipesDatasetConfig(BaseModel):
     type: str
     read_schema: str | None
     write_schema: str | None
-    secret: PipesSecretConfig
 
 
 class K8sPipesOpConfig(BaseModel):

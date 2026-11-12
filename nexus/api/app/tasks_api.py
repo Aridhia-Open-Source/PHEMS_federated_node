@@ -15,6 +15,7 @@ tasks-related endpoints, under the project that owns the tasks. A task of anothe
 - GET /projects/<project_id>/tasks/<task_id>/trigger (the pull request that yielded the task, 404 if none)
 - GET /projects/<project_id>/tasks/<task_id>/config (whether the configuration the task was created under still holds)
 - POST /projects/<project_id>/tasks/<task_id>/launch (the launcher's one call: decides, fails the task or returns the run inputs; a task not PENDING: 409)
+- POST /projects/<project_id>/tasks/<task_id>/runs/<run_id>/resources (the run's Secret and ConfigMap in the tasks namespace, returns their names; they already exist: 409)
 """
 from datetime import datetime as dt
 from http import HTTPStatus
@@ -31,13 +32,15 @@ from app.helpers.exceptions import (
 )
 from app.helpers.keycloak import Keycloak  # noqa: F401  patched by tests/conftest.py
 from app.helpers.project_state import require_accepts_tasks
+from app.helpers.kubernetes_names import validate_dns_label
 from app.helpers.state_rules import transition
 from app.helpers.task_config import decide_launch
+from app.helpers.task_resources import create_run_resources, delete_run_resources
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
 from app.dtos.dataset import DatasetDTO
 from app.dtos.base import page_of
-from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO
+from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskResourcesDTO
 from app.dtos.trigger_repository import TaskTriggerDTO
 from app.dtos.result import PullRequestResultDTO, dump_result
 from app.models.api_request_trigger import ApiRequestTrigger
@@ -160,6 +163,9 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
     PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.
     A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
     status again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.
+    A task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see
+    helpers/task_resources): before the status is saved, so that a failed delete leaves the task as it was and
+    the next PATCH retries it.
     """
     task = get_project_task(project_id, task_id)
 
@@ -198,6 +204,10 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
                 setattr(task, field, dt.fromisoformat(body[field].rstrip('Z')))
             except (ValueError, AttributeError):
                 raise InvalidRequest(f"{field} must be a valid ISO 8601 datetime string")
+
+    # A task that never ran has no run id and nothing to delete
+    if 'status' in body and not TASK_MOVES[task.status] and task.executor_run_id:
+        delete_run_resources(task.executor_run_id)
 
     db.session.commit()
     return TaskDTO.from_model(task)
@@ -373,6 +383,26 @@ def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_call
         "outcome": "launch", "cause": None, "task": TaskDTO.from_model(task).dump(),
         "dataset": DatasetDTO.from_model(dataset).dump() if dataset else None,
     }
+
+
+@router.post(
+    '/{task_id}/runs/{run_id}/resources', status_code=HTTPStatus.CREATED, response_model=TaskResourcesDTO,
+    dependencies=[Depends(require_scope('can_admin_dataset')), Depends(system_only)]
+)
+def post_run_resources(project_id: int, task_id: int, run_id: str, caller: Caller = Depends(get_caller)):
+    """
+    POST /projects/<project_id>/tasks/id/runs/<run_id>/resources endpoint. Called by the run before it starts the
+    task pod. Creates, in the tasks namespace, the Secret of the task's dataset credentials (if it has a dataset)
+    and the ConfigMap of its config file (if it has a config), named task-<task id>-<run id> (the ConfigMap with
+    -config) and labelled fn/run_id and fn/task_id. Returns their names, null for one the task does not need.
+    Deleted when the task reaches SUCCESS, FAILED or CANCELED (see patch_task). They are never replaced: a name
+    that is taken is a 409. The credentials are read here and go to the Secret, not to the caller.
+    """
+    task = get_project_task(project_id, task_id)
+    does_user_own_task(task, caller)
+    # It becomes part of the objects' names and label values
+    validate_dns_label(run_id, "run_id")
+    return create_run_resources(task, run_id)
 
 
 @router.get(

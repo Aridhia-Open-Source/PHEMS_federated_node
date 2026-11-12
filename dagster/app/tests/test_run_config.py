@@ -28,7 +28,6 @@ DATASET_FIELDS = {
         "type": "postgres",
         "read_schema": "cdm",
         "write_schema": "results",
-        "secret": {"provider": "K8S", "key": "cdm-creds-abc", "namespace": "fn"},
     }
 }
 

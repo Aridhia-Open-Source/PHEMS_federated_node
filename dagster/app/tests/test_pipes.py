@@ -1,13 +1,10 @@
-import base64
 import os
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-from kubernetes.client import ApiException
 
 from app.definitions import pipes
-from app.secrets import K8sSecretProvider
+from app.models import TaskResources
 from app.definitions.pipes import (
     K8sPipe,
     K8sPipesResponse,
@@ -39,9 +36,11 @@ DATASET_CONFIG = {
         "type": "postgres",
         "read_schema": "cdm_schema",
         "write_schema": "results",
-        "secret": {"provider": "K8S", "key": "db-host-cdm-creds", "namespace": "fn"},
     }
 }
+
+# What nexus-api answers when the run asks for its Secret and ConfigMap: their names, for the pod's spec
+RESOURCES = TaskResources(secret="task-9-run-1", config_map="task-9-run-1-config")
 
 
 @pytest.fixture
@@ -52,49 +51,52 @@ def pipes_env(monkeypatch):
         monkeypatch.delenv(key, raising=False)
 
 
-def make_pipe(client=None, ext_env=None, **config):
+def make_pipe(client=None, backend_api=None, ext_env=None, **config):
     context = MagicMock()
     context.run_id = "run-1"
-    context.dagster_run.tags = {"fn/task_id": "9"}
+    context.dagster_run.tags = {"fn/task_id": "9", "fn/project_id": "3"}
     context.op_config = {"docker_image": "ghcr.io/org/experiment:latest", **config}
-    return K8sPipe(client=client or MagicMock(), context=context, ext_env=ext_env)
+    if backend_api is None:
+        backend_api = MagicMock()
+        backend_api.create_task_resources.return_value = RESOURCES
+    return K8sPipe(client=client or MagicMock(), backend_api=backend_api, context=context, ext_env=ext_env)
 
 
 class TestBasePodSpec:
     def test_task_pod_gets_no_service_account_token(self, pipes_env):
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["automountServiceAccountToken"] is False
         assert "serviceAccountName" not in spec
 
     def test_pod_defaults(self, pipes_env):
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["restartPolicy"] == "Never"
         assert spec["terminationGracePeriodSeconds"] == TERMINATION_GRACE_PERIOD_SECONDS
         assert spec["containers"][0]["imagePullPolicy"] == "Always"
 
     def test_no_image_pull_secrets_without_one_configured(self, pipes_env):
-        assert "imagePullSecrets" not in make_pipe()._build_base_pod_spec()
+        assert "imagePullSecrets" not in make_pipe()._build_base_pod_spec(RESOURCES)
 
     def test_image_pull_secrets_from_config(self, pipes_env):
-        spec = make_pipe(image_pull_secret="ghcr-io")._build_base_pod_spec()
+        spec = make_pipe(image_pull_secret="ghcr-io")._build_base_pod_spec(RESOURCES)
 
         assert spec["imagePullSecrets"] == [{"name": "ghcr-io"}]
 
     def test_no_security_context_when_unset(self, pipes_env):
-        assert "securityContext" not in make_pipe()._build_base_pod_spec()
+        assert "securityContext" not in make_pipe()._build_base_pod_spec(RESOURCES)
 
     def test_security_context_from_env(self, pipes_env, monkeypatch):
         monkeypatch.setenv("DAGSTER_PIPES_RUN_AS_USER", "1001")
         monkeypatch.setenv("DAGSTER_PIPES_FS_GROUP", "2001")
 
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["securityContext"] == {"fsGroup": 2001, "runAsUser": 1001}
 
     def test_volume_is_the_artifacts_claim_mounted_at_the_runs_folder_only(self, pipes_env):
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["volumes"] == [{
             "name": "artifacts-pvc",
@@ -107,7 +109,7 @@ class TestBasePodSpec:
         }]
 
     def test_pod_is_killed_at_its_deadline(self, pipes_env):
-        assert make_pipe()._build_base_pod_spec()["activeDeadlineSeconds"] == 21600
+        assert make_pipe()._build_base_pod_spec(RESOURCES)["activeDeadlineSeconds"] == 21600
 
     def test_missing_deadline_is_not_defaulted(self, pipes_env, monkeypatch):
         monkeypatch.delenv("DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS")
@@ -116,7 +118,7 @@ class TestBasePodSpec:
             make_pipe()
 
     def test_container_is_locked_down(self, pipes_env):
-        container = make_pipe()._build_base_pod_spec()["containers"][0]
+        container = make_pipe()._build_base_pod_spec(RESOURCES)["containers"][0]
 
         assert container["securityContext"] == {
             "allowPrivilegeEscalation": False,
@@ -127,17 +129,17 @@ class TestBasePodSpec:
 
     def test_the_container_has_no_resources_of_its_own(self, pipes_env):
         """The spec has none to pass."""
-        assert "resources" not in make_pipe()._build_base_pod_spec()["containers"][0]
+        assert "resources" not in make_pipe()._build_base_pod_spec(RESOURCES)["containers"][0]
 
     def test_container_is_named_for_the_run(self, pipes_env):
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["containers"][0]["name"] == "pipes-run-1"
 
     def test_a_dataset_task_has_its_limits_hardening_run_folder_and_secret_env_together(self, pipes_env):
         resources = {"limits": {"cpu": "1", "memory": "2Gi"}}
 
-        spec = make_pipe(resources=resources, **DATASET_CONFIG)._build_base_pod_spec()
+        spec = make_pipe(compute=resources, **DATASET_CONFIG)._build_base_pod_spec(RESOURCES)
 
         container = spec["containers"][0]
         names = [e["name"] for e in container["env"]]
@@ -146,7 +148,7 @@ class TestBasePodSpec:
         assert spec["activeDeadlineSeconds"] == 21600
         assert container["volumeMounts"][0]["subPath"] == "run-1"
         assert container["env"][names.index("DB_PASSWORD")]["valueFrom"]["secretKeyRef"] == {
-            "name": "task-9", "key": "PASSWORD"
+            "name": "task-9-run-1", "key": "PASSWORD"
         }
         assert names[-3:] == ["DB_USERNAME", "DB_PASSWORD", "CONNECTION_STRING"]
 
@@ -228,32 +230,28 @@ class TestEnvironment:
         assert pipe.env["KEY"] == "external"
 
     def test_pod_env_keys_are_upper_cased_strings(self, pipes_env):
-        env = make_pipe(env={"lower": 1})._pod_env()
+        env = make_pipe(env={"lower": 1})._pod_env(RESOURCES)
 
         assert {"name": "LOWER", "value": "1"} in env
 
     def test_no_connection_string_without_a_dataset(self, pipes_env):
-        names = [e["name"] for e in make_pipe()._pod_env()]
+        names = [e["name"] for e in make_pipe()._pod_env(RESOURCES)]
 
         assert "CONNECTION_STRING" not in names
 
-    def test_credentials_come_from_the_task_secret_not_the_pod_spec(self, pipes_env):
-        pipe = make_pipe(**DATASET_CONFIG)
+    def test_credentials_come_from_the_secret_nexus_api_made_not_the_pod_spec(self, pipes_env):
+        env = make_pipe(**DATASET_CONFIG)._pod_env(RESOURCES)
 
-        with patch.object(pipes.SecretProvider, "get") as secret:
-            env = pipe._pod_env()
-
-        secret.assert_not_called()
         names = [e["name"] for e in env]
         assert env[names.index("DB_USERNAME")] == {
-            "name": "DB_USERNAME", "valueFrom": {"secretKeyRef": {"name": "task-9", "key": "USERNAME"}}
+            "name": "DB_USERNAME", "valueFrom": {"secretKeyRef": {"name": "task-9-run-1", "key": "USERNAME"}}
         }
         assert env[names.index("DB_PASSWORD")] == {
-            "name": "DB_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "task-9", "key": "PASSWORD"}}
+            "name": "DB_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "task-9-run-1", "key": "PASSWORD"}}
         }
 
     def test_connection_string_refers_to_the_secret_variables_defined_before_it(self, pipes_env):
-        env = make_pipe(**DATASET_CONFIG)._pod_env()
+        env = make_pipe(**DATASET_CONFIG)._pod_env(RESOURCES)
 
         names = [e["name"] for e in env]
         connstr = env[names.index("CONNECTION_STRING")]["value"]
@@ -262,16 +260,6 @@ class TestEnvironment:
         )
         assert names.index("DB_USERNAME") < names.index("CONNECTION_STRING")
         assert names.index("DB_PASSWORD") < names.index("CONNECTION_STRING")
-
-    def test_the_credentials_are_read_from_the_dataset_secret(self, pipes_env):
-        pipe = make_pipe(**DATASET_CONFIG)
-
-        with patch.object(pipes.SecretProvider, "get", side_effect=["user", "pass"]) as secret:
-            creds = pipe._get_dataset_creds()
-
-        assert creds == {"USERNAME": "user", "PASSWORD": "pass"}
-        assert secret.call_args_list[0].args == ("db-host-cdm-creds", "fn", "USERNAME")
-        assert secret.call_args_list[1].args == ("db-host-cdm-creds", "fn", "PASSWORD")
 
     @pytest.mark.parametrize("db_type, expected", [
         ("mssql", "driver={ODBC Driver 18 for SQL Server};Uid=u;Pwd=p;Server=db.host,5432;Database=cdm;"),
@@ -337,25 +325,18 @@ class TestArtifactDir:
 TASK_CONFIG = {"threshold": 0.5, "labels": ["a", None], "nested": {"on": True}}
 
 
-@pytest.fixture
-def core_api():
-    """The Kubernetes API the pipe talks to, and the in-cluster config loader it calls first."""
-    with patch.object(pipes, "load_incluster_config"), patch.object(pipes, "CoreV1Api") as api_class:
-        yield api_class.return_value
-
-
 class TestTaskConfigPod:
     def test_a_task_without_config_gets_no_volume_mount_or_env_var(self, pipes_env):
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert [volume["name"] for volume in spec["volumes"]] == ["artifacts-pvc"]
         assert [mount["name"] for mount in spec["containers"][0]["volumeMounts"]] == ["artifacts-pvc"]
         assert "CONFIG_PATH" not in [env["name"] for env in spec["containers"][0]["env"]]
 
     def test_the_config_is_one_read_only_file_from_the_tasks_configmap(self, pipes_env):
-        spec = make_pipe(config=TASK_CONFIG)._build_base_pod_spec()
+        spec = make_pipe(config=TASK_CONFIG)._build_base_pod_spec(RESOURCES)
 
-        assert spec["volumes"][1] == {"name": "task-config", "configMap": {"name": "task-9-config"}}
+        assert spec["volumes"][1] == {"name": "task-config", "configMap": {"name": "task-9-run-1-config"}}
         assert spec["containers"][0]["volumeMounts"][1] == {
             "name": "task-config", "mountPath": "/etc/task/config.json", "subPath": "config.json", "readOnly": True,
         }
@@ -367,98 +348,9 @@ class TestTaskConfigPod:
         assert pipe.env["CONFIG_PATH"] == "/etc/task/config.json"
 
     def test_an_empty_config_is_still_a_config(self, pipes_env):
-        spec = make_pipe(config={})._build_base_pod_spec()
+        spec = make_pipe(config={})._build_base_pod_spec(RESOURCES)
 
-        assert spec["volumes"][1]["configMap"] == {"name": "task-9-config"}
-
-    def test_a_task_without_config_needs_no_task_id_tag(self, pipes_env):
-        context = MagicMock()
-        context.run_id = "run-1"
-        context.dagster_run.tags = {}
-        context.op_config = {"docker_image": "img"}
-
-        assert K8sPipe(client=MagicMock(), context=context).config_map_name is None
-
-
-class TestTaskConfigMap:
-    def test_a_task_without_config_makes_no_kubernetes_calls(self, pipes_env, tmp_path, core_api):
-        pipe = make_pipe()
-        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
-
-        pipe()
-
-        pipes.load_incluster_config.assert_not_called()
-        pipes.CoreV1Api.assert_not_called()
-        core_api.create_namespaced_config_map.assert_not_called()
-        core_api.delete_namespaced_config_map.assert_not_called()
-
-    def test_the_configmap_exists_in_the_tasks_namespace_while_the_pod_runs_and_is_deleted_after(
-        self, pipes_env, tmp_path, core_api
-    ):
-        events = []
-        core_api.create_namespaced_config_map.side_effect = lambda *args: events.append(("create", *args))
-        core_api.delete_namespaced_config_map.side_effect = lambda *args: events.append(("delete", *args))
-        client = MagicMock()
-        client.run.side_effect = lambda **_: events.append(("run",))
-        pipe = make_pipe(client=client, config=TASK_CONFIG)
-        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
-
-        pipe()
-
-        assert [event[0] for event in events] == ["create", "run", "delete"]
-        _, namespace, body = events[0]
-        assert namespace == "tasks"
-        assert body.metadata.name == "task-9-config"
-        assert json.loads(body.data["config.json"]) == TASK_CONFIG
-        assert list(body.data) == ["config.json"]
-        assert events[2] == ("delete", "task-9-config", "tasks")
-
-    def test_the_configmap_is_deleted_when_the_run_fails(self, pipes_env, tmp_path, core_api):
-        client = MagicMock()
-        client.run.side_effect = RuntimeError("pod failed")
-        pipe = make_pipe(client=client, config=TASK_CONFIG)
-        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
-
-        with pytest.raises(RuntimeError, match="pod failed"):
-            pipe()
-
-        core_api.delete_namespaced_config_map.assert_called_once_with("task-9-config", "tasks")
-
-    def test_the_configmap_is_not_created_when_the_pod_spec_cannot_be_built(self, pipes_env, tmp_path, core_api):
-        pipe = make_pipe(config=TASK_CONFIG)
-        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
-
-        with patch.object(pipe, "_build_base_pod_spec", side_effect=RuntimeError("no secret")):
-            with pytest.raises(RuntimeError, match="no secret"):
-                pipe()
-
-        core_api.create_namespaced_config_map.assert_not_called()
-
-    def test_a_configmap_left_by_a_killed_run_is_replaced(self, pipes_env, tmp_path, core_api):
-        core_api.create_namespaced_config_map.side_effect = [ApiException(status=409), None]
-        client = MagicMock()
-        pipe = make_pipe(client=client, config=TASK_CONFIG)
-        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
-
-        pipe()
-
-        assert core_api.create_namespaced_config_map.call_count == 2
-        assert [call.args for call in core_api.delete_namespaced_config_map.call_args_list] == [
-            ("task-9-config", "tasks"), ("task-9-config", "tasks"),
-        ]
-        client.run.assert_called_once()
-
-    def test_any_other_error_creating_it_fails_the_run_before_the_pod_starts(self, pipes_env, tmp_path, core_api):
-        core_api.create_namespaced_config_map.side_effect = ApiException(status=403)
-        client = MagicMock()
-        pipe = make_pipe(client=client, config=TASK_CONFIG)
-        pipe.mnt_base_path, pipe.artifact_path = str(tmp_path), str(tmp_path / "run-1")
-
-        with pytest.raises(ApiException):
-            pipe()
-
-        client.run.assert_not_called()
-        core_api.delete_namespaced_config_map.assert_not_called()
+        assert spec["volumes"][1]["configMap"] == {"name": "task-9-run-1-config"}
 
 
 class TestCall:
@@ -493,53 +385,76 @@ class TestCall:
         assert seen["existed"] is True
 
 
-class TestTaskSecret:
-    def _pipe_on(self, tmp_path, client, **config):
-        pipe = make_pipe(client=client, **config)
+class TestRunResources:
+    """The Secret and ConfigMap of the run are nexus-api's: the pipe asks for them, then names them in the pod."""
+
+    def _pipe_on(self, tmp_path, client, backend_api=None, **config):
+        pipe = make_pipe(client=client, backend_api=backend_api, **config)
         pipe.mnt_base_path = str(tmp_path)
         pipe.artifact_path = str(tmp_path / "run-1")
         return pipe
 
-    def test_no_secret_without_a_dataset(self, pipes_env, tmp_path):
-        pipe = self._pipe_on(tmp_path, MagicMock())
-
-        with patch.object(pipes, "TaskSecret") as task_secret:
-            pipe()
-
-        task_secret.assert_not_called()
-
-    def test_the_secret_holds_the_credentials_in_the_tasks_namespace_while_the_pod_runs(self, pipes_env, tmp_path):
+    def test_the_backend_is_asked_for_them_by_project_task_and_run_before_the_pod_starts(self, pipes_env, tmp_path):
+        events = []
+        backend_api = MagicMock()
+        backend_api.create_task_resources.side_effect = lambda *args: events.append(("resources", *args)) or RESOURCES
         client = MagicMock()
-        pipe = self._pipe_on(tmp_path, client, **DATASET_CONFIG)
-        seen = {}
-        client.run.side_effect = lambda **_: seen.update(entered=task_secret.return_value.__enter__.called)
+        client.run.side_effect = lambda **_: events.append(("run",))
 
-        with patch.object(pipes.SecretProvider, "get", side_effect=["user", "pass"]), \
-                patch.object(pipes, "TaskSecret") as task_secret:
-            pipe()
+        self._pipe_on(tmp_path, client, backend_api, **DATASET_CONFIG)()
 
-        task_secret.assert_called_once_with("task-9", "tasks", {"USERNAME": "user", "PASSWORD": "pass"})
-        assert seen["entered"] is True
-        task_secret.return_value.__exit__.assert_called_once()
+        assert events == [("resources", 3, "9", "run-1"), ("run",)]
 
-    def test_the_secret_is_deleted_when_the_task_fails(self, pipes_env, tmp_path):
+    def test_the_pod_spec_names_the_secret_and_the_configmap_the_backend_returned(self, pipes_env, tmp_path):
         client = MagicMock()
-        client.run.side_effect = RuntimeError("pod failed")
-        pipe = self._pipe_on(tmp_path, client, **DATASET_CONFIG)
+        backend_api = MagicMock()
+        backend_api.create_task_resources.return_value = TaskResources(secret="a-secret", config_map="a-config-map")
 
-        with patch.object(pipes.SecretProvider, "get", side_effect=["user", "pass"]), \
-                patch.object(pipes, "TaskSecret") as task_secret:
-            with pytest.raises(RuntimeError, match="pod failed"):
-                pipe()
+        self._pipe_on(tmp_path, client, backend_api, config=TASK_CONFIG, **DATASET_CONFIG)()
 
-        task_secret.return_value.__exit__.assert_called_once()
+        spec = client.run.call_args.kwargs["base_pod_spec"]
+        assert spec["volumes"][1]["configMap"] == {"name": "a-config-map"}
+        secret_names = {e["valueFrom"]["secretKeyRef"]["name"] for e in spec["containers"][0]["env"] if "valueFrom" in e}
+        assert secret_names == {"a-secret"}
 
-    def test_a_run_without_a_task_id_is_rejected(self, pipes_env):
-        pipe = make_pipe(**DATASET_CONFIG)
-        pipe.context.dagster_run.tags = {}
+    def test_the_pod_is_labelled_with_the_run_and_the_task(self, pipes_env, tmp_path):
+        client = MagicMock()
 
-        with pytest.raises(KeyError, match="fn/task_id"):
-            pipe.task_secret_name
+        self._pipe_on(tmp_path, client)()
+
+        assert client.run.call_args.kwargs["base_pod_meta"] == {"labels": {"fn/run_id": "run-1", "fn/task_id": "9"}}
+
+    def test_a_task_without_a_dataset_or_config_still_asks_and_names_nothing(self, pipes_env, tmp_path):
+        client = MagicMock()
+        backend_api = MagicMock()
+        backend_api.create_task_resources.return_value = TaskResources(secret=None, config_map=None)
+
+        self._pipe_on(tmp_path, client, backend_api)()
+
+        spec = client.run.call_args.kwargs["base_pod_spec"]
+        assert [volume["name"] for volume in spec["volumes"]] == ["artifacts-pvc"]
+        assert all("valueFrom" not in e for e in spec["containers"][0]["env"])
+
+    def test_a_refusal_fails_the_run_before_the_pod_starts(self, pipes_env, tmp_path):
+        client = MagicMock()
+        backend_api = MagicMock()
+        backend_api.create_task_resources.side_effect = RuntimeError("409 Conflict")
+
+        with pytest.raises(RuntimeError, match="409 Conflict"):
+            self._pipe_on(tmp_path, client, backend_api)()
+
+        client.run.assert_not_called()
+
+    @pytest.mark.parametrize("missing", ["fn/task_id", "fn/project_id"])
+    def test_a_run_without_a_task_or_project_tag_is_rejected(self, pipes_env, missing):
+        context = MagicMock()
+        context.run_id = "run-1"
+        context.dagster_run.tags = {"fn/task_id": "9", "fn/project_id": "3"}
+        del context.dagster_run.tags[missing]
+        context.op_config = {"docker_image": "img"}
+
+        with pytest.raises(KeyError, match=missing):
+            K8sPipe(client=MagicMock(), backend_api=MagicMock(), context=context)
 
 
 class TestResponse:

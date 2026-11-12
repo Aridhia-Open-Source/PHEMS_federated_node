@@ -1924,7 +1924,7 @@
           "tasks"
         ],
         "summary": "Patch Task",
-        "description": "PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.\nA move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same\nstatus again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.",
+        "description": "PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.\nA move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same\nstatus again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.\nA task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see\nhelpers/task_resources): before the status is saved, so that a failed delete leaves the task as it was and\nthe next PATCH retries it.",
         "operationId": "patch_task_projects__project_id__tasks__task_id__patch",
         "parameters": [
           {
@@ -2276,6 +2276,67 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TaskLaunchDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/tasks/{task_id}/runs/{run_id}/resources": {
+      "post": {
+        "tags": [
+          "tasks"
+        ],
+        "summary": "Post Run Resources",
+        "description": "POST /projects/<project_id>/tasks/id/runs/<run_id>/resources endpoint. Called by the run before it starts the\ntask pod. Creates, in the tasks namespace, the Secret of the task's dataset credentials (if it has a dataset)\nand the ConfigMap of its config file (if it has a config), named task-<task id>-<run id> (the ConfigMap with\n-config) and labelled fn/run_id and fn/task_id. Returns their names, null for one the task does not need.\nDeleted when the task reaches SUCCESS, FAILED or CANCELED (see patch_task). They are never replaced: a name\nthat is taken is a 409. The credentials are read here and go to the Secret, not to the caller.",
+        "operationId": "post_run_resources_projects__project_id__tasks__task_id__runs__run_id__resources_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResourcesDTO"
                 }
               }
             }
@@ -8201,6 +8262,39 @@
         ],
         "title": "TaskLaunchDTO",
         "description": "What the launcher is told for a PENDING task: outcome \"launch\" with the task and its dataset (null for a\ntask without one), or \"fail\" with the cause, the failed task and no dataset. See tasks_api.launch_task."
+      },
+      "TaskResourcesDTO": {
+        "properties": {
+          "secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret"
+          },
+          "config_map": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Map"
+          }
+        },
+        "type": "object",
+        "required": [
+          "secret",
+          "config_map"
+        ],
+        "title": "TaskResourcesDTO",
+        "description": "The names of the Secret and the ConfigMap made for a run, null for the one it does not need: the Secret\nonly for a task with a dataset, the ConfigMap only for a task with a config. See tasks_api.create_run_resources."
       },
       "TaskSpecDTO": {
         "properties": {

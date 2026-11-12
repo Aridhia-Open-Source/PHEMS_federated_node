@@ -277,7 +277,8 @@ def test_a_sample_launch_response_of_the_backend_parses_and_builds_a_run_config(
     assert (parsed.outcome, parsed.task.id, parsed.dataset.name) == ("launch", 1, "globalds")
     config = build_run_config(parsed.task.spec, parsed.dataset)["ops"]["k8s_pipes_op"]["config"]
     assert config["docker_image"] == "img:1"
-    assert config["dataset"]["secret"]["key"] == "fn-secret-test-creds"
+    # the run config names no secret: nexus-api makes the run's Secret from the dataset's
+    assert "secret" not in config["dataset"]
 
 
 def test_a_sample_task_list_response_of_the_backend_parses_into_tasks():

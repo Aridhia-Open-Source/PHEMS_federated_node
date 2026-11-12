@@ -6,7 +6,7 @@ from app.utils import BackendSession
 from app.models import (
     GitToken, ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
     ResultsRepository, Task,
-    TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision
+    TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision, TaskResources
 )
 
 default_logger = logging.getLogger(__name__)
@@ -209,6 +209,16 @@ class BackendAPI:
             return None
         response.raise_for_status()
         return LaunchDecision(**response.json())
+
+    def create_task_resources(self, project_id: int, task_id: int, run_id: str) -> TaskResources:
+        """
+        The run calls this before it starts the task pod. The backend creates the run's Secret (the dataset's credentials,
+        read by the backend and never returned) and ConfigMap (the config file) in the tasks namespace, labelled with the
+        run and the task, deletes them when the task finishes, and returns their names. 409 if the run has them already.
+        """
+        self.logger.info(f"Creating the Secret and ConfigMap of run {run_id} of task {task_id}")
+        response = self.session.post(f"/projects/{project_id}/tasks/{task_id}/runs/{run_id}/resources")
+        return TaskResources(**response.json())
 
     def get_task_trigger(self, project_id: int, task_id: int) -> TaskTrigger:
         """Get the pull request that yielded a task, with its trigger repository. 404 if the task has none."""
