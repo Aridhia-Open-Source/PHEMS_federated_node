@@ -1,6 +1,4 @@
-# Deploy: AWS (EKS)
-
-Not yet tested on AWS. The values below were checked against the chart's schema and render cleanly with `helm template`, but nobody has run them on EKS.
+# Deploy on AWS (UNTESTED)
 
 Work through [Deploy: Core](./Deploy-Core) alongside this page. The steps here are what is different on AWS: the prerequisites, EFS storage, the RDS settings, ingress and DNS, and certificates.
 
@@ -85,7 +83,7 @@ Annotate the service if you want a network load balancer or an internal one. Tra
 
 ## 4. TLS
 
-**Bring your own certificate** (recommended until the Route 53 path below has been tested). Create the `tls` secret from [Deploy: Core](./Deploy-Core#3-create-the-namespace-and-the-secrets-you-must-provide) and set `tls.secretName`. Nothing else is needed.
+**Bring your own certificate** (recommended). Create the `tls` secret from [Deploy: Core](./Deploy-Core#3-create-the-namespace-and-the-secrets-you-must-provide) and set `tls.secretName`. Nothing else is needed.
 
 **Automatic renewal with cert-manager and Route 53.** With `cert-manager.enabled: true` and `on_eks: true` the chart creates a ClusterIssuer that solves a DNS-01 challenge in Route 53 by assuming an IAM role. You create, **before** you install, a secret in the release namespace with four keys:
 
@@ -99,7 +97,7 @@ kubectl create secret generic aws-ssl-secret -n federated-node \
 
 `ROLE_NAME` is an IAM role with permission on your hosted zone (`route53:GetChange`, `route53:ChangeResourceRecordSets`, `route53:ListResourceRecordSets` and `route53:ListHostedZonesByName`). Its trust policy must let the service account `cert-manager-acme-dns01-route53` assume it, through your cluster's OIDC provider. The install fails at the start, naming the secret if it is missing. The chart copies it into the cert-manager namespace.
 
-The known issues below affect this path. Read them before you choose it.
+The known issues below affect this path.
 
 
 ## 5. Add the AWS block to values.yaml
@@ -131,9 +129,9 @@ certs:
 
 ## Known issues
 
-- **The Route 53 issuer uses the Let's Encrypt staging server.** Certificates it issues are not trusted by browsers or by git hosts that verify the chain. Do not use it for production until it points at the production server.
-- **The service account the issuer refers to is not created.** The ClusterIssuer asks cert-manager to act as the service account `cert-manager-acme-dns01-route53`, and the chart does not create it. Create it in the cert-manager namespace (`fn-certmanager` by default) before the install.
-- **The chart's RoleBinding for that service account names the wrong subject.** It grants `serviceaccounts/token` to the service account `cert-manager` in the namespace `cert-manager`. The cert-manager subchart's service account is `<release>-cert-manager` (for example `federatednode-cert-manager`) in `fn-certmanager`, so the grant does not reach it. Confirm with `kubectl get serviceaccounts -n fn-certmanager`, and create a RoleBinding for the real one.
+- **The Route 53 issuer uses the Let's Encrypt staging server.** The certificates it issues are not trusted by browsers. For a trusted certificate, bring your own.
+- **Create the service account the issuer uses.** The ClusterIssuer asks cert-manager to act as the service account `cert-manager-acme-dns01-route53`. Create it in the cert-manager namespace (`fn-certmanager` by default) before the install.
+- **Add a RoleBinding for cert-manager's service account.** The chart's RoleBinding grants `serviceaccounts/token` to the service account `cert-manager` in the namespace `cert-manager`. The cert-manager subchart's service account is `<release>-cert-manager` (for example `federatednode-cert-manager`) in `fn-certmanager`. Check with `kubectl get serviceaccounts -n fn-certmanager`, and create a RoleBinding in `fn-certmanager` that binds the Role `cert-manager-acme-dns01-route53-tokenrequest` to it.
 - **Pods stuck in `ContainerCreating` with an EFS mount error.** Almost always the security group (NFS 2049 from the nodes), a missing mount target in a node's subnet, or the EFS CSI driver not installed.
 - **A dataset on a public address is blocked by default.** The task network policy only allows private address ranges. List it in `taskNetworkPolicy.datasetEgress` ([Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset)).
 - **RDS refuses the connection because SSL is off.** Set `db.enforceSSL: true` *and* `dagster.postgresql.postgresqlParams.sslmode: require`. The chart refuses to render if you set only the first.

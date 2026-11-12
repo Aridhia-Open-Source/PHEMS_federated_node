@@ -1,10 +1,6 @@
-# Deploy: GCP (GKE)
+# Deploy on GCP (UNTESTED)
 
-Not yet tested on GCP. The values below were checked against the chart's schema and render cleanly with `helm template`, but nobody has run them on GKE.
-
-Work through [Deploy: Core](./Deploy-Core) alongside this page. The chart has **no GKE-specific settings**: it has no `on_gke` flag, no Cloud Storage backend and no Cloud DNS certificate issuer. On GKE you use the generic parts: NFS storage (Filestore), your own certificate or your own cert-manager, and the chart's Traefik.
-
-Not yet supported in the chart: Google Cloud Storage (GCS FUSE) as the results volume, and automatic certificates through Cloud DNS. A values file with `storage.gcp` is rejected by the schema.
+Work through [Deploy: Core](./Deploy-Core) alongside this page. On GKE you use the chart's generic settings: NFS storage (Filestore), your own certificate or your own cert-manager, and the chart's Traefik. The steps here are the prerequisites and what is different on Google Cloud.
 
 
 ## Prerequisites
@@ -48,12 +44,10 @@ chown 1000:1000 /mnt/fnshare
 chmod 775 /mnt/fnshare
 ```
 
-Not yet supported: a Cloud Storage bucket (GCS FUSE) as the results volume.
-
 
 ## 2. PostgreSQL: Cloud SQL
 
-Use the instance's **private IP**. The chart connects straight to `db.host` and `db.port`: it does not run the Cloud SQL Auth Proxy. Set `db.superuser` to the admin login you created:
+Use the instance's **private IP**. The chart connects straight to `db.host` and `db.port`. Set `db.superuser` to the admin login you created:
 
 ```yaml
 db:
@@ -89,7 +83,7 @@ kubectl get svc -n federated-node -l app.kubernetes.io/name=traefik
 
 **Bring your own certificate.** Create the `tls` secret from [Deploy: Core](./Deploy-Core#3-create-the-namespace-and-the-secrets-you-must-provide) and set `tls.secretName`. Nothing else is needed.
 
-**Automatic renewal with your own cert-manager and Cloud DNS.** Do **not** set `cert-manager.enabled: true` in the FN values. The chart only builds an issuer for AKS and EKS, so on GKE it renders a ClusterIssuer with an empty `spec` and no certificate is ever issued. Instead, run cert-manager yourself and have it write the secret that `tls.secretName` names.
+**Automatic renewal with your own cert-manager and Cloud DNS.** Leave `cert-manager.enabled` unset in the FN values: the chart's own issuer is for Azure DNS and Route 53. Run cert-manager yourself and have it write the secret that `tls.secretName` names.
 
 The steps below use Workload Identity, so no service account key is created or stored.
 
@@ -163,7 +157,7 @@ spec:
 
 ## 5. Add the GCP settings to values.yaml
 
-On top of the file from [Deploy: Core](./Deploy-Core#4-write-your-values-file), the storage block is the Filestore one above. Nothing else is GKE-specific:
+On top of the file from [Deploy: Core](./Deploy-Core#4-write-your-values-file), use the Filestore storage block from above. Nothing else is GKE-specific:
 
 ```yaml
 storage:
@@ -180,13 +174,10 @@ tls:
   secretName: tls
 ```
 
-Do not add `on_gke`, `storage.gcp` or `certs.gcp`. The schema rejects `storage.gcp`, and the other two do nothing.
-
 
 ## Known issues
 
-- **No Cloud Storage volume and no Cloud DNS issuer in the chart.** Use Filestore and your own cert-manager, as above.
-- **`cert-manager.enabled: true` breaks certificates on GKE.** The ClusterIssuer it renders has an empty `spec`. Run cert-manager yourself.
+- **Certificates on GKE come from your own cert-manager.** With `cert-manager.enabled: true` the chart renders a ClusterIssuer with no solver, and nothing is issued.
 - **Pods stuck in `ContainerCreating` with an NFS mount error.** Filestore must be in the same VPC as the cluster, and the nodes must reach it. Check the IP and share name.
 - **Cloud SQL connections time out.** Use the instance's private IP, in the same VPC as the cluster or one peered with it.
 - **A dataset on a public address is blocked by default.** The task network policy only allows private address ranges. List it in `taskNetworkPolicy.datasetEgress` ([Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset)).

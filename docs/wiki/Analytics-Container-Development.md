@@ -50,7 +50,7 @@ A task without a dataset gets none of the database variables. Names starting `DA
 
 **Your own variables arrive as text.** The node converts each `spec.env` value to a string, so a JSON `true` arrives as `True` and `null` as `None`. Ask researchers to send strings and parse them yourself. You cannot set the names in the table above from `spec.env`, so a researcher cannot override them.
 
-There is no `DB_HOST`, `DB_PORT` or `DB_NAME`: use the connection string.
+The host, port and database name are only in the connection string.
 
 
 ## CONNECTION_STRING format

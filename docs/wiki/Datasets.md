@@ -21,21 +21,19 @@ The task's container is given the database login and the schema names as environ
 
 A dataset is always a database server the node connects to over the network.
 
-| `type` | Database | ODBC driver in `CONNECTION_STRING` | Healthcheck |
-|---|---|---|---|
-| `postgres` (the default) | PostgreSQL | `PostgreSQL ANSI` | yes |
-| `mssql` | Microsoft SQL Server | `ODBC Driver 18 for SQL Server` | yes |
-| `mysql` | MySQL | `MySQL ODBC 9.3 ANSI Driver` | no |
-| `mariadb` | MariaDB | `MariaDB ODBC 3.2 Driver` | no |
-| `oracle` | Oracle | `Oracle ODBC Driver` | no |
+| `type` | Database | ODBC driver in `CONNECTION_STRING` |
+|---|---|---|
+| `postgres` (the default) | PostgreSQL | `PostgreSQL ANSI` |
+| `mssql` | Microsoft SQL Server | `ODBC Driver 18 for SQL Server` |
+| `mysql` | MySQL | `MySQL ODBC 9.3 ANSI Driver` |
+| `mariadb` | MariaDB | `MariaDB ODBC 3.2 Driver` |
+| `oracle` | Oracle | `Oracle ODBC Driver` |
 
 Any other `type` is refused with `DB type <type> is not supported.`
 
 ### ODBC drivers
 
 The task connects with the ODBC driver in the table, so the **analytics container needs that driver installed**. The FN task base images, `python-base` and `r-base`, include all five ([Federated-Node-Task-Base-Images](https://github.com/Aridhia-Open-Source/Federated-Node-Task-Base-Images)). If you build on another base image, install the driver yourself. The exact connection string for each type is in [Analytics container development](./Analytics-Container-Development#connection_string-format).
-
-File datasets (DuckDB, SQLite) are not yet supported.
 
 
 ## Dataset fields
@@ -49,7 +47,7 @@ File datasets (DuckDB, SQLite) are not yet supported.
 | `type` | no | One of the types above. Defaults to `postgres`. |
 | `read_schema` | no | The schema tasks read from. Given to the task as `CDM_SCHEMA`. |
 | `write_schema` | no | The schema tasks may write results into. Given as `WRITE_SCHEMA`. It must already exist, with write rights for the dataset's user. |
-| `extra_connection_args` | no | Extra connection text, up to 4096 characters, stored with the dataset. It is **not** added to the task's connection string today: see [Connection options](#connection-options). |
+| `extra_connection_args` | no | Extra connection text, up to 4096 characters, stored with the dataset for reference. The task's connection string is built without it: see [Connection options](#connection-options). |
 | `enabled` | no | Defaults to `true`. |
 | `catalogue`, `dictionaries` | no | A description of the data. See [Catalogue and dictionaries](#catalogue-and-dictionaries). |
 
@@ -141,7 +139,7 @@ The response is the new dataset, with its `id`, `slug`, `url`, `enabled` and `re
 
 ### Connection options
 
-The connection string the task gets is built from `host`, `port`, `name` and the login, and nothing else. `extra_connection_args` is not appended. If your database needs more options, add them in your analysis code. For SQL Server, ODBC Driver 18 encrypts by default and validates the server's certificate, so a server with a self-signed certificate needs `TrustServerCertificate=yes;` added to the string by the analysis. A server whose certificate your container trusts needs nothing.
+The connection string the task gets is built from `host`, `port`, `name` and the login. If your database needs more options, add them in your analysis code. For SQL Server, ODBC Driver 18 encrypts by default and validates the server's certificate, so a server with a self-signed certificate needs `TrustServerCertificate=yes;` added to the string by the analysis. A server whose certificate your container trusts needs nothing.
 
 
 ## Check it works
@@ -150,7 +148,7 @@ The connection string the task gets is built from `host`, `port`, `name` and the
 curl -sS "$FN/global/datasets/$DATASET_ID/healthcheck" "${AUTH[@]}" | jq
 ```
 
-This logs in to the database with the stored credentials and runs a trivial query, so you find out now and not when the first task fails. A failure shows in the body, with a status of 200 and no secret values. Only PostgreSQL and SQL Server datasets can be checked: for the other types the check reports that it cannot be done, which is not a fault in the dataset. `GET /global/healthcheck` checks every dataset at once.
+This logs in to the database with the stored credentials and runs a trivial query, so you find out now and not when the first task fails. A failure shows in the body, with a status of 200 and no secret values. The healthcheck covers PostgreSQL and SQL Server datasets. `GET /global/healthcheck` checks every dataset at once.
 
 Three more things must be right before a task can reach the database:
 
@@ -220,16 +218,7 @@ You can describe a dataset when you register it or later, so people know what is
 }
 ```
 
-`title` and `description` are required in a catalogue, `version` is optional. A dictionary entry needs `table_name`, `field_name` and `description`, and may have a `label`. A `PATCH` updates the catalogue, and adds or updates the entries it names. They are stored with the dataset, but no route returns them yet.
-
-
-## Not yet supported
-
-- File datasets (DuckDB, SQLite) and the volumes they read from.
-- Fetching a query's result into the task before it starts. A task queries the database itself.
-- Granting individual users access to a dataset.
-- Appending `extra_connection_args` to the connection string.
-- A healthcheck for MySQL, MariaDB and Oracle datasets.
+`title` and `description` are required in a catalogue, `version` is optional. A dictionary entry needs `table_name`, `field_name` and `description`, and may have a `label`. A `PATCH` updates the catalogue, and adds or updates the entries it names. They are stored with the dataset.
 
 
 ## Troubleshooting
@@ -245,5 +234,4 @@ You can describe a dataset when you register it or later, so people know what is
 | `409` on delete | Projects still use the dataset. The response lists them. |
 | A task times out connecting | The database is not reachable from the tasks namespace. Add it to `taskNetworkPolicy.datasetEgress`, and check the host and `port`. |
 | A task cannot load the driver | The analytics image lacks the ODBC driver for the dataset's type. |
-| Healthcheck says the dataset cannot be checked | The type is MySQL, MariaDB or Oracle. Run a task against it instead. |
 | A pending task fails with a message about a changed dataset | The dataset was edited after the task was created. |

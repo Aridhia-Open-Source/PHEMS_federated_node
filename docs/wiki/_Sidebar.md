@@ -8,10 +8,10 @@
 **Getting started**
 - [Prerequisites](./Prerequisites)
 - [Deploy: Core](./Deploy-Core)
-- [Deploy: Azure (AKS)](./Deploy-Azure)
-- [Deploy: AWS (EKS)](./Deploy-AWS)
-- [Deploy: GCP (GKE)](./Deploy-GCP)
-- [Deploy: On-Premises](./Deploy-On-Premises)
+- [Deploy on Azure (UNTESTED)](./Deploy-Azure)
+- [Deploy on AWS (UNTESTED)](./Deploy-AWS)
+- [Deploy on GCP (UNTESTED)](./Deploy-GCP)
+- [Deploy on-premises (UNTESTED)](./Deploy-On-Premises)
 - [Post-deploy testing](./Post-Deploy-Testing)
 - [Run locally](./Run-Locally)
 

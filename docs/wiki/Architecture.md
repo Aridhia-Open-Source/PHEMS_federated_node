@@ -94,7 +94,7 @@ None of this limits what a task does with the dataset it was given. What leaves 
 
 ## Access
 
-Logins are Keycloak users, with the realm roles `Users`, `Administrator`, `Super Administrator` and `System` ([Using the API](./Using-The-API#users)). Creating the global resources, and revoking things, needs an admin role. In the beta, access control for a normal login is coarse: there are no permissions per dataset for each user. Researchers do not need a login for the common case: they work in git.
+Logins are Keycloak users, with the realm roles `Users`, `Administrator`, `Super Administrator` and `System` ([Using the API](./Using-The-API#users)). Creating the global resources, and revoking things, needs an admin role. Researchers do not need a login for the common case: they work in git.
 
 
 ## Decisions you need to make

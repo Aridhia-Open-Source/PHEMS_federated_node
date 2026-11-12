@@ -77,7 +77,7 @@ The Dagster UI has no login and no route, so reach it with a port-forward. It li
 kubectl port-forward -n federated-node svc/federatednode-dagster-webserver 3000:80
 ```
 
-Open http://localhost:3000 and check that the code location loads with no error. Under **Automation** you should see twelve sensors, all stopped. That is how a new node starts, and it is correct for now.
+Open http://localhost:3000 and check that the code location loads with no error. Under **Automation** you should see twelve sensors, all stopped. That is how a new node starts.
 
 
 ## 6. Register a test dataset
@@ -107,9 +107,9 @@ DATASET_ID=$(curl -sS -X POST "$FN_HOST/global/datasets" "${AUTH[@]}" -d '{
 curl -sS "$FN_HOST/global/datasets/$DATASET_ID/healthcheck" "${AUTH[@]}" | jq
 ```
 
-The healthcheck connects to the database with the stored login. A failure is reported in the body, with a status of 200. If it fails, the message says why: a wrong host or port, a wrong login, or a cluster firewall in between. The healthcheck works for PostgreSQL and SQL Server datasets only.
+The healthcheck connects to the database with the stored login. A failure is reported in the body, with a status of 200. If it fails, the message says why: a wrong host or port, a wrong login, or a cluster firewall in between. The healthcheck covers PostgreSQL and SQL Server datasets.
 
-If you registered a throwaway dataset, remove it so the name is free: `DELETE /global/datasets/$DATASET_ID`, and then `DELETE /global/secrets/test-dataset-creds`.
+If you registered a throwaway dataset, remove it so the name is free: `DELETE /global/datasets/$DATASET_ID`, and then `DELETE /global/secrets/test-dataset-creds?force=true`. Without `force` the secret is refused while an enabled dataset still uses it.
 
 Whether a **task** can reach the database is a separate question, because task pods are limited by the network policy. A database on a private address works by default. For any other address, list it in `taskNetworkPolicy.datasetEgress` ([Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset)).
 

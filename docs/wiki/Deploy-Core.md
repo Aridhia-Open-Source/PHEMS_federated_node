@@ -131,7 +131,7 @@ Things that are easy to get wrong:
 
 - **`nodeId` is required.** The chart fails without it.
 - **`dagster.enabled` is false by default.** Without it nothing polls git and no task runs.
-- **`fnDagster.db` is removed** and the chart fails if you set it. Dagster's database name and user come from `dagster.postgresql.postgresqlDatabase` and `postgresqlUsername`.
+- **Do not set `fnDagster.db`:** the chart fails if you do. Dagster's database name and user come from `dagster.postgresql.postgresqlDatabase` and `postgresqlUsername`.
 - **`namespaces` lives under `global`** (`global.namespaces.keycloak`, `.tasks`, `.quarantine`). A top-level `namespaces` fails the render.
 - **Datasets are not configured here.** Register them through the API.
 - **Task CPU and memory** come from `taskCompute.default` and `taskCompute.max`. A task spec that asks for more than the max is rejected.
@@ -150,13 +150,13 @@ Set exactly one backend under `storage`. The same volume class is used for task 
 | NFS | `storage.nfs.url`, `.path`, `.provisioner` | The export is writable by uid 1000: `chown 1000:1000` and `chmod 775` | [On-Premises](./Deploy-On-Premises#nfs-recommended-for-multi-node-clusters), [GCP](./Deploy-GCP#1-storage-filestore-over-nfs) |
 | Local path | `storage.local.artifacts` (and `.dbpath` for the chart's own development Postgres) | Single node only; the pods are pinned to the node that holds the data | [On-Premises](./Deploy-On-Premises#local-host-path-single-node-only) |
 
-The schema allows exactly one of `azure`, `aws`, `nfs` and `local`. Google Cloud Storage is not a backend.
+The schema allows exactly one of `azure`, `aws`, `nfs` and `local`.
 
 Set `storage.nfs.provisioner` (for example `nfs.csi.k8s.io`) even without that driver installed: the chart writes it into the artifacts StorageClass, which is invalid empty.
 
 ### TLS
 
-Either create the `tls` secret yourself (step 3), or let cert-manager renew it. The chart's own issuer exists for Azure DNS and Route 53 only: `cert-manager.enabled: true` plus `certs.azure.*` ([Azure](./Deploy-Azure#4-tls)) or `certs.aws` ([AWS](./Deploy-AWS#4-tls)). For any other CA or DNS provider (GCP, on-premises), run cert-manager yourself and point `tls.secretName` at the secret it produces, and leave `cert-manager.enabled` off. Setting it on a platform with no chart issuer leaves the chart's ClusterIssuer without a solver.
+Either create the `tls` secret yourself (step 3), or let cert-manager renew it. The chart's own issuer exists for Azure DNS and Route 53 only: `cert-manager.enabled: true` plus `certs.azure.*` ([Azure](./Deploy-Azure#4-tls)) or `certs.aws` ([AWS](./Deploy-AWS#4-tls)). For any other CA or DNS provider (GCP, on-premises), run cert-manager yourself and point `tls.secretName` at the secret it produces, and leave `cert-manager.enabled` off.
 
 ### Databases
 

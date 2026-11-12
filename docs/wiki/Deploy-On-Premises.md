@@ -1,6 +1,4 @@
-# Deploy: On-Premises
-
-Not yet tested on-premises. The values below were checked against the chart's schema and render cleanly with `helm template`, but nobody has run them on an on-premises cluster.
+# Deploy on-premises (UNTESTED)
 
 Work through [Deploy: Core](./Deploy-Core) alongside this page. It covers production on-premises deployments on distributions common in healthcare and enterprise environments. A local single-node setup is covered under [Local host path](#local-host-path-single-node-only).
 
@@ -9,7 +7,7 @@ Work through [Deploy: Core](./Deploy-Core) alongside this page. It covers produc
 
 **RKE2** is the recommended distribution for on-premises. It is hardened by default (CIS benchmark), uses containerd, and suits regulated environments. Its default network plugin, Canal, enforces NetworkPolicy, which the chart relies on.
 
-Other CNCF-conformant distributions (k3s, kubeadm) have no hard dependency in the chart, but have not been tested. The steps below are written for RKE2 and say where another distribution differs.
+The steps below are written for RKE2 and say where k3s or kubeadm differ.
 
 
 ## Prerequisites
@@ -67,7 +65,7 @@ storage:
     artifacts: /data/federated-node/results
 ```
 
-`storage.local.artifacts` is the directory the results volume uses. `storage.local.dbpath` is only used when the chart runs its own development PostgreSQL. `storage.local.path` is not read by any template.
+`storage.local.artifacts` is the directory the results volume uses. `storage.local.dbpath` is only used when the chart runs its own development PostgreSQL.
 
 
 ## Ingress
@@ -108,7 +106,7 @@ traefik:
       - 192.168.1.200
 ```
 
-The key is `traefik.service.externalIPs`. The chart's schema rejects the same list under `traefik.service.spec.externalIPs`.
+The key is `traefik.service.externalIPs`.
 
 ### A NodePort behind a reverse proxy
 
@@ -251,8 +249,6 @@ Before deploying, confirm that:
 
 ## Known issues
 
-- **`traefik.service.spec.externalIPs` fails the schema.** Use `traefik.service.externalIPs`.
-- **`storage.local.path` does nothing.** The results directory is `storage.local.artifacts`. With only `path` set, the volume has no directory.
 - **Two controllers want port 443.** On RKE2 or k3s the bundled ingress controller may already hold it. Give the FN's Traefik its own address.
 - **A task cannot reach a database on an address outside the private ranges.** Add a `taskNetworkPolicy.datasetEgress` rule.
 - **Pods cannot write to the NFS export.** Check ownership and mode on the export as above, and your NFS server's squash settings.

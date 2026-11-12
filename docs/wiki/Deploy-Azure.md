@@ -1,6 +1,4 @@
-# Deploy: Azure (AKS)
-
-Not yet tested on Azure. The values below were checked against the chart's schema and render cleanly with `helm template`, but nobody has run them on AKS.
+# Deploy on Azure (UNTESTED)
 
 Work through [Deploy: Core](./Deploy-Core) alongside this page. The steps here are what is different on Azure: the prerequisites, the Azure Files storage, the PostgreSQL settings, ingress and DNS, and certificate renewal.
 

@@ -48,7 +48,7 @@ Task pods and Dagster's run pods write results to the same volume, so it must be
 - **NFS** - cloud-agnostic, on-prem friendly. On GKE, use Filestore
 - **Local host path** - single node and development only
 
-Google Cloud Storage is not a supported backend. The choice is made at install time and is awkward to change later, because it means recreating the volumes. The per-run result folders are not removed after delivery, so size the volume for the output of every run you expect to keep.
+The choice is made at install time and is awkward to change later, because it means recreating the volumes. The per-run result folders are not removed after delivery, so size the volume for the output of every run you expect to keep.
 
 ### A hostname and a certificate
 

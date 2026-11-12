@@ -126,7 +126,7 @@ curl -sS -X POST "$FN/projects/$PROJECT_ID/tasks/$TASK_ID/retry" "${AUTH[@]}" | 
 
 A task's status is `PENDING`, `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED` or `CANCELED`. The reason a task cannot start or a pull request was rejected is in `state_cause`.
 
-Some routes in the reference are placeholders that answer "not implemented" in the beta: cancelling a task, reading its logs, and approving or blocking its results. Read a run's logs in the Dagster UI ([Operations](./Operations#reading-a-run)).
+Read a run's logs in the Dagster UI ([Operations](./Operations#reading-a-run)).
 
 `POST /projects/<id>/tasks` creates a task without a pull request, but results delivery is built around the pull request, so such a task has no results delivery. Use a pull request.
 
