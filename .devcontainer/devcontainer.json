@@ -10,20 +10,22 @@
   },
   "runArgs": ["--network=host"],
   "mounts": [
-    // Host kubeconfig, read-only; copied to ~/.kube on each start so the container can change its own copy
+    // Host kubeconfig, read-only and read live: a recreated cluster works without a restart
     "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube-host,type=bind,readonly",
     // Installed tools survive rebuilds and are shared by every worktree's container
     "source=fn-mise-data,target=/home/vscode/.local/share/mise,type=volume"
   ],
   // Venvs go to the container's home (mise.devcontainer.toml), not the shared checkout
-  "containerEnv": { "MISE_ENV": "devcontainer" },
+  "containerEnv": {
+    "MISE_ENV": "devcontainer",
+    // The container's overlay (fn as kind-fn's namespace, and any changes made here) comes first,
+    // the host kubeconfig supplies the clusters and credentials
+    "KUBECONFIG": "/home/vscode/.kube/overlay:/home/vscode/.kube-host/config"
+  },
   // mise's tools on PATH for non-interactive shells too
   "remoteEnv": { "PATH": "/home/vscode/.local/share/mise/shims:${containerEnv:PATH}" },
   "remoteUser": "vscode",
-  // Fresh copy of the host kubeconfig on every start (picks up a recreated cluster), with fn as the
-  // default namespace for the kind-fn context. The host's own kubeconfig is never written to.
-  "postStartCommand": "mkdir -p ~/.kube && cp ~/.kube-host/config ~/.kube/config && chmod 600 ~/.kube/config && (kubectl config set-context kind-fn --namespace=fn >/dev/null 2>&1 || true)",
-  "postCreateCommand": "sudo apt-get update -qq && sudo apt-get install -y -qq libpq-dev build-essential && sudo chown -R vscode:vscode /home/vscode/.local && mise trust --all && mise run setup",
+  "postCreateCommand": "mkdir -p ~/.kube && printf 'apiVersion: v1\\nkind: Config\\ncontexts:\\n- name: kind-fn\\n  context: {cluster: kind-fn, user: kind-fn, namespace: fn}\\n' > ~/.kube/overlay && sudo apt-get update -qq && sudo apt-get install -y -qq libpq-dev build-essential && sudo chown -R vscode:vscode /home/vscode/.local && mise trust --all && mise run setup",
   "customizations": {
     "vscode": {
       "extensions": ["ms-python.python", "ms-kubernetes-tools.vscode-kubernetes-tools"]

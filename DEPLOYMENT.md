@@ -153,7 +153,7 @@ Experiments, each with its own seeded database, run from their own release in th
 
 An optional alternative to installing the tools on your machine. Open the repo in VS Code and choose **Reopen in Container**; on first create it runs `mise run setup`.
 
-- It uses your machine's Docker (socket) and kind cluster, and shares its network. It gets a copy of your `~/.kube/config` on each start, with `fn` as the default namespace for `kind-fn`; your own kubeconfig is never changed, so `kubectl`, `kind` and Tilt work against the same cluster.
+- It uses your machine's Docker (socket) and kind cluster, and shares its network. It reads your `~/.kube/config` live (read-only), so a recreated cluster works without a restart, and keeps its own small overlay that makes `fn` the default namespace for `kind-fn`; your own kubeconfig is never changed, so `kubectl`, `kind` and Tilt work against the same cluster.
 - Port-forwards from Tilt land on your machine's `localhost` (nexus-api on `localhost:5000` as usual). Run Tilt in one place at a time, or the ports clash.
 - Its venvs live in the container (`/home/vscode/venvs/`), not in the checkout, so they don't clash with yours.
 - Installed tools are kept in the `fn-mise-data` volume, so rebuilds and other worktrees' containers reuse them.
