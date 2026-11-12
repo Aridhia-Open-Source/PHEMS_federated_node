@@ -144,7 +144,7 @@ kubectl get secret fn-nexus-db -n fn -o jsonpath='{.data.password}' | base64 -d
 
 ### Loading real sample data
 
-Real experiments (UC1 and its seeded OMOP database) run from their own release in the `experiments` namespace. See [experiments/README.md](experiments/README.md).
+Experiments, each with its own seeded database, run from their own release in the `experiments` namespace. See [experiments/README.md](experiments/README.md).
 
 ## Deploy to production
 

@@ -3,7 +3,7 @@
 UC1 is the cardiac benchmarking study (R, OMOP CDM 5.4). Its source is the private
 `PHDS-centralized-services/MVP-Code` repo, so it is not in this one. Everything else is here:
 `projects/uc1/` holds the database, the seed and the node project it runs as. The general
-mechanics are in [README.md](README.md).
+mechanics are in [README.md](../../README.md).
 
 ## Today: by hand
 

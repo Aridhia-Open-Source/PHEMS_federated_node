@@ -48,7 +48,7 @@ class ExperimentConfig(ReleaseConfig):
     write_schema: str = Field(default="", alias="DATASET_SCHEMA_WRITE")
     project_name: str = Field(default="", alias="TEST_PROJECT_NAME")
     run_timeout: int = Field(default=0, alias="RUN_TIMEOUT")
-    # Extra env for the task, as JSON, e.g. '{"UC1_DEV": "1"}'
+    # Extra env for the task, as JSON, e.g. '{"EXAMPLE_FLAG": "1"}'
     dev_env: dict[str, str] = Field(default={}, alias="DEV_ENV", validate_default=False)
     # `run --local`'s port-forward. 5432 is the node's own Postgres.
     local_port: int = Field(default=5434, alias="EXPERIMENTS_LOCAL_PORT")

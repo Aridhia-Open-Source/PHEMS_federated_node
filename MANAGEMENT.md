@@ -127,7 +127,7 @@ The repositories have to exist already; the FN does not create them.
 
 ```bash
 DATASET_ID=$(curl -sS -X POST "$FN/global/datasets" "${AUTH[@]}" -d '{
-  "name": "uc1_omop",
+  "name": "study_omop",
   "host": "<dataset database host>",
   "port": 5432,
   "type": "postgres",
@@ -155,7 +155,7 @@ A new project is **disabled**. That is deliberate: the results repository can on
 
 ```bash
 PROJECT_ID=$(curl -sS -X POST "$FN/projects" "${AUTH[@]}" -d '{
-  "name": "uc1-demo", "description": "First project", "enabled": false
+  "name": "example", "description": "First project", "enabled": false
 }' | jq -r .id)
 ```
 
@@ -330,7 +330,7 @@ These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and 
 
 - **On a real node, set up the git provider, repositories and secrets with the API.** fncli only creates `gitea`-type providers, and it mints Gitea tokens: for GitHub it would create the records with placeholder tokens (`setup-backend`) that you then have to replace by hand.
 - **Never run `teardown-project`, `teardown-backend` or `teardown-gitea` against a node you care about.** They delete the project, its global dataset, repositories and secrets, and (Gitea) the repositories with all their pull requests.
-- fncli's dataset defaults to a dummy. To register a real database set `CLUSTER_DATASET_HOST`, `DATASET_PORT`, `DATASET_TYPE`, `DATASET_SCHEMA`, `DATASET_SCHEMA_WRITE`, `DATASET_USERNAME` and `DATASET_PASSWORD`. `fncli experiment setup uc1` does this for the UC1 data.
+- fncli's dataset defaults to a dummy. To register a real database set `CLUSTER_DATASET_HOST`, `DATASET_PORT`, `DATASET_TYPE`, `DATASET_SCHEMA`, `DATASET_SCHEMA_WRITE`, `DATASET_USERNAME` and `DATASET_PASSWORD`. `fncli experiment setup <name>` does this for an experiment's data.
 
 ## Switch things on and off
 
