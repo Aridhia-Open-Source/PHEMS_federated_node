@@ -32,33 +32,36 @@ class GithubAPI:
         )
         return response.json()
 
-    def get_new_merged_pulls(self, repo_path: str, merged_after: str) -> list[dict]:
+    def get_pulls(self, repo_path: str, since: str, state: str = "all", merged_only: bool = False) -> list[dict]:
         """
-        Fetch the PRs merged after merged_after, into any base branch (the backend matches each assignment's). Lists closed PRs most recently
-        updated first rather than searching: the search API allows 30 requests a minute and
-        its index lags, which could let the cursor pass a PR before it is found.
+        Fetch the PRs in state (open, closed or all) updated after since, into any base branch (the backend matches
+        each assignment's), or with merged_only just those merged after since. Lists PRs most recently updated
+        first rather than searching: the search API allows 30 requests a minute and its index lags, which could
+        let the cursor pass a PR before it is found.
         """
-        self.logger.info(f"Fetching merged PRs for {repo_path}, after {merged_after}")
+        self.logger.info(f"Fetching {state} PRs for {repo_path}, updated after {since}")
 
-        merged_after_dt = dt.fromisoformat(merged_after.replace('Z', '+00:00'))
+        since_dt = dt.fromisoformat(since.replace('Z', '+00:00'))
         page = 1
         results = []
         while True:
             response = self.client.request(
                 "GET", f"repos/{repo_path}/pulls",
                 params={
-                    "state": "closed", "sort": "updated", "direction": "desc",
+                    "state": state, "sort": "updated", "direction": "desc",
                     "per_page": GH_PAGE_SIZE, "page": page,
                 },
             )
             items = response.json()
-            self.logger.info(f"Fetched {len(items)} closed PRs from GitHub for repository {repo_path} (page {page})")
+            self.logger.info(f"Fetched {len(items)} {state} PRs from GitHub for repository {repo_path} (page {page})")
 
             for item in items:
                 # updated_at is never before merged_at, so nothing older can be newly merged
-                if dt.fromisoformat(item["updated_at"].replace('Z', '+00:00')) <= merged_after_dt:
+                if dt.fromisoformat(item["updated_at"].replace('Z', '+00:00')) <= since_dt:
                     return results
-                if item["merged_at"] and dt.fromisoformat(item["merged_at"].replace('Z', '+00:00')) > merged_after_dt:
+                if not merged_only or (
+                    item["merged_at"] and dt.fromisoformat(item["merged_at"].replace('Z', '+00:00')) > since_dt
+                ):
                     results.append(item)
 
             if len(items) < GH_PAGE_SIZE:
@@ -94,16 +97,6 @@ class GithubAPI:
         """The repository's default branch, the one results pull requests go into."""
         response = self.client.request("GET", f"repos/{repo_path}")
         return response.json()["default_branch"]
-
-    def find_pull_request_by_branch(self, repo_path: str, head_branch: str, base_branch: str) -> dict | None:
-        """Fetch the open or closed PR from head_branch into base_branch, or None if there is none."""
-        owner = repo_path.split("/")[0]
-        response = self.client.request(
-            "GET", f"repos/{repo_path}/pulls",
-            params={"head": f"{owner}:{head_branch}", "base": base_branch, "state": "all"},
-        )
-        pulls = response.json()
-        return pulls[0] if pulls else None
 
     def create_pull_request(
         self, repo_path: str, head_branch: str, base_branch: str, title: str, body: str

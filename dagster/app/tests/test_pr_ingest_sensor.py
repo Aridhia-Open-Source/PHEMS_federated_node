@@ -26,7 +26,7 @@ def git_pr(number):
 
 def fake_git_api(merged_numbers):
     git_api = MagicMock()
-    git_api.get_new_merged_pulls.return_value = [{"number": n} for n in merged_numbers]
+    git_api.get_pulls.return_value = [{"number": n} for n in merged_numbers]
     git_api.get_pull_request.side_effect = lambda repo_path, number: git_pr(number)
     git_api.get_pull_request_files.return_value = [{"filename": "spec.json", "status": "added"}]
     return git_api
@@ -103,7 +103,7 @@ def test_a_repository_with_an_ingest_run_in_flight_is_skipped_without_checking_t
     results, _ = run([repo(1), repo(2, uri="github.com/org/other")], apis, in_flight={"1"})
 
     assert [r.run_config["ops"]["ingest_pull_requests"]["config"]["repo_id"] for r in results] == [2]
-    apis[1].get_new_merged_pulls.assert_not_called()
+    apis[1].get_pulls.assert_not_called()
 
 
 def test_the_in_flight_check_filters_on_the_ingest_tags_and_statuses():
@@ -128,7 +128,9 @@ def test_queries_the_provider_from_the_global_cursor_without_a_base_branch():
 
     run([repository], {1: git_api})
 
-    git_api.get_new_merged_pulls.assert_called_once_with(repo_path="org/repo", merged_after="2026-03-03T03:03:03Z")
+    git_api.get_pulls.assert_called_once_with(
+        repo_path="org/repo", since="2026-03-03T03:03:03Z", state="closed", merged_only=True
+    )
 
 
 def test_skips_when_no_repository_has_new_prs():
@@ -139,7 +141,7 @@ def test_skips_when_no_repository_has_new_prs():
 
 def failing_check_apis():
     broken = MagicMock()
-    broken.get_new_merged_pulls.side_effect = RuntimeError("provider down")
+    broken.get_pulls.side_effect = RuntimeError("provider down")
     return broken
 
 

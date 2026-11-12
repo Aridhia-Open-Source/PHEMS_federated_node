@@ -37,7 +37,7 @@ class PullRequestIngestSensor(LaunchingSensor, GitSensor):
     def ready(self, item: TriggerRepository) -> bool:
         """The provider's merged PRs since the repository's cursor. Asks the backend for a token for the repository."""
         git_api = self.git_apis.for_repository(item)
-        merged = git_api.get_new_merged_pulls(repo_path=item.repo_path, merged_after=item.pr_cursor)
+        merged = git_api.get_pulls(repo_path=item.repo_path, since=item.pr_cursor, state="closed", merged_only=True)
         self.log.info(f"Git provider returned {len(merged)} new PRs for {item.repo_path} since {item.pr_cursor}")
         return bool(merged)
 

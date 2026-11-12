@@ -90,8 +90,8 @@ Counts are `def test_` lines; a parametrised test counts once.
 | Evaluate | `test_pr_evaluate_sensor.py` (9), `test_evaluate_job.py` (9), `test_pr_parser.py` (5) | Enabled projects and active project resources only; a spec file that is missing, several, or invalid makes a REJECTED trigger; a 409 is skipped |
 | Launcher | `test_task_launcher.py` (17) | One call per PENDING task; nexus-api's `fail` or `launch` is followed; the run key `task/<id>/<attempt>`; an error leaves the task PENDING; disabled project's tasks wait |
 | Task status | `test_task_run_status_sensor.py` (10), `test_task_reconcile_sensor.py` (16) | The run-status mapping; the reconcile sensor patches from the run's current status, skips a 409, ignores a disabled project, makes no second patch |
-| Delivery | `test_results_delivery.py` (34), `test_github_parity.py` | The branch layout, the `results.zip` size cap, a retry resumes from the step reached, a held `FAILED` result counts an attempt and waits for the retry sensor, the retry sensor stops at the maximum attempts, a 404 or 409 is final, a hung git command times out, the token stays out of the command line |
-| Results pull request sync | `test_results_pull_request_sync.py` (20) | The sensor launches one run per result whose pull request changed and none otherwise; MERGED and CLOSED are recorded; a deleted pull request is skipped; a 409 is skipped; a provider error fails the tick only when nothing launches |
+| Delivery | `test_results_delivery.py` (36), `test_github_parity.py` | The branch layout, the `results.zip` size cap, delivery stops at the push (step PUSHED, state DELIVERED, no pull request opened), a retry resumes from the step reached, a held `FAILED` result counts an attempt and waits for the retry sensor, the retry sensor stops at the maximum attempts, a 404 or 409 is final, a hung git command times out, the token stays out of the command line |
+| Results pull request sync | `test_results_pull_request_sync.py` (29) | The sensor opens the pull request of each PUSHED result (and records one that exists), one provider call per results repository per tick, and launches nothing for an unchanged result; the open job records the pull request, a failure counts an attempt and leaves the state DELIVERED, the attempts cap stops it; MERGED and CLOSED are recorded; a pull request missing from the list is skipped; a 409 is skipped; a provider error fails the tick only when nothing launches |
 | Sensor plumbing and settings | `test_sensor_base.py` (9), `test_definitions.py` (11), `test_config.py` (18), `test_utils.py` (28), `test_backend.py` (43) | Run keys and slots, in-flight skip, sensors registered STOPPED, settings defaults (interval 30 s, retry slot 60 s, 5 delivery attempts, 10 MiB cap), the HTTP client's token refresh and retry on 401/403/429, backend client calls |
 | Git providers and Secrets | `test_gitea.py` (19), `test_github.py` (15), `test_git_api_factory.py` (5), `test_git_pr_ops.py` (10), `test_git_uri.py`, `test_secrets.py` (9) | Both providers give the same results and errors; the repository's own token is read each time; a disabled Secret is never read |
 | Task pod and run config | `test_pipes.py` (32), `test_run_config.py` | The task pod's settings (no service account token, task namespace, security context, dataset environment, per-run artifact path) |
@@ -115,9 +115,9 @@ Counts are `def test_` lines; a parametrised test counts once.
 | Area | Files | What is covered |
 |---|---|---|
 | Command set and settings | `test_cli.py` (7), `test_config.py` (13) | The expected commands are registered; the settings classes (the Gitea address and in-cluster URL translation, empty values rejected, Secret labels) |
-| Setup and pull request commands | `test_pr.py` (20), `test_dataset.py`, `test_backend.py` (18), `test_git_uri.py` | The file each `--kind` of pull request commits; branch names; what `--watch` prints; backend find-or-create and assign calls; URI translation |
+| Setup and pull request commands | `test_pr.py` (26), `test_dataset.py`, `test_backend.py` (18), `test_git_uri.py` | The file each `--kind` of pull request commits; branch names; what `--watch` prints; backend find-or-create and assign calls; URI translation |
 | State commands | `test_state.py` (16) | `resource-set --revoked` logs in as the first Keycloak user; everything else uses the Dagster System user |
-| Sensors and verify | `test_sensor.py` (6), `test_verify.py` (16) | `all` covers the twelve sensors once each; the order a group starts and stops in; what `verify-project` and `verify-repo` report |
+| Sensors and verify | `test_sensor.py` (6), `test_verify.py` (18) | `all` covers the twelve sensors once each; the order a group starts and stops in; what `verify-project` and `verify-repo` report |
 | Simulation | `test_simulation.py` (10) | The plan and checker of the multi-provider simulation on built states, with no cluster. The simulation itself has not been run ([dagster/fncli/README.md](../dagster/fncli/README.md)) |
 
 They cannot show that a command works against the real cluster; that is what the end-to-end suites are for.
@@ -154,7 +154,7 @@ dagster/.venv/bin/python -m pytest dagster --e2e failure -v -x -p no:cacheprovid
 
 The success suite runs first, then the failure suite. Within a suite the tests run in file order.
 
-**Success suite** (`test_happy_path.py`): clear leftovers, `setup-project` steps, `verify-project`; then branch, commit a watched spec, open and merge the pull request; the pull request is ingested (UNKNOWN) and YIELDED with a task; the task is created, QUEUED, RUNNING, SUCCESS; a result exists, reaches PUSHED and OPENED; the results pull request is merged with `merge-results-pr`; the result is MERGED; `verify-project` and `verify-repo --tail 1` pass; teardown (only with `E2E_TEARDOWN=1`).
+**Success suite** (`test_happy_path.py`): clear leftovers, `setup-project` steps, `verify-project`; then branch, commit a watched spec, open and merge the pull request; the pull request is ingested (UNKNOWN) and YIELDED with a task; the task is created, QUEUED, RUNNING, SUCCESS; a result exists, reaches PUSHED (delivery) and OPENED (the results PR sensor opens the pull request); the results pull request is merged with `merge-results-pr`; the result is MERGED; `verify-project` and `verify-repo --tail 1` pass; teardown (only with `E2E_TEARDOWN=1`).
 
 **Failure suite** (`test_failure_paths.py`): the admin login check; clear leftovers (including the second project) and set up; the project starts empty; then these groups, in this order:
 
@@ -221,7 +221,7 @@ Treat the failure suite as written but not proven on a cluster until a run is re
 | Pull requests stored once, fan-out, cursors | Yes | Ingest batches, run keys | One repository, one or two projects | Several projects, concurrency, more than 100 pull requests |
 | Secrets and quarantine | Yes (Kubernetes mocked) | A disabled Secret is not read | Disabled trigger Secret only | The real store, the quarantine namespace, rotation |
 | Sensor behaviour (ticks, run keys, retry slots) | No | Yes (mocked instance) | The sensors run, but are never stopped or restarted | Restarts, catch-up, stopped sensors, order of start |
-| Delivery (layout, size cap, resume, retry) | Result records only | Yes (mocked git) | One delivery to Gitea; one held and retried | Failures mid-delivery, large results, GitHub |
+| Delivery and its results PR (layout, size cap, resume, retry) | Result records only | Yes (mocked git) | One delivery to Gitea, its results PR opened by the sensor; one held and retried | Failures mid-delivery, large results, GitHub, the results PR sensor stopped (push-only) |
 | Wire shapes between nexus-api and Dagster | `test_dtos.py` | Wire models parse | Whole stack | Only the two sampled responses are compared |
 | Authentication, roles, normal users | Mocked | Mocked | Admin login only | Out of scope for the beta |
 

@@ -7,17 +7,15 @@ from app.backend import BackendAPI
 from app.config import DEFAULT_SENSOR_STATUS, DELIVERY_MAX_ATTEMPTS, MIN_SENSOR_INTERVAL_SECONDS, ResultsDeliveryConfig
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.base import LaunchingSensor, artifacts_volume_tags, run_key
-from app.definitions.sensors.git.base import GitAPIFactory
 from app.delivery.results import FINAL, ResultsDelivery
 from app.models import PullRequestResult, ResultState
 
 
-@dg.op(config_schema={"project_id": dg.Field(int), "task_id": dg.Field(int), "run_id": dg.Field(str)}, required_resource_keys={"backend_api", "git_apis"})
+@dg.op(config_schema={"project_id": dg.Field(int), "task_id": dg.Field(int), "run_id": dg.Field(str)}, required_resource_keys={"backend_api"})
 def deliver_results(context: OpExecCtx):
-    """Deliver the results of a task to its project's results repository."""
+    """Push the results of a task to its project's results repository."""
     ResultsDelivery(
         backend_api=cast(BackendAPI, context.resources.backend_api),
-        git_apis=cast(GitAPIFactory, context.resources.git_apis),
         config=ResultsDeliveryConfig(),
         log=context.log,
     )(
@@ -67,8 +65,8 @@ class ResultsDeliveryRetrySensor(LaunchingSensor):
     """
     Relaunches deliver_results_job for each result whose delivery failed and is not final, until it
     has DAGSTER_DELIVERY_MAX_ATTEMPTS failed attempts: after that it stays FAILED until relaunched by
-    hand (reset `attempts` with a PATCH, or re-run deliver_results_job). The
-    job resumes from the step the result reached. Only results whose project results repository
+    hand (reset `attempts` with a PATCH, or re-run deliver_results_job). A branch
+    already pushed is not pushed again. Only results whose project results repository
     is active are retried. The run key names the result and has no state, see run_key: a failing
     delivery is retried at most once per retry interval.
     A delivery with a run still queued or started is skipped, whichever sensor launched it.

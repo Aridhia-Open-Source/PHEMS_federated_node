@@ -12,7 +12,8 @@ Pull requests are stored once per global repository ([0011](0011-pull-requests-s
 - five run-status sensors on `k8s_pipes_job`: `task_queued_sensor`, `task_started_sensor`, `task_success_sensor`, `task_failure_sensor`, `task_canceled_sensor`
 - `task_reconcile_sensor`: every tick it reads the current status of the run of each unfinished task and patches the task when it differs, so a missed run-status event is repaired
 - `task_results_delivery_sensor` (a run-status sensor too: on a task run's `SUCCESS` it requests `deliver_results_job`)
-- `results_delivery_retry_sensor`, `results_pull_request_sync_sensor`
+- `results_delivery_retry_sensor`
+- `results_pull_request_sync_sensor`: after delivery has pushed the branch, it opens the results pull request (`open_results_pull_request_job`) and tracks it to `MERGED` or `CLOSED` (`sync_results_pull_requests_job`), with one provider list per results repository per tick ([0015](0015-run-keys-retries-and-results-pr-sync.md)). `DELIVERED` means pushed. A node that wants push-only stops the sensor; the results stay `PUSHED` ([0015](0015-run-keys-retries-and-results-pr-sync.md))
 
 **Ingest is an op.** The ingest sensor launches one `ingest_pull_requests_job` run per pollable repository (`GET /global/repositories/triggers?pollable=true`: repository, provider and secret enabled, project resources ignored). Its `ready()` still asks the provider whether anything merged since the cursor. The op `ingest_pull_requests` re-reads the repository for its current cursor, fetches the merged pull requests and their files ([0012](0012-github-ingest-pulls-endpoint.md)), sorts them by `(merged_at, number)` and posts them in batches of at most 100 (`MAX_BATCH_SIZE`; `BackendAPI.create_pull_requests_batch` refuses more). The cursor only moves when a batch is stored, so a failed batch never leaves an older pull request unposted behind a newer one. Duplicate file paths are dropped before the post.
 
@@ -34,7 +35,7 @@ Pull requests are stored once per global repository ([0011](0011-pull-requests-s
 
 - A failing repository, pull request or task costs one run or one log line, not the tick.
 - Retrying is bounded by the retry interval and, for delivery, by attempts.
-- Each tick costs nexus-api one task list for the launcher and one for the reconcile sensor, whatever the number of projects, one list per project for evaluate, and the ingest sensor calls the provider once per repository.
+- Each tick costs nexus-api one task list for the launcher and one for the reconcile sensor, whatever the number of projects, one list per project for evaluate, the ingest sensor calls the provider once per repository, and the results pull request sensor once per results repository.
 - A task's status mirrors its run, except for the launcher's rule failures.
 
 ## Alternatives considered

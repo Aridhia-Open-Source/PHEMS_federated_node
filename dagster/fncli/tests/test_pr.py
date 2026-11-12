@@ -95,24 +95,31 @@ def test_branch_names_made_in_the_same_second_differ():
 # --watch
 
 class FakeBackend:
-    def __init__(self, prs, task_status="SUCCESS", deliveries=("OPENED",)):
+    def __init__(self, prs, task_status="SUCCESS", deliveries=("OPENED",), sensors=None):
         self.prs = prs
         self.task_status = task_status
         self.deliveries = list(deliveries)
+        self.sensors = sensors or {}
 
     def get_task_results(self, project_id, task_id):
-        """Each delivery is None (no result yet), a step, or a (step, error) of a failed attempt."""
+        """
+        Each delivery is None (no result yet), a step, or a (step, error) of a failed attempt: a failed
+        push (step UNKNOWN, state FAILED) or a failed opening of the PR (step PUSHED, state DELIVERED).
+        """
         delivery = self.deliveries.pop(0) if len(self.deliveries) > 1 else self.deliveries[0]
         if delivery is None:
             return []
         step, error = delivery if isinstance(delivery, tuple) else (delivery, None)
         opened = step in ("OPENED", "MERGED", "CLOSED")
-        state = "FAILED" if error else "DELIVERED" if opened else "IN_PROGRESS"
+        state = "DELIVERED" if step != "UNKNOWN" else "FAILED" if error else "IN_PROGRESS"
         return [SimpleNamespace(
-            id=1, type="PR", task_id=task_id, step=step, state=state, attempts=1, commit_sha="abc", error=error,
-            number=3 if opened else None,
+            id=1, type="PR", task_id=task_id, results_repository_id=2, step=step, state=state, attempts=1,
+            commit_sha="abc", error=error, number=3 if opened else None,
             url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3" if opened else None,
         )]
+
+    def get_sensor_status(self, name):
+        return self.sensors.get(name, "RUNNING")
 
     def find_repository(self, uri, project_id):
         return SimpleNamespace(trigger_repository=SimpleNamespace(id=7), repo_path="gitea_admin/trigger")
@@ -154,7 +161,10 @@ def watch(monkeypatch):
 
         dagster_api.get_task_run.side_effect = get_task_run
         dagster_api.get_sensor_state.side_effect = lambda name: {"status": (sensors or {}).get(name, "RUNNING")}
-        monkeypatch.setattr(pr, "build_backend_api", lambda config: FakeBackend(list(prs), deliveries=deliveries))
+        monkeypatch.setattr(
+            pr, "build_backend_api",
+            lambda config: FakeBackend(list(prs), deliveries=deliveries, sensors=sensors),
+        )
         monkeypatch.setattr(pr, "DagsterAPI", lambda url: dagster_api)
         monkeypatch.setattr(pr, "find_project", lambda config, api: SimpleNamespace(id=1))
         monkeypatch.setattr(pr, "POLL_SECONDS", 0)
@@ -221,13 +231,34 @@ def test_watch_ends_on_a_results_pr_already_merged_or_closed(watch, caplog, stat
     assert f"Delivery: {state}" in caplog.text
 
 
-@pytest.mark.parametrize("state", ["UNKNOWN", "PUSHED"])
-def test_watch_a_failed_delivery_stops_waiting_and_exits_one(watch, caplog, monkeypatch, state):
+def test_watch_a_pushed_result_waits_for_the_results_pr_sensor_to_open_the_pr(watch, caplog, monkeypatch):
+    caplog.set_level(logging.INFO, logger="pr")
+    monkeypatch.setattr(pr, "DELIVERY_SECONDS", 0.05)
+
+    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=["PUSHED"]) == 1
+    assert "Delivery not finished after 0.05s, last seen: PUSHED" in caplog.text
+
+
+def test_watch_a_result_is_delivered_once_pushed_when_the_results_pr_sensor_is_stopped(watch, caplog, monkeypatch):
     caplog.set_level(logging.INFO, logger="pr")
     monkeypatch.setattr(pr, "DELIVERY_SECONDS", 5)
 
-    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[(state, "zip too big")]) == 1
-    assert f"Delivery: {state}: zip too big" in caplog.text
+    assert watch(
+        [[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[None, "UNKNOWN", "PUSHED"],
+        sensors={"results_pull_request_sync_sensor": "STOPPED"},
+    ) == 0
+    assert "Delivery: PUSHED" in caplog.text
+    assert "Delivery not finished" not in caplog.text
+
+
+@pytest.mark.parametrize("step", ["UNKNOWN", "PUSHED"])
+def test_watch_a_failed_delivery_stops_waiting_and_exits_one(watch, caplog, monkeypatch, step):
+    """A failed push leaves the step UNKNOWN, a failed opening of the PR leaves it PUSHED."""
+    caplog.set_level(logging.INFO, logger="pr")
+    monkeypatch.setattr(pr, "DELIVERY_SECONDS", 5)
+
+    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[(step, "zip too big")]) == 1
+    assert f"Delivery: {step}: zip too big" in caplog.text
     assert "Delivery not finished" not in caplog.text
 
 

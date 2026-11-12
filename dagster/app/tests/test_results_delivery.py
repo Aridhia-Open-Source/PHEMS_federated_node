@@ -108,33 +108,12 @@ def backend_api():
     return api
 
 
-RESULTS_PR = {
-    "number": 3, "html_url": "http://gitea/fn/results/pulls/3", "state": "open", "merged_at": None,
-    "merge_commit_sha": None,
-}
-
-
-@pytest.fixture
-def git_api():
-    api = MagicMock()
-    api.find_pull_request_by_branch.return_value = None
-    api.create_pull_request.return_value = RESULTS_PR
-    return api
-
-
-@pytest.fixture
-def git_apis(git_api):
-    factory = MagicMock()
-    factory.for_repository.return_value = git_api
-    return factory
-
-
-def deliver(backend_api, remote, artifacts, git_apis=None, max_zip_bytes=10485760):
+def deliver(backend_api, remote, artifacts, max_zip_bytes=10485760):
     config = ResultsDeliveryConfig(
         DAGSTER_ARTIFACT_MOUNT_PATH=str(artifacts), RESULTS_MAX_ZIP_BYTES=max_zip_bytes, NODE_ID=NODE_ID
     )
     with patch.object(git_push, "clone_url", return_value=str(remote)):
-        ResultsDelivery(backend_api, git_apis or MagicMock(), config, MagicMock())(1, 7, RUN_ID)
+        ResultsDelivery(backend_api, config, MagicMock())(1, 7, RUN_ID)
 
 
 def patches(backend_api):
@@ -144,20 +123,18 @@ def patches(backend_api):
     return [c.args[2] for c in calls]
 
 
-def test_success_pushes_a_branch_with_the_layout_and_records_pushed_then_opened(
-    backend_api, remote, artifacts, tmp_path, git_apis
+def test_success_pushes_a_branch_with_the_layout_and_records_pushed_and_delivered_in_one_patch(
+    backend_api, remote, artifacts, tmp_path
 ):
-    deliver(backend_api, remote, artifacts, git_apis)
+    deliver(backend_api, remote, artifacts)
 
     check = tmp_path / "check"
     git("clone", "--branch", BRANCH, str(remote), str(check), cwd=tmp_path)
     commit_sha = git("rev-parse", "HEAD", cwd=check)
-    pushed, opened = patches(backend_api)
-    assert pushed == {"step": "PUSHED", "branch": BRANCH, "commit_sha": commit_sha}
-    assert opened == {
-        "step": "OPENED", "state": "DELIVERED", "attempts": 1, "error": None, "number": 3, "url": "http://gitea/fn/results/pulls/3",
-        "merged_at": None, "merge_commit_sha": None,
-    }
+    # Delivery stops at the push: the pull request is opened by results_pull_request_sync_sensor
+    assert patches(backend_api) == [{
+        "step": "PUSHED", "state": "DELIVERED", "attempts": 0, "error": None, "branch": BRANCH, "commit_sha": commit_sha,
+    }]
     out = check / LAYOUT
     with zipfile.ZipFile(out / "results.zip") as zf:
         assert sorted(zf.namelist()) == ["out.txt", "sub/b.csv"]
@@ -179,25 +156,14 @@ def test_success_pushes_a_branch_with_the_layout_and_records_pushed_then_opened(
     assert not (out / "metadata.json").exists()
 
 
-def test_the_dataset_is_null_in_run_json_when_the_task_used_none(backend_api, remote, artifacts, tmp_path, git_apis):
+def test_the_dataset_is_null_in_run_json_when_the_task_used_none(backend_api, remote, artifacts, tmp_path):
     backend_api.get_task.return_value = TASK.model_copy(update={"dataset_name": None})
 
-    deliver(backend_api, remote, artifacts, git_apis)
+    deliver(backend_api, remote, artifacts)
 
     check = tmp_path / "check"
     git("clone", "--branch", BRANCH, str(remote), str(check), cwd=tmp_path)
     assert json.loads((check / LAYOUT / "run.json").read_text())["task"]["dataset"] is None
-
-
-def test_pushed_is_recorded_before_the_pull_request_is_opened(backend_api, remote, artifacts, git_api, git_apis):
-    def open_pull_request(*args):
-        assert patches(backend_api)[-1]["step"] == "PUSHED"
-        return RESULTS_PR
-    git_api.create_pull_request.side_effect = open_pull_request
-
-    deliver(backend_api, remote, artifacts, git_apis)
-
-    assert [fields["step"] for fields in patches(backend_api)] == ["PUSHED", "OPENED"]
 
 
 def test_over_the_cap_fails_the_delivery_and_pushes_nothing(backend_api, remote, artifacts, tmp_path):
@@ -238,9 +204,7 @@ def test_a_task_without_a_pull_request_fails_the_delivery(backend_api, remote, a
     assert fields["error"].startswith("HTTPError")
 
 
-def test_delivery_branches_from_and_opens_the_pull_request_into_the_pinned_base_branch_not_the_default_one(
-    backend_api, remote, artifacts, tmp_path, git_api, git_apis
-):
+def test_delivery_branches_from_the_pinned_base_branch_not_the_default_one(backend_api, remote, artifacts, tmp_path):
     seed = tmp_path / "seed"
     git("switch", "-c", "release", cwd=seed)
     (seed / "RELEASE.md").write_text("release\n")
@@ -252,35 +216,31 @@ def test_delivery_branches_from_and_opens_the_pull_request_into_the_pinned_base_
     snapshot["config_snapshot"]["results"]["base_branch"] = "release"
     backend_api.get_task_config.return_value = snapshot
 
-    deliver(backend_api, remote, artifacts, git_apis)
+    deliver(backend_api, remote, artifacts)
 
     assert git("rev-parse", f"{BRANCH}^", cwd=remote) == release_sha
     assert git("rev-list", "--count", "main", cwd=remote) == "1"
-    git_api.find_pull_request_by_branch.assert_called_once_with("fn/results", BRANCH, "release")
-    repo_path, head, base, _, _ = git_api.create_pull_request.call_args.args
-    assert (repo_path, head, base) == ("fn/results", BRANCH, "release")
 
 
 def test_a_base_branch_missing_from_the_results_repository_fails_the_delivery_and_pushes_nothing(
-    backend_api, remote, artifacts, git_api, git_apis
+    backend_api, remote, artifacts
 ):
     snapshot = json.loads(json.dumps(CONFIG))
     snapshot["config_snapshot"]["results"]["base_branch"] = "gone"
     backend_api.get_task_config.return_value = snapshot
 
     with pytest.raises(RuntimeError, match="git clone failed"):
-        deliver(backend_api, remote, artifacts, git_apis)
+        deliver(backend_api, remote, artifacts)
 
     (fields,) = patches(backend_api)
     assert (fields["state"], "step" in fields) == ("FAILED", False)
-    git_api.create_pull_request.assert_not_called()
     assert git("rev-list", "--count", "main", cwd=remote) == "1"
 
 
 def test_delivery_takes_the_target_dir_from_the_pinned_configuration_and_reads_no_resource(
-    backend_api, remote, artifacts, git_apis
+    backend_api, remote, artifacts
 ):
-    deliver(backend_api, remote, artifacts, git_apis)
+    deliver(backend_api, remote, artifacts)
 
     backend_api.get_task_config.assert_called_once_with(1, 7)
     backend_api.create_result.assert_called_once_with(1, 7, 2)
@@ -324,15 +284,14 @@ def test_a_result_just_recorded_as_switched_off_counts_an_attempt_and_waits_for_
     backend_api.get_global_results_repository.assert_not_called()
 
 
-def test_the_pull_request_is_found_with_one_call(backend_api, remote, artifacts, git_apis):
-    deliver(backend_api, remote, artifacts, git_apis)
+def test_the_pull_request_that_yielded_the_task_is_found_with_one_call(backend_api, remote, artifacts):
+    deliver(backend_api, remote, artifacts)
 
-    assert patches(backend_api)[-1]["state"] == "DELIVERED"
     backend_api.get_task_trigger.assert_called_once_with(1, 7)
 
 
-@pytest.mark.parametrize("step", ["OPENED", "MERGED", "CLOSED"])
-def test_a_result_past_pushed_is_left_alone(backend_api, remote, artifacts, step):
+@pytest.mark.parametrize("step", ["PUSHED", "OPENED", "MERGED", "CLOSED"])
+def test_a_result_pushed_or_beyond_is_left_alone(backend_api, remote, artifacts, step):
     backend_api.create_result.return_value = result(step=step, state="DELIVERED", attempts=1)
 
     deliver(backend_api, remote, artifacts)
@@ -341,123 +300,44 @@ def test_a_result_past_pushed_is_left_alone(backend_api, remote, artifacts, step
     assert git("rev-list", "--count", "main", cwd=remote) == "1"
 
 
-def test_a_retry_after_a_failure_delivers_and_counts_the_attempt(backend_api, remote, artifacts, git_apis):
+def test_a_retry_after_a_failure_pushes_and_resets_the_attempts_and_error_for_the_pull_request(
+    backend_api, remote, artifacts
+):
     backend_api.create_result.return_value = result(attempts=1, error="boom", state="FAILED")
 
-    deliver(backend_api, remote, artifacts, git_apis)
+    deliver(backend_api, remote, artifacts)
 
-    relaunched, *_, opened = patches(backend_api)
+    relaunched, pushed = patches(backend_api)
     assert relaunched == {"state": "IN_PROGRESS"}
-    assert (opened["step"], opened["state"], opened["attempts"], opened["error"]) == ("OPENED", "DELIVERED", 2, None)
+    assert (pushed["step"], pushed["state"], pushed["attempts"], pushed["error"]) == ("PUSHED", "DELIVERED", 0, None)
 
 
-def test_the_pull_request_is_opened_into_the_default_branch_and_recorded(backend_api, remote, artifacts, git_api, git_apis):
-    deliver(backend_api, remote, artifacts, git_apis)
-
-    git_apis.for_repository.assert_called_once_with(GLOBAL_REPOSITORY, 1)
-    git_api.find_pull_request_by_branch.assert_called_once_with("fn/results", BRANCH, "main")
-    repo_path, head, base, title, _ = git_api.create_pull_request.call_args.args
-    assert (repo_path, head, base) == ("fn/results", BRANCH, "main")
-    assert title == "fn/analysis PR12 - task 7 - results"
-    opened = patches(backend_api)[-1]
-    assert (opened["step"], opened["state"]) == ("OPENED", "DELIVERED")
-    assert opened["number"] == 3
-    assert opened["url"] == "http://gitea/fn/results/pulls/3"
-    assert (opened["merged_at"], opened["merge_commit_sha"]) == (None, None)
-
-
-def test_a_pull_request_failure_keeps_the_step_pushed_and_fails_the_state_with_the_branch_recorded(
-    backend_api, remote, artifacts, git_api, git_apis
-):
-    git_api.create_pull_request.side_effect = RuntimeError("provider down")
-
-    with pytest.raises(RuntimeError, match="provider down"):
-        deliver(backend_api, remote, artifacts, git_apis)
-
-    pushed, failed = patches(backend_api)
-    assert pushed["step"] == "PUSHED"
-    assert (failed["state"], "step" in failed) == ("FAILED", False)
-    assert (failed["attempts"], failed["error"]) == (1, "RuntimeError: provider down")
-    assert failed["branch"] == BRANCH
-    assert failed["commit_sha"] == git("rev-parse", BRANCH, cwd=remote)
-    assert "number" not in failed
-
-
-def test_a_retry_from_pushed_skips_the_push_and_opens_its_pull_request(
-    backend_api, remote, artifacts, git_api, git_apis
-):
-    git_api.create_pull_request.side_effect = RuntimeError("provider down")
-    with pytest.raises(RuntimeError):
-        deliver(backend_api, remote, artifacts, git_apis)
+def test_a_retry_after_a_push_that_was_not_recorded_records_it_without_pushing_again(backend_api, remote, artifacts):
+    deliver(backend_api, remote, artifacts)
     pushed_sha = git("rev-parse", BRANCH, cwd=remote)
-    backend_api.create_result.return_value = result(
-        step="PUSHED", state="FAILED", attempts=1, error="boom", branch=BRANCH, commit_sha=pushed_sha,
-    )
+    backend_api.create_result.return_value = result(attempts=1, error="boom", state="FAILED")
     backend_api.patch_result.reset_mock()
-    git_api.create_pull_request.side_effect = None
 
-    deliver(backend_api, remote, artifacts, git_apis)
+    deliver(backend_api, remote, artifacts)
 
-    relaunched, pushed, opened = patches(backend_api)
+    relaunched, pushed = patches(backend_api)
     assert relaunched == {"state": "IN_PROGRESS"}
-    assert pushed == {"step": "PUSHED", "branch": BRANCH, "commit_sha": pushed_sha}
-    assert (opened["step"], opened["attempts"], opened["error"], opened["number"]) == ("OPENED", 2, None, 3)
+    assert pushed == {
+        "step": "PUSHED", "state": "DELIVERED", "attempts": 0, "error": None, "branch": BRANCH, "commit_sha": pushed_sha,
+    }
     assert git("rev-list", "--count", f"main..{BRANCH}", cwd=remote) == "1"
 
 
-def test_a_retry_records_the_pull_request_an_earlier_attempt_opened(backend_api, remote, artifacts, git_api, git_apis):
-    backend_api.create_result.return_value = result(step="PUSHED", attempts=1)
-    git_api.find_pull_request_by_branch.return_value = RESULTS_PR
-
-    deliver(backend_api, remote, artifacts, git_apis)
-
-    git_api.create_pull_request.assert_not_called()
-    opened = patches(backend_api)[-1]
-    assert (opened["step"], opened["number"]) == ("OPENED", 3)
-
-
-def test_a_retry_records_the_merge_of_a_pull_request_merged_before_it(backend_api, remote, artifacts, git_api, git_apis):
-    git_api.find_pull_request_by_branch.return_value = {
-        **RESULTS_PR, "state": "closed", "merged_at": "2026-10-08T10:00:00Z", "merge_commit_sha": "def",
-    }
-
-    deliver(backend_api, remote, artifacts, git_apis)
-
-    git_api.create_pull_request.assert_not_called()
-    merged = patches(backend_api)[-1]
-    assert (merged["step"], merged["state"], merged["number"]) == ("MERGED", "DELIVERED", 3)
-    assert (merged["merged_at"], merged["merge_commit_sha"]) == ("2026-10-08T10:00:00Z", "def")
-
-
-def test_a_retry_records_a_pull_request_closed_before_it(backend_api, remote, artifacts, git_api, git_apis):
-    git_api.find_pull_request_by_branch.return_value = {**RESULTS_PR, "state": "closed", "merge_commit_sha": "x"}
-
-    deliver(backend_api, remote, artifacts, git_apis)
-
-    closed = patches(backend_api)[-1]
-    assert (closed["step"], closed["merged_at"], closed["merge_commit_sha"]) == ("CLOSED", None, None)
-
-
-def test_an_open_pull_request_records_no_github_test_merge_sha(backend_api, remote, artifacts, git_api, git_apis):
-    git_api.create_pull_request.return_value = {**RESULTS_PR, "merge_commit_sha": "test-merge"}
-
-    deliver(backend_api, remote, artifacts, git_apis)
-
-    assert patches(backend_api)[-1]["merge_commit_sha"] is None
-
-
-def test_the_push_uses_a_token_from_the_backend_for_the_results_repository_and_project(
-    backend_api, remote, artifacts, git_apis
-):
+def test_the_push_uses_a_token_from_the_backend_for_the_results_repository_and_project(backend_api, remote, artifacts):
     with patch.object(git_push, "auth_env", wraps=git_push.auth_env) as auth_env:
-        deliver(backend_api, remote, artifacts, git_apis)
+        deliver(backend_api, remote, artifacts)
 
     backend_api.get_repository_token.assert_called_once_with("results", 2, 1)
     auth_env.assert_called_once_with("tok")
 
 
 def test_no_token_is_asked_for_when_the_results_are_already_delivered(backend_api, remote, artifacts):
-    backend_api.create_result.return_value = result(step="OPENED")
+    backend_api.create_result.return_value = result(step="PUSHED")
 
     deliver(backend_api, remote, artifacts)
 
@@ -542,7 +422,7 @@ def retry_sensor(results, tasks=None, in_flight=False):
 
 
 def test_the_retry_sensor_relaunches_a_failed_delivery_with_its_task_run():
-    requests_, backend_api, context = retry_sensor([result(state="FAILED", step="PUSHED", attempts=2)])
+    requests_, backend_api, context = retry_sensor([result(state="FAILED", attempts=2)])
 
     (request,) = requests_
     assert re.fullmatch(r"deliver-retry/9/\d+", request.run_key)
@@ -555,7 +435,7 @@ def test_the_retry_sensor_relaunches_a_failed_delivery_with_its_task_run():
     assert context.instance.get_runs.call_args.kwargs["filters"].job_name == "deliver_results_job"
 
 
-@pytest.mark.parametrize("step", ["OPENED", "MERGED", "CLOSED", "REVOKED", "STALE"])
+@pytest.mark.parametrize("step", ["PUSHED", "OPENED", "MERGED", "CLOSED", "REVOKED", "STALE"])
 def test_the_retry_sensor_ignores_final_steps(step):
     (skip,), _, _ = retry_sensor([result(state="FAILED", step=step)])
 

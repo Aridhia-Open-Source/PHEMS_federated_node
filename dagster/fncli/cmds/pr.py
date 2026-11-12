@@ -25,7 +25,7 @@ from fncli.cmds.common import (
 )
 from fncli.cmds.project import find_project
 from fncli.cmds.sensor import SENSORS
-from fncli.cmds.verify import PAST_PUSHED, RUN_TO_TASK_STATUS, Links, Report, require, verify_task
+from fncli.cmds.verify import RUN_TO_TASK_STATUS, Links, Report, delivered, is_push_only, require, verify_task
 from app.models import TriggerState
 from fncli.sensors import DagsterAPI
 
@@ -42,9 +42,10 @@ POLL_SECONDS = 3
 MAX_CONNECTION_ERRORS = 10
 # The run-status sensors tick every 10s, so the task trails its run by up to that long.
 SETTLE_SECONDS = 30
-# How long after a succeeded run its results may take to be delivered (the delivery sensor
-# ticks, then launches a run that zips and pushes them).
-DELIVERY_SECONDS = 60
+# How long after a succeeded run its results may take to be delivered: the delivery sensor ticks and
+# launches a run that zips and pushes them, then the results PR sensor ticks and launches a run that
+# opens the PR.
+DELIVERY_SECONDS = 180
 # Dagster's run statuses that end a task's run.
 RUN_DONE = ["SUCCESS", "FAILURE", "CANCELED"]
 
@@ -150,21 +151,22 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
 
 def wait_for_delivery(backend_api, dagster_api: DagsterAPI, project_id: int, task_id: int):
     """
-    Print each change of the task's delivery step until its results PR is opened or the
-    delivery fails (its state is FAILED, with an error, and its step is left), or the wait ends.
+    Print each change of the task's delivery step until it is delivered (its results PR is opened by the
+    results PR sensor or, with that sensor stopped (a push-only node), the results are pushed) or fails
+    (it records an error, from the push or from opening the PR), or the wait ends.
     """
     deadline = time.monotonic() + DELIVERY_SECONDS
     last = ""
     while time.monotonic() < deadline:
         results = backend_api.get_task_results(project_id, task_id)
-        step = results[0].step if results else None
-        state = results[0].state if results else None
-        error = results[0].error if results else None
+        result = results[0] if results else None
+        step = result.step if result else None
+        error = result.error if result else None
         seen = f"{step}: {error}" if error else step
         if seen != last:
             last = seen
             logger.info(f"Delivery: {seen or 'waiting for the delivery sensor'}")
-        if step in PAST_PUSHED or state == "FAILED":
+        if error or (result and delivered(result, is_push_only(backend_api))):
             return
         time.sleep(POLL_SECONDS)
     logger.info(f"Delivery not finished after {DELIVERY_SECONDS}s, last seen: {last or None}")

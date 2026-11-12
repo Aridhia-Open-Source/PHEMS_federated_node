@@ -39,7 +39,7 @@ fncli open-pr --kind watched --merge --watch --timeout 300
 fncli project-show | jq '{prs: .trigger_resources[0].pull_requests | map({number,state,task_id}), tasks: .tasks | map({id,status}), results: .results | map({number,step,state})}'
 ```
 
-Wait for, in order: the PR `YIELDED` with a `task_id`, the task `SUCCESS`, then a result with `step` `OPENED`. Then:
+Wait for, in order: the PR `YIELDED` with a `task_id`, the task `SUCCESS`, then a result with `step` `OPENED` (delivery pushes it to `PUSHED`, then the results PR sensor opens the PR). Then:
 
 ```bash
 fncli merge-results-pr --number "$(fncli project-show | jq '.results[0].number')"
@@ -78,7 +78,7 @@ Optional, to set up one side only:
   - Dagster: starts the other sensors (ingest, evaluate, launcher). The order does not matter.
   - Dagster: does nothing for a sensor that is already running.
 
-Optional: `--group ingest|evaluate|launcher|status|delivery` starts just one group, or `--name <sensor>` just one sensor (`status` is the run-status sensors and `task_reconcile_sensor`, `delivery` is `task_results_delivery_sensor`, `results_delivery_retry_sensor` and `results_pull_request_sync_sensor`, which records the results PR of a pushed result and keeps each results PR's state (OPENED, MERGED, CLOSED) up to date).
+Optional: `--group ingest|evaluate|launcher|status|delivery` starts just one group, or `--name <sensor>` just one sensor (`status` is the run-status sensors and `task_reconcile_sensor`, `delivery` is `task_results_delivery_sensor`, `results_delivery_retry_sensor` and `results_pull_request_sync_sensor`, which opens the results PR of a pushed result (stop it for a push-only node) and keeps each results PR's state (OPENED, MERGED, CLOSED) up to date).
 
 ### 3. Open pull requests in the trigger repo
 
@@ -140,11 +140,11 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and nexu
   - For a `YIELDED` PR, Dagster: finds the run tagged with the task's id, and checks it is a `k8s_pipes_job`.
   - Checks the task's status, run id and attempt match the run, and that `started_at` and `completed_at` are set when they should be.
   - Checks the run succeeded.
-  - For a succeeded run, Backend: `GET /projects/{project_id}/tasks/{id}/results`, and checks the task has exactly one results delivery, its results PR was opened (state `OPENED`, `MERGED` or `CLOSED`; a failed delivery shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown).
+  - For a succeeded run, Backend: `GET /projects/{project_id}/tasks/{id}/results`, and checks the task has exactly one results delivery, its results PR was opened by the results PR sensor (state `OPENED`, `MERGED` or `CLOSED`; a failed delivery or PR opening shows its error), it has a `commit_sha`, and it has a results PR (number and url; its state is shown). With the results PR sensor stopped (a push-only node; read from `GET /dagster/sensors/results_pull_request_sync_sensor`) it checks that the results were pushed (`PUSHED`, `DELIVERED`) instead, and has no results PR to check.
   - Does not check the files in the results repo: it only reads nexus-api and Dagster.
 - `fncli verify-repo --tail 10`
   - The same, for only the last 10 PRs by number.
-- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 60s for the delivery to open its results PR (state `OPENED` or later) or fail (an error is recorded), printing a `Delivery:` line each time its state changes (Backend: `GET /projects/{project_id}/tasks/{id}/results`). If it does not finish, they name the delivery sensor if it is not running, and the delivery check fails.
+- `merge-gitea-pr --watch` and `open-pr --merge --watch` print the same per-PR checks when the run ends. After a succeeded run they first wait up to 180s for the results to be delivered: the delivery pushes them, then the results PR sensor opens the results PR (state `OPENED` or later; with that sensor stopped, a push-only node, the push is enough) or an error is recorded, from the push or from opening the PR. They print a `Delivery:` line each time its state changes (Backend: `GET /projects/{project_id}/tasks/{id}/results`, and `GET /dagster/sensors/results_pull_request_sync_sensor` for whether the results PR sensor is stopped). If it does not finish, they name the delivery-stage sensors that are not running, and the delivery check fails.
 
 ### 5. Tear down
 
