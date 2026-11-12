@@ -38,13 +38,7 @@ Licences for the component projects can be found [here](https://github.com/Aridh
 
 Python dependencies are declared in `pyproject.toml` files within each component directory (e.g. `nexus/api/`, `build/alpine/`, `build/kc-init/`). Locked `requirements.txt` files are generated from these using [pip-tools](https://pip-tools.readthedocs.io/) via the `pip-compile` mise task.
 
-#### Prerequisites
-
-Install `pip-tools` in your local environment:
-
-```bash
-python -m pip install pip-tools
-```
+`mise run setup` installs pip-tools for each component's own Python (`nexus/api` and `build/` on 3.13, `dagster` on 3.12), and `pip-compile` runs with it, so the lock matches the Python the component runs on.
 
 #### Locking Requirements
 

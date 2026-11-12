@@ -57,7 +57,7 @@ Run `mise run setup` once per checkout (installs the pinned tools and the per-pa
 - Work in a git worktree per branch: `mise run worktree --name <dir> --branch <branch> [--base <ref>]` creates a sibling worktree and copies in the gitignored dev config (`.dev.env`, `dev.values.yaml`).
 - One worktree owns the shared dev cluster at a time (`scripts/deploy_owner.sh claim|check|show|release`). `mise run deploy` claims it and refuses if another worktree owns it.
 - Before deploy or teardown, check `mise run deploy-owner`. Never take over another worktree's cluster (`mise run deploy --force-owner`) without asking.
-- A dev container (`.devcontainer/`) can be used instead of local tools; it shares the host's Docker, kind cluster and network, so the ownership rules above apply inside it too.
+- A dev container (`.devcontainer/`) can be used instead of local tools; it shares the host's Docker, kind cluster and network, so the ownership rules above apply inside it too. It mounts the checkout's parent folder at its host path, so git and the cluster owner work there only for the main repo and worktrees beside it (`mise run worktree`).
 - Clean up behind you: remove a worktree you made for temporary work as soon as it is no longer needed, and remove a branch's worktree once the branch is merged or its PR closed (`git worktree remove <dir>`, then `git worktree prune`). Only remove worktrees with no uncommitted changes; release the cluster first if the worktree owns it.
 
 Testing rule: first run only the unit tests for the files or package you changed. Widen to the full package suite only when those pass or the change is cross-cutting. Do not run the e2e suites unless explicitly asked: they need a deployed cluster and take a long time.

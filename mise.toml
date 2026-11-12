@@ -26,6 +26,10 @@ run = [
   "mise -C nexus/api exec -- python -m pip install -r requirements-dev.txt",
   "mise -C dagster exec -- python -m pip install -r requirements.txt",
   "mise -C dagster exec -- python -m pip install --no-deps -e '.[cli]'",
+  # pip-compile resolves for the Python it runs on, so each component's own interpreter gets it
+  "mise -C nexus/api exec -- python -m pip install pip-tools",
+  "mise -C dagster exec -- python -m pip install pip-tools",
+  "mise -C build exec -- python -m pip install pip-tools",
   # Print only, never edits the shell config. `mise run` works without activation;
   # activating adds automatic tool and venv switching on cd.
   '''

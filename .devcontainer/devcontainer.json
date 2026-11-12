@@ -9,15 +9,25 @@
     "ghcr.io/devcontainers-extra/features/mise:1": {}
   },
   "runArgs": ["--network=host"],
+  // The checkout's parent folder at its host path: the host's Docker resolves volume paths
+  // (`docker run -v "$(pwd)":...`) on the host, and a worktree's .git points at the main repo
+  // by its host path, so the main repo and its sibling worktrees must be visible where they are
+  "workspaceMount": "source=${localWorkspaceFolder}/..,target=${localWorkspaceFolder}/..,type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  // Bind mounts fail when the source folder is missing
+  "initializeCommand": "mkdir -p \"$HOME/.fn/data\"",
   "mounts": [
     // Host kubeconfig, read-only and read live: a recreated cluster works without a restart
     "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube-host,type=bind,readonly",
     // Installed tools survive rebuilds and are shared by every worktree's container
-    "source=fn-mise-data,target=/home/vscode/.local/share/mise,type=volume"
+    "source=fn-mise-data,target=/home/vscode/.local/share/mise,type=volume",
+    // Local PV data at its host path, for the same reason as the checkout
+    "source=${localEnv:HOME}/.fn,target=${localEnv:HOME}/.fn,type=bind"
   ],
   // Venvs go to the container's home (mise.devcontainer.toml), not the shared checkout
   "containerEnv": {
     "MISE_ENV": "devcontainer",
+    "FN_DATA_DIR": "${localEnv:HOME}/.fn/data",
     // The container's overlay (fn as kind-fn's namespace, and any changes made here) comes first,
     // the host kubeconfig supplies the clusters and credentials
     "KUBECONFIG": "/home/vscode/.kube/overlay:/home/vscode/.kube-host/config"

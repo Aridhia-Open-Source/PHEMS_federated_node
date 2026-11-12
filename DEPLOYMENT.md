@@ -193,6 +193,9 @@ An optional alternative to installing the tools on your machine. Open the repo i
 
 - It uses your machine's Docker (socket) and kind cluster, and shares its network. It reads your `~/.kube/config` live (read-only), so a recreated cluster works without a restart, and keeps its own small overlay that makes `fn` the default namespace for `kind-fn`; your own kubeconfig is never changed, so `kubectl`, `kind` and Tilt work against the same cluster.
 - Port-forwards from Tilt land on your machine's `localhost` (nexus-api on `localhost:5000` as usual). Run Tilt in one place at a time, or the ports clash.
+- It mounts the checkout's parent folder at the same path as on your machine (and `~/.fn`, the local PV data, likewise). Your Docker resolves volume paths on your machine, so the scripts' `docker run -v "$(pwd)":...` and `FN_DATA_DIR` work unchanged, and the cluster owner recorded inside matches the one recorded outside.
+- Git works in it for the main repo and for worktrees in the same parent folder (the layout `mise run worktree` creates). A worktree elsewhere has no git inside the container, because its `.git` points at a main repo the container cannot see.
+- After changing `.devcontainer/devcontainer.json`, rebuild the container (**Dev Containers: Rebuild Container**).
 - Its venvs live in the container (`/home/vscode/venvs/`), not in the checkout, so they don't clash with yours.
 - Installed tools are kept in the `fn-mise-data` volume, so rebuilds and other worktrees' containers reuse them.
 - The cluster ownership rules apply inside it as well: it's the same cluster.
