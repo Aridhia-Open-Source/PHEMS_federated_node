@@ -106,8 +106,3 @@ The `results.zip` can be at most 10 MiB (the node's setting `fnDagster.results.m
 The results pull request is the review step. Someone at the institution reads it, and merging it releases the results. Closing it without merging does not. The node records which happened.
 
 The outcome is not commented back on your trigger pull request, so look in the results repository.
-
-
-## Trying it
-
-On a development node, [`fncli trigger`](./Using-fncli#trigger-a-task) opens and merges the pull request for you. The spec file you give it is exactly the one described here.

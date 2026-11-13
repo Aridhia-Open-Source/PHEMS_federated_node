@@ -164,7 +164,7 @@ Provide the server yourself. Options in common use on-premises:
 - **Standalone PostgreSQL** on a VM or bare-metal host outside the cluster.
 - **Patroni** for high availability.
 
-The FN does not need a dedicated server. A shared one is fine: the chart creates its own databases and roles on it (`fn_nexus`, `keycloak_db` and `dagster`). The `db.superuser` login needs the right to create them. Set `db.enforceSSL: true` unless the database is on the same host, and then also set `dagster.postgresql.postgresqlParams.sslmode: require`. Size it for the FN's metadata only: 1 vCPU and 2 GB RAM is enough to start.
+The FN does not need a dedicated server. A shared one is fine: the chart creates its own databases and roles on it (`backend`, `keycloak_db` and `dagster`). The `db.superuser` login needs the right to create them. Set `db.enforceSSL: true` unless the database is on the same host, and then also set `dagster.postgresql.postgresqlParams.sslmode: require`. Size it for the FN's metadata only: 1 vCPU and 2 GB RAM is enough to start.
 
 If a DBA owns the databases and you have no admin login, see [Deploy: Core](./Deploy-Core#databases).
 

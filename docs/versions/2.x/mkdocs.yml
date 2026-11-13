@@ -76,7 +76,4 @@ nav:
       - Datasets: Datasets.md
       - Using the API: Using-The-API.md
       - Operations: Operations.md
-  - Development:
-      - Using fncli: Using-fncli.md
-      - Experiments: Experiments.md
   - API reference: api/index.md

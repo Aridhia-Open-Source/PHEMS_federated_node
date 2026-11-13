@@ -31,13 +31,13 @@ The cluster's network plugin (CNI) must **enforce NetworkPolicy**: Calico, Ciliu
 
 ### PostgreSQL
 
-The FN needs a PostgreSQL server that the cluster can reach, with an admin login. It needs its own databases on it (`fn_nexus` for nexus-api, `keycloak_db` and `dagster`), not your research data. By default the chart creates them and their roles for you, and nexus-api creates its tables on first start.
+The FN needs a PostgreSQL server that the cluster can reach, with an admin login. It needs its own databases on it (`backend`, `keycloak_db` and `dagster`), not your research data. By default the chart creates them and their roles for you, and the backend creates its tables when it first starts.
 
 Have ready the hostname, the port, and the admin login and password. On a managed service (Azure, RDS, Cloud SQL) the admin is not called `postgres`: you set it in `db.superuser`. If the server requires TLS, set `db.enforceSSL`.
 
 If a DBA owns the databases and you have no admin login, the chart can instead use roles and databases that already exist. [Deploy: Core](./Deploy-Core#databases) covers both.
 
-Back up Keycloak's database as well as nexus-api's. They are separate databases on the same server. Restoring only nexus-api's gives you a node that knows its datasets and projects but has lost every login.
+Back up Keycloak's database as well as the backend's. They are separate databases on the same server. Restoring only the backend's gives you a node that knows its datasets and projects but has lost every login.
 
 ### Shared storage
 
@@ -58,14 +58,14 @@ The node needs a DNS name pointing at Traefik, and a TLS certificate for it. Eit
 
 Tasks are asked for through git, so every project needs a **trigger repository** and a **results repository**. They can be the same repository, as long as the directories used for each do not overlap. They must already exist: the node does not create them. Use either:
 
-- **GitHub**, with a GitHub App installed on the repositories (read and write on Contents and Pull requests).
-- **Gitea**, with an OAuth2 application for the admin user.
+- **GitHub**, with an access token for each repository: read access for the trigger repository, and write access to Contents and Pull requests for the results repository.
+- **Gitea**, with an access token for each repository (`read:repository` for the trigger, `write:repository` for the results).
 
 ### Network access
 
 Outbound HTTPS to `ghcr.io` (images), to your git host (`api.github.com` for GitHub), and to wherever your analytics images live. If the cluster has no internet egress, mirror the FN images and your analytics images into an internal registry.
 
-Nothing needs to call into the node to start a task. Admins who use the API reach nexus-api over HTTPS through Traefik, so one address must be reachable from their workstations or VPN.
+Nothing needs to call into the node to start a task. Admins who use the API reach the backend over HTTPS through Traefik, so one address must be reachable from their workstations or VPN.
 
 
 ## Install the Gateway API and Traefik CRDs

@@ -162,7 +162,7 @@ certs:
 - **The file share is not created for you.** A missing share or a wrong key shows up as task pods and the Dagster run pod stuck in `ContainerCreating` with a mount error.
 - **Azure Files needs both secret keys.** The names are `azurestorageaccountname` and `azurestorageaccountkey`. The chart fails to render if `storage.azure` has no `secretName` or `shareName`.
 - **A dataset on an Azure SQL public endpoint is blocked by default.** The task network policy only allows private address ranges. List the database in `taskNetworkPolicy.datasetEgress`, with both `to` and `ports` ([Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset)). Azure SQL in *redirect* connection mode, and private endpoints whose addresses change, cannot be listed reliably. For those set `taskNetworkPolicy.enabled: false` and manage the tasks namespace's policies yourself.
-- **Postgres refuses connections because SSL is off.** Set `db.enforceSSL: true` *and* `dagster.postgresql.postgresqlParams.sslmode: require`: the first covers nexus-api, the second Dagster. The chart refuses to render if you set only the first.
+- **Postgres refuses connections because SSL is off.** Set `db.enforceSSL: true` *and* `dagster.postgresql.postgresqlParams.sslmode: require`: the first covers the backend, the second Dagster. The chart refuses to render if you set only the first.
 - **Tasks cannot write to the share.** The default mount options make it writable by any user. If you replaced them with `fnDagster.artifacts.mountOptions`, keep `file_mode` and `dir_mode`.
 
 

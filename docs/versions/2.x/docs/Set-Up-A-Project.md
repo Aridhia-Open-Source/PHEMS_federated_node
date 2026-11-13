@@ -2,8 +2,6 @@
 
 This is the admin's guide to what a node needs before it can run anything: the global resources (secrets, a git provider, repositories, a dataset) and a **project** that uses them. Install the node first ([Deploy: Core](./Deploy-Core)).
 
-On a real node, set these up with the API, as this page shows. [Using fncli](./Using-fncli) does the same from files on a development cluster, and both create the same records.
-
 The commands are written from the API's request models. They are a guide: the API's own reference is at `/docs` on your node.
 
 
@@ -15,7 +13,7 @@ Create them in this order, because each one refers to the one before:
 
 | # | What | Needs | Holds |
 |---|---|---|---|
-| 1 | Secret | nothing | A git App's credentials for each repository, and the dataset's database login. Stored in Kubernetes; the API never returns the values |
+| 1 | Secret (three of them) | nothing | A git token for each repository, and the dataset's database login. Stored in Kubernetes; the API never returns the values |
 | 2 | Git provider | nothing | The git host: GitHub or Gitea, with its web and API addresses |
 | 3 | Trigger repository | provider, secret | The repository whose merged pull requests become tasks |
 | 4 | Results repository | provider, secret | The repository results are pushed to, as a branch and a pull request |
@@ -44,30 +42,21 @@ AUTH=(-H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
 
 ## Git hosts and credentials
 
-The node never stores a long-lived git token. Each repository's secret holds app credentials, and nexus-api mints a short-lived token from them each time Dagster needs one. The keys in the secret say which kind it is:
+Each repository has a secret that holds an access token under the key `TOKEN`. The node reads it whenever it calls the git host. It does not mint or refresh tokens, so use one that stays valid, and replace it with `PATCH /global/secrets/<label>` when it expires.
 
-| Git host | Secret keys | Token |
-|---|---|---|
-| GitHub (a GitHub App) | `APP_ID`, `INSTALLATION_ID`, `PRIVATE_KEY` | One hour, covering the one repository |
-| Gitea (an OAuth2 application) | `CLIENT_ID`, `CLIENT_SECRET`, `REFRESH_TOKEN` | One hour, refreshed from the refresh token |
-| Either, as a fallback | `TOKEN` | A static token, used as it is |
+- Use a separate token for each repository, scoped to just that repository.
+- The trigger repository's token only reads: it must read the repository and its pull requests.
+- The results repository's token writes: it must push a branch and open a pull request (Contents and Pull requests).
 
 GitHub and Gitea repositories can be used side by side. The repository's provider picks the API client.
 
 ### GitHub
 
-1. Create the App (your organisation's settings, Developer settings, GitHub Apps, New):
-   - untick Webhook "Active";
-   - Repository permissions: **Contents** and **Pull requests**, read and write;
-   - "Only on this account", and leave the user-authorisation options off.
-2. Note the **App ID**, then generate a **private key** (a `.pem` file). Keep it out of git.
-3. **Install** the App on only the repositories the node uses. The number at the end of the installation URL is the **installation ID**.
-
-GitHub OAuth Apps (user tokens) are not supported. To withdraw the node's access on GitHub, remove the repository from the App's installation, or uninstall the App: GitHub has no finer switch.
+Create a token on GitHub for each repository: read access for the trigger repository, and write access to Contents and Pull requests for the results repository. Keep the tokens out of git. To withdraw the node's access, delete the token on GitHub, or revoke the secret ([Operations](./Operations#switch-things-on-and-off)).
 
 ### Gitea
 
-Gitea is the development host. The chart can run one for you (`gitea.enabled`), and `fncli apply` creates and authorises the OAuth2 application for you: see [Using fncli](./Using-fncli). The chart pins Gitea's `INVALIDATE_REFRESH_TOKENS=false`, which makes concurrent refreshes safe. A Gitea repository that goes unused for 30 days loses its refresh token and needs authorising again.
+Gitea is the development host. The chart can run one for you (`gitea.enabled`). Create a token for each repository: `read:repository` for the trigger repository, and `write:repository` for the results repository.
 
 
 ## 1. Secrets
@@ -75,11 +64,17 @@ Gitea is the development host. The chart can run one for you (`gitea.enabled`), 
 Make one per credential. A **label** is the name you use for it in later calls. It also becomes part of a Kubernetes name, so use lowercase letters, digits, `-` and `.`.
 
 ```sh
-# A GitHub App for a repository (here shared by the trigger and the results repository)
-jq -n --rawfile key your-app.private-key.pem '{
-  label: "demo-repo-creds", provider: "K8S",
-  values: {APP_ID: "<app id>", INSTALLATION_ID: "<installation id>", PRIVATE_KEY: $key}
-}' | curl -sS -X POST "$FN/global/secrets" "${AUTH[@]}" -d @- | jq
+# Trigger repository: a token that can read the repository and its pull requests
+curl -sS -X POST "$FN/global/secrets" "${AUTH[@]}" -d '{
+  "label": "demo-trigger-creds", "provider": "K8S",
+  "values": {"TOKEN": "<git token with read access>"}
+}' | jq
+
+# Results repository: a token that can push a branch and open a pull request
+curl -sS -X POST "$FN/global/secrets" "${AUTH[@]}" -d '{
+  "label": "demo-results-creds", "provider": "K8S",
+  "values": {"TOKEN": "<git token with write access>"}
+}' | jq
 
 # The dataset: the database login. The keys are USERNAME and PASSWORD
 curl -sS -X POST "$FN/global/secrets" "${AUTH[@]}" -d '{
@@ -88,7 +83,7 @@ curl -sS -X POST "$FN/global/secrets" "${AUTH[@]}" -d '{
 }' | jq
 ```
 
-To rotate a value later: `PATCH $FN/global/secrets/<label>` with `{"values": {...}}`. Rewriting a secret replaces all its values, and cached tokens from the old credentials are dropped.
+To rotate a value later: `PATCH $FN/global/secrets/<label>` with `{"values": {...}}`. A rotation reaches work already running.
 
 
 ## 2. Git provider
@@ -113,13 +108,13 @@ PROVIDER_ID=$(curl -sS -X POST "$FN/global/providers" "${AUTH[@]}" -d '{
 TRIGGER_ID=$(curl -sS -X POST "$FN/global/repositories/triggers" "${AUTH[@]}" -d "{
   \"provider_id\": $PROVIDER_ID,
   \"repo_path\": \"your-org/fn-triggers\",
-  \"secret_label\": \"demo-repo-creds\"
+  \"secret_label\": \"demo-trigger-creds\"
 }" | jq -r .id)
 
 RESULTS_ID=$(curl -sS -X POST "$FN/global/repositories/results" "${AUTH[@]}" -d "{
   \"provider_id\": $PROVIDER_ID,
   \"repo_path\": \"your-org/fn-results\",
-  \"secret_label\": \"demo-repo-creds\"
+  \"secret_label\": \"demo-results-creds\"
 }" | jq -r .id)
 ```
 
@@ -169,13 +164,13 @@ curl -sS -X PUT "$FN/projects/$PROJECT_ID/repositories/triggers/$TRIGGER_ID" "${
   "watch_dir": "specs/", "base_branch": "main"
 }' | jq
 
-# Results repository: the directory results go under, and the branch results pull requests start from and go into
+# Results repository: the directory results go under
 curl -sS -X PUT "$FN/projects/$PROJECT_ID/repositories/results/$RESULTS_ID" "${AUTH[@]}" -d '{
-  "target_dir": "results/", "base_branch": "main"
+  "target_dir": "results/"
 }' | jq
 ```
 
-- `base_branch` is required for both repositories. It is never guessed from the repository's default branch.
+- `base_branch` is optional and defaults to `main`. Set it if your repository's default branch has another name.
 - `watch_dir` must not be empty. Only a pull request that adds a `.json` file under it becomes a task.
 - A project has one results repository.
 - The trigger assignment's starting point is set when you assign it. Pull requests merged before that are not run, unless you ask for a backfill when enabling the project.
@@ -208,7 +203,7 @@ PROJECT2_ID=$(curl -sS -X POST "$FN/projects" "${AUTH[@]}" -d '{"name": "second-
 
 curl -sS -X PUT "$FN/projects/$PROJECT2_ID/datasets/$DATASET_ID" "${AUTH[@]}" -d '{}'
 curl -sS -X PUT "$FN/projects/$PROJECT2_ID/repositories/triggers/$TRIGGER_ID" "${AUTH[@]}" -d '{"watch_dir": "specs/", "base_branch": "main"}'
-curl -sS -X PUT "$FN/projects/$PROJECT2_ID/repositories/results/$RESULTS_ID" "${AUTH[@]}" -d '{"target_dir": "results-two/", "base_branch": "main"}'
+curl -sS -X PUT "$FN/projects/$PROJECT2_ID/repositories/results/$RESULTS_ID" "${AUTH[@]}" -d '{"target_dir": "results-two/"}'
 curl -sS -X PATCH "$FN/projects/$PROJECT2_ID" "${AUTH[@]}" -d '{"enabled": true}'
 ```
 
@@ -217,4 +212,4 @@ A merged pull request is stored once, whatever the number of projects watching t
 
 ## More detail
 
-The repo's [MANAGEMENT.md](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/MANAGEMENT.md) has the same walk with more notes, and [SETUP_GIT_APPS.md](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/SETUP_GIT_APPS.md) covers the git credentials.
+The repo's [MANAGEMENT.md](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/dagster-main/MANAGEMENT.md) has the same walk with more notes.

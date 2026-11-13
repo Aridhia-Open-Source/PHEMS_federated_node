@@ -23,8 +23,3 @@
 - [Datasets](./Datasets)
 - [Using the API](./Using-The-API)
 - [Operations](./Operations)
-
-
-**Development**
-- [Using fncli](./Using-fncli)
-- [Experiments](./Experiments)

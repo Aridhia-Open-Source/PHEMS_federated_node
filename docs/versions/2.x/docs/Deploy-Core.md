@@ -160,7 +160,7 @@ Either create the `tls` secret yourself (step 3), or let cert-manager renew it. 
 
 ### Databases
 
-By default the chart manages the databases: three init jobs connect as `db.superuser` and create `fn_nexus` (nexus-api), `keycloak_db` and `dagster`, each with its own role and a generated password. Re-running them is harmless. The names come from `nexus.api.db.name`, `keycloak.db.name` and `dagster.postgresql.postgresqlDatabase`.
+By default the chart manages the databases: three init jobs connect as `db.superuser` and create `backend`, `keycloak_db` and `dagster`, each with its own role and a generated password. Re-running them is harmless. The names come from `backend.db.name`, `keycloak.db.name` and `dagster.postgresql.postgresqlDatabase`.
 
 If a DBA owns the databases and you have no admin login, set `db.manageRolesAndDatabases: false`. The chart then needs no superuser, creates nothing, and each role's password becomes a secret you supply. Install once and it prints the exact SQL and `kubectl` commands for your names. A `db-check` hook verifies the roles before anything else installs.
 
@@ -225,7 +225,7 @@ kubectl label namespace tasks          pod-security.kubernetes.io/enforce=baseli
 
 The chart creates a `ClusterRole` for the backend, so the user running `helm install` must be allowed to create cluster roles. The tasks namespace must hold nothing but task pods: the chart refuses to render if `global.namespaces.tasks` is the release or Keycloak namespace.
 
-With the same switch the node's own services refuse traffic from the tasks namespace, and Postgres, nexus-ui, Traefik and Keycloak get no route to the public internet: only cluster DNS, cluster pods and `privateEgress`. Two things follow:
+With the same switch the node's own services refuse traffic from the tasks namespace, and Postgres, Traefik and Keycloak get no route to the public internet: only cluster DNS, cluster pods and `privateEgress`. Two things follow:
 
 - If your cluster's Kubernetes API server is on a public address, add it to `taskNetworkPolicy.privateEgress`, or Traefik cannot read its routes.
 - If Keycloak must reach an external identity provider, or a database on a public address, set `keycloak.allowExternalEgress: true`.
@@ -233,7 +233,7 @@ With the same switch the node's own services refuse traffic from the tasks names
 
 ## Upgrade, uninstall, reinstall
 
-**Upgrade** with the same command as the install and a new `--version`. Passwords are reused, and nexus-api applies database migrations itself (an init container runs them before it starts).
+**Upgrade** with the same command as the install and a new `--version`. Passwords are reused, and the backend applies database migrations itself (an init container runs them before it starts).
 
 ```sh
 helm repo update
@@ -241,7 +241,7 @@ helm upgrade --install federatednode federated-node/federated-node \
   --devel --version <NEW_VERSION> -f values.yaml -n federated-node --timeout 15m
 ```
 
-**Uninstall** with `helm uninstall federatednode -n federated-node`. Helm does not remove what the hooks created: the generated password secrets (label `federatednode.com/generated-password=true`), the init jobs, the dataset credential secrets nexus-api wrote, and the data behind the Postgres volume if the chart ran the database.
+**Uninstall** with `helm uninstall federatednode -n federated-node`. Helm does not remove what the hooks created: the generated password secrets (label `federatednode.com/generated-password=true`), the init jobs, the dataset credential secrets the backend wrote, and the data behind the Postgres volume if the chart ran the database.
 
 **Reinstall onto the same external database server** works: the init jobs set each role's password to the newly generated one, and the databases and their data are still there. Drop the databases first if you want a clean start.
 

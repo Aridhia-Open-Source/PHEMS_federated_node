@@ -1,8 +1,8 @@
 # Using the API
 
-This guide covers everyday interactions with the nexus-api of a Federated Node 2.x: logging in, what the routes are for, and the conventions they share. A researcher does not need the API to run a task: see the [Researcher guide](./Researcher-Guide).
+This guide covers everyday interactions with the backend API of a Federated Node 2.x: logging in, what the routes are for, and the conventions they share. A researcher does not need the API to run a task: see the [Researcher guide](./Researcher-Guide).
 
-Every node serves its own interactive reference at `/docs`, for example `https://fn.your-institution.example.com/docs`, and the same description as `openapi.json` (also in the repo's [nexus/api](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/beta/nexus/api) folder). Treat those as the source of truth for request and response bodies.
+Every node serves its own interactive reference at `/docs`, for example `https://fn.your-institution.example.com/docs`, and the same description as `openapi.json` (also in the repo's [webserver/app/static](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/dagster-main/webserver/app/static) folder). Treat those as the source of truth for request and response bodies.
 
 
 ## Setup
@@ -90,7 +90,7 @@ The node's roles are realm roles in Keycloak:
 | `Users` | A basic login. Researchers do not need one in the common case: they work in git. |
 | `Administrator` | Registers and revokes the global resources, creates users, and manages projects. |
 | `Super Administrator` | Everything an `Administrator` can do, plus the wider Keycloak realm permissions. |
-| `System` | Integrations. Dagster logs in to nexus-api as a system user. |
+| `System` | Integrations. Dagster logs in to the backend as a system user. |
 
 The first admin is created at install time from `firstUserSecret` ([Deploy: Core](./Deploy-Core#3-create-the-namespace-and-the-secrets-you-must-provide)).
 

@@ -30,9 +30,9 @@ All examples in this guide use `$FN_HOST`.
 export FN_HOST=https://fn.your-institution.example.com
 ```
 
-**If port-forwarding to nexus-api directly (no Traefik):**
+**If port-forwarding to the backend directly (no Traefik):**
 ```sh
-kubectl port-forward -n federated-node service/nexus-api 5000:5000
+kubectl port-forward -n federated-node service/backend 5000:5000
 export FN_HOST=http://localhost:5000
 ```
 
@@ -43,7 +43,7 @@ export FN_HOST=http://localhost:5000
 curl "$FN_HOST/health_check"
 ```
 
-It returns `"status": "ok"` when nexus-api can reach Keycloak, and a 502 otherwise. If it stays at 502, give Keycloak a minute and retry, then check the Keycloak pod's logs.
+It returns `"status": "ok"` when the backend can reach Keycloak, and a 502 otherwise. If it stays at 502, give Keycloak a minute and retry, then check the Keycloak pod's logs.
 
 
 ## 4. Login
