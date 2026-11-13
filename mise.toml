@@ -182,16 +182,29 @@ flag "--all" help="Build every version with the dropdown, like the published sit
 '''
 run = '''
 [ -x .venv-docs/bin/mkdocs ] || { python -m venv .venv-docs && .venv-docs/bin/pip install -q -r docs-requirements.txt; }
+# Same paths as the published site: /<repo>/docs/<branch>/<version>/
+repo=$(basename -s .git "$(git remote get-url origin)")
+branch=$(git branch --show-current)
+case "$branch" in
+  dagster-develop) slug=beta/develop ;;
+  dagster-main) slug=beta/main ;;
+  *) slug="${branch//\//-}" ;;
+esac
+base="/$repo/docs/$slug"
 if [ "${usage_all:-false}" != true ]; then
-  exec .venv-docs/bin/mkdocs serve -f "docs/versions/$usage_version/mkdocs.yml" -a "127.0.0.1:$usage_port"
+  v="$usage_version"
+  # A local config that inherits the version's own, so only site_url (the served path) changes
+  local_cfg="docs/versions/$v/.mkdocs.local.yml"
+  printf 'INHERIT: mkdocs.yml\nsite_url: http://localhost:%s%s/%s/\n' "$usage_port" "$base" "$v" > "$local_cfg"
+  echo "Docs: http://localhost:$usage_port$base/$v/"
+  exec .venv-docs/bin/mkdocs serve -q -f "$local_cfg" -a "localhost:$usage_port"
 fi
-# Same layout as gh-pages: one folder per version, versions.json for the dropdown, / opens the newest
-out=.venv-docs/site; rm -rf "$out"; mkdir -p "$out"
+# One folder per version, versions.json for the dropdown, the branch path opens the newest
+out=.venv-docs/site; rm -rf "$out"; mkdir -p "$out$base"
 versions=$(ls docs/versions | sort -V -r)
-for v in $versions; do .venv-docs/bin/mkdocs build -q -f "docs/versions/$v/mkdocs.yml" -d "$PWD/$out/$v"; done
-printf '%s\n' $versions | python -c 'import json,sys; print(json.dumps([{"version":v,"title":v,"aliases":[]} for v in sys.stdin.read().split()]))' > "$out/versions.json"
-newest=$(echo "$versions" | head -1)
-printf '<meta http-equiv="refresh" content="0; url=%s/">\n' "$newest" > "$out/index.html"
-echo "Docs with the version dropdown: http://127.0.0.1:$usage_port/"
-exec .venv-docs/bin/python -m http.server "$usage_port" -b 127.0.0.1 -d "$out"
+for v in $versions; do .venv-docs/bin/mkdocs build -q -f "docs/versions/$v/mkdocs.yml" -d "$PWD/$out$base/$v"; done
+printf '%s\n' $versions | python -c 'import json,sys; print(json.dumps([{"version":v,"title":v,"aliases":[]} for v in sys.stdin.read().split()]))' > "$out$base/versions.json"
+printf '<meta http-equiv="refresh" content="0; url=%s/">\n' "$(echo "$versions" | head -1)" > "$out$base/index.html"
+echo "Docs with the version dropdown: http://localhost:$usage_port$base/"
+exec .venv-docs/bin/python -m http.server "$usage_port" -b localhost -d "$out"
 '''

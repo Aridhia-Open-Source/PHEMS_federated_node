@@ -48,3 +48,4 @@ mise.local.toml
 # MkDocs build output
 site/
 .venv-docs/
+docs/versions/*/.mkdocs.local.yml
