@@ -1143,12 +1143,23 @@
 <li>When the task finishes, the node pushes the result files to the project's results repository as a branch and opens a pull request.</li>
 <li>Someone at the institution reviews that pull request. Merging it is the release of the results.</li>
 </ol>
-<pre class="mermaid"><code>flowchart LR
-    R([Researcher]) --&gt;|"pull request"| GP[Git Provider]
-    GP --&gt;|"merged, ingested by sensor"| DG["dagster"]
-    DG --&gt;|"launches task"| TP["task pod"]
-    TP --&gt;|"results pushed"| RP["Git Provider&lt;br/&gt;results pull request"]
-    RP --&gt; V([Reviewer merges])</code></pre>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Researcher
+    participant Trigger as Trigger Repo
+    participant DataController as Data Controller
+    participant Node as Federated Node
+    participant Task as Task Pod
+    participant Results as Results Repo
+
+    Researcher-&gt;&gt;Trigger: Raise PR (task spec: image + dataset)
+    DataController-&gt;&gt;Trigger: Review &amp; Merge PR (approval gate)
+    Node-&gt;&gt;Trigger: Poll merged PRs, read the task spec
+    Node-&gt;&gt;Node: Create task, check the project, dataset and repos are allowed
+    Node-&gt;&gt;Task: Start pod in the tasks namespace, next to the dataset
+    Task--&gt;&gt;Node: Write results to its output folder
+    Node-&gt;&gt;Results: Push results branch, open results PR
+    DataController-&gt;&gt;Results: Review &amp; Merge results PR (release gate)
+    Node-&gt;&gt;Results: Sync PR state, record the result as merged</code></pre>
 <p><a href="Architecture/">Architecture</a> explains each part. <a href="Researcher-Guide/">Researcher guide</a> shows the researcher's side.</p>
 <h2 id="where-to-start">Where to start<a class="headerlink" href="#where-to-start" title="Permanent link">&para;</a></h2>
 <p><strong>Understanding how it fits together:</strong> <a href="Architecture/">Architecture</a> covers the components, the flow, and the decisions you need to make yourself before production.</p>

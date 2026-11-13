@@ -1264,33 +1264,73 @@
 <p>The FN inverts the usual data sharing model. Instead of copying patient data out to a researcher, the researcher sends their analysis code to you, packaged as a Docker image, and asks for it with a pull request. The FN runs that image inside your cluster, against your data, in an isolated pod that lives only as long as the task. The only thing that leaves is the result files, and only as a pull request that a person at your institution merges. Everything else stays behind your firewall.</p>
 <h2 id="the-components">The components<a class="headerlink" href="#the-components" title="Permanent link">&para;</a></h2>
 <p>Everything below is deployed by a single Helm chart. Some parts are subcharts you can turn on or off.</p>
-<pre class="mermaid"><code>flowchart LR
-    subgraph Node["Federated Node"]
-        TR[Traefik]
-        UI["nexus/ui"]
-        API["nexus/api"]
-        KC[Keycloak]
-        DB[(Postgres)]
-        DG["dagster"]
-        subgraph Tasks["tasks namespace"]
-            TP["task pods"]
-            NP["default-deny network policy"]
-        end
+<pre class="mermaid"><code>flowchart TD
+  subgraph People["People"]
+    Researcher("Researcher")
+    DataController("Data Controller")
+    Admin("Admin")
+  end
+
+  subgraph GitProvider["Git Provider (GitHub / Gitea)"]
+    TriggerRepo("Trigger Repo")
+    ResultsRepo("Results Repo")
+  end
+
+  subgraph FederatedNode["Federated Node"]
+    Traefik("Traefik")
+
+    subgraph Nexus["Nexus"]
+      UI("nexus-ui")
+      API("nexus-api")
     end
-    GP[Git Provider]
-    DS[(Datasets)]
-    TR --&gt; UI
-    TR --&gt; API
-    TR --&gt; KC
-    API --&gt; KC
-    API --&gt; DB
-    KC --&gt; DB
-    DG --&gt; API
-    DG --&gt; DB
-    DG --&gt;|"launches"| TP
-    DG &lt;--&gt;|"pull requests"| GP
-    TP --&gt; NP
-    NP --&gt;|"only route out"| DS</code></pre>
+
+    Keycloak("Keycloak")
+    Postgres[("Postgres")]
+    Secrets("fn-secrets")
+
+    subgraph Dagster["Dagster"]
+      subgraph DagsterServices["Services"]
+        Daemon("Daemon (sensors)")
+        CodeServer("Code Server")
+        WebServer("Web Server")
+      end
+
+      subgraph DagsterRuns["Run Pods"]
+        Run1("Pod")
+        Run2("Pod")
+      end
+    end
+
+    subgraph TasksNamespace["tasks namespace (default-deny)"]
+      Task1("Task Pod")
+      Task2("Task Pod")
+    end
+
+    ResultsVolume("Results Volume")
+  end
+
+  Datasets[("Datasets")]
+
+  Researcher --&gt;|"task spec PR"| TriggerRepo
+  DataController --&gt;|"merges"| TriggerRepo
+  DataController --&gt;|"merges"| ResultsRepo
+  Admin --&gt; Traefik
+  Traefik --&gt; UI
+  Traefik --&gt; API
+  Traefik --&gt; Keycloak
+  UI --&gt; API
+  API --&gt; Keycloak
+  API --- Postgres
+  Keycloak --- Postgres
+  API --- Secrets
+  Daemon --&gt;|"polls"| TriggerRepo
+  Daemon --&gt; API
+  Daemon --&gt;|"launches"| DagsterRuns
+  DagsterRuns --&gt;|"starts"| TasksNamespace
+  DagsterRuns --&gt;|"results PR"| ResultsRepo
+  TasksNamespace --&gt;|"only route out"| Datasets
+  TasksNamespace --- ResultsVolume
+  DagsterRuns --- ResultsVolume</code></pre>
 <table>
 <thead>
 <tr>
@@ -1354,12 +1394,23 @@
 </table>
 <p>Task pods get their own namespace on purpose: it holds nothing but task pods, so the network rules and permissions there can be strict.</p>
 <h2 id="how-a-task-runs">How a task runs<a class="headerlink" href="#how-a-task-runs" title="Permanent link">&para;</a></h2>
-<pre class="mermaid"><code>flowchart LR
-    R([Researcher]) --&gt;|"pull request"| GP[Git Provider]
-    GP --&gt;|"merged, ingested by sensor"| DG["dagster"]
-    DG --&gt;|"launches task"| TP["task pod"]
-    TP --&gt;|"results pushed"| RP["Git Provider&lt;br/&gt;results pull request"]
-    RP --&gt; V([Reviewer merges])</code></pre>
+<pre class="mermaid"><code>sequenceDiagram
+    participant Researcher
+    participant Trigger as Trigger Repo
+    participant DataController as Data Controller
+    participant Node as Federated Node
+    participant Task as Task Pod
+    participant Results as Results Repo
+
+    Researcher-&gt;&gt;Trigger: Raise PR (task spec: image + dataset)
+    DataController-&gt;&gt;Trigger: Review &amp; Merge PR (approval gate)
+    Node-&gt;&gt;Trigger: Poll merged PRs, read the task spec
+    Node-&gt;&gt;Node: Create task, check the project, dataset and repos are allowed
+    Node-&gt;&gt;Task: Start pod in the tasks namespace, next to the dataset
+    Task--&gt;&gt;Node: Write results to its output folder
+    Node-&gt;&gt;Results: Push results branch, open results PR
+    DataController-&gt;&gt;Results: Review &amp; Merge results PR (release gate)
+    Node-&gt;&gt;Results: Sync PR state, record the result as merged</code></pre>
 <ol>
 <li><strong>Ingest.</strong> A Dagster sensor polls each trigger repository for merged pull requests. nexus-api stores each pull request once, however many projects watch the repository.</li>
 <li><strong>Evaluate.</strong> For each project that watches that repository and branch, a pull request that <strong>adds one <code>.json</code> file</strong> under the project's watch directory becomes a task. A pull request that adds no such file is ignored. One that adds several, or whose spec is not valid, is marked <code>REJECTED</code> with the reason.</li>
