@@ -7,6 +7,7 @@ docs/versions/<version>/ rebuilds that version and refreshes the open page.
 Usage: python scripts/docs_serve.py <base path, e.g. /PHEMS_federated_node/docs/main> <port>
 """
 import json
+import logging
 import shutil
 import subprocess
 import sys
@@ -39,6 +40,13 @@ def rebuilder(version, site):
     return rebuild
 
 
+class StaleLiveReloadFilter(logging.Filter):
+    """Drop the 404s from tabs left open on an earlier `mkdocs serve`, which poll /livereload/<id>/<id>."""
+
+    def filter(self, record):
+        return "/livereload/" not in record.getMessage()
+
+
 def main():
     base, port = sys.argv[1], int(sys.argv[2])
     versions = sorted((p.name for p in VERSIONS.iterdir() if (p / "mkdocs.yml").exists()), key=version_key, reverse=True)
@@ -51,6 +59,7 @@ def main():
     (site / "versions.json").write_text(json.dumps([{"version": v, "title": v, "aliases": []} for v in versions]))
     (site / "index.html").write_text(f'<meta http-equiv="refresh" content="0; url={versions[0]}/">\n')
 
+    logging.getLogger("tornado.access").addFilter(StaleLiveReloadFilter())
     server = Server()
     for v in versions:
         # livereload passes the changed paths to the callback, so bind the version here
