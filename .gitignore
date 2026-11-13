@@ -44,3 +44,6 @@ experiments/results/
 # worktree include files
 .worktreeinclude
 mise.local.toml
+
+# MkDocs build output
+site/

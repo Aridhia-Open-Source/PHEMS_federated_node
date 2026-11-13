@@ -1,0 +1,76 @@
+site_name: Federated Node
+site_url: https://aridhia-open-source.github.io/PHEMS_federated_node/docs/
+repo_url: https://github.com/Aridhia-Open-Source/PHEMS_federated_node
+docs_dir: docs/wiki
+
+# Home.md is the homepage and _Sidebar.md only exists for the GitHub wiki. The 1.x-* pages are
+# the 1.x docs kept on the GitHub wiki; the 1.x version of this site carries them.
+exclude_docs: |
+  _Sidebar.md
+  1.x-*.md
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - search.suggest
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+  - swagger-ui-tag
+
+extra:
+  version:
+    provider: mike
+
+validation:
+  anchors: warn
+
+hooks:
+  - docs/hooks/wiki_links.py
+
+nav:
+  - Home: Home.md
+  - Concepts:
+      - Architecture overview: Architecture.md
+  - Getting started:
+      - Prerequisites: Prerequisites.md
+      - "Deploy: Core": Deploy-Core.md
+      - Deploy on Azure (UNTESTED): Deploy-Azure.md
+      - Deploy on AWS (UNTESTED): Deploy-AWS.md
+      - Deploy on GCP (UNTESTED): Deploy-GCP.md
+      - Deploy on-premises (UNTESTED): Deploy-On-Premises.md
+      - Post-deploy testing: Post-Deploy-Testing.md
+  - Using the node:
+      - Researcher guide: Researcher-Guide.md
+      - Analytics container development: Analytics-Container-Development.md
+      - Datasets: Datasets.md
+      - Using the API: Using-The-API.md
+      - Operations: Operations.md
+  - API reference: api/index.md
