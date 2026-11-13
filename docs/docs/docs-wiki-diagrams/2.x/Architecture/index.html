@@ -1298,12 +1298,12 @@
 
   Datasets[("Datasets")]
 
-  Researcher --&gt;|"task spec PR"| TriggerRepo
+  Researcher --&gt;|"Trigger PR"| TriggerRepo
   DataController --&gt;|"merges PRs"| GitProvider
   Admin --&gt; Traefik
   Daemon -.-&gt;|"polls"| TriggerRepo
-  RunPods -.-&gt;|"results PR"| ResultsRepo
-  TaskPods --&gt;|"only route out"| Datasets</code></pre>
+  RunPods -.-&gt;|"Results PR"| ResultsRepo
+  TaskPods --&gt; Datasets</code></pre>
 <table>
 <thead>
 <tr>
