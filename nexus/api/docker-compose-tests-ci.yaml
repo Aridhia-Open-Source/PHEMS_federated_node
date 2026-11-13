@@ -23,6 +23,9 @@ services:
         condition: service_healthy
     links:
       - db
+    volumes:
+      # Sample responses shared with Dagster, read by the contract tests
+      - ../../dagster/app/tests/contract:/contract:ro
     environment:
       PGHOST:
       PGDATABASE:
