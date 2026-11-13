@@ -64,7 +64,7 @@ def main():
     for v in versions:
         # livereload passes the changed paths to the callback, so bind the version here
         server.watch(str(VERSIONS / v / "**" / "*"), rebuilder(v, site), delay=1)
-    print(f"Docs with the version dropdown and live reload: http://localhost:{port}{base}/", flush=True)
+    print(f"local:  http://localhost:{port}{base}/", flush=True)
     server.serve(root=str(OUT), host="localhost", port=port, open_url_delay=None)
 
 
