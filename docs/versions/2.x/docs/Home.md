@@ -29,6 +29,15 @@ You also need a git host for the trigger and results repositories: GitHub (with 
 4. When the task finishes, the node pushes the result files to the project's results repository as a branch and opens a pull request.
 5. Someone at the institution reviews that pull request. Merging it is the release of the results.
 
+```mermaid
+flowchart LR
+    R([Researcher]) -->|"pull request"| GP[Git Provider]
+    GP -->|"merged, ingested by sensor"| DG["dagster"]
+    DG -->|"launches task"| TP["task pod"]
+    TP -->|"results pushed"| RP["Git Provider<br/>results pull request"]
+    RP --> V([Reviewer merges])
+```
+
 [Architecture](./Architecture) explains each part. [Researcher guide](./Researcher-Guide) shows the researcher's side.
 
 
