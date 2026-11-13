@@ -172,16 +172,16 @@ flag "--base <ref>" help="Base ref (default HEAD)"
 '''
 run = './scripts/new-worktree.sh "$usage_name" "$usage_branch" ${usage_base:+"$usage_base"}'
 
-# mise run docs [--port 8001] | mise run docs --version 2.x (one version, live reload)
+# mise run docs [--port 8001] [--version 2.x]
 [tasks.docs]
-description = "Serve every docs version with the dropdown, rebuilt on save; --version for one version with live reload"
+description = "Serve every docs version with the dropdown and live reload; --version for just one"
 usage = '''
-flag "--version <version>" help="Only this folder under docs/versions, with live reload"
+flag "--version <version>" help="Only this folder under docs/versions"
 flag "--port <port>" default="8000" help="Local port"
 '''
 run = '''
 export NO_MKDOCS_2_WARNING=1
-[ -x .venv-docs/bin/mkdocs ] || { python -m venv .venv-docs && .venv-docs/bin/pip install -q -r docs-requirements.txt; }
+[ -x .venv-docs/bin/livereload ] || { python -m venv .venv-docs && .venv-docs/bin/pip install -q -r docs-requirements.txt livereload; }
 # Same paths as the published site: /<repo>/docs/<branch>/<version>/
 repo=$(basename -s .git "$(git remote get-url origin)")
 branch=$(git branch --show-current)
@@ -199,25 +199,5 @@ if [ -n "${usage_version:-}" ]; then
   echo "Docs: http://localhost:$usage_port$base/$v/"
   exec .venv-docs/bin/mkdocs serve -q -f "$local_cfg" -a "localhost:$usage_port"
 fi
-# One folder per version, versions.json for the dropdown, the branch path opens the newest
-out=.venv-docs/site; rm -rf "$out"; mkdir -p "$out$base"
-versions=$(ls docs/versions | sort -V -r)
-build() { .venv-docs/bin/mkdocs build -q -f "docs/versions/$1/mkdocs.yml" -d "$PWD/$out$base/$1"; }
-for v in $versions; do build "$v"; done
-printf '%s\n' $versions | python -c 'import json,sys; print(json.dumps([{"version":v,"title":v,"aliases":[]} for v in sys.stdin.read().split()]))' > "$out$base/versions.json"
-printf '<meta http-equiv="refresh" content="0; url=%s/">\n' "$(echo "$versions" | head -1)" > "$out$base/index.html"
-.venv-docs/bin/python -m http.server "$usage_port" -b localhost -d "$out" >/dev/null 2>&1 &
-server=$!
-trap 'kill $server 2>/dev/null' EXIT INT TERM
-echo "Docs with the version dropdown: http://localhost:$usage_port$base/ (rebuilt on save; refresh the page)"
-# Rebuild a version when a file under it changes
-stamp=$(mktemp); touch "$stamp"
-while kill -0 $server 2>/dev/null; do
-  sleep 1
-  for v in $versions; do
-    if [ -n "$(find "docs/versions/$v" -newer "$stamp" -type f ! -name '.mkdocs.local.yml' -print -quit)" ]; then
-      touch "$stamp"; echo "Rebuilding $v"; build "$v"
-    fi
-  done
-done
+exec .venv-docs/bin/python scripts/docs_serve.py "$base" "$usage_port"
 '''
