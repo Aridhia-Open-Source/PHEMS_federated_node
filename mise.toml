@@ -183,8 +183,18 @@ run = '''
 export NO_MKDOCS_2_WARNING=1
 [ -x .venv-docs/bin/livereload ] || { python -m venv .venv-docs && .venv-docs/bin/pip install -q -r docs-requirements.txt livereload; }
 # Served under /<repo>/docs/<version>/, like the published site minus the branch
-repo=$(basename -s .git "$(git remote get-url origin)")
+origin=$(git remote get-url origin)
+repo=$(basename -s .git "$origin")
 base="/$repo/docs"
+# This branch's published docs, from the origin remote and the branch name (same names as docs.yml)
+owner=$(printf %s "$origin" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#/.*##' | tr '[:upper:]' '[:lower:]')
+branch=$(git branch --show-current)
+case "$branch" in
+  dagster-develop) slug=beta/develop ;;
+  dagster-main) slug=beta/main ;;
+  *) slug=$(printf %s "$branch" | tr / -) ;;
+esac
+echo "Published (once this branch is pushed and its docs workflow has run): https://$owner.github.io/$repo/docs/$slug/"
 if [ -n "${usage_version:-}" ]; then
   v="$usage_version"
   # A local config that inherits the version's own, so only site_url (the served path) changes
