@@ -195,14 +195,15 @@ case "$branch" in
   dagster-main) slug=beta/main ;;
   *) slug=$(printf %s "$branch" | tr / -) ;;
 esac
-echo "remote: https://$owner.github.io/$repo/docs/$slug/"
+remote="https://$owner.github.io/$repo/docs/$slug/"
 if [ -n "${usage_version:-}" ]; then
   v="$usage_version"
   # A local config that inherits the version's own, so only site_url (the served path) changes
   local_cfg="docs/versions/$v/.mkdocs.local.yml"
   printf 'INHERIT: mkdocs.yml\nsite_url: http://localhost:%s%s/%s/\n' "$usage_port" "$base" "$v" > "$local_cfg"
   echo "local:  http://localhost:$usage_port$base/$v/"
+  echo "remote: $remote"
   exec .venv-docs/bin/mkdocs serve -q -f "$local_cfg" -a "localhost:$usage_port"
 fi
-exec .venv-docs/bin/python scripts/docs_serve.py "$base" "$usage_port"
+exec .venv-docs/bin/python scripts/docs_serve.py "$base" "$usage_port" "$remote"
 '''

@@ -4,7 +4,7 @@ Served under /<repo>/docs/<version>/ (the published layout without the branch), 
 the dropdown, and /<repo>/docs/ opening the newest version. Saving a file under
 docs/versions/<version>/ rebuilds that version and refreshes the open page.
 
-Usage: python scripts/docs_serve.py <base path, e.g. /PHEMS_federated_node/docs> <port>
+Usage: python scripts/docs_serve.py <base path, e.g. /PHEMS_federated_node/docs> <port> <published address>
 """
 import json
 import logging
@@ -48,7 +48,7 @@ class StaleLiveReloadFilter(logging.Filter):
 
 
 def main():
-    base, port = sys.argv[1], int(sys.argv[2])
+    base, port, remote = sys.argv[1], int(sys.argv[2]), sys.argv[3]
     versions = sorted((p.name for p in VERSIONS.iterdir() if (p / "mkdocs.yml").exists()), key=version_key, reverse=True)
     shutil.rmtree(OUT, ignore_errors=True)
     site = OUT / base.strip("/")
@@ -64,7 +64,7 @@ def main():
     for v in versions:
         # livereload passes the changed paths to the callback, so bind the version here
         server.watch(str(VERSIONS / v / "**" / "*"), rebuilder(v, site), delay=1)
-    print(f"local:  http://localhost:{port}{base}/", flush=True)
+    print(f"local:  http://localhost:{port}{base}/\nremote: {remote}", flush=True)
     server.serve(root=str(OUT), host="localhost", port=port, open_url_delay=None)
 
 
