@@ -15,33 +15,73 @@ The FN inverts the usual data sharing model. Instead of copying patient data out
 Everything below is deployed by a single Helm chart. Some parts are subcharts you can turn on or off.
 
 ```mermaid
-flowchart LR
-    subgraph Node["Federated Node"]
-        TR[Traefik]
-        UI["nexus/ui"]
-        API["nexus/api"]
-        KC[Keycloak]
-        DB[(Postgres)]
-        DG["dagster"]
-        subgraph Tasks["tasks namespace"]
-            TP["task pods"]
-            NP["default-deny network policy"]
-        end
+flowchart TD
+  subgraph People["People"]
+    Researcher("Researcher")
+    DataController("Data Controller")
+    Admin("Admin")
+  end
+
+  subgraph GitProvider["Git Provider (GitHub / Gitea)"]
+    TriggerRepo("Trigger Repo")
+    ResultsRepo("Results Repo")
+  end
+
+  subgraph FederatedNode["Federated Node"]
+    Traefik("Traefik")
+
+    subgraph Nexus["Nexus"]
+      UI("nexus-ui")
+      API("nexus-api")
     end
-    GP[Git Provider]
-    DS[(Datasets)]
-    TR --> UI
-    TR --> API
-    TR --> KC
-    API --> KC
-    API --> DB
-    KC --> DB
-    DG --> API
-    DG --> DB
-    DG -->|"launches"| TP
-    DG <-->|"pull requests"| GP
-    TP --> NP
-    NP -->|"only route out"| DS
+
+    Keycloak("Keycloak")
+    Postgres[("Postgres")]
+    Secrets("fn-secrets")
+
+    subgraph Dagster["Dagster"]
+      subgraph DagsterServices["Services"]
+        Daemon("Daemon (sensors)")
+        CodeServer("Code Server")
+        WebServer("Web Server")
+      end
+
+      subgraph DagsterRuns["Run Pods"]
+        Run1("Pod")
+        Run2("Pod")
+      end
+    end
+
+    subgraph TasksNamespace["tasks namespace (default-deny)"]
+      Task1("Task Pod")
+      Task2("Task Pod")
+    end
+
+    ResultsVolume("Results Volume")
+  end
+
+  Datasets[("Datasets")]
+
+  Researcher -->|"task spec PR"| TriggerRepo
+  DataController -->|"merges"| TriggerRepo
+  DataController -->|"merges"| ResultsRepo
+  Admin --> Traefik
+  Traefik --> UI
+  Traefik --> API
+  Traefik --> Keycloak
+  UI --> API
+  API --> Keycloak
+  API --- Postgres
+  Keycloak --- Postgres
+  API --- Secrets
+  Daemon -->|"polls"| TriggerRepo
+  Daemon --> API
+  Daemon -->|"launches"| DagsterRuns
+  DagsterRuns -->|"starts"| TasksNamespace
+  DagsterRuns -->|"results PR"| ResultsRepo
+  TasksNamespace -->|"only route out"| Datasets
+  TasksNamespace --- ResultsVolume
+  DagsterRuns --- ResultsVolume
 ```
 
 | Component | Namespace | What it does |
@@ -63,12 +103,23 @@ Task pods get their own namespace on purpose: it holds nothing but task pods, so
 ## How a task runs
 
 ```mermaid
-flowchart LR
-    R([Researcher]) -->|"pull request"| GP[Git Provider]
-    GP -->|"merged, ingested by sensor"| DG["dagster"]
-    DG -->|"launches task"| TP["task pod"]
-    TP -->|"results pushed"| RP["Git Provider<br/>results pull request"]
-    RP --> V([Reviewer merges])
+sequenceDiagram
+    participant Researcher
+    participant Trigger as Trigger Repo
+    participant DataController as Data Controller
+    participant Node as Federated Node
+    participant Task as Task Pod
+    participant Results as Results Repo
+
+    Researcher->>Trigger: Raise PR (task spec: image + dataset)
+    DataController->>Trigger: Review & Merge PR (approval gate)
+    Node->>Trigger: Poll merged PRs, read the task spec
+    Node->>Node: Create task, check the project, dataset and repos are allowed
+    Node->>Task: Start pod in the tasks namespace, next to the dataset
+    Task-->>Node: Write results to its output folder
+    Node->>Results: Push results branch, open results PR
+    DataController->>Results: Review & Merge results PR (release gate)
+    Node->>Results: Sync PR state, record the result as merged
 ```
 
 1. **Ingest.** A Dagster sensor polls each trigger repository for merged pull requests. nexus-api stores each pull request once, however many projects watch the repository.
