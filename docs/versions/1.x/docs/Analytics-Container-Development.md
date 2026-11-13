@@ -1,0 +1,325 @@
+# Analytics Container Development
+
+This guide covers everything you need to build a Docker container that runs as a task inside the Federated Node.
+
+Your container receives database connection details, schema names, and any custom parameters as environment variables. It writes results to a known path on a mounted volume. That's the entire contract.
+
+
+## Quick start
+
+Use the provided base images - they have the correct ODBC drivers pre-installed for all supported database engines:
+
+| Image | Language |
+|---|---|
+| `ghcr.io/aridhia-open-source/python-base:0.0.1` | Python |
+| `ghcr.io/aridhia-open-source/r-base:0.0.1` | R |
+
+Source: [Federated-Node-Task-Base-Images](https://github.com/Aridhia-Open-Source/Federated-Node-Task-Base-Images)
+
+Example `Dockerfile`:
+
+```dockerfile
+FROM ghcr.io/aridhia-open-source/python-base:0.0.1
+
+COPY requirements.txt /app/
+RUN pip install -r /app/requirements.txt
+
+COPY analysis.py /app/
+
+CMD ["python", "/app/analysis.py"]
+```
+
+
+## Environment variables
+
+The FN injects these environment variables into your container at runtime. You do not need to handle authentication or connection setup from scratch - use `CONNECTION_STRING` directly with your ODBC driver, or build a connection from the individual `DB_*` variables.
+
+### Database connection
+
+| Variable | Description |
+|---|---|
+| `CONNECTION_STRING` | Pre-built ODBC connection string for the dataset's database engine. Use this with `pyodbc` or equivalent. See format details below. |
+| `DB_HOST` | Database hostname |
+| `DB_PORT` | Database port |
+| `DB_NAME` | Database name |
+| `DB_USER` | Database username |
+| `DB_PSW` | Database password |
+| `DB_SCHEMA` | Read schema (same as `CDM_SCHEMA`) |
+| `DB_ARGS` | Any extra connection arguments configured on the dataset |
+
+### Schema
+
+| Variable | Description |
+|---|---|
+| `CDM_SCHEMA` | The read schema - the schema your queries should read from |
+| `WRITE_SCHEMA` | The write schema - if your analysis writes results back to the database, use this schema |
+| `ORACLE_SID` | The database name, provided separately for Oracle connections |
+
+### File datasets (DuckDB / SQLite)
+
+| Variable | Description |
+|---|---|
+| `DATASET_TYPE` | `duckdb` or `sqlite` |
+| `DATASET_PATH` | Full path to the read-only database file, e.g. `/mnt/dataset/clinic.duckdb` |
+
+### Paths
+
+| Variable | Description |
+|---|---|
+| `INPUT_PATH` | Full path to the input file, if `inputs` was specified in the task definition and a pre-fetch was performed. Format: `<mount>/<filename>`. |
+
+### Custom parameters
+
+Any key/value pairs passed in `executors[0].env` in the task submission body are injected as environment variables verbatim:
+
+```json
+"executors": [
+  {
+    "image": "ghcr.io/your-org/your-analysis:1.0",
+    "env": {
+      "COHORT": "paediatric",
+      "MIN_AGE": "0",
+      "MAX_AGE": "18"
+    }
+  }
+]
+```
+
+These become `$COHORT`, `$MIN_AGE`, `$MAX_AGE` in your container.
+
+
+## CONNECTION_STRING format
+
+The `CONNECTION_STRING` variable is an ODBC connection string. The exact format depends on the database engine configured on the dataset:
+
+**PostgreSQL:**
+```
+driver={PostgreSQL ANSI};Uid=<user>;Pwd=<password>;Server=<host>,<port>;Database=<name>;
+```
+
+**Microsoft SQL Server:**
+```
+driver={ODBC Driver 18 for SQL Server};Uid=<user>;Pwd=<password>;Server=<host>,<port>;Database=<name>;
+```
+
+**MySQL:**
+```
+driver={MySQL ODBC 9.3 ANSI Driver};Uid=<user>;Pwd=<password>;Server=<host>,<port>;Database=<name>;
+```
+
+**MariaDB:**
+```
+driver={MariaDB ODBC 3.2 Driver};Uid=<user>;Pwd=<password>;Server=<host>,<port>;Database=<name>;
+```
+
+**Oracle:**
+```
+driver={Oracle ODBC Driver};Uid=<user>;PSW=<password>;DBQ=<host>:<port>/<name>;
+```
+
+**DuckDB** (file dataset):
+```
+driver={DuckDB Driver};Database=/mnt/dataset/<path>;access_mode=read_only;
+```
+
+**SQLite** (file dataset):
+```
+driver={SQLite3};Database=file:/mnt/dataset/<path>?mode=ro&immutable=1;
+```
+
+For file datasets the file is also mounted read-only at `DATASET_PATH` (with `DATASET_TYPE` set to `duckdb` or `sqlite`), so you can open it with the native library instead of ODBC. `DB_USER`, `DB_PSW`, `WRITE_SCHEMA` and `ORACLE_SID` are not set. See [Datasets](Datasets.md#file-datasets-duckdb-and-sqlite).
+
+Using it with `pyodbc`:
+
+```python
+import os
+import pyodbc
+
+conn = pyodbc.connect(os.environ["CONNECTION_STRING"])
+cursor = conn.cursor()
+cursor.execute(f"SELECT * FROM {os.environ['CDM_SCHEMA']}.patients LIMIT 10")
+rows = cursor.fetchall()
+```
+
+
+## Writing results
+
+Write all output files to `/mnt/data` (the default `task_pod_results_path`). The FN zips the contents of this directory and returns it to the researcher.
+
+```python
+import os
+
+output_dir = "/mnt/data"
+os.makedirs(output_dir, exist_ok=True)
+
+results_df.to_csv(f"{output_dir}/results.csv", index=False)
+fig.savefig(f"{output_dir}/plot.png")
+```
+
+If the task was submitted with a custom `outputs` mapping, your container will have named subfolders mounted at the paths you specified. For example, with:
+
+```json
+"outputs": {
+  "figures": "/app/output/figures",
+  "tables": "/app/output/tables"
+}
+```
+
+Write to `/app/output/figures` and `/app/output/tables` - those paths are backed by the FN's persistent volume and will be included in the results archive.
+
+If no `outputs` are specified in the task submission, a default `results` folder is created at the `task_pod_results_path` (`/mnt/data` by default) and anything written there is collected.
+
+
+## Pre-fetched input data (db_query)
+
+If the task is submitted with a `db_query` field, the FN runs a pre-fetch step before your container starts. A separate init container executes the SQL query against the dataset database and writes the results as a CSV file to the input mount path. Your container then receives the CSV rather than connecting to the database directly.
+
+This is useful for analytics images that don't have database drivers installed, or where you want to separate the data extraction step from the analysis.
+
+The pre-fetched CSV is available at `$INPUT_PATH` (full path including filename). Example:
+
+```python
+import os
+import pandas as pd
+
+df = pd.read_csv(os.environ["INPUT_PATH"])
+```
+
+The `db_query` task submission field:
+
+```json
+"db_query": {
+  "query": "SELECT patient_id, age, diagnosis FROM public.patients WHERE age < 18",
+  "dialect": "postgres"
+}
+```
+
+`dialect` should match the source database engine (`postgres`, `mssql`, `mysql`, `oracle`, `mariadb`). `db_query` is not available for DuckDB/SQLite file datasets - the task reads the file directly. The pre-fetch connector translates the query if the source and target dialects differ.
+
+
+## Resource limits
+
+By default the FN does not enforce resource limits on task pods. You can request specific CPU and memory in the task submission:
+
+```json
+"resources": {
+  "requests": {
+    "cpu": "500m",
+    "memory": "512Mi"
+  },
+  "limits": {
+    "cpu": "2",
+    "memory": "4Gi"
+  }
+}
+```
+
+CPU values accept millicores (`500m`, `1`, `0.5`). Memory values accept Kubernetes units (`128Mi`, `2Gi`, `512M`). Limits must be greater than or equal to requests.
+
+
+## Container requirements
+
+The FN's pod security context runs all containers as non-root (`runAsNonRoot: true`, UID 1000) with all Linux capabilities dropped. Your container image must be compatible with this:
+
+- Do not require `root` for your entrypoint or runtime
+- Do not use `USER root` as the final `USER` instruction in your Dockerfile
+- Avoid operations that require elevated privileges at runtime
+
+The base images provided already comply with this.
+
+
+## Registering your image
+
+Before the FN will run your container, you need to:
+
+1. Push the image to a container registry
+2. Register that registry with the FN (see [Using the API](Using-The-API.md))
+3. If `federatedNode.enable_image_whitelist: true` is set, also add the specific image to the FN allowlist
+
+```sh
+# Register the registry
+curl --location "$FN_HOST/registries/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "url": "ghcr.io/your-org",
+        "username": "your-github-username",
+        "password": "your-github-PAT"
+    }'
+
+# Allowlist the image (only needed if enable_image_whitelist: true)
+curl --location "$FN_HOST/containers" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "your-analysis",
+        "registry": "ghcr.io/your-org",
+        "tag": "1.0"
+    }'
+```
+
+
+## Minimal working example
+
+A complete Python analysis container that reads from the database and writes results:
+
+```python
+import os
+import pyodbc
+import pandas as pd
+
+conn = pyodbc.connect(os.environ["CONNECTION_STRING"])
+
+schema = os.environ["CDM_SCHEMA"]
+cohort = os.environ.get("COHORT", "all")
+
+query = f"""
+    SELECT age, diagnosis, COUNT(*) as count
+    FROM {schema}.patients
+    WHERE cohort = ?
+    GROUP BY age, diagnosis
+"""
+
+df = pd.read_sql(query, conn, params=[cohort])
+
+output_dir = "/mnt/data"
+os.makedirs(output_dir, exist_ok=True)
+df.to_csv(f"{output_dir}/summary.csv", index=False)
+
+print(f"Done. {len(df)} rows written to {output_dir}/summary.csv")
+```
+
+With `Dockerfile`:
+
+```dockerfile
+FROM ghcr.io/aridhia-open-source/python-base:0.0.1
+
+RUN pip install pandas
+
+COPY analysis.py /app/
+
+CMD ["python", "/app/analysis.py"]
+```
+
+And the task submission:
+
+```sh
+curl --location "$FN_HOST/tasks/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "cohort-summary",
+        "executors": [
+            {
+                "image": "ghcr.io/your-org/cohort-summary:1.0",
+                "env": {
+                    "COHORT": "paediatric"
+                }
+            }
+        ],
+        "tags": {
+            "dataset_id": 1
+        },
+        "description": "Age and diagnosis summary for paediatric cohort"
+    }'
+```
