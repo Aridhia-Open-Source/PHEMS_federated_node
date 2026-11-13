@@ -1,7 +1,5 @@
 # Task Review (v1.3.0+)
 
-> **This page is for chart 1.x.** Task review is not part of the 2.x beta. In 2.x the results arrive as a pull request that the data controller merges: see [Researcher guide](./Researcher-Guide).
-
 Task Review is an optional governance feature that holds task results until an administrator has inspected and explicitly approved them. This is useful for institutions that need to verify results don't inadvertently leak sensitive information before they leave the node.
 
 By default this feature is **disabled** - results are available to the requesting user as soon as the task completes.

@@ -1,7 +1,5 @@
 # Outbound Connection Only Mode
 
-> **This page is for chart 1.x.** There is no Task Controller in 2.x: the node itself reads the trigger repository. See [Architecture](./Architecture).
-
 If your cluster cannot accept inbound connections from researchers, or if you are joining a federated network that requires a standardised task submission workflow, the Federated Node can run in **outbound mode** using the Federated Node Task Controller (FNTC).
 
 In outbound mode, researchers do not call the FN API directly. Instead, they submit tasks via a GitHub repository. The Task Controller monitors that repository and - from inside your cluster - calls the FN API internally when a task is submitted, then pushes results back to GitHub when the task completes.
@@ -37,7 +35,7 @@ fn-task-controller:
       repository: MyOrg/My-Task-Repo
 ```
 
-See the [Helm Values Reference](./1.x-Helm-Values-Reference) for all `fn-task-controller` configuration options.
+See the [Helm Values Reference](Helm-Values-Reference.md) for all `fn-task-controller` configuration options.
 
 
 ## Full setup guide

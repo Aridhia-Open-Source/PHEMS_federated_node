@@ -1,7 +1,5 @@
 # Analytics Container Development
 
-> **This page is for chart 1.x.** For 2.x, see [Analytics container development](./Analytics-Container-Development).
-
 This guide covers everything you need to build a Docker container that runs as a task inside the Federated Node.
 
 Your container receives database connection details, schema names, and any custom parameters as environment variables. It writes results to a known path on a mounted volume. That's the entire contract.
@@ -129,7 +127,7 @@ driver={DuckDB Driver};Database=/mnt/dataset/<path>;access_mode=read_only;
 driver={SQLite3};Database=file:/mnt/dataset/<path>?mode=ro&immutable=1;
 ```
 
-For file datasets the file is also mounted read-only at `DATASET_PATH` (with `DATASET_TYPE` set to `duckdb` or `sqlite`), so you can open it with the native library instead of ODBC. `DB_USER`, `DB_PSW`, `WRITE_SCHEMA` and `ORACLE_SID` are not set. See [Datasets](./1.x-Datasets#file-datasets-duckdb-and-sqlite).
+For file datasets the file is also mounted read-only at `DATASET_PATH` (with `DATASET_TYPE` set to `duckdb` or `sqlite`), so you can open it with the native library instead of ODBC. `DB_USER`, `DB_PSW`, `WRITE_SCHEMA` and `ORACLE_SID` are not set. See [Datasets](Datasets.md#file-datasets-duckdb-and-sqlite).
 
 Using it with `pyodbc`:
 
@@ -235,7 +233,7 @@ The base images provided already comply with this.
 Before the FN will run your container, you need to:
 
 1. Push the image to a container registry
-2. Register that registry with the FN (see [Using the API](./1.x-Using-The-API))
+2. Register that registry with the FN (see [Using the API](Using-The-API.md))
 3. If `federatedNode.enable_image_whitelist: true` is set, also add the specific image to the FN allowlist
 
 ```sh

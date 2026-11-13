@@ -1,7 +1,5 @@
 # Using the API
 
-> **This page is for chart 1.x.** For 2.x, see [Using the API](./Using-The-API).
-
 This guide covers everyday API interactions for administrators and researchers. Full interactive API docs are available at https://aridhia-open-source.github.io/PHEMS_federated_node/
 
 We also provide a Postman collection with some degree of response automation.
@@ -46,7 +44,7 @@ TOKEN=$(curl --silent --location "$FN_HOST/refresh_token" \
 
 Datasets are connection mappings to research databases. The FN stores connection details only - data never leaves its source.
 
-See [Datasets](./1.x-Datasets) for per-engine examples (PostgreSQL, SQL Server, MySQL, MariaDB, Oracle) and for DuckDB/SQLite file datasets.
+See [Datasets](Datasets.md) for per-engine examples (PostgreSQL, SQL Server, MySQL, MariaDB, Oracle) and for DuckDB/SQLite file datasets.
 
 ### Register a dataset (admin only)
 
@@ -120,7 +118,7 @@ curl --location "$FN_HOST/users/" \
     }'
 ```
 
-Available roles: `Super Administrator`, `Administrator`, `User`. See [User Roles](./1.x-User-Roles).
+Available roles: `Super Administrator`, `Administrator`, `User`. See [User Roles](User-Roles.md).
 
 If the user doesn't already exist in Keycloak they will be created. Administrator accounts cannot be created via the API - use `firstUserSecret` at deploy time or Keycloak directly.
 
@@ -227,7 +225,7 @@ curl --location "$FN_HOST/tasks/" \
 Additional optional fields in the task body:
 
 - `executors[].env` - key/value pairs passed as environment variables to the analytics container (in addition to the standard DB connection vars)
-- `db_query` - pre-fetch data from the dataset DB before the container runs (see [Analytics Container Development](./1.x-Analytics-Container-Development))
+- `db_query` - pre-fetch data from the dataset DB before the container runs (see [Analytics Container Development](Analytics-Container-Development.md))
 - `inputs` - input file mappings
 - `outputs` - output path mappings
 

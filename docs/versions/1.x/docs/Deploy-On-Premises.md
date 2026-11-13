@@ -1,8 +1,6 @@
 # Deploy: On-Premises
 
-> **Not yet checked for 2.x.** This page was written for chart 1.x. Its storage and TLS steps may still apply, but nobody has checked them against the 2.x chart. For 2.x, start with [Deploy: Core](./Deploy-Core).
-
-Work through [Deploy: Core](./1.x-Deploy-Core) alongside this guide.
+Work through [Deploy: Core](Deploy-Core.md) alongside this guide.
 
 This guide covers production on-premises deployments using distributions commonly used in healthcare and enterprise environments. Local single-node setups (e.g. for development) are covered briefly at the end.
 
@@ -16,7 +14,7 @@ Other CNCF-conformant distributions - including k3s and kubeadm - should work gi
 
 ## Before you start
 
-Complete [Prerequisites](./1.x-Prerequisites), including the **Gateway API and Traefik CRD pre-install step** - this is required before `helm install` if you are using Traefik as your ingress.
+Complete [Prerequisites](Prerequisites.md), including the **Gateway API and Traefik CRD pre-install step** - this is required before `helm install` if you are using Traefik as your ingress.
 
 
 ## Storage
@@ -89,7 +87,7 @@ The one practical consideration is **port exposure**: if your existing ingress c
 
 ### kubeadm
 
-No bundled ingress. Install the Gateway API and Traefik CRDs (see [Prerequisites](./1.x-Prerequisites)) and set `traefik.enabled: true` in your values.
+No bundled ingress. Install the Gateway API and Traefik CRDs (see [Prerequisites](Prerequisites.md)) and set `traefik.enabled: true` in your values.
 
 
 ## Exposing Traefik to your network
@@ -279,9 +277,9 @@ Before deploying, confirm:
 
 ## Deploy
 
-Return to [Deploy: Core](./1.x-Deploy-Core) step 8 and run `helm install` with your completed `values.yaml`.
+Return to [Deploy: Core](Deploy-Core.md) step 8 and run `helm install` with your completed `values.yaml`.
 
 
 ## Next step
 
-[Post-Deploy Testing](./1.x-Post-Deploy-Testing)
+[Post-Deploy Testing](Post-Deploy-Testing.md)

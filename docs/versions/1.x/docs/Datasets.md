@@ -1,7 +1,5 @@
 # Datasets
 
-> **This page is for chart 1.x.** For 2.x, see [Datasets](./Datasets).
-
 A dataset tells the Federated Node where a research database lives and how a task should connect to it. The FN stores the connection details and per-dataset permissions - it never copies or centralises the data.
 
 There are two kinds of dataset:
@@ -9,7 +7,7 @@ There are two kinds of dataset:
 - **Server datasets** - a database server the task connects to over the network: PostgreSQL, Microsoft SQL Server, MySQL, MariaDB or Oracle. The FN keeps the credentials in a Kubernetes secret.
 - **File datasets** - an embedded database file (DuckDB or SQLite) sitting on a volume. The file is mounted read-only into the task pod. There is no server, host or credentials.
 
-Registering, updating and deleting datasets needs the `can_admin_dataset` permission (Administrator or above). See [User roles](./1.x-User-Roles).
+Registering, updating and deleting datasets needs the `can_admin_dataset` permission (Administrator or above). See [User roles](User-Roles.md).
 
 
 ## Supported engines
@@ -44,11 +42,11 @@ The analytics container needs the matching ODBC driver installed. The [FN task b
 | `extra_connection_args` | optional | optional | Appended to the end of the ODBC connection string, e.g. `Encrypt=yes;TrustServerCertificate=no;` |
 | `volume_claim` | not allowed | required | Name of a PVC in the tasks namespace that holds the file |
 | `path` | not allowed | required | Path to the file, relative to the root of the volume. Must not start with `/` or contain `..` |
-| `repository` | optional | optional | Link to a GitHub repository for [outbound mode](./1.x-Outbound-connection-only-mode). Only one dataset can be linked to a given repository. |
+| `repository` | optional | optional | Link to a GitHub repository for [outbound mode](Outbound-connection-only-mode.md). Only one dataset can be linked to a given repository. |
 | `catalogue` | optional | optional | Object with `title`, `description` and optional `version` |
 | `dictionaries` | optional | optional | List of objects with `table_name`, `field_name`, `description` and optional `label` |
 
-The examples below assume `$FN_HOST` and an admin `$TOKEN` are set, as in [Using the API](./1.x-Using-The-API).
+The examples below assume `$FN_HOST` and an admin `$TOKEN` are set, as in [Using the API](Using-The-API.md).
 
 
 ## Server datasets
@@ -152,7 +150,7 @@ For Oracle, `name` is the service name: the connection string uses `DBQ=<host>:<
 ### What happens on registration
 
 - The connection details go into the FN database. The username and password go into a Kubernetes secret named `<host>-<name>-creds`, created in both the FN namespace and the tasks namespace.
-- A Keycloak resource and admin policy are created for the dataset, so access can be granted per user. See [Architecture](./1.x-Architecture).
+- A Keycloak resource and admin policy are created for the dataset, so access can be granted per user. See [Architecture](Architecture.md).
 - If DB liveness is enabled (the default), each task pod first checks the database is reachable before the analytics container starts.
 
 The response contains the new dataset's id and URL:
@@ -164,7 +162,7 @@ The response contains the new dataset's id and URL:
 
 ## File datasets (DuckDB and SQLite)
 
-> Requires FN **v1.21.0** or later. If you are on an older release, upgrade the chart first - see [Deploy: Core](./1.x-Deploy-Core).
+> Requires FN **v1.21.0** or later. If you are on an older release, upgrade the chart first - see [Deploy: Core](Deploy-Core.md).
 
 File datasets let you publish a single DuckDB or SQLite file without running a database server. The file lives on a volume, and every task against the dataset gets that volume mounted **read-only** at `/mnt/dataset`. Because the mount is read-only, any number of tasks can read the same file at once and no task can change it.
 
@@ -255,7 +253,7 @@ For SQLite, the connection string opens the file read-only and immutable:
 driver={SQLite3};Database=file:/mnt/dataset/clinic.sqlite?mode=ro&immutable=1;
 ```
 
-`WRITE_SCHEMA`, `ORACLE_SID`, `DB_USER` and `DB_PSW` are not set, and the DB liveness check is skipped since there is no server. Write results to the results folder, not to the database - see [Analytics container development](./1.x-Analytics-Container-Development).
+`WRITE_SCHEMA`, `ORACLE_SID`, `DB_USER` and `DB_PSW` are not set, and the DB liveness check is skipped since there is no server. Write results to the results folder, not to the database - see [Analytics container development](Analytics-Container-Development.md).
 
 A task can use the ODBC connection string, or open the file directly with the native library:
 
@@ -357,7 +355,7 @@ curl "$FN_HOST/datasets/omop_cdm/dictionaries/person" --header "Authorization: B
 
 ### Granting access
 
-Researchers with the `User` role can't run tasks against a dataset until they're granted access to it. See [Grant a user access to a dataset](./1.x-Using-The-API#grant-a-user-access-to-a-dataset).
+Researchers with the `User` role can't run tasks against a dataset until they're granted access to it. See [Grant a user access to a dataset](Using-The-API.md#grant-a-user-access-to-a-dataset).
 
 
 ## Troubleshooting

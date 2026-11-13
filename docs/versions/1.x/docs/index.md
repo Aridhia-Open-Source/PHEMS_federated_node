@@ -1,7 +1,5 @@
 # Federated Node - Documentation
 
-> **This is the documentation for chart 1.x.** The 2.x beta starts at [Home](./Home).
-
 This documentation covers deploying, configuring, testing, and using the PHEMS Federated Node (FN).
 
 ## What is the Federated Node?
@@ -20,12 +18,12 @@ Core components bundled in the chart:
 
 ## Where to start
 
-**Understanding how it fits together:** [Architecture Overview](./1.x-Architecture) covers the components, how Keycloak is wired in, the namespace and pod layout, and the database and firewall decisions you need to make yourself.
+**Understanding how it fits together:** [Architecture Overview](Architecture.md) covers the components, how Keycloak is wired in, the namespace and pod layout, and the database and firewall decisions you need to make yourself.
 
-**Deploying for the first time:** [Prerequisites](./1.x-Prerequisites), then your platform deploy guide, then [Post-Deploy Testing](./1.x-Post-Deploy-Testing).
+**Deploying for the first time:** [Prerequisites](Prerequisites.md), then your platform deploy guide, then [Post-Deploy Testing](Post-Deploy-Testing.md).
 
 **Joining an existing federated network / outbound-only mode:** The network operator will have told you to use the Task Controller. Complete your deployment first, then head to the [Task Controller wiki](https://github.com/Aridhia-Open-Source/federated-node-task-controller/wiki).
 
-**Building an analytics container:** [Analytics Container Development](./1.x-Analytics-Container-Development) covers the environment variables, base images, and output contract.
+**Building an analytics container:** [Analytics Container Development](Analytics-Container-Development.md) covers the environment variables, base images, and output contract.
 
-**Giving a researcher access to run tasks:** [User Roles](./1.x-User-Roles) then [Using the API](./1.x-Using-The-API) for the dataset permissions call.
+**Giving a researcher access to run tasks:** [User Roles](User-Roles.md) then [Using the API](Using-The-API.md) for the dataset permissions call.

@@ -1,7 +1,5 @@
 # Post-Deploy Testing
 
-> **This page is for chart 1.x.** For 2.x, see [Post-deploy testing](./Post-Deploy-Testing).
-
 Use this guide to verify your Federated Node is healthy and fully functional before handing it over to users or setting up the Task Controller.
 
 
@@ -108,7 +106,7 @@ curl --silent --location "$FN_HOST/datasets/" \
     }' | jq .
 ```
 
-The `type` field sets the database engine. Options: `postgres`, `mssql`, `mysql`, `oracle`, `mariadb`, and from v1.21.0 `duckdb` and `sqlite`. Defaults to `postgres` if omitted. See [Datasets](./1.x-Datasets) for examples of each.
+The `type` field sets the database engine. Options: `postgres`, `mssql`, `mysql`, `oracle`, `mariadb`, and from v1.21.0 `duckdb` and `sqlite`. Defaults to `postgres` if omitted. See [Datasets](Datasets.md) for examples of each.
 
 Expected response:
 
@@ -204,7 +202,7 @@ curl --silent "$FN_HOST/tasks/$TASK_ID/results" \
 tar -tzf results.tar.gz
 ```
 
-If `taskReview` is enabled in your values, an admin must approve results before they can be retrieved. See [Task Review](./1.x-Task-Review).
+If `taskReview` is enabled in your values, an admin must approve results before they can be retrieved. See [Task Review](Task-Review.md).
 
 > **Note:** The cleanup CronJob removes task results and related Kubernetes resources daily at noon, after `cleanupTime` days (default: 3). Retrieve results before then.
 
@@ -213,7 +211,7 @@ If `taskReview` is enabled in your values, an admin must approve results before 
 
 Your Federated Node is working. Next steps:
 
-- Set up users and dataset permissions → [User Roles](./1.x-User-Roles) and [Using the API](./1.x-Using-The-API)
-- Enable the results review workflow → [Task Review](./1.x-Task-Review)
+- Set up users and dataset permissions → [User Roles](User-Roles.md) and [Using the API](Using-The-API.md)
+- Enable the results review workflow → [Task Review](Task-Review.md)
 - Deploy the Task Controller for outbound-only mode → [Task Controller Overview](https://github.com/Aridhia-Open-Source/federated-node-task-controller/wiki)
-- Build analytics containers → [Analytics Container Development](./1.x-Analytics-Container-Development)
+- Build analytics containers → [Analytics Container Development](Analytics-Container-Development.md)

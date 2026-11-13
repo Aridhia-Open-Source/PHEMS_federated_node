@@ -1,7 +1,5 @@
 # Helm Values Reference
 
-> **This page is for chart 1.x.** There is no 2.x values reference yet. For 2.x, see [Deploy: Core](./Deploy-Core).
-
 Complete reference for all configuration fields in the Federated Node Helm chart `values.yaml`.
 
 All fields are optional unless marked **required**.
@@ -14,7 +12,7 @@ All fields are optional unless marked **required**.
 |---|---|---|
 | `host` | Public URL where the FN will be hosted. Also used to name result files. | - |
 | `cleanupTime` | Days to retain task results and related Kubernetes resources. Cleanup runs daily at noon via a CronJob. | `3` |
-| `taskReview` | Enable the results review/approval workflow (see [Task Review](./1.x-Task-Review)) | `false` |
+| `taskReview` | Enable the results review/approval workflow (see [Task Review](Task-Review.md)) | `false` |
 | `outboundMode` | Deploy the Federated Node Task Controller as a subchart | `false` |
 | `smoketests` | Enable smoke test endpoints for `helm test` | `false` |
 | `on_aks` | Set to `true` when deploying on Azure AKS | `false` |
@@ -104,7 +102,7 @@ Exactly one of `azure`, `aws`, `nfs`, or `local` must be provided.
 
 ## Dataset volumes
 
-Read-only volumes holding DuckDB/SQLite files for [file datasets](./1.x-Datasets#file-datasets-duckdb-and-sqlite). Each entry creates a `ReadOnlyMany` PV, and a PVC named `name` in the tasks namespace to use as the dataset's `volume_claim`. Set exactly one of `local`, `azure`, `aws`, `gcp` or `nfs` per entry.
+Read-only volumes holding DuckDB/SQLite files for [file datasets](Datasets.md#file-datasets-duckdb-and-sqlite). Each entry creates a `ReadOnlyMany` PV, and a PVC named `name` in the tasks namespace to use as the dataset's `volume_claim`. Set exactly one of `local`, `azure`, `aws`, `gcp` or `nfs` per entry.
 
 | Field | Description | Default |
 |---|---|---|
@@ -165,7 +163,7 @@ Read-only volumes holding DuckDB/SQLite files for [file datasets](./1.x-Datasets
 
 | Field | Description | Default |
 |---|---|---|
-| `traefik.enabled` | Enable the Traefik reverse proxy subchart. **Requires Gateway API and Traefik CRDs to be pre-installed.** See [Prerequisites](./1.x-Prerequisites). | `false` |
+| `traefik.enabled` | Enable the Traefik reverse proxy subchart. **Requires Gateway API and Traefik CRDs to be pre-installed.** See [Prerequisites](Prerequisites.md). | `false` |
 | `traefik.gateway.enabled` | Enable the Traefik Gateway resource | `false` |
 | `traefik.gateway.name` | Name of the Gateway resource | `traefik-fn-gateway` |
 | `traefik.gatewayClass.name` | Name of the GatewayClass | `traefik-fn-gateway-class` |

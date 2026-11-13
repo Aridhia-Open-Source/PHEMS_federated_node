@@ -1,8 +1,6 @@
 # Deploy: Core
 
-> **This page is for chart 1.x.** For 2.x, see [Deploy: Core](./Deploy-Core).
-
-This guide covers the steps common to **all platforms**. Work through this alongside the platform-specific guide for your environment ([Azure](./1.x-Deploy-Azure), [AWS](./1.x-Deploy-AWS), [GCP](./1.x-Deploy-GCP) or [On-Premises](./1.x-Deploy-On-Premises)). The platform-specific guides contain additional values to be added to your `values.yaml` file and additional secrets that must exist before running `helm install`
+This guide covers the steps common to **all platforms**. Work through this alongside the platform-specific guide for your environment ([Azure](Deploy-Azure.md), [AWS](Deploy-AWS.md), [GCP](Deploy-GCP.md) or [On-Premises](Deploy-On-Premises.md)). The platform-specific guides contain additional values to be added to your `values.yaml` file and additional secrets that must exist before running `helm install`
 
 
 ## 1. Add the Helm repository
@@ -104,7 +102,7 @@ kubectl create secret tls tls \
 
 ## 6. Pre-install Gateway API and Traefik CRDs (if using Traefik)
 
-If `traefik.enabled: true`, these CRDs must exist before `helm install` or the chart will fail. See [Prerequisites](./1.x-Prerequisites#critical-pre-install-gateway-api-and-traefik-crds) for the install command.
+If `traefik.enabled: true`, these CRDs must exist before `helm install` or the chart will fail. See [Prerequisites](Prerequisites.md#critical-pre-install-gateway-api-and-traefik-crds) for the install command.
 
 
 ## 7. Create your values.yaml
@@ -138,7 +136,7 @@ traefik:
   enabled: true
 ```
 
-Then add the platform-specific storage block from your platform guide. See the [Helm Values Reference](./1.x-Helm-Values-Reference) for all options.
+Then add the platform-specific storage block from your platform guide. See the [Helm Values Reference](Helm-Values-Reference.md) for all options.
 
 
 ## 8. Deploy
@@ -186,4 +184,4 @@ kubectl logs -n keycloak statefulset/keycloak
 
 ## Next step
 
-Once your pods are running, go to [Post-Deploy Testing](./1.x-Post-Deploy-Testing) to verify everything works end-to-end.
+Once your pods are running, go to [Post-Deploy Testing](Post-Deploy-Testing.md) to verify everything works end-to-end.

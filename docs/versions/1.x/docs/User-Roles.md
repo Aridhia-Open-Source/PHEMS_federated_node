@@ -1,7 +1,5 @@
 # User Roles and Permissions
 
-> **This page is for chart 1.x.** These roles are not part of the 2.x beta. See [Architecture](./Architecture) for how access works in 2.x.
-
 The Federated Node uses Role-Based Access Control (RBAC) managed through Keycloak.
 
 
@@ -47,7 +45,7 @@ The Federated Node uses Role-Based Access Control (RBAC) managed through Keycloa
 
 A `User` cannot run tasks until an administrator grants them access to a specific dataset via the `token_transfer` endpoint. After this grant they receive `can_exec_task`, `can_admin_task`, and `can_transfer_token` scoped to that dataset only.
 
-See [Using the API](./1.x-Using-The-API) for the `token_transfer` API call.
+See [Using the API](Using-The-API.md) for the `token_transfer` API call.
 
 
 ## Creating users

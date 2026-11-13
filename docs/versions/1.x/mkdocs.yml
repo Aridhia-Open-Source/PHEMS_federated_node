@@ -4,12 +4,6 @@ site_url: https://aridhia-open-source.github.io/PHEMS_federated_node/docs/main/
 repo_url: https://github.com/Aridhia-Open-Source/PHEMS_federated_node
 docs_dir: docs
 
-# Home.md is the homepage and _Sidebar.md only exists for the GitHub wiki. The 1.x-* pages are
-# the 1.x docs kept on the GitHub wiki; the 1.x version of this site carries them.
-exclude_docs: |
-  _Sidebar.md
-  1.x-*.md
-
 theme:
   name: material
   features:
@@ -53,27 +47,28 @@ extra:
 validation:
   anchors: warn
 
-hooks:
-  - ../../hooks/wiki_links.py
-
 nav:
-  - Home: Home.md
-  - Concepts:
+  - Home:
+      - index.md
       - Architecture overview: Architecture.md
-  - Getting started:
+  - Deploy:
       - Prerequisites: Prerequisites.md
-      - "Deploy: Core": Deploy-Core.md
-      - Deploy on Azure (UNTESTED): Deploy-Azure.md
-      - Deploy on AWS (UNTESTED): Deploy-AWS.md
-      - Deploy on GCP (UNTESTED): Deploy-GCP.md
-      - Deploy on-premises (UNTESTED): Deploy-On-Premises.md
+      - Core deployment: Deploy-Core.md
+      - Cloud and on-premises:
+          - Azure (AKS): Deploy-Azure.md
+          - AWS (EKS): Deploy-AWS.md
+          - GCP: Deploy-GCP.md
+          - On-Premises: Deploy-On-Premises.md
+      - Installing ArgoCD: Installing-ArgoCD.md
       - Post-deploy testing: Post-Deploy-Testing.md
-      - Run locally: Run-Locally.md
-  - Using the node:
-      - Set up a project: Set-Up-A-Project.md
-      - Researcher guide: Researcher-Guide.md
-      - Analytics container development: Analytics-Container-Development.md
+  - Use:
       - Datasets: Datasets.md
+      - User roles: User-Roles.md
       - Using the API: Using-The-API.md
-      - Operations: Operations.md
+      - Task review: Task-Review.md
+  - Operate:
+      - Helm values reference: Helm-Values-Reference.md
+      - Outbound connection only mode: Outbound-connection-only-mode.md
+  - Develop:
+      - Analytics container development: Analytics-Container-Development.md
   - API reference: api/index.md

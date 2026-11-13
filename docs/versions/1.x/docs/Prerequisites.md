@@ -1,7 +1,5 @@
 # Prerequisites
 
-> **This page is for chart 1.x.** For 2.x, see [Prerequisites](./Prerequisites).
-
 Before deploying the Federated Node, make sure the following are in place.
 
 
@@ -82,9 +80,9 @@ kubectl create namespace <your-namespace>
 
 ## Next step
 
-Follow the deploy guide for your platform - start with [Deploy: Core](./1.x-Deploy-Core), which covers steps common to all platforms, then add your platform-specific guide alongside it:
+Follow the deploy guide for your platform - start with [Deploy: Core](Deploy-Core.md), which covers steps common to all platforms, then add your platform-specific guide alongside it:
 
-- [Deploy: Azure (AKS)](./1.x-Deploy-Azure)
-- [Deploy: AWS (EKS)](./1.x-Deploy-AWS)
-- [Deploy: GCP (GKE)](./1.x-Deploy-GCP)
-- [Deploy: On-Premises](./1.x-Deploy-On-Premises)
+- [Deploy: Azure (AKS)](Deploy-Azure.md)
+- [Deploy: AWS (EKS)](Deploy-AWS.md)
+- [Deploy: GCP (GKE)](Deploy-GCP.md)
+- [Deploy: On-Premises](Deploy-On-Premises.md)

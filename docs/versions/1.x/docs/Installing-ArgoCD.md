@@ -1,6 +1,4 @@
-> **Not yet checked for 2.x.** This page was written for chart 1.x and nobody has checked it against the 2.x chart. For 2.x, start with [Deploy: Core](./Deploy-Core).
-
-We recommend using ArgoCD to manage deployments of the Federated Node, this article explains how to install it for use with the FN. Additionally, where the FN is deployed in [outbound mode](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/1.x-Outbound-connection-only-mode) ArgoCD is used to detect new tasks. 
+We recommend using ArgoCD to manage deployments of the Federated Node, this article explains how to install it for use with the FN. Additionally, where the FN is deployed in [outbound mode](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/wiki/Outbound-connection-only-mode) ArgoCD is used to detect new tasks. 
 
 # ArgoCD files
 Navigate to the [ArgoCD folder](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/install_argocd) and run the [installation script](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/install_argocd/install_argocd/install_argocd.sh) 
@@ -59,7 +57,7 @@ Here we should tell where to install the application
 Here we set the specific helm chart related configuration
 ![5 - helm](https://github.com/user-attachments/assets/8e032dd4-34d3-4c9e-ad48-27b1f9398bc0)
 
-in the red-highlighted box the contents of the `values.yaml` file should be pasted. These values should be set if they differ from the default ones. For more info, have a look at the [deployment instructions](./1.x-Helm-Values-Reference)
+in the red-highlighted box the contents of the `values.yaml` file should be pasted. These values should be set if they differ from the default ones. For more info, have a look at the [deployment instructions](Helm-Values-Reference.md)
 
 ## Via the CLI
 

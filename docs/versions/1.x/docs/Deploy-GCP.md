@@ -1,8 +1,6 @@
 # Deploy: GCP (GKE)
 
-> **Not yet checked for 2.x.** This page was written for chart 1.x. Its storage and TLS steps may still apply, but nobody has checked them against the 2.x chart. For 2.x, start with [Deploy: Core](./Deploy-Core).
-
-Work through [Deploy: Core](./1.x-Deploy-Core) alongside this guide. The steps here are the GCP-specific additions to your `values.yaml` and the IAM setup to do beforehand.
+Work through [Deploy: Core](Deploy-Core.md) alongside this guide. The steps here are the GCP-specific additions to your `values.yaml` and the IAM setup to do beforehand.
 
 All authentication uses **Workload Identity** - no service account keys are created or stored.
 
@@ -212,7 +210,7 @@ fn-task-controller:
 
 ## 4. Deploy
 
-Return to [Deploy: Core](./1.x-Deploy-Core) step 8 and run `helm install` with your completed `values.yaml`.
+Return to [Deploy: Core](Deploy-Core.md) step 8 and run `helm install` with your completed `values.yaml`.
 
 
 ## 5. Annotate the Kubernetes service accounts
@@ -241,4 +239,4 @@ kubectl rollout restart deployment/analytics-operator --namespace fn-controller
 
 ## Next step
 
-[Post-Deploy Testing](./1.x-Post-Deploy-Testing)
+[Post-Deploy Testing](Post-Deploy-Testing.md)

@@ -1,10 +1,8 @@
 # Architecture Overview
 
-> **This page is for chart 1.x.** For 2.x, see [Architecture](./Architecture).
-
 This page explains how the Federated Node (FN) is put together: what each component does, how they talk to each other, which pods land in which namespace, and the design decisions you need to make yourself before going to production.
 
-If you just want to install it, start at [Prerequisites](./1.x-Prerequisites) and [Deploy: Core](./1.x-Deploy-Core). Come back here when you need to explain the system to a security reviewer, or when you are deciding where to put the database and how to lock down the network.
+If you just want to install it, start at [Prerequisites](Prerequisites.md) and [Deploy: Core](Deploy-Core.md). Come back here when you need to explain the system to a security reviewer, or when you are deciding where to put the database and how to lock down the network.
 
 
 ## The idea in one paragraph
@@ -58,7 +56,7 @@ All FN users live in a single Keycloak realm created by the chart. A researcher 
 
 Access control works on two levels.
 
-The coarse level is roles. There are four, running from a super administrator with full control of the node, through an administrator who manages datasets and tasks, to a standard researcher who can only do what they have been explicitly granted, plus an internal role used for service to service calls. [User roles](./1.x-User-Roles) sets out what each one can call.
+The coarse level is roles. There are four, running from a super administrator with full control of the node, through an administrator who manages datasets and tasks, to a standard researcher who can only do what they have been explicitly granted, plus an internal role used for service to service calls. [User roles](User-Roles.md) sets out what each one can call.
 
 The fine level is per dataset. A researcher may be allowed to run tasks against one dataset but have no visibility of another, and roles alone cannot express that. So each registered dataset is represented inside Keycloak as its own protected object, with a set of actions attached to it such as viewing the dataset, running a task against it, or administering it. Granting someone access creates a rule in Keycloak linking that user to that dataset and those actions.
 
@@ -140,7 +138,7 @@ Putting it together, here is what happens when a researcher submits a task.
 7. When the researcher calls `/results`, the backend creates a job that mounts both the task volume and the shared results volume, zips the output, and the backend streams the archive back.
 8. After `cleanupTime` days, the cleaner CronJob deletes the pod, the volume, and the stored results.
 
-If task review is enabled (see [Task review](./1.x-Task-Review)), step 7 requires a human approval first.
+If task review is enabled (see [Task review](Task-Review.md)), step 7 requires a human approval first.
 
 
 ## The Task Controller and outbound mode
@@ -168,10 +166,10 @@ So the submission path and the results path both run outbound, over HTTPS, to a 
 - **Nothing inbound.** You do not need a public endpoint, a load balancer, or a certificate for the API. This is usually the entire reason for choosing outbound mode.
 - **Outbound to GitHub becomes a required path.** The controller polls GitHub continuously and pushes results back there. If you run an egress allowlist, GitHub has to be on it, and you should scope it as tightly as your proxy allows. This is a real data egress route and should be reviewed as one, not treated as ordinary internet access.
 - **The GitHub repository becomes part of your access control.** Whoever can open a pull request against that repository can put a task in front of your node. The FN still applies its own dataset permission checks on top, so a submission from someone with no grant on a dataset will be rejected, but the repository permissions are now the outer gate. Confirm who administers it and who can merge.
-- **Results land somewhere you do not control.** Once the controller pushes results back to GitHub, they are outside your firewall. If that matters, enable [task review](./1.x-Task-Review) so a person approves the output before it leaves.
+- **Results land somewhere you do not control.** Once the controller pushes results back to GitHub, they are outside your firewall. If that matters, enable [task review](Task-Review.md) so a person approves the output before it leaves.
 - **Keycloak still matters just as much.** Outbound mode does not remove Keycloak or bypass it. It just changes who calls the API.
 
-Setup is documented in [Outbound connection only mode](./1.x-Outbound-connection-only-mode).
+Setup is documented in [Outbound connection only mode](Outbound-connection-only-mode.md).
 
 
 ## Storage
@@ -195,7 +193,7 @@ These are the decisions the chart does not make for you. Work through them befor
 
 ### Network and firewall
 
-- **Inbound.** In the standard mode, researchers reach the FN over HTTPS, which means one public or VPN-reachable endpoint fronted by Traefik. Both the API and the Keycloak login endpoint need to be reachable, since the researcher authenticates directly against Keycloak. If you cannot accept inbound connections at all, use [outbound connection only mode](./1.x-Outbound-connection-only-mode), where nothing needs to be exposed.
+- **Inbound.** In the standard mode, researchers reach the FN over HTTPS, which means one public or VPN-reachable endpoint fronted by Traefik. Both the API and the Keycloak login endpoint need to be reachable, since the researcher authenticates directly against Keycloak. If you cannot accept inbound connections at all, use [outbound connection only mode](Outbound-connection-only-mode.md), where nothing needs to be exposed.
 - **Outbound: container images.** The cluster must be able to pull the FN's own images from their public registry, and it must be able to pull whatever analysis image a task requests. If your cluster has no internet egress, you need to mirror both into an internal registry. The backend also makes outbound HTTPS calls to registry APIs to check that an image exists before creating a pod.
 - **Outbound: results delivery.** If you enable the delivery API or the Task Controller, the cluster makes outbound calls to GitHub or another endpoint you configure. That is a deliberate data egress path and should be reviewed as one. See the Task Controller section above for what outbound mode changes.
 - **Network policies are not shipped with the chart.** There are no NetworkPolicy objects in the templates. If you want to stop a task pod from reaching the internet, or from reaching anything other than the one database it was granted, you have to write those policies yourself.
@@ -206,7 +204,7 @@ These are the decisions the chart does not make for you. Work through them befor
 The FN runs container images supplied by researchers. Nothing in the platform inspects what that code does. The controls available to you are:
 
 - `federatedNode.enable_image_whitelist`, which restricts task images to registries you have registered with the node.
-- [Task review](./1.x-Task-Review), which puts a human approval step between task completion and results leaving the node.
+- [Task review](Task-Review.md), which puts a human approval step between task completion and results leaving the node.
 - Network policy, as above.
 
 Decide which of these you need. A node that will accept tasks from an open federation needs all three. A node used by a known internal team may not.
@@ -220,12 +218,12 @@ Decide which of these you need. A node that will accept tasks from an open feder
 ### Upgrades
 
 - Database migrations run automatically as a backend init container on every deploy. This means a rollback of the Helm release does not roll back the schema. Take a database snapshot before upgrading across a minor version.
-- The Gateway API and Traefik CRDs are installed by you, not by the chart, so they are also upgraded by you. See [Prerequisites](./1.x-Prerequisites).
+- The Gateway API and Traefik CRDs are installed by you, not by the chart, so they are also upgraded by you. See [Prerequisites](Prerequisites.md).
 
 
 ## Where to go next
 
-- [Prerequisites](./1.x-Prerequisites) and [Deploy: Core](./1.x-Deploy-Core) to install
-- [Helm values reference](./1.x-Helm-Values-Reference) for every configurable field
-- [User roles](./1.x-User-Roles) for the permission model from a user's point of view
-- [Analytics container development](./1.x-Analytics-Container-Development) for what a task container has to look like
+- [Prerequisites](Prerequisites.md) and [Deploy: Core](Deploy-Core.md) to install
+- [Helm values reference](Helm-Values-Reference.md) for every configurable field
+- [User roles](User-Roles.md) for the permission model from a user's point of view
+- [Analytics container development](Analytics-Container-Development.md) for what a task container has to look like
