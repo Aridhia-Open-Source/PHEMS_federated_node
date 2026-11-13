@@ -138,12 +138,39 @@ jobs:
             git worktree remove --force pages
           }
 
+          # A branch's docs go when the branch is deleted, but only once the cleanup job's
+          # delete trigger is on main (GitHub runs delete workflows from the default branch).
+          # Until then, and for anything a missed delete left behind, every publish removes
+          # the docs of branches that no longer exist.
+          prune_deleted_branches() {
+            live=$(git ls-remote --heads origin | sed 's|.*refs/heads/||' | while read -r b; do
+              case "$b" in
+                dagster-develop) echo beta/develop ;;
+                dagster-main) echo beta/main ;;
+                *) echo "${b//\//-}" ;;
+              esac
+            done)
+            [ -n "$live" ] || { echo "No branches listed, not pruning"; return 1; }
+            rm -rf pages
+            git worktree add -q --detach pages gh-pages
+            for dir in $(cd pages/docs/docs && ls -d */ beta/*/ 2>/dev/null | sed 's|/$||'); do
+              [ "$dir" = beta ] && continue
+              grep -qxF "$dir" <<< "$live" || git -C pages rm -rq "docs/docs/$dir"
+            done
+            if ! git -C pages diff --cached --quiet; then
+              git -C pages commit -q -m "Remove the docs of deleted branches"
+              git branch -f gh-pages "$(git -C pages rev-parse HEAD)"
+            fi
+            git worktree remove --force pages
+          }
+
           # Commit onto the latest gh-pages and push; if another job pushed in between,
           # start again from the new gh-pages, up to 5 times.
           for attempt in 1 2 3 4 5; do
             git fetch origin gh-pages --depth=1
             git branch -f gh-pages FETCH_HEAD
             remove_old_layout
+            prune_deleted_branches
             for v in $versions; do
               mike deploy -F "docs/versions/$v/mkdocs.yml" --deploy-prefix "$prefix" "$v"
             done
