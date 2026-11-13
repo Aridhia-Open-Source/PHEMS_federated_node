@@ -188,7 +188,7 @@ branch=$(git branch --show-current)
 case "$branch" in
   dagster-develop) slug=beta/develop ;;
   dagster-main) slug=beta/main ;;
-  *) slug="${branch//\//-}" ;;
+  *) slug=$(printf %s "$branch" | tr / -) ;;
 esac
 base="/$repo/docs/$slug"
 if [ "${usage_all:-false}" != true ]; then
