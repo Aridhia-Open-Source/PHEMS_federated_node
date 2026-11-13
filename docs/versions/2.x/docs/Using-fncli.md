@@ -9,14 +9,16 @@ To install it and run the demo from nothing, see [Run locally](./Run-Locally).
 
 ## Install
 
-From the repo root. You need Python 3.12 or newer and `pipx`.
+From the repo root, with [mise](https://mise.jdx.dev/) installed.
 
 ```sh
-pipx install --force --editable './dagster[cli]'
+mise run setup
 fncli hello-world        # prints "Hello, world!"
 ```
 
-The editable install points at the checkout it was run from. If `fncli` fails with `No module named 'fncli'`, or lacks a command, run the install again from the checkout you want. `fncli --help` lists the commands. fncli reads cluster secrets from the **current kubectl context**, so check `kubectl config current-context` is the cluster you mean.
+`mise run setup` installs fncli, editable, into `.venv` at the repo root. With [mise activated in your shell](https://mise.jdx.dev/getting-started.html#activate-mise), `fncli` is on your `PATH` anywhere in the repo. The install belongs to that checkout, so a worktree needs its own `mise run setup`. If `fncli` fails with `No module named 'fncli'`, or lacks a command, run `mise run setup` again from the checkout you want. If you installed fncli with pipx before, remove that copy: `pipx uninstall phems`.
+
+`fncli --help` lists the commands. fncli reads cluster secrets from the **current kubectl context**, so check `kubectl config current-context` is the cluster you mean.
 
 
 ## The files

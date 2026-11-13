@@ -125,7 +125,7 @@ if [ "$COMMAND" = "up" ]; then
   echo
   echo "Next steps:"
   echo "  1. Create namespace: kubectl create namespace $NAMESPACE"
-  echo "  2. Deploy Helm: ./scripts/deploy.sh"
+  echo "  2. Deploy Helm: mise run deploy"
   echo "  3. Or use Tilt: tilt up"
   echo
 
@@ -175,7 +175,7 @@ elif [ "$COMMAND" = "down" ]; then
     docker ps 2>/dev/null | grep -E "kind-registry|proxy.*registry" || echo "No registries found"
     echo
     echo "To remove registries, run:"
-    echo "  ./scripts/cluster.sh down --remove-registries"
+    echo "  mise run cluster down --remove-registries"
   fi
 
   echo

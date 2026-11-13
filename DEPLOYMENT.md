@@ -38,10 +38,9 @@ The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image re
 
 - Docker
 - `kind`, `kubectl`, `helm` (v3), `tilt`, `jq`
-- [mise](https://mise.jdx.dev/): install it and activate it in your shell (`mise run` works without activation; activating adds automatic tool and venv switching on `cd`), then run `mise run setup` and `mise run init-conf`.
+- [mise](https://mise.jdx.dev/): install it and activate it in your shell (`mise run` works without activation; activating adds automatic tool and venv switching on `cd`), then run `mise run setup` (it also installs `fncli`, the ops tool, see [MANAGEMENT.md](MANAGEMENT.md)) and `mise run init-conf`.
 - Personal overrides go in `mise.local.toml` (gitignored).
 - Or use the dev container instead (see [Dev container](#dev-container) below).
-- Python 3.12+ and `pipx`, for `fncli` (the ops tool, see [MANAGEMENT.md](MANAGEMENT.md))
 
 ### First time
 
@@ -56,11 +55,10 @@ Run these from the repo root.
 
 2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`). The file explains every other variable.
 
-3. Install fncli. `mise run deploy` runs `fncli experiment deploy`, so it has to be on your PATH before you deploy.
+3. Check fncli. `mise run setup` installed it, editable, into `.venv` at the repo root, and `mise run deploy` runs `fncli experiment deploy` from there. To run `fncli` yourself, activate mise in your shell. A new worktree needs its own `mise run setup`. If you installed fncli with pipx before, remove that copy: `pipx uninstall phems`.
 
    ```bash
-   pipx ensurepath          # then open a new terminal
-   pipx install --force --editable './dagster[cli]'
+   fncli hello-world        # Hello, world!
    ```
 
 4. Fetch the chart's subcharts. `charts/` is gitignored, so a fresh checkout has none and Helm refuses to render.
@@ -147,7 +145,7 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 | What it does | Old (make) | New (mise) |
 |---|---|---|
 | List the tasks | `make help` | `mise tasks` |
-| Install the pinned tools and both virtualenvs | (manual) | `mise run setup` |
+| Install the pinned tools and the virtualenvs (fncli, nexus-api, dagster) | (manual) | `mise run setup` |
 | Create `.dev.env` and `dev.values.yaml` | `make init-conf` | `mise run init-conf` |
 | Lint the Dockerfiles | `make hadolint` | `mise run hadolint` |
 | Lint nexus-api | `make pylint` | `mise run pylint` |

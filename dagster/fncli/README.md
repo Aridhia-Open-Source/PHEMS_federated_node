@@ -13,61 +13,16 @@ project and the trigger repository the git sensor builds on), triggers tasks wit
 
 ## Install
 
-### 1. Install pipx
-
-pipx installs command-line tools into their own isolated environments and puts them on your
-`PATH`, so `fncli` works from any shell without activating a virtualenv.
-
-Debian, Ubuntu and WSL:
+fncli is installed by `mise run setup`, from the repo root. It goes editable into `.venv` at the repo root, so changes to `dagster/fncli` take effect straight away. With [mise activated in your shell](https://mise.jdx.dev/getting-started.html#activate-mise), `fncli` is on your `PATH` anywhere in the repo. Without activation, `mise exec -- fncli` works.
 
 ```bash
-sudo apt install pipx
-```
-
-Anywhere else:
-
-```bash
-python3 -m pip install --user pipx
-```
-
-### 2. Put pipx's bin directory on your PATH
-
-```bash
-pipx ensurepath
-```
-
-This adds `~/.local/bin` to your shell config. **Open a new terminal afterwards** (or run
-`source ~/.bashrc`) for it to take effect.
-
-If `pipx ensurepath` says the directory is "already in PATH" but a fresh terminal still
-cannot find your tools, the terminal is probably a non-login shell that only reads
-`~/.bashrc`, not `~/.profile`. Either run `pipx ensurepath --force`, or add the line yourself:
-
-```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### 3. Install fncli
-
-From the repo root:
-
-```bash
-pipx install --force --editable './dagster[cli]'
-```
-
-The pipx environment is named `phems` (the package name), the command is `fncli`.
-`--editable` links to the source, so changes to `dagster/fncli` take effect straight away.
-Without it, pipx installs a copy and you would need to reinstall after every edit.
-
-### 4. Check it works
-
-```bash
+mise run setup
 fncli hello-world
 ```
 
-It should print `Hello, world!`. If the shell says `fncli: command not found`, go back to
-step 2.
+It should print `Hello, world!`. If the shell says `fncli: command not found`, mise is not activated in it, or you are outside the repo.
+
+The install belongs to that checkout, so a worktree needs its own `mise run setup`. If you installed fncli with pipx before, remove that copy so it does not answer instead: `pipx uninstall phems`.
 
 ## Usage
 
@@ -206,39 +161,16 @@ fncli experiment down            # teardown every experiment, then uninstall the
 
 ## Maintenance
 
-```bash
-pipx list                          # see what pipx has installed
-pipx reinstall phems                # after changing dependencies in pyproject.toml
-pipx install --force --editable './dagster[cli]'   # from the repo root: a new command is missing, or "No module named 'fncli'"
-```
-
-The editable install points at the checkout it was run from. If you installed it from a worktree that was since removed (or you switch to another checkout), `fncli` fails with `No module named 'fncli'` or lacks the newer commands: run the last command again from the checkout you want.
+After changing dependencies in `dagster/pyproject.toml`, or when a new command is missing or you get `No module named 'fncli'`, run `mise run setup` again from the checkout you want.
 
 fncli's dependencies are the `cli` extra in `dagster/pyproject.toml`; its Dagster code is
 `dagster/app`, shared with the code location.
 
 ## Uninstall
 
-Remove fncli:
+Delete `.venv` at the repo root. The `fncli` command goes with it, and your repo files are not touched.
 
-```bash
-pipx uninstall phems
-```
-
-That deletes its isolated environment and the `fncli` command. Your repo files are not
-touched. To remove everything pipx has installed, use `pipx uninstall-all`.
-
-To remove pipx itself, use the tool you installed it with:
-
-```bash
-sudo apt remove pipx                    # installed with apt
-python3 -m pip uninstall pipx           # installed with pip
-```
-
-`pipx ensurepath` added a block to your shell config (look for a `# Created by pipx` comment
-in `~/.bashrc`). Nothing else needs it once pipx is gone, so delete that block by hand if you
-want it cleaned up. If you added the `export PATH="$HOME/.local/bin:$PATH"` line yourself,
-remove that too, unless something else you use installs into `~/.local/bin`.
+An old pipx install is separate: `pipx uninstall phems` removes it. `pipx ensurepath` may have added a block to your shell config (a `# Created by pipx` comment in `~/.bashrc`); delete it by hand if nothing else you use needs it.
 
 ## Layout
 

@@ -30,18 +30,22 @@ You need these. The repo pins only two versions: Helm v3 and Python 3.12 or newe
 | Docker | builds the images, runs kind and the local registries |
 | `kubectl`, `helm` (v3), `kind` | the cluster and the chart |
 | `tilt` | the port-forwards fncli needs (nexus-api 5000, Gitea 4000, Dagster 3000), and live reload |
-| Python 3.12+ and `pipx` | installs `fncli` |
+| [mise](https://mise.jdx.dev/) | `mise run setup` installs Python 3.12 and `fncli` (step 5); it also runs the repo's `mise run` tasks |
 | `gh` (optional) | gives fncli a GitHub token for the GitHub demo, if you do not set `RESEARCHER_GIT_TOKEN` |
 
 1. Base packages (Debian, Ubuntu, WSL):
 
    ```bash
    sudo apt update
-   sudo apt install -y git curl jq pipx
-   python3 --version        # must be 3.12 or newer
+   sudo apt install -y git curl jq
    ```
 
-   If your `python3` is older, install 3.12 your own way and pass `--python python3.12` to `pipx install` in step 5.
+   mise, from its [installer](https://mise.jdx.dev/getting-started.html). Activate it in your shell, then open a new terminal:
+
+   ```bash
+   curl https://mise.run | sh
+   echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc     # zsh: ~/.zshrc and `mise activate zsh`
+   ```
 
 2. Docker. The command below is Docker's own installer, not from this repo. Any Docker works as long as `docker ps` runs without `sudo`.
 
@@ -86,7 +90,7 @@ You need these. The repo pins only two versions: Helm v3 and Python 3.12 or newe
 7. Check that everything is on the PATH:
 
    ```bash
-   for t in git curl jq docker kubectl helm kind tilt pipx; do command -v $t >/dev/null || echo "missing: $t"; done
+   for t in git curl jq docker kubectl helm kind tilt mise; do command -v $t >/dev/null || echo "missing: $t"; done
    ```
 
 ## 3. Clone
@@ -108,7 +112,7 @@ mise run worktree --name wt-mine --branch my-branch [--base <ref>]
 cd ../wt-mine
 ```
 
-Then install fncli from it (step 5) and run `mise run helm deps && mise run deploy`.
+Then run `mise run setup` in it (step 5) and run `mise run helm deps && mise run deploy`.
 
 ## 4. Local config
 
@@ -148,12 +152,12 @@ No CA files or `cadir` are needed: nothing in the repo's scripts, Tiltfile or ch
 Do this before the deploy in step 6: `mise run deploy` runs `fncli experiment deploy`.
 
 ```bash
-pipx ensurepath          # then open a new terminal
-pipx install --force --editable './dagster[cli]'
+mise trust               # if mise asks
+mise run setup
 fncli hello-world        # Hello, world!
 ```
 
-The editable install points at the checkout it was run from. To use another checkout or worktree, run the same `pipx install` from there. A stale one shows as `No module named 'fncli'`, or as commands missing.
+`mise run setup` installs fncli, editable, into `.venv` at the repo root; with mise activated, `fncli` is on your PATH anywhere in the repo. The install belongs to that checkout, so a worktree needs its own `mise run setup`. If you installed fncli with pipx before, remove that copy: `pipx uninstall phems`.
 
 fncli finds `.dev.env` by searching up from the current directory, so run it from inside the repo. It reads cluster secrets from the current kubectl context, which must be `kind-fn`.
 
@@ -404,8 +408,8 @@ Only what the repo's scripts and docs already call out.
 | `Nothing was applied, these secret values cannot be read`, or `missing` in the diff | Set what it names: `GH_APP_ID` and `GH_INSTALLATION_ID` in `.dev.env`, the key file at the path in your globals file, and for the demo database the `fncli experiment` steps in step 7 |
 | `The node cannot connect to the dataset's database` | `fncli experiment deploy`, then `fncli experiment seed demo` |
 | `No experiments deployment: run fncli experiment deploy first` | `fncli experiment deploy` |
-| `fncli: command not found` | `pipx ensurepath`, then a new terminal |
-| `fncli experiment`: `No such command`, or `No module named 'fncli'` | Reinstall from this checkout (step 5) |
+| `fncli: command not found` | Activate mise in your shell (step 2), then a new terminal. Or run `mise run setup` if you have not |
+| `fncli experiment`: `No such command`, or `No module named 'fncli'` | Run `mise run setup` in this checkout (step 5). An old pipx copy: `pipx uninstall phems` |
 | `Writing to a GitHub repo needs RESEARCHER_GIT_TOKEN, or gh auth login` | Step 9, item 7 |
 | A merged pull request does nothing | `fncli sensor-status`. Sensors are stopped by default: `fncli start-sensor --group all` |
 | `fncli demo`: `The node does not match ... yet` | `fncli apply -f <your globals file>`, then `fncli apply -f <the project file>`, then the demo again |

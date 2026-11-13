@@ -33,7 +33,7 @@ fncli experiment setup NAME            # check the names, register the dataset, 
 fncli experiment run NAME              # trigger a pull request, follow the task to the results pull request
 ```
 
-They are safe to rerun after a failure. `setup`, `run`, `teardown` and `down` talk to the node, so they need your context file ([Using fncli](./Using-fncli#the-context-file)). If `fncli experiment` says "No such command", reinstall fncli from this checkout.
+They are safe to rerun after a failure. `setup`, `run`, `teardown` and `down` talk to the node, so they need your context file ([Using fncli](./Using-fncli#the-context-file)). If `fncli experiment` says "No such command", run `mise run setup` in this checkout.
 
 `setup` first checks that `dataset.yaml` names what the chart makes: its dataset is `dbs.<name>.name` of `values.yaml`, and its secret reads the Kubernetes secret `dbs.<name>.secret.name` in `experiments`. A name that does not match fails here, before the node gets a dataset it cannot use. Then it applies `dataset.yaml`, and the experiment's globals and project files if it has them.
 

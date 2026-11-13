@@ -24,7 +24,7 @@ It is written against the code at commit `6c46e803` (branch `moonshot/shared-res
 | The Dagster UI | Sensor status, runs, ticks, run keys |
 | The git host's UI (Gitea on the dev cluster) | Results pull requests, manual commits, closing a pull request |
 | `jq`, `curl` | The state and counts commands below |
-| `fncli` on the dev cluster (installed with `pipx`, see [../../dagster/fncli/README.md](../../dagster/fncli/README.md)) | Setup, pull requests, switches, sensors |
+| `fncli` on the dev cluster (installed by `mise run setup`, see [../../dagster/fncli/README.md](../../dagster/fncli/README.md)) | Setup, pull requests, switches, sensors |
 | A task image that runs for a while, and one that writes more than 10 MiB | A few cases; they say when they need it |
 
 Which environment the commands are for:

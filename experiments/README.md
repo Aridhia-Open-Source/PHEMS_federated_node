@@ -43,8 +43,7 @@ fncli experiment run <name>            # trigger PR -> task -> results PR in the
 These are `fncli experiment deploy|seed|setup|build|run` (also `teardown NAME` and `down`, see Clean
 up). `seed` and `setup` fail and tell you to run `deploy` if the release isn't installed. `deploy`,
 `seed`, `setup`, `run` and `teardown` can be rerun after a failure. If `fncli experiment`
-says "No such command", reinstall fncli from this checkout:
-`pipx install --force --editable './dagster[cli]'`.
+says "No such command", run `mise run setup` in this checkout.
 
 `setup` first checks that `dataset.yaml` names what the chart makes: its dataset is `dbs.NAME.name`
 of `values.yaml`, and its secret reads the Kubernetes secret `dbs.NAME.secret.name` in `experiments`.

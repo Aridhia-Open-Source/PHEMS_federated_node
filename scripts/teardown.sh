@@ -231,9 +231,9 @@ echo "Namespace cleanup complete"
 echo
 echo "=== Teardown Complete ======================================================="
 echo "All persistent data has been removed."
-echo "Run './scripts/cluster.sh down' to delete the cluster."
-echo "Run './scripts/cluster.sh up' to create the cluster."
-echo "Run './scripts/deploy.sh' to deploy the helm project"
+echo "Run 'mise run cluster down' to delete the cluster."
+echo "Run 'mise run cluster up' to create the cluster."
+echo "Run 'mise run deploy' to deploy the helm project"
 echo
 
 ./scripts/deploy_owner.sh release

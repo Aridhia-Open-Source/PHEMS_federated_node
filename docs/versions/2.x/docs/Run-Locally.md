@@ -20,23 +20,29 @@ This is for trying and developing the FN. For a real cluster, use [Prerequisites
 | Docker | builds the images, runs kind and the local registries. `docker ps` must work without `sudo` |
 | `kubectl`, `helm` (v3), `kind` | the cluster and the chart |
 | `tilt` | the port-forwards fncli needs, and live reload |
-| Python 3.12 or newer, and `pipx` | installs `fncli` |
+| [mise](https://mise.jdx.dev/) | `mise run setup` installs Python 3.12 and `fncli` (step 4); it also runs the repo's `mise run` tasks |
 | `gh` (optional) | gives fncli a GitHub token for the GitHub demo, if you do not set `RESEARCHER_GIT_TOKEN` |
 
 On Debian, Ubuntu or WSL:
 
 ```sh
 sudo apt update
-sudo apt install -y git curl jq pipx
-python3 --version        # must be 3.12 or newer
+sudo apt install -y git curl jq
 ```
 
-Then install the rest from their own guides: [Docker](https://docs.docker.com/engine/install/), [kubectl](https://kubernetes.io/docs/tasks/tools/), [helm](https://helm.sh/docs/intro/install/), [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installing-from-release-binaries) and [Tilt](https://docs.tilt.dev/install.html). The repo pins only Helm v3 and Python 3.12; use current releases of the others.
+Then mise, from its [installer](https://mise.jdx.dev/getting-started.html). Activate it in your shell, and open a new terminal:
+
+```sh
+curl https://mise.run | sh
+echo 'eval "$(~/.local/bin/mise activate bash)"' >> ~/.bashrc     # zsh: ~/.zshrc and `mise activate zsh`
+```
+
+Install the rest from their own guides: [Docker](https://docs.docker.com/engine/install/), [kubectl](https://kubernetes.io/docs/tasks/tools/), [helm](https://helm.sh/docs/intro/install/), [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installing-from-release-binaries) and [Tilt](https://docs.tilt.dev/install.html). The repo pins only Helm v3 and Python 3.12; use current releases of the others.
 
 Check that everything is on the PATH:
 
 ```sh
-for t in git curl jq docker kubectl helm kind tilt pipx; do command -v $t >/dev/null || echo "missing: $t"; done
+for t in git curl jq docker kubectl helm kind tilt mise; do command -v $t >/dev/null || echo "missing: $t"; done
 ```
 
 
@@ -79,12 +85,12 @@ In `k8s/federated-node/dev.values.yaml`, set `nodeId` to a name for your node (a
 Do this before the deploy in step 5: `mise run deploy` runs `fncli experiment deploy`.
 
 ```sh
-pipx ensurepath          # then open a new terminal
-pipx install --force --editable './dagster[cli]'
+mise trust               # if mise asks
+mise run setup
 fncli hello-world        # Hello, world!
 ```
 
-The editable install points at the checkout it was run from. To use another checkout, run the same `pipx install` from there.
+`mise run setup` installs fncli, editable, into `.venv` at the repo root. With mise activated, `fncli` is on your PATH anywhere in the repo. The install belongs to that checkout, so a worktree needs its own `mise run setup`. If you installed fncli with pipx before, remove that copy: `pipx uninstall phems`.
 
 Make your **context file**. It says which node fncli works on, and which project and way `fncli trigger` uses when you do not say. It is gitignored, so it stays local:
 
@@ -249,8 +255,8 @@ Nothing is deleted in your GitHub repository, and the dataset stays.
 | `... is for kubectl context kind-fn, but the current one is ...` | `kubectl config use-context kind-fn` |
 | `context.yaml not found ...` | `cp bootstrap/examples/context.yaml bootstrap/context.yaml`, or give `--context FILE` |
 | `node.env_file ... not found` | The env file must exist in or above the context file's directory. Make `.dev.env` (step 3) |
-| `fncli: command not found` | `pipx ensurepath`, then a new terminal |
-| `No such command 'diff'` or `No module named 'fncli'` | fncli points at another checkout: rerun the `pipx install` from this one |
+| `fncli: command not found` | Activate mise in your shell (step 1), then open a new terminal. Or run `mise run setup` if you have not |
+| `No such command 'diff'` or `No module named 'fncli'` | Run `mise run setup` in this checkout. An old pipx copy: `pipx uninstall phems` |
 | `Nothing was applied, these secret values cannot be read`, or `missing` in the diff | Set what it names: `GH_APP_ID` and `GH_INSTALLATION_ID` in `.dev.env`, the key file at the path in your globals file, and for the demo database the `fncli experiment` steps |
 | `No experiments deployment: run fncli experiment deploy first` | `fncli experiment deploy` |
 | `Writing to a GitHub repo needs RESEARCHER_GIT_TOKEN, or gh auth login` | Step 8, item 5 |

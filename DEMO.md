@@ -6,10 +6,9 @@ The flow: register the demo database, apply the shared resources, apply the proj
 
 ## 0. Once per machine
 
-Run from the repo root.
+Run from the repo root. `fncli` comes from `mise run setup`; activate mise in your shell to have it on your PATH.
 
 ```bash
-pipx install --force -e "$PWD/dagster[cli]"                  # fncli from this checkout
 cp bootstrap/examples/context.yaml bootstrap/context.yaml    # your node and defaults (gitignored)
 ```
 
@@ -37,10 +36,10 @@ fncli apply -f experiments/demo/dataset.yaml      # registers demo-db with the n
 Everything lives in the cluster's Gitea, so nothing outside is needed.
 
 ```bash
-fncli diff  -f examples/globals-gitea.yaml          # preview: the provider, the two repos, their OAuth secrets
-fncli apply -f examples/globals-gitea.yaml          # creates them, the Gitea repos included
-fncli apply -f examples/projects/demo-gitea.yaml    # the project and its assignments (uses demo-db)
-fncli demo -f examples/projects/demo-gitea.yaml     # the guided pull request walk
+fncli diff  -f bootstrap/examples/globals-gitea.yaml          # preview: the provider, the two repos, their OAuth secrets
+fncli apply -f bootstrap/examples/globals-gitea.yaml          # creates them, the Gitea repos included
+fncli apply -f bootstrap/examples/projects/demo-gitea.yaml    # the project and its assignments (uses demo-db)
+fncli demo -f bootstrap/examples/projects/demo-gitea.yaml     # the guided pull request walk
 ```
 
 ## 3b. GitHub demo
@@ -48,22 +47,22 @@ fncli demo -f examples/projects/demo-gitea.yaml     # the guided pull request wa
 Needs a GitHub App installed on your repo ([SETUP_GIT_APPS.md](SETUP_GIT_APPS.md)): its key at the path the globals file names, and `GH_APP_ID` and `GH_INSTALLATION_ID` in the context's `env_file` (`.dev.env`). For your own repo, copy the two example files to `bootstrap/globals.yaml` and `bootstrap/projects/<name>.yaml` and change the repo, the secret label and the key path.
 
 ```bash
-fncli diff  -f examples/globals-github.yaml
-fncli apply -f examples/globals-github.yaml
-fncli apply -f examples/projects/demo-github.yaml
-fncli demo -f examples/projects/demo-github.yaml    # with defaults.project: demo-github
+fncli diff  -f bootstrap/examples/globals-github.yaml
+fncli apply -f bootstrap/examples/globals-github.yaml
+fncli apply -f bootstrap/examples/projects/demo-github.yaml
+fncli demo -f bootstrap/examples/projects/demo-github.yaml    # with defaults.project: demo-github
 ```
 
-- Run `fncli demo -f examples/projects/demo-gitea.yaml` again for another pull request; nothing needs resetting.
-- `fncli demo -f examples/projects/demo-gitea.yaml examples/demo-failing.json` makes the task fail on purpose, to see the failure path.
-- Without the guided checks: `fncli trigger --pr examples/demo.json` opens the pull request directly.
+- Run `fncli demo -f bootstrap/examples/projects/demo-gitea.yaml` again for another pull request; nothing needs resetting.
+- `fncli demo -f bootstrap/examples/projects/demo-gitea.yaml triggers/examples/demo-failing.json` makes the task fail on purpose, to see the failure path.
+- Without the guided checks: `fncli trigger --pr triggers/examples/demo.json` opens the pull request directly.
 - A different project or route than the context's defaults: `--project NAME`, `--pr`.
 
 ## Clean up
 
 ```bash
-fncli delete -f examples/projects/demo-gitea.yaml          # the project only
-fncli delete -f examples/globals-gitea.yaml --all          # also the shared repos, secrets and provider
+fncli delete -f bootstrap/examples/projects/demo-gitea.yaml          # the project only
+fncli delete -f bootstrap/examples/globals-gitea.yaml --all          # also the shared repos, secrets and provider
 ```
 
 Delete is a soft delete, and it skips anything another project still uses. The Gitea repos and OAuth apps stay in Gitea.
@@ -72,7 +71,7 @@ Delete is a soft delete, and it skips anything another project still uses. The G
 
 | Symptom | Fix |
 |---|---|
-| `No such command 'diff'` (or `trigger`) | fncli points at another checkout: rerun the `pipx install` above |
+| `No such command 'diff'` (or `trigger`) | fncli is an old pipx copy or from another checkout: `pipx uninstall phems`, then `mise run setup` here |
 | `is for kubectl context X, but the current one is Y` | `kubectl config use-context kind-fn` |
 | `demo` lists rows and says run apply first | run the `fncli apply` lines for that demo again |
 | `dataset demo-db is not in the file or on the node` | step 2 was skipped |

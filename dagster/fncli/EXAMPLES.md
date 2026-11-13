@@ -7,7 +7,7 @@ Run from the repo root.
 - `kubectl config use-context kind-fn && kubectl config current-context`
 - `mise run teardown`
 - `mise run helm deps`
-- `pipx install --force --editable './dagster[cli]'` (`mise run deploy` runs `fncli experiment deploy`)
+- `mise run setup` (`mise run deploy` runs `fncli experiment deploy`)
 - `mise run deploy`
 - `tilt up --stream` (in a second terminal; wait until it's green)
 

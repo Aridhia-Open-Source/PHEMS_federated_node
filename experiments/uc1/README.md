@@ -9,8 +9,7 @@ mechanics are in [README.md](../README.md).
 
 Needs the dev cluster up with Tilt (or the port-forwards for nexus-api 5000, Gitea 4000 and
 Dagster 3000), `fncli` on PATH, and `.dev.env` at the repo root. Run everything from the repo
-root. If `fncli experiment` says "No such command", reinstall fncli from this checkout:
-`pipx install --force --editable './dagster[cli]'`.
+root. If `fncli experiment` says "No such command", run `mise run setup` in this checkout.
 
 ```bash
 git clone https://github.com/PHDS-centralized-services/MVP-Code experiments/sources/uc1

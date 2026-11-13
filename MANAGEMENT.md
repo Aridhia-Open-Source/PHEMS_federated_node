@@ -264,14 +264,14 @@ How often they tick (`fnDagster.sensors.minIntervalSeconds`, default 30 s) and h
 
 ### Install
 
-From the repo root. You need Python 3.12+ and `pipx`.
+From the repo root. You need [mise](https://mise.jdx.dev/), activated in your shell.
 
 ```bash
-pipx install --force --editable './dagster[cli]'
+mise run setup
 fncli hello-world        # prints "Hello, world!"
 ```
 
-If the shell cannot find `fncli`, run `pipx ensurepath` and open a new terminal. The full install notes, troubleshooting and uninstall are in [dagster/fncli/README.md](dagster/fncli/README.md).
+`mise run setup` installs fncli, editable, into `.venv` at the repo root. If you installed it with pipx before, run `pipx uninstall phems`. The full install notes, troubleshooting and uninstall are in [dagster/fncli/README.md](dagster/fncli/README.md).
 
 ### What it needs
 
