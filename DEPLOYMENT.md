@@ -123,6 +123,7 @@ Tilt watches the code and updates the running pods. You do not redeploy for code
 | Rebuild one service | `tilt trigger nexus-api` |
 | Read the generated database passwords | `mise run show-db-passwords` |
 | Serve the docs locally with live reload (2.x by default) | `mise run docs` (`--version 1.x`, `--port 8001`) |
+| Serve every docs version with the version dropdown | `mise run docs --all` |
 | Lint and render the chart without a cluster | `mise run helm-lint && mise run helm-template` |
 | Chart unit tests | `mise run helm-tests` |
 | Dagster tests, pylint | `mise run tests-dagster`, `mise run pylint`, `mise run pylint-dagster` |

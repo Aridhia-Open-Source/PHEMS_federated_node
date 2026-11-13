@@ -172,14 +172,26 @@ flag "--base <ref>" help="Base ref (default HEAD)"
 '''
 run = './scripts/new-worktree.sh "$usage_name" "$usage_branch" ${usage_base:+"$usage_base"}'
 
-# mise run docs [--version 1.x] [--port 8001]
+# mise run docs [--version 1.x] [--port 8001] | mise run docs --all
 [tasks.docs]
-description = "Serve a docs version locally with live reload"
+description = "Serve the docs locally: one version with live reload, or --all with the version dropdown"
 usage = '''
 flag "--version <version>" default="2.x" help="Folder under docs/versions"
 flag "--port <port>" default="8000" help="Local port"
+flag "--all" help="Build every version with the dropdown, like the published site (no live reload)"
 '''
 run = '''
 [ -x .venv-docs/bin/mkdocs ] || { python -m venv .venv-docs && .venv-docs/bin/pip install -q -r docs-requirements.txt; }
-.venv-docs/bin/mkdocs serve -f "docs/versions/$usage_version/mkdocs.yml" -a "127.0.0.1:$usage_port"
+if [ "${usage_all:-false}" != true ]; then
+  exec .venv-docs/bin/mkdocs serve -f "docs/versions/$usage_version/mkdocs.yml" -a "127.0.0.1:$usage_port"
+fi
+# Same layout as gh-pages: one folder per version, versions.json for the dropdown, / opens the newest
+out=.venv-docs/site; rm -rf "$out"; mkdir -p "$out"
+versions=$(ls docs/versions | sort -V -r)
+for v in $versions; do .venv-docs/bin/mkdocs build -q -f "docs/versions/$v/mkdocs.yml" -d "$PWD/$out/$v"; done
+printf '%s\n' $versions | python -c 'import json,sys; print(json.dumps([{"version":v,"title":v,"aliases":[]} for v in sys.stdin.read().split()]))' > "$out/versions.json"
+newest=$(echo "$versions" | head -1)
+printf '<meta http-equiv="refresh" content="0; url=%s/">\n' "$newest" > "$out/index.html"
+echo "Docs with the version dropdown: http://127.0.0.1:$usage_port/"
+exec .venv-docs/bin/python -m http.server "$usage_port" -b 127.0.0.1 -d "$out"
 '''
