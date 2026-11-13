@@ -9,6 +9,7 @@ from sqlalchemy.orm.session import close_all_sessions
 from sqlalchemy import text
 from unittest.mock import Mock
 import time
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -32,6 +33,11 @@ from app.models.results_backend import ResultsBackend
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.helpers.exceptions import KeycloakError
 from tests.helpers.pull_requests import pr_body
+
+# Sample responses shared with Dagster. The test compose file mounts them at /contract; outside docker they are in the repo.
+CONTRACT_DIR = Path("/contract") if Path("/contract").is_dir() else (
+    Path(__file__).resolve().parents[3] / "dagster" / "app" / "tests" / "contract"
+)
 
 
 @fixture(scope='session', autouse=True)

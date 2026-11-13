@@ -4,17 +4,17 @@ creates them, labelled and named per run, and a task reaching SUCCESS, FAILED or
 by the run label (helpers/task_resources.py).
 """
 import json
-from pathlib import Path
 
 import pytest
 from kubernetes.client.exceptions import ApiException
 
 from app.helpers.base_model import db
 from app.models.task import Task
+from tests.conftest import CONTRACT_DIR
 
 RUN_ID = "5b1f8c2e-0d3a-4c57-9a5e-6f2d1c7b8a90"
 NAMESPACE = "tasks"
-CONTRACT = Path(__file__).resolve().parents[3] / "dagster" / "app" / "tests" / "contract" / "task_resources_response.json"
+CONTRACT = CONTRACT_DIR / "task_resources_response.json"
 
 
 @pytest.fixture
@@ -66,7 +66,6 @@ def test_a_task_with_a_dataset_and_a_config_gets_a_secret_and_a_configmap_labell
     assert config_map.data == {"config.json": json.dumps({"threshold": 3})}
 
 
-@pytest.mark.skipif(not CONTRACT.is_file(), reason="the Dagster source is not in the checkout")
 def test_the_response_has_the_shape_dagsters_task_resources_parses(client, system_headers, project, dataset_task, k8s_client):
     """
     dagster/app/tests/contract/task_resources_response.json is a sample response; Dagster's tests parse it into

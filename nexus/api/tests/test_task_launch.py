@@ -3,20 +3,20 @@ POST /projects/<id>/tasks/<id>/launch, the launcher's one call: the decision (he
 rules test_task_config.py covers), the FAILED move on "fail", the run inputs on "launch", and a repeat being safe.
 """
 import json
-from pathlib import Path
 
 import pytest
 
 from app.helpers.base_model import db
 from app.helpers.const import TASK_CAUSE_MAX_LENGTH
 from app.models.task import Task
+from tests.conftest import CONTRACT_DIR
 
 # Fixtures the module shares with test_task_config.py
 from tests.test_task_config import (  # noqa: F401
     full_task, resources, patch, pinned_task, reload_task, set_target_dir,
 )
 
-CONTRACT = Path(__file__).resolve().parents[2] / "dagster" / "app" / "tests" / "contract" / "launch_response.json"
+CONTRACT = CONTRACT_DIR / "launch_response.json"
 
 
 def launch_url(project, task) -> str:
@@ -189,7 +189,6 @@ def test_no_token_is_refused(client, project, full_task):
 # --------------------------------------------------------------------------- contract with Dagster
 
 
-@pytest.mark.skipif(not CONTRACT.is_file(), reason="the Dagster source is not in the checkout")
 @pytest.mark.parametrize("with_dataset", [True, False])
 def test_the_response_has_the_shape_dagsters_launch_decision_parses(
         client, system_headers, project, full_task, make_task, with_dataset):
