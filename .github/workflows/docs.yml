@@ -79,7 +79,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Publish to gh-pages docs/docs/<branch>
         run: |
-          slug="${GITHUB_REF_NAME//\//-}"
+          # The 2.x line sits under beta/ until beta ships; other branches: / becomes -
+          case "$GITHUB_REF_NAME" in
+            dagster-develop) slug=beta/develop ;;
+            dagster-main) slug=beta/main ;;
+            *) slug="${GITHUB_REF_NAME//\//-}" ;;
+          esac
           prefix="docs/docs/$slug"
           site_url="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/docs/$slug/"
           versions=$(for config in docs/versions/*/mkdocs.yml; do basename "$(dirname "$config")"; done | sort -V)
@@ -171,7 +176,12 @@ jobs:
         env:
           BRANCH: ${{ github.event.ref }}
         run: |
-          slug="${BRANCH//\//-}"
+          # The 2.x line sits under beta/ until beta ships; other branches: / becomes -
+          case "$BRANCH" in
+            dagster-develop) slug=beta/develop ;;
+            dagster-main) slug=beta/main ;;
+            *) slug="${BRANCH//\//-}" ;;
+          esac
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for attempt in 1 2 3 4 5; do
