@@ -1,10 +1,10 @@
 """Serve every docs version locally with the version dropdown and live reload.
 
-Same layout as the published site: /<repo>/docs/<branch>/<version>/, a versions.json for
-the dropdown, and the branch path opening the newest version. Saving a file under
+Served under /<repo>/docs/<version>/ (the published layout without the branch), a versions.json for
+the dropdown, and /<repo>/docs/ opening the newest version. Saving a file under
 docs/versions/<version>/ rebuilds that version and refreshes the open page.
 
-Usage: python scripts/docs_serve.py <base path, e.g. /PHEMS_federated_node/docs/main> <port>
+Usage: python scripts/docs_serve.py <base path, e.g. /PHEMS_federated_node/docs> <port>
 """
 import json
 import logging

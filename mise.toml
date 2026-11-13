@@ -182,15 +182,9 @@ flag "--port <port>" default="8000" help="Local port"
 run = '''
 export NO_MKDOCS_2_WARNING=1
 [ -x .venv-docs/bin/livereload ] || { python -m venv .venv-docs && .venv-docs/bin/pip install -q -r docs-requirements.txt livereload; }
-# Same paths as the published site: /<repo>/docs/<branch>/<version>/
+# Served under /<repo>/docs/<version>/, like the published site minus the branch
 repo=$(basename -s .git "$(git remote get-url origin)")
-branch=$(git branch --show-current)
-case "$branch" in
-  dagster-develop) slug=beta/develop ;;
-  dagster-main) slug=beta/main ;;
-  *) slug=$(printf %s "$branch" | tr / -) ;;
-esac
-base="/$repo/docs/$slug"
+base="/$repo/docs"
 if [ -n "${usage_version:-}" ]; then
   v="$usage_version"
   # A local config that inherits the version's own, so only site_url (the served path) changes
