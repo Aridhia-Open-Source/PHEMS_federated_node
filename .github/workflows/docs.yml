@@ -8,7 +8,7 @@ on:
       - "mkdocs.yml"
       - "docs-requirements.txt"
       - "nexus/api/openapi.json"
-  # main, develop and dagster-develop publish versions; every other branch publishes a
+  # main, develop, beta, dagster-main and dagster-develop publish versions; every other branch publishes a
   # preview under /preview/<branch>/, removed again when the branch is deleted
   push:
     paths:
@@ -42,10 +42,10 @@ jobs:
           path: site/
 
   deploy:
-    # main publishes the released 1.x docs (the default version); develop publishes the
-    # unreleased ones as "develop" and dagster-develop the 2.x ones as "beta", next to 1.x
-    # in the version dropdown
-    if: github.event_name != 'pull_request' && contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/dagster-develop"]'), github.ref)
+    # 1.x under /docs/: main publishes 1.x (the default), develop publishes "develop".
+    # 2.x under /docs/beta/ with its own dropdown until beta ships: beta publishes "beta"
+    # (the default, so /docs/beta/ opens it), dagster-main "main", dagster-develop "develop".
+    if: github.event_name != 'pull_request' && contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/beta","refs/heads/dagster-main","refs/heads/dagster-develop"]'), github.ref)
     runs-on: ubuntu-latest
     # One docs deploy at a time; the newest wins. The chart release (build.yml) also pushes
     # gh-pages, so the deploy retries on a rejected push instead of sharing a lock with it.
@@ -71,17 +71,19 @@ jobs:
       - name: Deploy to gh-pages docs/docs
         run: |
           case "$GITHUB_REF_NAME" in
-            main) version=1.x ;;
-            develop) version=develop ;;
-            dagster-develop) version=beta ;;
+            main) prefix=docs/docs; version=1.x; default=1 ;;
+            develop) prefix=docs/docs; version=develop; default= ;;
+            beta) prefix=docs/docs/beta; version=beta; default=1 ;;
+            dagster-main) prefix=docs/docs/beta; version=main; default= ;;
+            dagster-develop) prefix=docs/docs/beta; version=develop; default= ;;
           esac
           # Commit onto the latest gh-pages and push; if the release job pushed in between,
           # start again from the new gh-pages, up to 5 times.
           for attempt in 1 2 3 4 5; do
             git fetch origin gh-pages --depth=1
             git branch -f gh-pages FETCH_HEAD
-            mike deploy --deploy-prefix docs/docs --update-aliases "$version"
-            if [ "$version" = 1.x ]; then mike set-default --deploy-prefix docs/docs 1.x; fi
+            mike deploy --deploy-prefix "$prefix" --update-aliases "$version"
+            if [ -n "$default" ]; then mike set-default --deploy-prefix "$prefix" "$version"; fi
             if git push origin gh-pages; then
               exit 0
             fi
@@ -96,7 +98,7 @@ jobs:
     if: >-
       github.event_name != 'pull_request' && github.event_name != 'delete' &&
       startsWith(github.ref, 'refs/heads/') &&
-      !contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/dagster-develop"]'), github.ref)
+      !contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/beta","refs/heads/dagster-main","refs/heads/dagster-develop"]'), github.ref)
     runs-on: ubuntu-latest
     concurrency:
       group: docs-preview-${{ github.ref }}
