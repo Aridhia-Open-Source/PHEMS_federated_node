@@ -7,16 +7,15 @@ on:
       - "mkdocs.yml"
       - "docs-requirements.txt"
       - "webserver/app/static/openapi.json"
+  # main, develop and dagster-develop publish versions; every other branch publishes a
+  # preview under /preview/<branch>/, removed again when the branch is deleted
   push:
-    branches:
-      - main
-      - develop
-      - dagster-develop
     paths:
       - "wiki/**"
       - "mkdocs.yml"
       - "docs-requirements.txt"
       - "webserver/app/static/openapi.json"
+  delete:
   workflow_dispatch:
 
 permissions:
@@ -85,6 +84,85 @@ jobs:
               exit 0
             fi
             echo "gh-pages moved, retrying ($attempt/5)"
+            sleep $((attempt * 5))
+          done
+          exit 1
+
+  # Every other branch: built into gh-pages docs/preview/<branch>, served at /preview/<branch>/,
+  # outside the version dropdown. Slashes in the branch name become dashes.
+  preview:
+    if: >-
+      github.event_name != 'pull_request' && github.event_name != 'delete' &&
+      startsWith(github.ref, 'refs/heads/') &&
+      !contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/dagster-develop"]'), github.ref)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docs-preview-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: docs-requirements.txt
+      - run: pip install -r docs-requirements.txt
+      - name: Build
+        run: |
+          slug="${GITHUB_REF_NAME//\//-}"
+          echo "slug=$slug" >> "$GITHUB_ENV"
+          # Own site_url, so canonical links and the sitemap point at the preview
+          sed -i "s|^site_url: .*|site_url: https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/preview/$slug/|" mkdocs.yml
+          mkdocs build
+      - name: Configure git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Publish to gh-pages docs/preview/<branch>
+        run: |
+          for attempt in 1 2 3 4 5; do
+            rm -rf pages
+            git fetch origin gh-pages --depth=1
+            git worktree add --detach pages FETCH_HEAD
+            rm -rf "pages/docs/preview/$slug"
+            mkdir -p "pages/docs/preview/$slug"
+            cp -r site/. "pages/docs/preview/$slug/"
+            git -C pages add -A docs/preview
+            git -C pages commit -q -m "Docs preview for $GITHUB_REF_NAME ($GITHUB_SHA)" || exit 0
+            if git -C pages push origin HEAD:gh-pages; then
+              echo "Preview: https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/preview/$slug/" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            git worktree remove --force pages
+            echo "gh-pages moved, retrying ($attempt/5)"
+            sleep $((attempt * 5))
+          done
+          exit 1
+
+  # A deleted branch takes its preview with it. GitHub runs this from the default branch's
+  # copy of this workflow, so it starts working once this file is on main.
+  preview-cleanup:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docs-preview-refs/heads/${{ github.event.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+      - name: Remove docs/preview/<branch>
+        env:
+          BRANCH: ${{ github.event.ref }}
+        run: |
+          slug="${BRANCH//\//-}"
+          [ -d "docs/preview/$slug" ] || exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4 5; do
+            git rm -rq "docs/preview/$slug" && git commit -q -m "Remove docs preview for $BRANCH"
+            git push origin HEAD:gh-pages && exit 0
+            git fetch origin gh-pages --depth=1 && git reset -q --hard FETCH_HEAD
+            [ -d "docs/preview/$slug" ] || exit 0
             sleep $((attempt * 5))
           done
           exit 1
