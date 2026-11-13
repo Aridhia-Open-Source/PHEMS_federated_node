@@ -10,6 +10,7 @@ on:
   push:
     branches:
       - main
+      - develop
     paths:
       - "wiki/**"
       - "mkdocs.yml"
@@ -39,7 +40,9 @@ jobs:
           path: site/
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # main publishes the released 1.x docs (the default version); develop publishes the
+    # unreleased ones as "develop", next to 1.x in the version dropdown
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     runs-on: ubuntu-latest
     # One docs deploy at a time; the newest wins. The chart release (build.yml) also pushes
     # gh-pages, so the deploy retries on a rejected push instead of sharing a lock with it.
@@ -62,15 +65,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Deploy 1.x to gh-pages docs/docs
+      - name: Deploy to gh-pages docs/docs
         run: |
+          if [ "$GITHUB_REF_NAME" = main ]; then version=1.x; else version=develop; fi
           # Commit onto the latest gh-pages and push; if the release job pushed in between,
           # start again from the new gh-pages, up to 5 times.
           for attempt in 1 2 3 4 5; do
             git fetch origin gh-pages --depth=1
             git branch -f gh-pages FETCH_HEAD
-            mike deploy --deploy-prefix docs/docs --update-aliases 1.x
-            mike set-default --deploy-prefix docs/docs 1.x
+            mike deploy --deploy-prefix docs/docs --update-aliases "$version"
+            if [ "$version" = 1.x ]; then mike set-default --deploy-prefix docs/docs 1.x; fi
             if git push origin gh-pages; then
               exit 0
             fi
