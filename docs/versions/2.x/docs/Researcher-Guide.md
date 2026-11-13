@@ -110,4 +110,4 @@ The outcome is not commented back on your trigger pull request, so look in the r
 
 ## Trying it
 
-On a development node, `fncli trigger` opens and merges the pull request for you. The spec file you give it is exactly the one described here.
+On a development node with the chart's Gitea, `fncli open-pr --merge` opens and merges a sample pull request for you. The spec file it commits has the format described here.
