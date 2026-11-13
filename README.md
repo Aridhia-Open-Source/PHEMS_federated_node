@@ -30,73 +30,46 @@ sequenceDiagram
 ## Components
 
 ```mermaid
-flowchart TD
+flowchart LR
   subgraph People["People"]
+    direction TB
     Researcher("Researcher")
     DataController("Data Controller")
     Admin("Admin")
   end
 
-  subgraph GitProvider["Git Provider (GitHub / Gitea)"]
+  subgraph GitProvider["Git Provider"]
+    direction TB
     TriggerRepo("Trigger Repo")
     ResultsRepo("Results Repo")
   end
 
   subgraph FederatedNode["Federated Node"]
-    Traefik("Traefik")
-
-    subgraph Nexus["Nexus"]
-      UI("nexus-ui")
-      API("nexus-api")
+    direction TB
+    subgraph Control["Control"]
+      direction LR
+      Traefik("Traefik") --> Nexus("nexus-ui + nexus-api") --> Keycloak("Keycloak")
+      Nexus --- Postgres[("Postgres")]
     end
-
-    Keycloak("Keycloak")
-    Postgres[("Postgres")]
-    Secrets("fn-secrets")
-
     subgraph Dagster["Dagster"]
-      subgraph DagsterServices["Services"]
-        Daemon("Daemon (sensors)")
-        CodeServer("Code Server")
-        WebServer("Web Server")
-      end
-
-      subgraph DagsterRuns["Run Pods"]
-        Run1("Pod")
-        Run2("Pod")
-      end
+      direction LR
+      Daemon("Daemon (sensors)") --> RunPods("Run Pods")
     end
-
-    subgraph TasksNamespace["tasks namespace (default-deny)"]
-      Task1("Task Pod")
-      Task2("Task Pod")
+    subgraph Tasks["tasks namespace (default-deny)"]
+      TaskPods("Task Pods")
     end
-
-    ResultsVolume("Results Volume")
+    Daemon --> Nexus
+    RunPods --> TaskPods
   end
 
   Datasets[("Datasets")]
 
   Researcher -->|"task spec PR"| TriggerRepo
-  DataController -->|"merges"| TriggerRepo
-  DataController -->|"merges"| ResultsRepo
+  DataController -->|"merges PRs"| GitProvider
   Admin --> Traefik
-  Traefik --> UI
-  Traefik --> API
-  Traefik --> Keycloak
-  UI --> API
-  API --> Keycloak
-  API --- Postgres
-  Keycloak --- Postgres
-  API --- Secrets
-  Daemon -->|"polls"| TriggerRepo
-  Daemon --> API
-  Daemon -->|"launches"| DagsterRuns
-  DagsterRuns -->|"starts"| TasksNamespace
-  DagsterRuns -->|"results PR"| ResultsRepo
-  TasksNamespace -->|"only route out"| Datasets
-  TasksNamespace --- ResultsVolume
-  DagsterRuns --- ResultsVolume
+  Daemon -.->|"polls"| TriggerRepo
+  RunPods -.->|"results PR"| ResultsRepo
+  TaskPods -->|"only route out"| Datasets
 ```
 
 ## Principles
