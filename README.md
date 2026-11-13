@@ -17,13 +17,15 @@ sequenceDiagram
     participant Results as Results Repo
 
     Researcher->>Trigger: Raise PR (task spec: image + dataset)
-    DataController->>Trigger: Review & Merge PR (approval gate)
+    DataController->>Trigger: Approve PR
+    DataController->>Trigger: Merge PR
     Node->>Trigger: Poll merged PRs, read the task spec
     Node->>Node: Create task, check the project, dataset and repos are allowed
     Node->>Task: Start pod in the tasks namespace, next to the dataset
     Task-->>Node: Write results to its output folder
-    Node->>Results: Push results branch, open results PR
-    DataController->>Results: Review & Merge results PR (release gate)
+    Node->>Results: Push results branch, open Results PR
+    DataController->>Results: Approve Results PR
+    DataController->>Results: Merge Results PR
     Node->>Results: Sync PR state, record the result as merged
 ```
 
