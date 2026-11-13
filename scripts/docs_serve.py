@@ -10,6 +10,7 @@ import json
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 from livereload import Server
@@ -44,8 +45,9 @@ def main():
     shutil.rmtree(OUT, ignore_errors=True)
     site = OUT / base.strip("/")
     site.mkdir(parents=True)
-    for v in versions:
-        build(v, site)
+    # The newest version first, so the server starts after one build; the rest follow behind it
+    build(versions[0], site)
+    threading.Thread(target=lambda: [build(v, site) for v in versions[1:]], daemon=True).start()
     (site / "versions.json").write_text(json.dumps([{"version": v, "title": v, "aliases": []} for v in versions]))
     (site / "index.html").write_text(f'<meta http-equiv="refresh" content="0; url={versions[0]}/">\n')
 
