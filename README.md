@@ -57,8 +57,8 @@ flowchart LR
 
 ## Where to go next
 
-- Deploying a node: [Deploy-Core](docs/wiki/Deploy-Core.md), plus the page for your platform ([Azure](docs/wiki/Deploy-Azure.md), [AWS](docs/wiki/Deploy-AWS.md), [GCP](docs/wiki/Deploy-GCP.md), [On-Premises](docs/wiki/Deploy-On-Premises.md)). Start with [Prerequisites](docs/wiki/Prerequisites.md).
+- Deploying a node: [Deploy-Core](docs/versions/2.x/docs/Deploy-Core.md), plus the page for your platform ([Azure](docs/versions/2.x/docs/Deploy-Azure.md), [AWS](docs/versions/2.x/docs/Deploy-AWS.md), [GCP](docs/versions/2.x/docs/Deploy-GCP.md), [On-Premises](docs/versions/2.x/docs/Deploy-On-Premises.md)). Start with [Prerequisites](docs/versions/2.x/docs/Prerequisites.md).
 - Running it locally: [DEPLOYMENT.md](DEPLOYMENT.md), "Run it locally".
-- Setting up a project: [MANAGEMENT.md](MANAGEMENT.md), then [Datasets](docs/wiki/Datasets.md) and the [Researcher guide](docs/wiki/Researcher-Guide.md). Git credentials are in [SETUP_GIT_APPS.md](SETUP_GIT_APPS.md).
+- Setting up a project: [MANAGEMENT.md](MANAGEMENT.md), then [Datasets](docs/versions/2.x/docs/Datasets.md) and the [Researcher guide](docs/versions/2.x/docs/Researcher-Guide.md). Git credentials are in [SETUP_GIT_APPS.md](SETUP_GIT_APPS.md).
 - Contributing: [AGENTS.md](AGENTS.md) for the repo map, mise tasks and conventions, and the [decision records](project/decisions/README.md).
 - Licences for the component projects: [sub-licenses](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/sub-licenses).

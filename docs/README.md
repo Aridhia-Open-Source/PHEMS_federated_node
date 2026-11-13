@@ -50,7 +50,7 @@ Testing and open items:
 - [dagster/fncli/tests/e2e/README.md](../dagster/fncli/tests/e2e/README.md): how to run the live-cluster end-to-end suites.
 - The mirror service is developed on branch `moonshot/gitea-mirror`.
 
-Wiki ([docs/wiki](wiki/)):
+Wiki ([docs/versions/2.x/docs](versions/2.x/docs/)):
 
 - The GitHub wiki pages live here, file names the same as on the wiki. Edit them in a pull request. The `Wiki sync` workflow copies this folder to the wiki when a change to it reaches `main`, so an edit made in the wiki itself is overwritten by the next sync.
 
