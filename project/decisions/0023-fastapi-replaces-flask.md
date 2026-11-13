@@ -7,7 +7,7 @@ The Federated Node API was a Flask app in `webserver/`. nexus-api (`nexus/api`) 
 ## Decision
 
 **One API: nexus-api, in FastAPI.** Flask and `webserver/` are deleted.
-- All the routers are ported: main (login, token refresh, health and ready checks), projects, datasets, tasks, results, users, trigger repositories, project trigger repositories, secrets, git providers, results repositories, Dagster and the health checks. Errors, validation (400), pagination and the route layout keep the Flask contract ([CONTRACT.md](../../nexus/api/CONTRACT.md)).
+- All the routers are ported: main (login, token refresh, health and ready checks), projects, datasets, tasks, results, users, trigger repositories, project trigger repositories, secrets, git providers, results repositories, Dagster and the health checks. Errors, validation (400), pagination and the route layout keep the Flask contract.
 - Responses are built by the same Pydantic DTOs as before ([0016](0016-pydantic-dto-layer.md)); FastAPI turns them into an OpenAPI spec (`/openapi.json`, committed as `nexus/api/openapi.json`) that the UI generates its types from.
 - Each request gets its own database session scope from a middleware, in place of Flask-SQLAlchemy's app context.
 - The registries, whitelisted images, DAR, audit and admin extras are not ported: they were already out of scope ([0017](0017-authorization-detached-from-dar-and-keycloak.md)), and what they are for is an open question below. The API-request trigger routes are not implemented yet; tasks come from pull request triggers only.
