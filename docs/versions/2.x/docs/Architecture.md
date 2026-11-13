@@ -14,6 +14,36 @@ The FN inverts the usual data sharing model. Instead of copying patient data out
 
 Everything below is deployed by a single Helm chart. Some parts are subcharts you can turn on or off.
 
+```mermaid
+flowchart LR
+    subgraph Node["Federated Node"]
+        TR[Traefik]
+        UI["nexus/ui"]
+        API["nexus/api"]
+        KC[Keycloak]
+        DB[(Postgres)]
+        DG["dagster"]
+        subgraph Tasks["tasks namespace"]
+            TP["task pods"]
+            NP["default-deny network policy"]
+        end
+    end
+    GP[Git Provider]
+    DS[(Datasets)]
+    TR --> UI
+    TR --> API
+    TR --> KC
+    API --> KC
+    API --> DB
+    KC --> DB
+    DG --> API
+    DG --> DB
+    DG -->|"launches"| TP
+    DG <-->|"pull requests"| GP
+    TP --> NP
+    NP -->|"only route out"| DS
+```
+
 | Component | Namespace | What it does |
 |---|---|---|
 | **nexus-api** | release namespace | The FN API (FastAPI, port 5000). It is the record and the rules: projects, datasets, repositories, tasks and results live in its database, and it decides whether a task may run. It also mints short-lived git tokens for the repositories. |
@@ -31,6 +61,15 @@ Task pods get their own namespace on purpose: it holds nothing but task pods, so
 
 
 ## How a task runs
+
+```mermaid
+flowchart LR
+    R([Researcher]) -->|"pull request"| GP[Git Provider]
+    GP -->|"merged, ingested by sensor"| DG["dagster"]
+    DG -->|"launches task"| TP["task pod"]
+    TP -->|"results pushed"| RP["Git Provider<br/>results pull request"]
+    RP --> V([Reviewer merges])
+```
 
 1. **Ingest.** A Dagster sensor polls each trigger repository for merged pull requests. nexus-api stores each pull request once, however many projects watch the repository.
 2. **Evaluate.** For each project that watches that repository and branch, a pull request that **adds one `.json` file** under the project's watch directory becomes a task. A pull request that adds no such file is ignored. One that adds several, or whose spec is not valid, is marked `REJECTED` with the reason.
