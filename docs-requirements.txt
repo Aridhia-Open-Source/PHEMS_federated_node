@@ -1,0 +1,3 @@
+mkdocs-material==9.8.1
+mike==2.2.0
+mkdocs-swagger-ui-tag==0.8.1
