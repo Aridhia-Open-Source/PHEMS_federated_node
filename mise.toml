@@ -175,12 +175,13 @@ run = './scripts/new-worktree.sh "$usage_name" "$usage_branch" ${usage_base:+"$u
 # mise run docs [--port 8001] [--version 2.x]
 [tasks.docs]
 description = "Serve every docs version with the dropdown and live reload; --version for just one"
+quiet = true
+env = { NO_MKDOCS_2_WARNING = "1" }
 usage = '''
 flag "--version <version>" help="Only this folder under docs/versions"
 flag "--port <port>" default="8000" help="Local port"
 '''
 run = '''
-export NO_MKDOCS_2_WARNING=1
 [ -x .venv-docs/bin/livereload ] || { python -m venv .venv-docs && .venv-docs/bin/pip install -q -r docs-requirements.txt livereload; }
 # Served under /<repo>/docs/<version>/, like the published site minus the branch
 origin=$(git remote get-url origin)
