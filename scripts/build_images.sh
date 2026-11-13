@@ -2,7 +2,7 @@
 # Build the dev images with docker buildx bake and push them to the local registry (tagged latest).
 #   scripts/build_images.sh                       the node's images and every experiment's
 #   scripts/build_images.sh nexus-api-fn demo-fn  just those bake targets
-# The release images are built by `make images-release`, not here.
+# The release images are built by `mise run images-release`, not here.
 set -euo pipefail
 shopt -s nullglob
 

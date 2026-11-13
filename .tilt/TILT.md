@@ -40,7 +40,7 @@ Tilt is a local development environment that enables instant reloads for your Da
 
 - **Tilt**: https://docs.tilt.dev/install.html
 - **Docker**: Running on your machine
-- **Kind cluster**: Created by `make cluster-up`
+- **Kind cluster**: Created by `mise run cluster-up`
 - **kubectl**: Configured to access the Kind cluster
 
 ### Installation
@@ -58,7 +58,7 @@ tilt version
 #### 1. Start the Cluster
 
 ```bash
-make cluster-up
+mise run cluster-up
 ```
 
 This creates:
@@ -69,7 +69,7 @@ This creates:
 #### 2. Deploy Helm (One-Time)
 
 ```bash
-make deploy
+mise run deploy
 ```
 
 This:
@@ -158,7 +158,7 @@ Tilt uses the `docker_build_with_restart` extension to:
 3. **K8s Pulls**: Cluster sees imagePullPolicy: Always and fetches new image
 4. **Restart**: Pod restarts with new image
 
-Tilt tags each image by a hash of its content, so every change is a new tag. Other dev deploys (`make images`, `deploy.sh`) use the `latest` tag.
+Tilt tags each image by a hash of its content, so every change is a new tag. Other dev deploys (`mise run images`, `deploy.sh`) use the `latest` tag.
 
 ## Services Managed
 
@@ -322,11 +322,11 @@ kubectl port-forward service/nexus-api 5000:5000 -n fn
 tilt down
 
 # Delete the cluster
-make cluster-down
+mise run cluster-down
 
 # Start fresh
-make cluster-up
-make deploy
+mise run cluster-up
+mise run deploy
 tilt up
 ```
 

@@ -22,14 +22,13 @@ if [[ -n "${1:-}" && "${1}" != --* ]]; then
 fi
 pushd "$DIR" > /dev/null
 
-if ! command -v pip-compile > /dev/null 2>&1; then
-    echo "Error: pip-compile is required to generate requirements.txt." >&2
-    echo "Install the pip-tools package first, for example:" >&2
-    echo "  python -m pip install pip-tools" >&2
+# The component's own Python (its mise.toml), which `mise run setup` gives pip-tools
+if ! mise exec -- python -m piptools --help > /dev/null 2>&1; then
+    echo "Error: pip-tools is not installed for ${DIR}. Run \`mise run setup\` first." >&2
     exit 1
 fi
 
-pip-compile \
+mise exec -- python -m piptools compile \
     --generate-hashes \
     --no-header \
     --no-emit-options \

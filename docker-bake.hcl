@@ -1,13 +1,13 @@
 # Every image the node builds. Run from the repo root:
 #   scripts/build_images.sh [TARGET...]
-# or use `make images`, `make image NAME=<target>`, `make images-release TAG=x`.
+# or use `mise run images`, `mise run image --target <target>`, `mise run images-release --tag x`.
 # Each experiment brings its own file, experiments/NAME/docker-bake.hcl.
 
 variable "REGISTRY" {
   default = "localhost:5001"
 }
 
-# Dev builds use latest; releases pass TAG (make images-release TAG=x). Tilt tags by content hash instead.
+# Dev builds use latest; releases pass TAG (mise run images-release --tag x). Tilt tags by content hash instead.
 variable "TAG" {
   default = "latest"
 }

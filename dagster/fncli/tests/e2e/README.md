@@ -15,8 +15,8 @@ The failure paths are split by what a group waits for. `failure` holds the group
 ## Rules
 
 - Run against the local `kind-fn` cluster only: never a shared or production cluster.
-- Never tear the dev cluster down (`make teardown`) to run the suites. Use the cluster that is running (`kubectl` on context `kind-fn`, Tilt green). If there is none, create it with `make helm_deps && make deploy` and `tilt up --stream` ([EXAMPLES.md](../../EXAMPLES.md)).
-- Work from the worktree that owns the cluster (`make deploy-owner` shows it) and do not switch branches in the main checkout.
+- Never tear the dev cluster down (`mise run teardown`) to run the suites. Use the cluster that is running (`kubectl` on context `kind-fn`, Tilt green). If there is none, create it with `mise run helm-deps && mise run deploy` and `tilt up --stream` ([EXAMPLES.md](../../EXAMPLES.md)).
+- Work from the worktree that owns the cluster (`mise run deploy-owner` shows it) and do not switch branches in the main checkout.
 - Only the test project, its global resources, its Gitea repositories and the `QaTwo` project are created or changed. `teardown-project` removes them.
 - A failing test is a finding: the suites report, they do not fix. Record the scenario, the commands, the expected and the actual result, and the logs.
 
@@ -25,7 +25,7 @@ The failure paths are split by what a group waits for. `failure` holds the group
 - `kubectl config current-context` is `kind-fn`.
 - nexus-api (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answer on localhost (port-forwards or Tilt).
 - `.dev.env` exists in the repo root and defines `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD` (the first Keycloak user, needed to revoke project resources) and the `TEST_*` values documented in `.dev.env.example`.
-- The images in the cluster are built from the branch under test (`make deploy`), including `pypipes-fn`.
+- The images in the cluster are built from the branch under test (`mise run deploy`), including `pypipes-fn`.
 - `jq` is installed when you run the scenarios by hand.
 
 ## Run

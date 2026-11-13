@@ -36,41 +36,35 @@ Licences for the component projects can be found [here](https://github.com/Aridh
 
 ### Dependency Management
 
-Python dependencies are declared in `pyproject.toml` files within each component directory (e.g. `nexus/api/`, `build/alpine/`, `build/kc-init/`). Locked `requirements.txt` files are generated from these using [pip-tools](https://pip-tools.readthedocs.io/) via the `pip_compile` Makefile target.
+Python dependencies are declared in `pyproject.toml` files within each component directory (e.g. `nexus/api/`, `build/alpine/`, `build/kc-init/`). Locked `requirements.txt` files are generated from these using [pip-tools](https://pip-tools.readthedocs.io/) via the `pip-compile` mise task.
 
-#### Prerequisites
-
-Install `pip-tools` in your local environment:
-
-```bash
-python -m pip install pip-tools
-```
+`mise run setup` installs pip-tools for each component's own Python (`nexus/api` and `build/` on 3.13, `dagster` on 3.12), and `pip-compile` runs with it, so the lock matches the Python the component runs on.
 
 #### Locking Requirements
 
-Run `make pip-compile` with the target component directory as `DIR`:
+Run `mise run pip-compile` with the target component directory as `--dir`:
 
 ```bash
 # Lock dependencies for nexus/api
-make pip-compile DIR=nexus/api
+mise run pip-compile --dir nexus/api
 
 # Lock dependencies for a build component
-make pip-compile DIR=build/kc-init
+mise run pip-compile --dir build/kc-init
 ```
 
-By default this writes `requirements.txt` in the given directory. To write to a different output file, pass it as `OUT`:
+By default this writes `requirements.txt` in the given directory. To write to a different output file, pass it with `--out`:
 
 ```bash
-make pip-compile DIR=nexus/api OUT=requirements-dev.txt
+mise run pip-compile --dir nexus/api --out requirements-dev.txt
 ```
 
-Any additional flags supported by `pip-compile` can be passed as `ARGS="--upgrade"`.
+Any additional flags supported by `pip-compile` go after `--`, e.g. `mise run pip-compile --dir nexus/api -- --upgrade`.
 To view the default flags see `scripts/pip_compile.sh`.
 
 #### Modifying Dependencies
 
 1. Edit the `dependencies` list in the relevant `pyproject.toml`. Use `[project.optional-dependencies]` for dev/test-only extras.
-2. Re-run `make pip-compile DIR=<dir>` to regenerate the locked `requirements.txt`.
+2. Re-run `mise run pip-compile --dir <dir>` to regenerate the locked `requirements.txt`.
 3. Commit both `pyproject.toml` and `requirements.txt`.
 
 Use `~=` (compatible-release) specifiers in `pyproject.toml` to constrain the minor version while allowing patch updates, e.g. `"fastapi~=0.162.0"`. The locked `requirements.txt` pins exact versions with hashes for reproducible installs.
@@ -82,7 +76,7 @@ Use `~=` (compatible-release) specifiers in `pyproject.toml` to constrain the mi
 [hadolint](https://github.com/hadolint/hadolint) lints all `Dockerfile`s in the project. It runs inside Docker, so no local installation is required beyond Docker itself.
 
 ```bash
-make hadolint
+mise run hadolint
 ```
 
 This prints any issues directly to the terminal in a readable format. It also writes a JUnit XML report to `artifacts/hadolint.xml`, which is consumed by CI.

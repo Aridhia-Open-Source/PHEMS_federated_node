@@ -1,0 +1,173 @@
+# Dev tools, environment and tasks. `mise run <task>`; `mise tasks` lists them.
+# Personal overrides go in mise.local.toml (gitignored).
+
+[tools]
+# dagster/Dockerfile (python:3.12-slim). nexus/api needs 3.13, pinned in nexus/api/mise.toml.
+python = "3.12"
+# nexus/ui/Dockerfile (node:20-alpine)
+node = "20"
+# Nothing in the repo or CI pins these: current stable. helm stays on v3 (DEPLOYMENT.md).
+kind = "0.33.0"
+kubectl = "1.37.2"
+helm = "3.22.1"
+tilt = "0.37.8"
+
+[env]
+_.file = ".dev.env"
+
+[tasks.setup]
+description = "Install the pinned tools and the nexus/api and dagster virtualenvs"
+run = [
+  "command -v pyenv >/dev/null && mise sync python --pyenv || true",
+  "mise install",
+  "mise -C nexus/api install",
+  "mise -C dagster install",
+  # requirements-dev.txt is a superset of requirements.txt (adds pytest, pylint)
+  "mise -C nexus/api exec -- python -m pip install -r requirements-dev.txt",
+  "mise -C dagster exec -- python -m pip install -r requirements.txt",
+  "mise -C dagster exec -- python -m pip install --no-deps -e '.[cli]'",
+  # pip-compile resolves for the Python it runs on, so each component's own interpreter gets it
+  "mise -C nexus/api exec -- python -m pip install pip-tools",
+  "mise -C dagster exec -- python -m pip install pip-tools",
+  "mise -C build exec -- python -m pip install pip-tools",
+  # Print only, never edits the shell config. `mise run` works without activation;
+  # activating adds automatic tool and venv switching on cd.
+  '''
+  if [ -z "${MISE_SHELL:-}" ]; then
+    case "$(basename "${SHELL:-bash}")" in
+      zsh) line='eval "$(mise activate zsh)"'; file='~/.zshrc' ;;
+      fish) line='mise activate fish | source'; file='~/.config/fish/config.fish' ;;
+      *) line='eval "$(mise activate bash)"'; file='~/.bashrc' ;;
+    esac
+    echo
+    echo "mise is not activated in this shell. Add this line to $file and restart the shell:"
+    echo "  $line"
+  fi
+  ''',
+]
+
+[tasks.init-conf]
+description = "Create .dev.env and dev.values.yaml from the examples, ask for the first Keycloak user"
+run = "./scripts/init_conf.sh"
+
+[tasks.hadolint]
+description = "Lint the Dockerfiles"
+run = "./scripts/run_hadolint.sh"
+
+[tasks.pylint]
+description = "Lint nexus-api"
+run = "./scripts/pylint.sh"
+
+[tasks.pylint-dagster]
+description = "Lint Dagster"
+run = "PROJECT=dagster ./scripts/pylint.sh"
+
+[tasks.tests-dagster]
+description = "Run the Dagster tests the way CI does"
+run = "cd dagster && ./run_tests.sh ci"
+
+[tasks.helm-tests]
+description = "Run the chart's helm unit tests"
+run = "./scripts/run_helm_tests.sh"
+
+# charts/ is gitignored, so a fresh checkout has no subcharts and helm refuses to
+# lint or render. helm-lint and helm-template depend on this.
+[tasks.helm-deps]
+description = "Build the chart's subcharts"
+run = "cd k8s/federated-node && helm dependency build || helm dependency update"
+
+[tasks.helm-lint]
+description = "Lint the chart"
+depends = ["helm-deps"]
+run = "helm lint k8s/federated-node -f k8s/federated-node/dev.example.values.yml"
+
+# Renders with no cluster access - guards against a lookup that ArgoCD or CI cannot do.
+[tasks.helm-template]
+description = "Render the chart with no cluster"
+depends = ["helm-deps"]
+run = "helm template fn k8s/federated-node -f k8s/federated-node/dev.example.values.yml >/dev/null"
+
+[tasks.show-db-passwords]
+description = "Print the generated database passwords"
+quiet = true
+run = '''
+kubectl get secret -l federatednode.com/generated-password=true \
+  -o go-template='{% raw %}{{range .items}}{{printf "%-26s" .metadata.name}}{{range $k, $v := .data}}{{$k}}={{$v | base64decode}}{{end}}{{"\n"}}{{end}}{% endraw %}'
+'''
+
+# mise run pip-compile --dir nexus/api [--out requirements-dev.txt] [-- --upgrade]
+[tasks.pip-compile]
+description = "Lock a component's requirements"
+usage = '''
+flag "--dir <dir>" required=#true help="Component directory, e.g. nexus/api"
+flag "--out <file>" help="Output file (default requirements.txt)"
+arg "[flags]..." var=#true help="Extra pip-compile flags, e.g. --upgrade"
+'''
+run = './scripts/pip_compile.sh "$usage_dir" ${usage_out:-} ${usage_flags:-}'
+
+# Images are docker buildx bake targets, see docker-bake.hcl. Dev images are tagged latest and pushed to localhost:5001.
+[tasks.images]
+description = "Build and push every image to localhost:5001"
+run = "scripts/build_images.sh"
+
+[tasks.image]
+description = "Build and push one image, e.g. --target nexus-api-fn"
+usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
+run = 'scripts/build_images.sh "$usage_target"'
+
+[tasks.image-reload]
+description = "Build and push one image, then restart the deployments"
+usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
+run = 'scripts/build_images.sh "$usage_target" && kubectl rollout restart deployment'
+
+# The ghcr.io images the release publishes, tagged and loaded into the local docker, not pushed
+[tasks.images-release]
+description = "Build the release images into the local docker"
+usage = 'flag "--tag <tag>" default="1.0" help="Image tag, e.g. 1.2.3"'
+run = 'TAG="$usage_tag" docker buildx bake -f docker-bake.hcl release --load'
+
+[tasks.reload-app]
+description = "Rebuild the Dagster and nexus-api images and restart their pods"
+run = "./scripts/reload_app.sh"
+
+[tasks.cluster-up]
+description = "Start the kind cluster and the local registries"
+quiet = true
+run = "./scripts/cluster.sh up"
+
+[tasks.cluster-down]
+description = "Delete the kind cluster, keep the registries"
+quiet = true
+usage = '''
+flag "--remove-registries" help="Also delete the registries"
+flag "--force-owner" help="Delete the cluster even if another worktree owns it"
+'''
+run = 'env ${usage_force_owner:+FORCE_OWNER=1} ./scripts/cluster.sh down ${usage_remove_registries:+--remove-registries}'
+
+[tasks.deploy]
+description = "Build images, install or upgrade the Helm release, restart the app pods"
+usage = 'flag "--force-owner" help="Take over the dev cluster from another worktree"'
+run = 'env ${usage_force_owner:+FORCE_OWNER=1} ./scripts/deploy.sh'
+
+[tasks.teardown]
+description = "Remove the deployment and its persistent data"
+run = "./scripts/teardown.sh"
+
+[tasks.portfwd]
+description = "Port-forward the node's services (when Tilt is not running)"
+run = "./scripts/portfwd.sh"
+
+[tasks.deploy-owner]
+description = "Show which worktree owns the dev cluster"
+run = "./scripts/deploy_owner.sh show"
+
+# New sibling worktree with the gitignored dev config copied in
+[tasks.worktree]
+description = "New sibling worktree with the dev config"
+quiet = true
+usage = '''
+flag "--name <name>" required=#true help="Directory name of the new sibling worktree"
+flag "--branch <branch>" required=#true help="Branch to create"
+flag "--base <ref>" help="Base ref (default HEAD)"
+'''
+run = './scripts/new-worktree.sh "$usage_name" "$usage_branch" ${usage_base:+"$usage_base"}'

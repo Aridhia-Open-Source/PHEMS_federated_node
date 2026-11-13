@@ -37,10 +37,10 @@ vi dagster/app/definitions/jobs.py
 
 ```bash
 # 1. Start cluster + registries
-make cluster-up
+mise run cluster-up
 
 # 2. Deploy Helm (one time)
-make deploy
+mise run deploy
 
 # 3. Start Tilt
 tilt up
@@ -117,16 +117,16 @@ federated_node/
 └── ...code
 ```
 
-## Makefile Integration
+## mise Integration
 
 ```bash
 # Cluster management
-make cluster-up              # Start Kind + registries
-make cluster-down            # Stop Kind, keep registries
-make cluster-down ARGS=--remove-registries  # Full cleanup
+mise run cluster-up              # Start Kind + registries
+mise run cluster-down            # Stop Kind, keep registries
+mise run cluster-down --remove-registries  # Full cleanup
 
 # Helm deployment (one time)
-make deploy             # Deploy all K8s resources + Helm release
+mise run deploy             # Deploy all K8s resources + Helm release
 
 # Tilt development
 tilt up                      # Start Tilt
@@ -164,9 +164,9 @@ Once everything is running:
 - `scripts/deploy.sh` — Helm deployment (called by Tilt)
 - `.tilt/TILT.md`, `.tilt/TILT_QUICKSTART.md`, `.tilt/TILT_SETUP_SUMMARY.md` — Documentation
 
-### Makefile Additions
+### mise Additions
 
-- `make cluster-up` / `make cluster-down` — Manage Kind cluster
+- `mise run cluster-up` / `mise run cluster-down` — Manage Kind cluster
 - `tilt up` / `tilt down` — Manage Tilt
 
 ### No Changes Needed To
@@ -203,8 +203,8 @@ Once everything is running:
 ## Next Steps
 
 1. Read `.tilt/TILT_QUICKSTART.md` for quick reference
-2. Run `make cluster-up` to start the cluster
-3. Run `make deploy` to deploy (one time)
+2. Run `mise run cluster-up` to start the cluster
+3. Run `mise run deploy` to deploy (one time)
 4. Run `tilt up` to start developing
 5. Read `.tilt/TILT.md` for detailed documentation
 6. Edit code and watch changes happen instantly!
@@ -214,7 +214,7 @@ Once everything is running:
 **Resources not deploying?**
 Make sure Helm was deployed:
 ```bash
-make deploy
+mise run deploy
 kubectl get all -n fn
 ```
 
@@ -226,9 +226,9 @@ kubectl get all -n fn
 **Need to reset?**
 ```bash
 tilt down
-make cluster-down
-make cluster-up
-make deploy
+mise run cluster-down
+mise run cluster-up
+mise run deploy
 tilt up
 ```
 

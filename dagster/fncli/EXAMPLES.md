@@ -5,9 +5,9 @@
 Run from the repo root.
 
 - `kubectl config use-context kind-fn && kubectl config current-context`
-- `make teardown`
-- `make helm_deps`
-- `make deploy`
+- `mise run teardown`
+- `mise run helm-deps`
+- `mise run deploy`
 - `tilt up --stream` (in a second terminal; wait until it's green)
 - `pipx install --force --editable './dagster[cli]'`
 
