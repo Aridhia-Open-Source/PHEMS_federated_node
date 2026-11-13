@@ -17,7 +17,7 @@ from app.config import DEFAULT_SENSOR_STATUS, DELIVERY_MAX_ATTEMPTS, MIN_SENSOR_
 from app.definitions.sensors.base import LaunchingSensor, run_in_flight, run_key
 from app.definitions.sensors.git.base import GitAPI, GitAPIFactory, GitSensor
 from app.delivery.results import MAX_ERROR_LENGTH, results_title
-from app.models import PullRequestResult, PullRequestResultStep, ResultsRepository
+from app.models import PullRequestResult, PullRequestResultStep, ResultsRepository, TaskTrigger
 
 
 def get_synced_results(backend_api: BackendAPI) -> list[PullRequestResult]:
@@ -47,6 +47,14 @@ def record(pr: dict) -> dict:
         # GitHub fills merge_commit_sha on an unmerged PR with its test merge
         "merge_commit_sha": pr["merge_commit_sha"] if step == PullRequestResultStep.MERGED else None,
     }
+
+
+def results_body(pull_request: TaskTrigger) -> str:
+    """The body of a results pull request."""
+    return (
+        f"Results of the task run for pull request #{pull_request.number}, "
+        f"merged at {pull_request.merge_commit_sha}."
+    )
 
 
 @dg.op(
@@ -100,12 +108,9 @@ def open_results_pull_request(context: OpExecCtx):
         repository = backend_api.get_global_results_repository(config["results_repository_id"])
         pull_request = backend_api.get_task_trigger(config["project_id"], config["task_id"])
         git_api = cast(GitAPIFactory, context.resources.git_apis).for_repository(repository, config["project_id"])
-        body = (
-            f"Results of the task run for pull request #{pull_request.number}, "
-            f"merged at {pull_request.merge_commit_sha}."
-        )
         pr = git_api.create_pull_request(
-            repository.repo_path, config["branch"], config["base_branch"], results_title(pull_request, config["task_id"]), body
+            repository.repo_path, config["branch"], config["base_branch"],
+            results_title(pull_request, config["task_id"]), results_body(pull_request),
         )
         backend_api.patch_result(config["project_id"], config["result_id"], {**record(pr), "attempts": 0, "error": None})
     except Exception as e:
@@ -210,23 +215,34 @@ class ResultsPullRequestSyncSensor(LaunchingSensor, GitSensor):
             return False
         pulls = self.pull_requests(item, repository)
         if item.step == PullRequestResultStep.PUSHED:
-            # The base branch the delivery used: the task's pinned one, the assignment may have changed since
-            results = self.backend_api.get_task_config(item.project_id, item.task_id)["config_snapshot"]["results"]
-            base_branch = results["base_branch"]
-            pr = next((p for p in pulls if p["head"]["ref"] == item.branch and p["base"]["ref"] == base_branch), None)
-            if pr is None:
-                self.base_branches[item.id] = base_branch
-                return True
-            # What a failed opening left of the attempts and error is cleared
-            patch = {**record(pr), "attempts": 0, "error": None}
-        else:
-            pr = next((p for p in pulls if p["number"] == item.number), None)
-            if pr is None:
-                self.log.warning(f"Results pull request {item.url} is not listed, skipped")
-                return False
-            patch = record(pr)
-            if patch["step"] == item.step.value:
-                return False
+            return self._ready_pushed(item, pulls)
+        return self._ready_opened(item, pulls)
+
+    def _ready_pushed(self, item: PullRequestResult, pulls: list[dict]) -> bool:
+        """A PUSHED result needs a run: to open its pull request, or to record the one that exists."""
+        # The base branch the delivery used: the task's pinned one, the assignment may have changed since
+        results = self.backend_api.get_task_config(item.project_id, item.task_id)["config_snapshot"]["results"]
+        base_branch = results["base_branch"]
+        pr = next((p for p in pulls if p["head"]["ref"] == item.branch and p["base"]["ref"] == base_branch), None)
+        if pr is None:
+            self.base_branches[item.id] = base_branch
+            return True
+        # What a failed opening left of the attempts and error is cleared
+        return self._note_patch(item, pr, {**record(pr), "attempts": 0, "error": None})
+
+    def _ready_opened(self, item: PullRequestResult, pulls: list[dict]) -> bool:
+        """An OPENED result needs a run when its pull request is listed and its step changed."""
+        pr = next((p for p in pulls if p["number"] == item.number), None)
+        if pr is None:
+            self.log.warning(f"Results pull request {item.url} is not listed, skipped")
+            return False
+        patch = record(pr)
+        if patch["step"] == item.step.value:
+            return False
+        return self._note_patch(item, pr, patch)
+
+    def _note_patch(self, item: PullRequestResult, pr: dict, patch: dict) -> bool:
+        """Keep the patch for run_request; always True."""
         self.log.info(f"Results pull request {pr['html_url']} is {patch['step']}")
         self.patches[item.id] = patch
         return True
@@ -234,16 +250,24 @@ class ResultsPullRequestSyncSensor(LaunchingSensor, GitSensor):
     def run_request(self, item: PullRequestResult) -> dg.RunRequest:
         """The run that opens the result's pull request, or records the pull request's step on the result."""
         if item.id in self.base_branches:
-            return dg.RunRequest(
-                run_key=run_key("open-result", item.id, PullRequestResultStep.OPENED.value),
-                job_name=self.open_job.name,
-                tags=self.tags(item),
-                run_config={"ops": {open_results_pull_request.name: {"config": {
-                    "project_id": item.project_id, "result_id": item.id, "task_id": item.task_id,
-                    "results_repository_id": item.results_repository_id, "branch": item.branch,
-                    "base_branch": self.base_branches[item.id], "attempts": item.attempts,
-                }}}},
-            )
+            return self._open_request(item)
+        return self._sync_request(item)
+
+    def _open_request(self, item: PullRequestResult) -> dg.RunRequest:
+        """The run of open_results_pull_request_job for the result."""
+        return dg.RunRequest(
+            run_key=run_key("open-result", item.id, PullRequestResultStep.OPENED.value),
+            job_name=self.open_job.name,
+            tags=self.tags(item),
+            run_config={"ops": {open_results_pull_request.name: {"config": {
+                "project_id": item.project_id, "result_id": item.id, "task_id": item.task_id,
+                "results_repository_id": item.results_repository_id, "branch": item.branch,
+                "base_branch": self.base_branches[item.id], "attempts": item.attempts,
+            }}}},
+        )
+
+    def _sync_request(self, item: PullRequestResult) -> dg.RunRequest:
+        """The run of sync_results_pull_requests_job that records the result's patch."""
         patch = self.patches[item.id]
         return dg.RunRequest(
             run_key=run_key("sync-result", item.id, patch["step"]),

@@ -116,18 +116,28 @@ class LaunchingSensor(BaseSensor):
         failed = []
         for item in self.items():
             try:
-                if self.in_flight(item):
-                    self.log.info(f"{self.describe(item)} is already in flight")
-                    continue
-                if not self.ready(item):
-                    continue
-                request = self.run_request(item)
+                request = self._check(item)
             except Exception:  # pylint: disable=broad-exception-caught  # one item must not stop the others
                 self.log.exception(f"Checking {self.describe(item)} failed")
                 failed.append(self.describe(item))
                 continue
+            if request is None:
+                continue
             yield request
             launched += 1
+        yield from self._finish(launched, failed)
+
+    def _check(self, item: Any) -> dg.RunRequest | None:
+        """The item's run, or None when it has one in flight or is not ready."""
+        if self.in_flight(item):
+            self.log.info(f"{self.describe(item)} is already in flight")
+            return None
+        if not self.ready(item):
+            return None
+        return self.run_request(item)
+
+    def _finish(self, launched: int, failed: list[str]) -> Iterable[dg.SkipReason]:
+        """Fails the tick when items failed and nothing launched, logs partial failures, skips when idle."""
         if failed:
             message = f"{self.failure_label} failed for {', '.join(failed)}"
             if not launched:

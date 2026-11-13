@@ -175,6 +175,11 @@ class K8sPipe:
         in the pod running partner code, which a restricted Pod Security Standard
         rejects outright, and it would cost a container start on every run.
         """
+        self._make_artifact_dir()
+        self._open_permissions()
+
+    def _make_artifact_dir(self):
+        """Create the run's artifact directory, or raise naming who we run as and who owns the mount root."""
         try:
             Path(self.artifact_path).mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -190,9 +195,11 @@ class K8sPipe:
                 "The shared artifacts volume needs to be made writable by this pod."
             ) from exc
 
-        # The run dir must be writable, and the mount root must be traversable, for the
-        # task pod to reach it. Both are no-ops on CIFS, which rejects chmod and already
-        # mounts 0777.
+    def _open_permissions(self):
+        """
+        The run dir must be writable, and the mount root must be traversable, for the task pod to reach it.
+        Both are no-ops on CIFS, which rejects chmod and already mounts 0777.
+        """
         for path, mode in ((self.mnt_base_path, 0o755), (self.artifact_path, 0o777)):
             try:
                 current = os.stat(path).st_mode & 0o777

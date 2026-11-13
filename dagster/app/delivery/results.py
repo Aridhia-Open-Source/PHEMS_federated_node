@@ -19,8 +19,8 @@ from app.backend import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.delivery import git_push
 from app.models import (
-    PullRequestResultStep, ResultsRepository, ResultState, RunNode, RunProject, RunRecord, RunResults, RunTask,
-    RunTrigger, Task, TaskTrigger, TriggerRepositoryRef,
+    PullRequestResult, PullRequestResultStep, ResultsRepository, ResultState, RunNode, RunProject, RunRecord,
+    RunResults, RunTask, RunTrigger, Task, TaskTrigger, TriggerRepositoryRef,
 )
 
 ZIP_NAME = "results.zip"
@@ -75,28 +75,11 @@ class ResultsDelivery:
         A failed push is recorded on the result as an error with one more attempt, its step
         left where it was and its state FAILED, and raised, so the Dagster run fails visibly.
         """
-        try:
-            task = self.backend_api.get_task(project_id, task_id)
-            # Where to deliver is what the task was created under: its project resource may be deleted by now
-            results = self.backend_api.get_task_config(task.project_id, task.id)["config_snapshot"]["results"]
-            result = self.backend_api.create_result(task.project_id, task.id, results["repository_id"])
-        except requests.HTTPError as e:
-            self._stop_if_refused(task_id, e)
+        created = self._create_result(project_id, task_id)
+        if created is None:
             return
-        if result.step == PullRequestResultStep.REVOKED:
-            self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")
-            return
-        if result.step == PullRequestResultStep.STALE:
-            self.log.warning(f"Results of task {task.id} not delivered: {result.error}")
-            return
-        if result.step in PUSHED_OR_BEYOND:
-            self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")
-            return
-        if result.state == ResultState.FAILED and result.error == SWITCHED_OFF_ERROR and result.attempts == 0:
-            # Just recorded by the backend, which found the resource switched off. The retry sensor
-            # delivers it once the resource is active again, with its attempts at 1 by then.
-            self.log.warning(f"Results of task {task.id} not delivered: {SWITCHED_OFF_ERROR}")
-            self.backend_api.patch_result(task.project_id, result.id, {"attempts": result.attempts + 1})
+        task, results, result = created
+        if self._skip(task, result):
             return
         try:
             repository = self.backend_api.get_global_results_repository(results["repository_id"])
@@ -105,7 +88,43 @@ class ResultsDelivery:
             return
         if result.state == ResultState.FAILED:
             self.backend_api.patch_result(task.project_id, result.id, {"state": ResultState.IN_PROGRESS.value})
+        self._deliver(task, result, repository, results, run_id)
 
+    def _create_result(self, project_id: int, task_id: int) -> tuple[Task, dict, PullRequestResult] | None:
+        """The task, its pinned results configuration and its result, or None if the backend refused."""
+        try:
+            task = self.backend_api.get_task(project_id, task_id)
+            # Where to deliver is what the task was created under: its project resource may be deleted by now
+            results = self.backend_api.get_task_config(task.project_id, task.id)["config_snapshot"]["results"]
+            result = self.backend_api.create_result(task.project_id, task.id, results["repository_id"])
+        except requests.HTTPError as e:
+            self._stop_if_refused(task_id, e)
+            return None
+        return task, results, result
+
+    def _skip(self, task: Task, result: PullRequestResult) -> bool:
+        """Whether the result is not to be delivered now: REVOKED, STALE, already pushed, or just switched off."""
+        if result.step == PullRequestResultStep.REVOKED:
+            self.log.warning(f"Results of task {task.id} not delivered: {REVOKED_ERROR}")
+            return True
+        if result.step == PullRequestResultStep.STALE:
+            self.log.warning(f"Results of task {task.id} not delivered: {result.error}")
+            return True
+        if result.step in PUSHED_OR_BEYOND:
+            self.log.info(f"Results of task {task.id} are already delivered, {result.step.value}")
+            return True
+        if result.state == ResultState.FAILED and result.error == SWITCHED_OFF_ERROR and result.attempts == 0:
+            # Just recorded by the backend, which found the resource switched off. The retry sensor
+            # delivers it once the resource is active again, with its attempts at 1 by then.
+            self.log.warning(f"Results of task {task.id} not delivered: {SWITCHED_OFF_ERROR}")
+            self.backend_api.patch_result(task.project_id, result.id, {"attempts": result.attempts + 1})
+            return True
+        return False
+
+    def _deliver(
+        self, task: Task, result: PullRequestResult, repository: ResultsRepository, results: dict, run_id: str
+    ) -> None:
+        """Push the results and record PUSHED and DELIVERED, or record the failure and raise."""
         try:
             pull_request = self._find_pull_request(task)
             branch, commit_sha = self._push(
@@ -157,11 +176,7 @@ class ResultsDelivery:
         """
         # Asked for here, just before the git commands that need it: it lasts an hour
         env = git_push.auth_env(self.backend_api.get_repository_token("results", repository.id, task.project_id).token)
-
-        layout = Path(target_dir.strip("/")) / self._name(trigger_repository) / str(
-            pull_request.number
-        ) / str(task.id)
-        branch = f"{layout.as_posix()}-{pull_request.merge_commit_sha[:7]}"
+        layout, branch = self._branch_layout(target_dir, trigger_repository, pull_request, task)
 
         with tempfile.TemporaryDirectory(prefix="phems-results-") as work:
             clone_dir = Path(work) / "repo"
@@ -174,45 +189,69 @@ class ResultsDelivery:
                 self.log.info(f"Branch {branch} is already pushed at {commit_sha}")
                 return branch, commit_sha
 
-            artifacts = Path(self.config.artifact_mount_path) / run_id
-            if artifacts.is_symlink() or not artifacts.is_dir():
-                raise FileNotFoundError(f"No artifacts at {artifacts}")
-
-            zip_path = Path(work) / ZIP_NAME
-            file_count = git_push.zip_dir(artifacts, zip_path)
-            zip_size = zip_path.stat().st_size
-            if zip_size > self.config.max_zip_bytes:
-                raise ValueError(
-                    f"{ZIP_NAME} is {zip_size} bytes, over the {self.config.max_zip_bytes} byte limit"
-                )
-
-            out_dir = clone_dir / layout
-            # target_dir is checked at the API, and a link inside the results repository could still lead out
-            if not out_dir.resolve().is_relative_to(clone_dir.resolve()):
-                raise ValueError(f"Output path {layout} is outside the clone")
-            git_push.checkout_new_branch(clone_dir, branch)
-            out_dir.mkdir(parents=True, exist_ok=True)
-            zip_path.replace(out_dir / ZIP_NAME)
-            # The spec file as it was merged, not re-serialised
-            (out_dir / SPEC_NAME).write_bytes(pull_request.spec_raw.encode())
-            run = RunRecord(
-                node=RunNode(id=self.config.node_id),
-                project=RunProject(id=task.project_id, name=task.project_name),
-                trigger=RunTrigger(
-                    repository_uri=trigger_repository.uri,
-                    pr_number=pull_request.number,
-                    merge_commit_sha=pull_request.merge_commit_sha,
-                ),
-                task=RunTask(id=task.id, name=task.name, executor_id=run_id, dataset=task.dataset_name),
-                results=RunResults(
-                    zip_size_bytes=zip_size,
-                    file_count=file_count,
-                    delivered_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                ),
-            )
-            (out_dir / RUN_NAME).write_text(run.model_dump_json(indent=2) + "\n")
-
+            zip_path, file_count, zip_size = self._zip_artifacts(run_id, Path(work))
+            run = self._run_record(task, run_id, trigger_repository, pull_request, zip_size, file_count)
+            self._write_results(clone_dir, layout, branch, zip_path, pull_request, run)
             return branch, git_push.commit_and_push(clone_dir, message, env)
+
+    def _branch_layout(
+        self, target_dir: str, trigger_repository: TriggerRepositoryRef, pull_request: TaskTrigger, task: Task
+    ) -> tuple[Path, str]:
+        """The results' folder in the repository, and the branch named after it and the merge sha."""
+        layout = Path(target_dir.strip("/")) / self._name(trigger_repository) / str(pull_request.number) / str(task.id)
+        return layout, f"{layout.as_posix()}-{pull_request.merge_commit_sha[:7]}"
+
+    def _zip_artifacts(self, run_id: str, work: Path) -> tuple[Path, int, int]:
+        """Zip the run's artifacts into work; returns the zip, its file count and its size, within the size cap."""
+        artifacts = Path(self.config.artifact_mount_path) / run_id
+        if artifacts.is_symlink() or not artifacts.is_dir():
+            raise FileNotFoundError(f"No artifacts at {artifacts}")
+
+        zip_path = work / ZIP_NAME
+        file_count = git_push.zip_dir(artifacts, zip_path)
+        zip_size = zip_path.stat().st_size
+        if zip_size > self.config.max_zip_bytes:
+            raise ValueError(
+                f"{ZIP_NAME} is {zip_size} bytes, over the {self.config.max_zip_bytes} byte limit"
+            )
+        return zip_path, file_count, zip_size
+
+    def _run_record(
+        self, task: Task, run_id: str, trigger_repository: TriggerRepositoryRef, pull_request: TaskTrigger,
+        zip_size: int, file_count: int,
+    ) -> RunRecord:
+        """The run.json of the delivery."""
+        return RunRecord(
+            node=RunNode(id=self.config.node_id),
+            project=RunProject(id=task.project_id, name=task.project_name),
+            trigger=RunTrigger(
+                repository_uri=trigger_repository.uri,
+                pr_number=pull_request.number,
+                merge_commit_sha=pull_request.merge_commit_sha,
+            ),
+            task=RunTask(id=task.id, name=task.name, executor_id=run_id, dataset=task.dataset_name),
+            results=RunResults(
+                zip_size_bytes=zip_size,
+                file_count=file_count,
+                delivered_at=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            ),
+        )
+
+    @staticmethod
+    def _write_results(
+        clone_dir: Path, layout: Path, branch: str, zip_path: Path, pull_request: TaskTrigger, run: RunRecord
+    ) -> None:
+        """Check out the new branch and write the zip, the spec file and run.json under layout."""
+        out_dir = clone_dir / layout
+        # target_dir is checked at the API, and a link inside the results repository could still lead out
+        if not out_dir.resolve().is_relative_to(clone_dir.resolve()):
+            raise ValueError(f"Output path {layout} is outside the clone")
+        git_push.checkout_new_branch(clone_dir, branch)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        zip_path.replace(out_dir / ZIP_NAME)
+        # The spec file as it was merged, not re-serialised
+        (out_dir / SPEC_NAME).write_bytes(pull_request.spec_raw.encode())
+        (out_dir / RUN_NAME).write_text(run.model_dump_json(indent=2) + "\n")
 
     def _find_pull_request(self, task: Task) -> TaskTrigger:
         """The pull request that yielded the task, with its trigger repository. A task without one is a 404."""
