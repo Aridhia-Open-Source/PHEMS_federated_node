@@ -11,6 +11,7 @@ on:
     branches:
       - main
       - develop
+      - dagster-develop
     paths:
       - "wiki/**"
       - "mkdocs.yml"
@@ -41,8 +42,9 @@ jobs:
 
   deploy:
     # main publishes the released 1.x docs (the default version); develop publishes the
-    # unreleased ones as "develop", next to 1.x in the version dropdown
-    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    # unreleased ones as "develop" and dagster-develop the 2.x ones as "beta", next to 1.x
+    # in the version dropdown
+    if: github.event_name != 'pull_request' && contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/dagster-develop"]'), github.ref)
     runs-on: ubuntu-latest
     # One docs deploy at a time; the newest wins. The chart release (build.yml) also pushes
     # gh-pages, so the deploy retries on a rejected push instead of sharing a lock with it.
@@ -67,7 +69,11 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Deploy to gh-pages docs/docs
         run: |
-          if [ "$GITHUB_REF_NAME" = main ]; then version=1.x; else version=develop; fi
+          case "$GITHUB_REF_NAME" in
+            main) version=1.x ;;
+            develop) version=develop ;;
+            dagster-develop) version=beta ;;
+          esac
           # Commit onto the latest gh-pages and push; if the release job pushed in between,
           # start again from the new gh-pages, up to 5 times.
           for attempt in 1 2 3 4 5; do
