@@ -1,5 +1,5 @@
 name: Wiki sync
-run-name: Sync docs/wiki to the GitHub wiki
+run-name: Sync docs/versions/2.x/docs to the GitHub wiki
 on:
   workflow_dispatch:
   push:
@@ -8,7 +8,7 @@ on:
       - dagster-main
       - dagster-develop
     paths:
-      - 'docs/wiki/**'
+      - 'docs/versions/2.x/docs/**'
 
 permissions:
   contents: write
@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Mirror docs/wiki to the wiki
+      - name: Mirror docs/versions/2.x/docs to the wiki
         env:
           # GITHUB_TOKEN can push to the wiki once the wiki is enabled and has a first
           # page. If the push is refused (403), create a personal access token that can
@@ -37,14 +37,14 @@ jobs:
           git clone --branch master \
             "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki
           # api/ is the MkDocs API reference page and does not belong in the wiki
-          rsync -a --delete --exclude .git --exclude api/ docs/wiki/ wiki/
+          rsync -a --delete --exclude .git --exclude api/ docs/versions/2.x/docs/ wiki/
           cd wiki
           git add --all
           if git diff --cached --quiet; then
-            echo "The wiki already matches docs/wiki, nothing to push."
+            echo "The wiki already matches docs/versions/2.x/docs, nothing to push."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Sync docs/wiki from ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
+          git commit -m "Sync docs/versions/2.x/docs from ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
           git push origin HEAD:master

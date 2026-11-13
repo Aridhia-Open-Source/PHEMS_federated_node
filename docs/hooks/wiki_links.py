@@ -1,4 +1,4 @@
-"""MkDocs hooks that let the pages in docs/wiki serve both the GitHub wiki and this site.
+"""MkDocs hooks that let the pages in docs/versions/2.x/docs serve both the GitHub wiki and this site.
 
 The GitHub wiki wants extensionless links ([x](./Deploy-Core#anchor)) and a page called
 Home. MkDocs wants relative .md links and an index page. Instead of changing the pages,

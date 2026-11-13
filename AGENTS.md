@@ -112,7 +112,7 @@ Tests and lint:
 ## Read next
 
 - `DEPLOYMENT.md` - local dev cluster and production deploy; `MANAGEMENT.md` - setting up projects, and `fncli`.
-- `docs/wiki/` - the user and operator wiki (published to the GitHub wiki): `Deploy-Core` plus one deploy page per platform, `Prerequisites`, `Datasets`, `Researcher-Guide`, `Operations`, `Architecture`, `Using-The-API`. Edit the page here, not in the wiki: a workflow syncs `docs/wiki` on push.
+- `docs/versions/2.x/docs/` - the 2.x user and operator wiki (published to the GitHub wiki and the docs site): `Deploy-Core` plus one deploy page per platform, `Prerequisites`, `Datasets`, `Researcher-Guide`, `Operations`, `Architecture`, `Using-The-API`. Edit the page here, not in the wiki: a workflow syncs `docs/versions/2.x/docs` on push.
 - `docs/README.md` - reviewer's guide: every ADR, the docs by topic, a reading order.
 - `docs/architecture/entities.md`, `flows.md`, `revoke-and-enabled.md`, `sensors/` - schema, states, flows, one doc per sensor.
 - `project/decisions/README.md` - ADR index; `project/TESTING.md` - testing notes.

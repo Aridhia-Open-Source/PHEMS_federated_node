@@ -1,0 +1,74 @@
+site_name: Federated Node
+# CI rewrites site_url for the branch being published (docs/<branch>/); mike adds the version.
+site_url: https://aridhia-open-source.github.io/PHEMS_federated_node/docs/main/
+repo_url: https://github.com/Aridhia-Open-Source/PHEMS_federated_node
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - search.suggest
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+  - swagger-ui-tag
+
+extra:
+  version:
+    provider: mike
+
+validation:
+  anchors: warn
+
+nav:
+  - Home:
+      - index.md
+      - Architecture overview: Architecture.md
+  - Deploy:
+      - Prerequisites: Prerequisites.md
+      - Core deployment: Deploy-Core.md
+      - Cloud and on-premises:
+          - Azure (AKS): Deploy-Azure.md
+          - AWS (EKS): Deploy-AWS.md
+          - GCP: Deploy-GCP.md
+          - On-Premises: Deploy-On-Premises.md
+      - Installing ArgoCD: Installing-ArgoCD.md
+      - Post-deploy testing: Post-Deploy-Testing.md
+  - Use:
+      - Datasets: Datasets.md
+      - User roles: User-Roles.md
+      - Using the API: Using-The-API.md
+      - Task review: Task-Review.md
+  - Operate:
+      - Helm values reference: Helm-Values-Reference.md
+      - Outbound connection only mode: Outbound-connection-only-mode.md
+  - Develop:
+      - Analytics container development: Analytics-Container-Development.md
+  - API reference: api/index.md

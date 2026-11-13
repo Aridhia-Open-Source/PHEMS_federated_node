@@ -1,7 +1,8 @@
 site_name: Federated Node
-site_url: https://aridhia-open-source.github.io/PHEMS_federated_node/docs/
+# CI rewrites site_url for the branch being published (docs/<branch>/); mike adds the version.
+site_url: https://aridhia-open-source.github.io/PHEMS_federated_node/docs/main/
 repo_url: https://github.com/Aridhia-Open-Source/PHEMS_federated_node
-docs_dir: docs/wiki
+docs_dir: docs
 
 # Home.md is the homepage and _Sidebar.md only exists for the GitHub wiki. The 1.x-* pages are
 # the 1.x docs kept on the GitHub wiki; the 1.x version of this site carries them.
@@ -53,7 +54,7 @@ validation:
   anchors: warn
 
 hooks:
-  - docs/hooks/wiki_links.py
+  - ../../hooks/wiki_links.py
 
 nav:
   - Home: Home.md
