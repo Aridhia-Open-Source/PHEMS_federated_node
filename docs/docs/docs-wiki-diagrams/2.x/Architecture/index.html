@@ -1264,73 +1264,46 @@
 <p>The FN inverts the usual data sharing model. Instead of copying patient data out to a researcher, the researcher sends their analysis code to you, packaged as a Docker image, and asks for it with a pull request. The FN runs that image inside your cluster, against your data, in an isolated pod that lives only as long as the task. The only thing that leaves is the result files, and only as a pull request that a person at your institution merges. Everything else stays behind your firewall.</p>
 <h2 id="the-components">The components<a class="headerlink" href="#the-components" title="Permanent link">&para;</a></h2>
 <p>Everything below is deployed by a single Helm chart. Some parts are subcharts you can turn on or off.</p>
-<pre class="mermaid"><code>flowchart TD
+<pre class="mermaid"><code>flowchart LR
   subgraph People["People"]
+    direction TB
     Researcher("Researcher")
     DataController("Data Controller")
     Admin("Admin")
   end
 
-  subgraph GitProvider["Git Provider (GitHub / Gitea)"]
+  subgraph GitProvider["Git Provider"]
+    direction TB
     TriggerRepo("Trigger Repo")
     ResultsRepo("Results Repo")
   end
 
   subgraph FederatedNode["Federated Node"]
-    Traefik("Traefik")
-
-    subgraph Nexus["Nexus"]
-      UI("nexus-ui")
-      API("nexus-api")
+    direction TB
+    subgraph Control["Control"]
+      direction LR
+      Traefik("Traefik") --&gt; Nexus("nexus-ui + nexus-api") --&gt; Keycloak("Keycloak")
+      Nexus --- Postgres[("Postgres")]
     end
-
-    Keycloak("Keycloak")
-    Postgres[("Postgres")]
-    Secrets("fn-secrets")
-
     subgraph Dagster["Dagster"]
-      subgraph DagsterServices["Services"]
-        Daemon("Daemon (sensors)")
-        CodeServer("Code Server")
-        WebServer("Web Server")
-      end
-
-      subgraph DagsterRuns["Run Pods"]
-        Run1("Pod")
-        Run2("Pod")
-      end
+      direction LR
+      Daemon("Daemon (sensors)") --&gt; RunPods("Run Pods")
     end
-
-    subgraph TasksNamespace["tasks namespace (default-deny)"]
-      Task1("Task Pod")
-      Task2("Task Pod")
+    subgraph Tasks["tasks namespace (default-deny)"]
+      TaskPods("Task Pods")
     end
-
-    ResultsVolume("Results Volume")
+    Daemon --&gt; Nexus
+    RunPods --&gt; TaskPods
   end
 
   Datasets[("Datasets")]
 
   Researcher --&gt;|"task spec PR"| TriggerRepo
-  DataController --&gt;|"merges"| TriggerRepo
-  DataController --&gt;|"merges"| ResultsRepo
+  DataController --&gt;|"merges PRs"| GitProvider
   Admin --&gt; Traefik
-  Traefik --&gt; UI
-  Traefik --&gt; API
-  Traefik --&gt; Keycloak
-  UI --&gt; API
-  API --&gt; Keycloak
-  API --- Postgres
-  Keycloak --- Postgres
-  API --- Secrets
-  Daemon --&gt;|"polls"| TriggerRepo
-  Daemon --&gt; API
-  Daemon --&gt;|"launches"| DagsterRuns
-  DagsterRuns --&gt;|"starts"| TasksNamespace
-  DagsterRuns --&gt;|"results PR"| ResultsRepo
-  TasksNamespace --&gt;|"only route out"| Datasets
-  TasksNamespace --- ResultsVolume
-  DagsterRuns --- ResultsVolume</code></pre>
+  Daemon -.-&gt;|"polls"| TriggerRepo
+  RunPods -.-&gt;|"results PR"| ResultsRepo
+  TaskPods --&gt;|"only route out"| Datasets</code></pre>
 <table>
 <thead>
 <tr>
