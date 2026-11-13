@@ -34,17 +34,9 @@ The components and the network between them are drawn in [docs/architecture/flow
 
 The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image registry, the chart installed with development values, and [Tilt](https://tilt.dev/) for live reload.
 
-### One step
+### Try it on a clean machine
 
-On Debian 13 or Ubuntu 24.04 and later, with Docker working (`docker info` without sudo):
-
-```bash
-./scripts/install-dev.sh      # or: mise run dev-install
-```
-
-It installs everything below, creates the config files with a generated first-user password, and runs every step of [First time](#first-time) up to Tilt. It ends with a healthcheck that lists each service's address. You can rerun it safely: anything already done is skipped. The log is in `~/.fn/install.log`.
-
-To try it without touching your machine, `./scripts/sandbox/sandbox.sh up` runs it in a throwaway Debian container with its own Docker. `shell` opens a shell in there, `exec <command>` runs a command, any other word runs that mise task (`sandbox.sh deploy`), and `down` removes it. Edits to `nexus/api/` and `dagster/` live-reload in the sandbox too. The options and details are at the top of `scripts/sandbox/sandbox.sh`.
+`./scripts/sandbox/sandbox.sh up` makes a throwaway Debian container with its own Docker and installs the tools the way a fresh clone does: it has mise, and runs `mise trust --all && mise run setup`. Then `sandbox.sh init-conf`, `sandbox.sh cluster-up` and `sandbox.sh deploy` run those mise tasks in it. `shell` opens a shell in there, `exec <command>` runs a command, any other word runs that mise task, and `down` removes it. Edits to `nexus/api/` and `dagster/` live-reload in the sandbox too. The options and details are at the top of `scripts/sandbox/sandbox.sh`.
 
 ### You need
 
@@ -186,7 +178,7 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `./scripts/setup-proxy-ca.sh --ca-file PATH --proxy URL` sets up the machine side. The two settings below are optional dev tooling and do nothing when unset.
 
 - `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env`, set before `mise run cluster-up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in a Secret and set `customCA.secretName`, so the pods trust it for outbound TLS.
-- `./scripts/sandbox/sandbox.sh --ca-file /path/ca.pem up`: the sandbox trusts the CA, so the installer's downloads and its Docker's registry pulls verify against it. Set it when the sandbox is created: `down` first if it exists.
+- `./scripts/sandbox/sandbox.sh --ca-file /path/ca.pem up`: the sandbox trusts the CA, so mise's and curl's downloads and its Docker's registry pulls verify against it. Set it when the sandbox is created: `down` first if it exists.
 
 Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `mise run cluster-up` starts.
 
@@ -220,6 +212,7 @@ An optional alternative to installing the tools on your machine. Open the repo i
 - Its venvs live in the container (`/home/vscode/venvs/`), not in the checkout, so they don't clash with yours.
 - Installed tools are kept in the `fn-mise-data` volume, so rebuilds and other worktrees' containers reuse them.
 - The cluster ownership rules apply inside it as well: it's the same cluster.
+- Behind a TLS-inspecting proxy it trusts the CA that `CUSTOM_CA_FILE` in `.dev.env` names (see [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md)): it is copied in read-only and added to the container's system trust on create, so rebuild the container after setting the CA up. With no CA nothing changes.
 
 ## Deploy to production
 

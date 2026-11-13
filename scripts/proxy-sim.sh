@@ -5,12 +5,12 @@ set -euo pipefail
 # Federated Node - corporate proxy simulation
 #
 # A hospital network where the only way out is a TLS-intercepting (MITM) proxy, to run a
-# colleague's first-time setup on (mise run cluster-up, mise run deploy, tilt up, fncli demo) and
+# colleague's first-time setup on (mise run setup, mise run cluster-up, mise run deploy, tilt up) and
 # see what breaks. Your own Docker daemon, kind cluster and registries are never touched,
 # and no host ports are published.
 #
 #   laptop  proxysim-laptop (scripts/proxy-sim/Dockerfile): Ubuntu with its own Docker,
-#           kind, helm, tilt and pipx, on a network with no route out.
+#           and mise (which installs kind, helm, tilt and kubectl), on a network with no route out.
 #   mitm    mitmproxy, the only container with a route out. It re-signs every HTTPS
 #           connection with its own CA, as a corporate proxy does.
 #
@@ -148,7 +148,7 @@ case "$COMMAND" in
       | tar --null -T - --ignore-failed-read -cf - 2>/dev/null \
       | docker exec -i "$LAPTOP" tar -xf - -C /work/fn
     # dev.values.yaml is gitignored, so it is not in the copy. The example has no Gitea block
-    # (the chart default is off), and the demo needs Gitea, so use the one that works here.
+    # (the chart default is off), so use the one that works here.
     if [ -f k8s/federated-node/dev.values.yaml ]; then
       docker cp k8s/federated-node/dev.values.yaml "${LAPTOP}:/work/fn/k8s/federated-node/dev.values.yaml"
     fi

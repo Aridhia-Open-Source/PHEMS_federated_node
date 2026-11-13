@@ -196,11 +196,6 @@ run = "./scripts/proxy-sim.sh shell"
 description = "Remove the proxy simulation"
 run = "./scripts/proxy-sim.sh down"
 
-# One-step dev install for a fresh clone (Debian 13 / Ubuntu 24.04+, Docker required)
-[tasks.dev-install]
-description = "One-step dev install for a fresh clone"
-run = "./scripts/install-dev.sh"
-
 [tasks.deploy-owner]
 description = "Show which worktree owns the dev cluster"
 run = "./scripts/deploy_owner.sh show"

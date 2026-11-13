@@ -43,10 +43,12 @@ step_configure() {
   sed -i 's/^KEYCLOAK_FIRST_USER_PASSWORD=.*/KEYCLOAK_FIRST_USER_PASSWORD=Admin-Pass-123/' .dev.env
   # proxy-sim.sh sync copies the host's dev.values.yaml in when there is one: the example has no Gitea.
   [ -f k8s/federated-node/dev.values.yaml ] || cp k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
-  cp .demo.env.example .demo.env
   # A CA for the cluster and release to trust, see .dev.env.example.
   [ -z "${CUSTOM_CA_FILE:-}" ] || echo "CUSTOM_CA_FILE=$CUSTOM_CA_FILE" >> .dev.env
 }
+
+# kind, kubectl, helm and tilt come from mise, which the laptop image carries; this downloads them.
+step_setup() { set -e; mise trust --all && mise run setup; }
 
 step_helm_deps() { set -e; mise run helm-deps; }
 
@@ -54,48 +56,25 @@ step_cluster_up() { set -e; mise run cluster-up; }
 
 step_deploy() { set -e; mise run deploy; }
 
-# Tilt has to outlive this script: the demo needs its port-forwards.
+# Tilt has to outlive this script: its port-forwards are how you reach the node.
 step_tilt_up() {
   set -e
   pkill -x tilt || true   # a Tilt left over from before a redeploy keeps stale port-forwards
   sleep 2
   setsid nohup tilt up --stream > /work/tilt.log 2>&1 < /dev/null &
-  # The demo needs the port-forwards: backend, Dagster, Gitea and Keycloak.
+  # The port-forwards: backend, Dagster, Gitea and Keycloak.
   for port in 5000 3000 4000 8080; do
     echo "waiting for localhost:$port"
     timeout 1200 bash -c "until curl -s -o /dev/null -m 5 http://localhost:$port/; do sleep 5; done"
   done
 }
 
-step_install_fncli() {
-  set -e
-  pipx install --force --editable './dagster[cli]'
-  fncli hello-world
-}
-
-# Tilt replaces the code server right after it starts, and the Dagster webserver then keeps
-# showing "could not reach user code server" until the location is reloaded (the UI's Reload).
-step_start_sensors() {
-  curl -s -m 60 localhost:3000/graphql -H 'content-type: application/json' \
-    -d '{"query":"mutation { reloadRepositoryLocation(repositoryLocationName: \"dagster-fn\") { __typename } }"}' >/dev/null || true
-  for i in $(seq 1 18); do
-    fncli start-sensor --group all && return 0
-    echo "sensors not loaded yet (try $i), waiting"
-    sleep 10
-  done
-  return 1
-}
-
-step_demo() { set -e; fncli demo -y; }
-
 step configure
+step setup
 step helm_deps
 step cluster_up
 step deploy
 step tilt_up
-step install_fncli
-step start_sensors
-step demo
 
 echo
 echo "=== All steps passed ==="
