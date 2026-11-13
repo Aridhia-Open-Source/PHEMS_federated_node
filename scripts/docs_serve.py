@@ -31,6 +31,13 @@ def build(version, site):
     )
 
 
+def rebuilder(version, site):
+    def rebuild(*_changed):
+        build(version, site)
+
+    return rebuild
+
+
 def main():
     base, port = sys.argv[1], int(sys.argv[2])
     versions = sorted((p.name for p in VERSIONS.iterdir() if (p / "mkdocs.yml").exists()), key=version_key, reverse=True)
@@ -44,7 +51,8 @@ def main():
 
     server = Server()
     for v in versions:
-        server.watch(str(VERSIONS / v / "**" / "*"), lambda v=v: build(v, site), delay=1)
+        # livereload passes the changed paths to the callback, so bind the version here
+        server.watch(str(VERSIONS / v / "**" / "*"), rebuilder(v, site), delay=1)
     print(f"Docs with the version dropdown and live reload: http://localhost:{port}{base}/", flush=True)
     server.serve(root=str(OUT), host="localhost", port=port, open_url_delay=None)
 
