@@ -7,7 +7,7 @@
 curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
 
 # 2. Start cluster + registries
-mise run cluster-up
+mise run cluster up
 
 # 3. Deploy Helm (one time)
 mise run deploy
@@ -55,7 +55,7 @@ tilt trigger fn-dev-dagster-user-deployments-dagster-fn
 
 | Task | Command |
 |------|---------|
-| Start cluster (one time) | `mise run cluster-up` |
+| Start cluster (one time) | `mise run cluster up` |
 | Deploy Helm (one time) | `mise run deploy` |
 | Show who owns the dev cluster | `mise run deploy-owner` |
 | Start Tilt | `tilt up` |
@@ -100,8 +100,8 @@ netstat -tlnp | grep 5000  # Should show tilt process
 ### Need to reset everything?
 ```bash
 tilt down
-mise run cluster-down
-mise run cluster-up
+mise run cluster down
+mise run cluster up
 mise run deploy
 tilt up
 ```

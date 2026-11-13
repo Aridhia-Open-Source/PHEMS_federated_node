@@ -39,7 +39,7 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
 Run from the repo root. `mise tasks` lists the tasks. First-time setup: `mise run init-conf` creates `.dev.env` and `dev.values.yaml` from the examples and asks for the first Keycloak user; the rest is in `DEPLOYMENT.md` ("Run it locally").
 Run `mise run setup` once per checkout (installs the pinned tools and the per-package venvs), and `mise trust` if mise asks.
 
-1. Cluster (human developers only): `mise run cluster-up` / `mise run cluster-down` (`scripts/cluster.sh`) create or delete the kind cluster `fn` and the local registry at `localhost:5001`. Agents never run these; they work against a cluster that already exists. Run `mise run helm-deps` once first (`charts/` is gitignored).
+1. Cluster (human developers only): `mise run cluster up` / `mise run cluster down` (`scripts/cluster.sh`) create or delete the kind cluster `fn` and the local registry at `localhost:5001`. Agents never run these; they work against a cluster that already exists. Run `mise run helm deps` once first (`charts/` is gitignored).
 2. Release:
    - `mise run deploy` - build all images and `helm upgrade --install` with dev values, then restart the app pods. Safe to rerun, so it is also how chart changes go out (claims the cluster for this worktree).
    - `mise run teardown` - remove the release and its data, keep the cluster. To start clean, `mise run teardown` then `mise run deploy`.
@@ -80,8 +80,8 @@ Tests and lint:
 - nexus-api: `cd nexus/api && ./run_tests.sh local tests/test_projects_api.py` (docker compose with Postgres; second argument is the pytest path). Faster venv runs: `nexus/api/run_local_tests.sh` (setup in its header).
 - Dagster app and fncli: `cd dagster && ./run_tests.sh local fncli/tests/test_cli.py` (docker compose; pytest `testpaths` are `app/tests` and `fncli/tests`). `mise run tests-dagster` runs all in CI mode.
 - UI: `cd nexus/ui && npm ci && npm test` (vitest); `npm run typecheck` for types.
-- Chart: `mise run helm-lint`, `mise run helm-template` (no cluster needed), `mise run helm-tests` (helm-unittest).
-- Lint: `mise run pylint` (nexus-api), `mise run pylint-dagster`, `mise run hadolint` (Dockerfiles).
+- Chart: `mise run helm lint`, `mise run helm template` (no cluster needed), `mise run helm tests` (helm-unittest).
+- Lint: `mise run pylint` (nexus-api), `mise run pylint dagster`, `mise run hadolint` (Dockerfiles).
 - End-to-end: `pytest dagster --e2e [success|failure|failure_long] -v` from the repo root. Needs a running dev cluster deployed from the branch under test, and `.dev.env`; see `dagster/fncli/tests/e2e/README.md`. Without `--e2e` these tests are skipped.
 
 ## Conventions

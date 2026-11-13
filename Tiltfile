@@ -6,7 +6,7 @@
 
 #
 # Prerequisites:
-# - Kind cluster running (mise run cluster-up)
+# - Kind cluster running (mise run cluster up)
 # - Helm deployed (mise run deploy)
 # Then: tilt up
 
