@@ -64,12 +64,12 @@ flowchart LR
 
   Datasets[("Datasets")]
 
-  Researcher -->|"task spec PR"| TriggerRepo
+  Researcher -->|"Trigger PR"| TriggerRepo
   DataController -->|"merges PRs"| GitProvider
   Admin --> Traefik
   Daemon -.->|"polls"| TriggerRepo
-  RunPods -.->|"results PR"| ResultsRepo
-  TaskPods -->|"only route out"| Datasets
+  RunPods -.->|"Results PR"| ResultsRepo
+  TaskPods --> Datasets
 ```
 
 ## Principles
