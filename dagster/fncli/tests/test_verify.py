@@ -7,13 +7,18 @@ from app.models import TriggerState
 
 
 class FakeBackend:
-    def __init__(self, pr, task, results=None):
+    def __init__(self, pr, task, results=None, sensor_status="RUNNING"):
         self.pr = pr
         self.task = task
         self.results = [result_of()] if results is None else results
+        self.sensor_status = sensor_status
 
     def get_task_results(self, project_id, task_id):
         return self.results
+
+    def get_sensor_status(self, name):
+        assert name == "results_pull_request_sync_sensor"
+        return self.sensor_status
 
     def get_pull_requests(self, project_id, repo_id):
         return [self.pr] if self.pr else []
@@ -32,8 +37,8 @@ class FakeDagster:
 
 def result_of(**fields):
     result = dict(
-        id=1, type="PR", task_id=9, step="OPENED", state="DELIVERED", attempts=1, commit_sha="abc123", error=None,
-        number=3, url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
+        id=1, type="PR", task_id=9, results_repository_id=2, step="OPENED", state="DELIVERED", attempts=1,
+        commit_sha="abc123", error=None, number=3, url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3",
     )
     return SimpleNamespace(**(result | fields))
 
@@ -53,7 +58,7 @@ def task_of(**fields):
 def run_of(**fields):
     run = {
         "runId": "abc", "status": "SUCCESS", "jobName": "k8s_pipes_job",
-        "tags": [{"key": "attempt", "value": "1"}],
+        "tags": [{"key": "fn/attempt", "value": "1"}],
     }
     return run | fields
 
@@ -61,9 +66,9 @@ def run_of(**fields):
 LINKS = Links("http://localhost:4000", "http://localhost:3000", "gitea_admin/trigger")
 
 
-def verify(pr=None, task=None, run=None, results=None):
+def verify(pr=None, task=None, run=None, results=None, sensor_status="RUNNING"):
     report = Report()
-    verify_task(report, FakeBackend(pr, task, results), FakeDagster(run), LINKS, 3, 7, 5)
+    verify_task(report, FakeBackend(pr, task, results, sensor_status), FakeDagster(run), LINKS, 3, 7, 5)
     return report
 
 
@@ -108,7 +113,7 @@ def test_a_pr_that_was_not_yielded_fails_and_stops(state):
 def test_a_task_without_a_run_fails():
     report = verify(pr_of(), task_of(), run=None)
 
-    assert failures(report) == ["Task 9 has a Dagster run: runs tagged task_id=9"]
+    assert failures(report) == ["Task 9 has a Dagster run: runs tagged fn/task_id=9"]
 
 
 @pytest.mark.parametrize("task_fields, run_fields, failed", [
@@ -126,7 +131,9 @@ def test_each_mismatch_is_reported(task_fields, run_fields, failed):
 
 
 @pytest.mark.parametrize("results, failed", [
-    ([result_of(step="PUSHED", state="FAILED", error="provider down", number=None, url=None)],
+    ([result_of(step="PUSHED", state="DELIVERED", error="provider down", number=None, url=None)],
+     ["Results PR was opened", "Delivery has a results PR"]),
+    ([result_of(step="PUSHED", state="DELIVERED", number=None, url=None)],
      ["Results PR was opened", "Delivery has a results PR"]),
     ([result_of(step="UNKNOWN", state="IN_PROGRESS", commit_sha=None, number=None, url=None)],
      ["Results PR was opened", "Delivery has a commit_sha", "Delivery has a results PR"]),
@@ -157,6 +164,35 @@ def test_a_results_pr_past_pushed_is_delivered_and_shows_its_state(state):
     assert ("ok", "Delivery has a results PR", f"#3, {state}") in report.rows
 
 
+def test_a_pushed_result_is_delivered_with_no_results_pr_when_the_results_pr_sensor_is_stopped():
+    pushed = result_of(step="PUSHED", state="DELIVERED", number=None, url=None)
+
+    report = verify(pr_of(), task_of(), run_of(), [pushed], sensor_status="STOPPED")
+
+    assert failures(report) == []
+    assert ("ok", "Results were pushed (push-only)", "PUSHED, DELIVERED") in report.rows
+    assert "Delivery has a results PR" not in [name for _, name, _ in report.rows]
+
+
+def test_a_pushed_result_is_not_delivered_while_the_results_pr_sensor_is_running():
+    pushed = result_of(step="PUSHED", state="DELIVERED", number=None, url=None)
+
+    report = verify(pr_of(), task_of(), run_of(), [pushed], sensor_status="RUNNING")
+
+    assert failures(report) == ["Results PR was opened", "Delivery has a results PR"]
+
+
+@pytest.mark.parametrize("results, failed", [
+    ([result_of(step="PUSHED", state="IN_PROGRESS", number=None, url=None)], ["Results were pushed (push-only)"]),
+    ([result_of(step="UNKNOWN", state="FAILED", error="zip too big", commit_sha=None, number=None, url=None)],
+     ["Results were pushed (push-only)", "Delivery has a commit_sha"]),
+])
+def test_a_result_not_yet_pushed_fails_when_the_results_pr_sensor_is_stopped(results, failed):
+    report = verify(pr_of(), task_of(), run_of(), results, sensor_status="STOPPED")
+
+    assert failures(report) == failed
+
+
 def test_a_failed_run_matching_its_task_still_fails_the_run_check():
     report = verify(pr_of(), task_of(status="FAILED"), run_of(status="FAILURE"))
 
@@ -179,6 +215,9 @@ class RepoBackend:
 
     def get_task_results(self, project_id, task_id):
         return [result_of()]
+
+    def get_sensor_status(self, name):
+        return "RUNNING"
 
     def get_pull_requests(self, project_id, repo_id):
         return self.prs

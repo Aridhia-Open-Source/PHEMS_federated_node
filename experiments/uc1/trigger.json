@@ -1,0 +1,6 @@
+{
+  "spec": {
+    "image": "localhost:5001/uc1-fn:latest",
+    "env": {}
+  }
+}

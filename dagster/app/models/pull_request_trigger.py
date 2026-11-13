@@ -33,3 +33,5 @@ class TriggerRepositoryRef(BaseModel):
 class TaskTrigger(PullRequestTrigger):
     """The pull request that yielded a task, with the repository it was merged in."""
     trigger_repository: TriggerRepositoryRef
+    # The text of the pull request's spec file, exactly as it was merged
+    spec_raw: str

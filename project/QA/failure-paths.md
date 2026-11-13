@@ -12,7 +12,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 
 - **Expected:** the pull request goes `UNKNOWN` then `REJECTED` with a `state_cause` that says what is wrong; its `task_id` is empty; the task count does not change. The pull request count goes up by one. The next watched pull request still gets its task.
 - **Rule:** a bad spec rejects the trigger and keeps the raw spec; no task; `REJECTED` is final ([TaskSpec, and a Task derived from spec and trigger]; [State transition tables for triggers, tasks and result steps; 409 on a refused move]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "an invalid spec is rejected, no task" (`dagster/fncli/tests/e2e/test_failure_paths.py`, written, never run on a cluster); `webserver/tests/test_pull_requests_and_tasks.py` (`test_bad_spec_rejects_the_pr`). The suite does not try to move the trigger on afterwards.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "an invalid spec is rejected, no task" (`dagster/fncli/tests/e2e/test_failure_paths.py`, written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_bad_spec_rejects_the_pr`). The suite does not try to move the trigger on afterwards.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -23,7 +23,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 
 - **Expected:** the stored count is up by one; the project's pull request and task counts are unchanged. Nothing is rejected: there is simply no trigger.
 - **Rule:** a project resource gets a trigger only for a new `.json` file under its `watch_dir`; otherwise none (the cause is only logged) ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR outside the watched directory creates no trigger" (written, never run on a cluster); `webserver/tests/test_pull_requests_and_tasks.py`. The suite checks the project's counts, not the stored count.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR outside the watched directory creates no trigger" (written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py`. The suite checks the project's counts, not the stored count.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -34,7 +34,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 3. `fncli open-pr --kind watched --merge`. Wait five intervals; note the counts.
 4. `fncli sensor-status`, and the Dagster UI tick log of `git_pull_request_ingest_sensor`.
 5. `fncli project-healthcheck`.
-6. `fncli init-git-secret --entity trigger`, then `fncli verify-git-secret --entity trigger`.
+6. `fncli apply -f examples/globals-e2e.yaml --rotate trigger -y`, then `fncli verify-git-secret --entity trigger`.
 7. Watch `fncli project-show`; then `fncli project-healthcheck` again.
 
 - **Expected:** step 3: the counts do not change. Step 4: the ingest sensor's ticks fail, naming the repository with an authentication error, while the evaluate and launcher sensors keep ticking. Step 5: exit code is not 0. Step 7: the pull request merged during the outage gets a trigger and a task (this is not a gap: the global cursor did not move because nothing was stored), and the healthcheck is `ok` again.

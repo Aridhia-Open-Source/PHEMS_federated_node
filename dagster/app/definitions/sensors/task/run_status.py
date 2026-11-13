@@ -61,8 +61,8 @@ class TaskRunStatusSensor(BaseSensor):
         """
         run = self.context.dagster_run
         task_status, fields = self.task_fields(run, self.context.instance)
-        task_id = int(run.tags["task_id"])
-        project_id = int(run.tags["project_id"])
+        task_id = int(run.tags["fn/task_id"])
+        project_id = int(run.tags["fn/project_id"])
 
         try:
             self.backend_api.patch_task(project_id, task_id, fields)

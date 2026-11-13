@@ -1,0 +1,30 @@
+# Extra projects on the same global resources as the dev project (globals-e2e.yaml, which has to be applied first): the QA
+# plan's second project QaTwo, and a third. Enabled, with the dev project's settings. No secret values.
+#   fncli apply  -f examples/projects/e2e-second-projects.yaml --project QaTwo -y
+#   fncli delete -f examples/projects/e2e-second-projects.yaml -y     (every project here that exists)
+# Applying without --project creates both.
+version: 1
+
+projects:
+  - name: QaTwo
+    datasets: [dev-dataset]
+    repositories:
+      triggers:
+        - repository: http://gitea.fn.svc:4000/gitea_admin/fn-trigger-repo
+          watch_dir: specs/
+          base_branch: main
+      results:
+        repository: http://gitea.fn.svc:4000/gitea_admin/fn-results-repo
+        target_dir: results/
+        base_branch: main
+  - name: QaThree
+    datasets: [dev-dataset]
+    repositories:
+      triggers:
+        - repository: http://gitea.fn.svc:4000/gitea_admin/fn-trigger-repo
+          watch_dir: specs/
+          base_branch: main
+      results:
+        repository: http://gitea.fn.svc:4000/gitea_admin/fn-results-repo
+        target_dir: results/
+        base_branch: main

@@ -12,8 +12,9 @@ FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
 echo "=== Terminating tilt sessions =================================================="
 
 if command -v tilt &> /dev/null; then
-  if pgrep -f "tilt serve" > /dev/null; then
+  if pgrep -f "tilt up" > /dev/null; then
     tilt down
+    pkill -f "tilt up"
     echo "Terminated tilt session"
   else
     echo "No tilt sessions found"
@@ -119,22 +120,30 @@ echo "=== Clearing local PV data ===============================================
 # POSTGRES_PASSWORD when initdb creates the data directory, so data that outlives its
 # password breaks the next install. If this step fails, the passwords are still there.
 #
+# Everything under /data except experiments/, which belongs to the experiments chart
+# (its own release and namespace, see experiments/README.md) and outlives this one:
+# wiping it leaves that release's database pod crash-looping on a missing PV directory.
+#
 # Deleted from inside the node rather than from the host, because these files belong to
 # the uids the containers ran as (postgres is 70) and the host user cannot always
 # remove them - which is what used to make this step need sudo.
-if kubectl get nodes >/dev/null 2>&1; then
-  echo "wiping /data in the node ($FN_DATA_DIR on the host)"
-  kubectl delete pod fn-data-wipe --ignore-not-found >/dev/null 2>&1
-  kubectl run fn-data-wipe --rm -i --restart=Never --image=busybox:1.36 --quiet \
-    --overrides='{"spec":{"containers":[{"name":"fn-data-wipe","image":"busybox:1.36",
-      "command":["sh","-c","rm -rf /host/* /host/.[!.]* 2>/dev/null; echo remaining entries: $(ls -A /host | wc -l)"],
-      "securityContext":{"runAsUser":0},
-      "volumeMounts":[{"name":"host","mountPath":"/host"}]}],
-      "volumes":[{"name":"host","hostPath":{"path":"/data"}}]}}'
-else
+#
+# No $NAMESPACE means an earlier teardown already got to the end, wipe included.
+if ! kubectl get nodes >/dev/null 2>&1; then
   echo "No cluster reachable, so nothing was wiped. $FN_DATA_DIR is still on disk:"
   echo "delete it before reinstalling, or keep the password secrets that go with it."
   exit 1
+elif ! kubectl get namespace "$NAMESPACE" >/dev/null 2>&1; then
+  echo "namespace $NAMESPACE is gone, so an earlier teardown already wiped /data"
+else
+  echo "wiping /data in the node ($FN_DATA_DIR on the host)"
+  kubectl delete pod fn-data-wipe -n "$NAMESPACE" --ignore-not-found >/dev/null 2>&1
+  kubectl run fn-data-wipe -n "$NAMESPACE" --rm -i --restart=Never --image=busybox:1.36 --quiet \
+    --overrides='{"spec":{"containers":[{"name":"fn-data-wipe","image":"busybox:1.36",
+      "command":["sh","-c","find /host -mindepth 1 -maxdepth 1 ! -name experiments -exec rm -rf {} + 2>/dev/null; echo remaining entries: $(ls -A /host | wc -l)"],
+      "securityContext":{"runAsUser":0},
+      "volumeMounts":[{"name":"host","mountPath":"/host"}]}],
+      "volumes":[{"name":"host","hostPath":{"path":"/data"}}]}}'
 fi
 
 echo
@@ -147,19 +156,19 @@ done
 
 # Hook Jobs are untracked too.
 for ns in "$NAMESPACE" keycloak; do
-  kubectl delete job -n "$ns" backend-db-init keycloak-db-init dagster-db-init \
+  kubectl delete job -n "$ns" nexus-db-init keycloak-db-init dagster-db-init \
     --ignore-not-found 2>/dev/null || true
 done
 
 echo
 echo "=== Removing dataset credential secrets ======================================"
-# Written by the webserver through the API when a dataset is registered, so the release
+# Written by nexus-api through the API when a dataset is registered, so the release
 # never owned them and `helm uninstall` leaves them. They then outlive both the dataset
 # rows and the roles the wipe above removed, and the passwords they hold are the ones
 # task pods authenticate with - so a stale one fails a task run rather than the deploy,
 # a long way from the cause.
 #
-# Matched on the labels the webserver sets, and on the -creds name it derives from the
+# Matched on the labels nexus-api sets, and on the -creds name it derives from the
 # dataset host, which is what identifies the ones written before those labels existed.
 # Anything Helm manages is left for Helm to remove.
 for ns in "${teardown_namespaces[@]}"; do
@@ -222,9 +231,9 @@ echo "Namespace cleanup complete"
 echo
 echo "=== Teardown Complete ======================================================="
 echo "All persistent data has been removed."
-echo "Run './scripts/cluster.sh down' to delete the cluster."
-echo "Run './scripts/cluster.sh up' to create the cluster."
-echo "Run './scripts/deploy.sh' to deploy the helm project"
+echo "Run 'mise run cluster down' to delete the cluster."
+echo "Run 'mise run cluster up' to create the cluster."
+echo "Run 'mise run deploy' to deploy the helm project"
 echo
 
 ./scripts/deploy_owner.sh release

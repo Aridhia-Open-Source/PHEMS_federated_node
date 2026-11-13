@@ -13,6 +13,7 @@ from app.definitions.sensors.task.delivery import (
 )
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
 from app.definitions.sensors.task.pull_request_sync import (
+    open_results_pull_request_job,
     results_pull_request_sync_sensor,
     sync_results_pull_requests_job,
 )
@@ -41,7 +42,7 @@ def task_launcher_sensor(context: OpExecCtx):
 
 def _record_run_status(context: RunStatusSensorContext):
     """Record the status of a task run on its task."""
-    if context.dagster_run.tags.get("trigger") != "task":
+    if context.dagster_run.tags.get("fn/trigger") != "task":
         return
 
     backend_config = BackendConfig()
@@ -124,4 +125,4 @@ SENSORS = [
     results_pull_request_sync_sensor,
 ]
 
-JOBS = [deliver_results_job, sync_results_pull_requests_job]
+JOBS = [deliver_results_job, sync_results_pull_requests_job, open_results_pull_request_job]

@@ -1,0 +1,44 @@
+{
+  // Dev tools in a container; Docker and the kind cluster stay on the host.
+  // Builds and `kind` use the host's Docker socket, kubectl and Tilt use the host's
+  // kubeconfig, and host networking keeps the port-forwards on localhost.
+  "name": "Federated Node",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers-extra/features/mise:1": {}
+  },
+  "runArgs": ["--network=host"],
+  // The checkout's parent folder at its host path: the host's Docker resolves volume paths
+  // (`docker run -v "$(pwd)":...`) on the host, and a worktree's .git points at the main repo
+  // by its host path, so the main repo and its sibling worktrees must be visible where they are
+  "workspaceMount": "source=${localWorkspaceFolder}/..,target=${localWorkspaceFolder}/..,type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  // Bind mounts fail when the source folder is missing
+  "initializeCommand": "mkdir -p \"$HOME/.fn/data\"",
+  "mounts": [
+    // Host kubeconfig, read-only and read live: a recreated cluster works without a restart
+    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube-host,type=bind,readonly",
+    // Installed tools survive rebuilds and are shared by every worktree's container
+    "source=fn-mise-data,target=/home/vscode/.local/share/mise,type=volume",
+    // Local PV data at its host path, for the same reason as the checkout
+    "source=${localEnv:HOME}/.fn,target=${localEnv:HOME}/.fn,type=bind"
+  ],
+  // Venvs go to the container's home (mise.devcontainer.toml), not the shared checkout
+  "containerEnv": {
+    "MISE_ENV": "devcontainer",
+    "FN_DATA_DIR": "${localEnv:HOME}/.fn/data",
+    // The container's overlay (fn as kind-fn's namespace, and any changes made here) comes first,
+    // the host kubeconfig supplies the clusters and credentials
+    "KUBECONFIG": "/home/vscode/.kube/overlay:/home/vscode/.kube-host/config"
+  },
+  // mise's tools on PATH for non-interactive shells too
+  "remoteEnv": { "PATH": "/home/vscode/.local/share/mise/shims:${containerEnv:PATH}" },
+  "remoteUser": "vscode",
+  "postCreateCommand": "mkdir -p ~/.kube && printf 'apiVersion: v1\\nkind: Config\\ncontexts:\\n- name: kind-fn\\n  context: {cluster: kind-fn, user: kind-fn, namespace: fn}\\n' > ~/.kube/overlay && sudo apt-get update -qq && sudo apt-get install -y -qq libpq-dev build-essential && sudo chown -R vscode:vscode /home/vscode/.local && mise trust --all && mise run setup",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-kubernetes-tools.vscode-kubernetes-tools"]
+    }
+  }
+}

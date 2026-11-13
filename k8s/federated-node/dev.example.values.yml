@@ -2,23 +2,42 @@
 #
 #   cp .dev.env.example .dev.env                 # then fill it in
 #   cp dev.example.values.yml dev.values.yaml    # dev.values.yaml is gitignored
-#   ./scripts/cluster.sh up && make deploy
+#   ./scripts/cluster.sh up && mise run deploy
 #
-# Images come from the kind registry at localhost:5001 (scripts/build_all_images.sh).
+# Images come from the kind registry at localhost:5001 (docker-bake.hcl).
 # Everything else comes from values.yaml, including every database password:
 #
-#   make show-db-passwords
+#   mise run show-db-passwords
 #
 # For a real deployment see the wiki: Prerequisites, Deploy-Core and your platform page.
 
 local_development: true      # http instead of https, in-cluster test URLs
 create_db_deployment: true   # run Postgres in the cluster instead of a managed one
 
+# The task network policy is on by default: task pods reach cluster DNS, the private ranges and
+# datasetEgress (templates/task-network-policy.yaml). The dev dataset database, experiments/chart,
+# is in the private ranges already; this rule names it by pod label so it stays reachable if
+# privateEgress is narrowed.
+taskNetworkPolicy:
+  datasetEgress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: experiments
+          podSelector:
+            matchLabels:
+              app: experiments-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+
 # Optional, all off by default:
-# taskReview: true           # tasks need approval before they run
 # smoketests: true           # `helm test` creates and deletes real db/keycloak rows
 
 host: phems-federatednode.net
+
+# Required. Names this node in the results it delivers (run.json, node.id).
+nodeId: dev-node
 
 # The one Postgres server. The *-db-init hooks create the databases, roles and
 # passwords. The .svc name embeds the namespace - keep it in step with NAMESPACE.
@@ -32,11 +51,26 @@ storage:
     dbpath: /data/db                   # postgres data
     artifacts: /data/dagster/artifacts # dagster artifacts volume
 
-# Locally built images; devTag must match DOCKER_TAG in .dev.env. On a real cluster
+# Locally built images. Tilt tags them by content hash and overrides these tags; other dev deploys
+# (mise run images, deploy.sh) use the latest tag, and the chart pulls with pullPolicy Always (its
+# default), so a redeploy picks up new builds. On a real cluster
 # you set none of this - the chart's images track its appVersion.
-backend:
-  image: localhost:5001/webserver-fn
-  tag: &devTag "v1"
+nexus:
+  api:
+    image: localhost:5001/nexus-api-fn
+    tag: &devTag "latest"
+  ui:
+    enabled: true
+    devServer: true                    # Vite with hot reload; Tilt syncs nexus/ui into it
+    image: localhost:5001/nexus-ui-dev-fn
+    tag: *devTag
+    resources:                         # Vite needs more than nginx
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
 
 alpine:
   image: localhost:5001/alpine-fn
@@ -74,8 +108,8 @@ fnDagster:
   sensors:
     minIntervalSeconds: 5
     retryIntervalSeconds: 10
-  # Pipes pods can write results as any uid without help. Only pin identity if you
-  # need to; fsGroup does nothing except on storage.local.
+  # Task pods run as uid/gid 1001 by default (artifacts.securityContext in values.yaml),
+  # and write results as any uid without help. fsGroup does nothing except on storage.local.
   # artifacts:
   #   securityContext:
   #     fsGroup: 1001
@@ -99,3 +133,13 @@ dagster:
   #     registry: localhost:5002
   #     repository: library/postgres
   #     tag: "14.6"
+
+# The in-cluster Gitea for the Gitea demo and the e2e suites. Its admin password is generated into the gitea-admin secret.
+gitea:
+  enabled: true
+  admin:
+    user: gitea_admin
+    email: admin@example.com
+    secret:
+      name: gitea-admin
+      key: password

@@ -1,10 +1,12 @@
+import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from app.backend import BackendAPI
 from app.models import (
-    Dataset, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TriggerRepository,
+    Dataset, GitToken, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TaskResources, TriggerRepository,
 )
 from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response
 
@@ -145,12 +147,14 @@ class TestPullRequests:
     def test_get_task_trigger_reads_the_pull_request_and_its_repository(self, api, session):
         session.get.return_value = make_response({
             **SAMPLE_PR, "trigger_repository": {"id": 1, "repo_path": "org/repo", "uri": "github.com/org/repo"},
+            "spec_raw": '{"spec": {"image": "a/b:1"}}',
         })
 
         trigger = api.get_task_trigger(1, 9)
 
         session.get.assert_called_once_with("/projects/1/tasks/9/trigger")
         assert (trigger.number, trigger.trigger_repository.repo_path) == (SAMPLE_PR["number"], "org/repo")
+        assert trigger.spec_raw == '{"spec": {"image": "a/b:1"}}'
 
     def test_get_task_config_reads_whether_the_task_configuration_is_current(self, api, session):
         body = {"current": False, "changes": ["image changed"], "config_hash": "abc"}
@@ -169,6 +173,23 @@ class TestPullRequests:
 
         assert session.post.call_args.args[0] == "/projects/1/tasks/9/launch"
         assert (decision.outcome, decision.task.id, decision.dataset) == ("launch", SAMPLE_TASK["id"], None)
+
+    def test_create_task_resources_posts_for_the_run_and_returns_the_names(self, api, session):
+        session.post.return_value = make_response({"secret": "task-9-run-1", "config_map": None})
+
+        resources = api.create_task_resources(1, 9, "run-1")
+
+        assert session.post.call_args.args[0] == "/projects/1/tasks/9/runs/run-1/resources"
+        assert (resources.secret, resources.config_map) == ("task-9-run-1", None)
+
+    def test_a_sample_resources_response_of_the_backend_parses(self):
+        """The sample is checked against the real response by nexus-api's tests/test_task_run_resources.py."""
+        sample = json.loads((Path(__file__).parent / "contract" / "task_resources_response.json").read_text())
+
+        resources = TaskResources.model_validate(sample)
+
+        assert resources.secret == "task-1-5b1f8c2e-0d3a-4c57-9a5e-6f2d1c7b8a90"
+        assert resources.config_map == resources.secret + "-config"
 
     def test_launch_task_of_a_task_no_longer_pending_is_none(self, api, session):
         session.post.return_value = MagicMock(status_code=409, text="not PENDING")
@@ -261,13 +282,13 @@ class TestDatasets:
 SAMPLE_PROJECT = {"id": 1, "name": "proj", "enabled": True, "default_dataset_id": 1}
 SAMPLE_TASK = {
     "id": 9, "name": "t", "spec": {"image": "a/b:1", "dataset_id": 1, "env": {}}, "attempt": 1, "trigger_id": 4, "status": "PENDING", "requested_by": "u",
-    "project_id": 1, "executor_run_id": None, "exit_code": None,
+    "project_id": 1, "project_name": "proj", "dataset_name": None, "executor_run_id": None, "exit_code": None,
     "started_at": None, "completed_at": None,
 }
 
 
-def page(items, pages, key="items"):
-    return make_response({key: items, "page": 1, "per_page": 100, "total": len(items), "pages": pages})
+def page(items, pages):
+    return make_response({"items": items, "page": 1, "size": 100, "total": len(items), "pages": pages})
 
 
 class TestProjects:
@@ -285,7 +306,7 @@ class TestProjects:
 
         api.get_projects(enabled=True)
 
-        assert session.get.call_args.kwargs["params"] == {"enabled": "true", "page": 1, "per_page": 100}
+        assert session.get.call_args.kwargs["params"] == {"enabled": "true", "page": 1, "size": 100}
 
     def test_no_projects(self, api, session):
         session.get.return_value = page([], 0)
@@ -295,26 +316,26 @@ class TestProjects:
 
 class TestTasks:
     def test_get_tasks_lists_all_projects_in_a_status(self, api, session):
-        session.get.return_value = page([SAMPLE_TASK], 1, key="tasks")
+        session.get.return_value = page([SAMPLE_TASK], 1)
 
         tasks = api.get_tasks(status="PENDING")
 
         assert [t.id for t in tasks] == [9]
         assert session.get.call_args.args == ("/tasks",)
         assert session.get.call_args.kwargs["params"] == {
-            "status": "PENDING", "project_enabled": "true", "page": 1, "per_page": 100,
+            "status": "PENDING", "project_enabled": "true", "page": 1, "size": 100,
         }
 
     def test_get_tasks_takes_several_statuses_and_any_project(self, api, session):
-        session.get.return_value = page([SAMPLE_TASK], 1, key="tasks")
+        session.get.return_value = page([SAMPLE_TASK], 1)
 
         api.get_tasks(status=["PENDING", "RUNNING"], project_enabled=False)
 
-        assert session.get.call_args.kwargs["params"] == {"status": "PENDING,RUNNING", "page": 1, "per_page": 100}
+        assert session.get.call_args.kwargs["params"] == {"status": "PENDING,RUNNING", "page": 1, "size": 100}
 
     def test_get_tasks_follows_the_pages(self, api, session):
         second = {**SAMPLE_TASK, "id": 10}
-        session.get.side_effect = [page([SAMPLE_TASK], 2, key="tasks"), page([second], 2, key="tasks")]
+        session.get.side_effect = [page([SAMPLE_TASK], 2), page([second], 2)]
 
         tasks = api.get_tasks(status="PENDING")
 
@@ -343,7 +364,7 @@ class TestResults:
                 "id": 1, "name": "gitea", "type": "gitea", "uri": "http://h", "api_uri": "http://h/api/v1", "enabled": True,
             },
         },
-        "target_dir": "results", "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
+        "base_branch": "main", "target_dir": "results", "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
     }
 
     def test_a_global_results_repository_is_fetched_by_its_id(self, api, session):
@@ -361,6 +382,22 @@ class TestResults:
 
         session.get.assert_called_once_with("/projects/1/repositories/results/2")
         assert result.results_repository.id == 2
+
+    @pytest.mark.parametrize("kind,segment", [("trigger", "triggers"), ("results", "results")])
+    def test_a_repository_token_is_posted_for_the_kind_the_repository_and_project(self, api, session, kind, segment):
+        session.post.return_value = make_response({"token": "tok", "expires_at": "2026-01-01T01:00:00Z"})
+
+        token = api.get_repository_token(kind, 2, 4)
+
+        session.post.assert_called_once_with(f"/global/repositories/{segment}/2/token", json={"project_id": 4})
+        assert token == GitToken(token="tok", expires_at="2026-01-01T01:00:00Z")
+
+    def test_a_repository_token_without_a_project_sends_null(self, api, session):
+        session.post.return_value = make_response({"token": "tok", "expires_at": "2026-01-01T01:00:00Z"})
+
+        api.get_repository_token("trigger", 2)
+
+        assert session.post.call_args.kwargs["json"] == {"project_id": None}
 
     def test_create_posts_the_task_and_repository(self, api, session):
         session.post.return_value = make_response(self.RESULT)

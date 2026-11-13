@@ -11,7 +11,7 @@ class ResultsRepository(BaseModel):
     - uri: the provider's uri and the repo_path, as the backend derives it.
     - repo_path: where the repository is on the provider's API (owner/name).
     - provider: the git host it is on.
-    - secret: the secret holding the git token, under the key TOKEN.
+    - secret: the secret holding the git credentials. Only the backend reads it, and mints the tokens from it.
     - enabled: turned on or off for the whole node.
     """
     model_config = ConfigDict(extra="allow")
@@ -31,6 +31,7 @@ class ProjectResultsRepository(BaseModel):
 
     - project_id: the project the repository is assigned to.
     - results_repository: the global repository.
+    - base_branch: the branch the project's results pull requests go into.
     - target_dir: the directory of the repository the project's results go under.
     - owned_by_federated_node: whether the node owns the repository.
     - enabled: a person turned the repository on for the project.
@@ -41,6 +42,7 @@ class ProjectResultsRepository(BaseModel):
 
     project_id: int
     results_repository: ResultsRepository
+    base_branch: str
     target_dir: str
     owned_by_federated_node: bool
     enabled: bool

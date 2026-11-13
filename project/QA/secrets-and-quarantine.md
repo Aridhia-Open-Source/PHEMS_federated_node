@@ -12,7 +12,7 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 
 - **Expected:** the value is now in the quarantine namespace, not the original one. The Secret's row keeps the original namespace, so reads of it fail while it is moved. The Secret is `enabled: false`, and so is every GlobalResource that uses it (here the trigger repository; the project resource is inactive). The change is one commit: if the move fails the request fails and nothing changes.
 - **Rule:** disabling a Secret also disables what uses it and quarantines its value ([docs/architecture/revoke-and-enabled.md#secrets]; [Generic Secret model and SecretProvider; per-repository tokens]).
-- **Automated by:** Partly automated: `webserver/tests/test_secrets_quarantine.py` (in-memory store); the end-to-end failure suite, group "a PR merged while the trigger repository's Secret is switched off gets no task" (`dagster/fncli/tests/e2e/test_failure_paths.py`, written, never run on a cluster). Both miss the real Kubernetes move and the quarantine namespace.
+- **Automated by:** Partly automated: `nexus/api/tests/test_secrets_quarantine.py` (in-memory store); the end-to-end failure suite, group "a PR merged while the trigger repository's Secret is switched off gets no task" (`dagster/fncli/tests/e2e/test_failure_paths.py`, written, never run on a cluster). Both miss the real Kubernetes move and the quarantine namespace.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -36,7 +36,7 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 
 - **Expected:** step 2 switches off both in the same commit. Step 3 leaves the second one off.
 - **Rule:** the same as the previous case, for every user of the Secret ([docs/architecture/revoke-and-enabled.md#secrets]).
-- **Automated by:** Partly automated: `webserver/tests/test_global_resources.py` (`test_disabling_a_secret_disables_what_uses_it_and_enabling_it_does_not_enable_it_again`); it misses the real store and a live pipeline using both.
+- **Automated by:** Partly automated: `nexus/api/tests/test_global_resources.py` (`test_disabling_a_secret_disables_what_uses_it_and_enabling_it_does_not_enable_it_again`); it misses the real store and a live pipeline using both.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -50,7 +50,7 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 
 - **Expected:** step 2 is 409. Step 3: naming the disabled Secret is 400; naming an enabled one works, after which step 2 works. Step 4 is 400. Step 5: enabling is 409 until the dataset is repointed.
 - **Rule:** enabling a GlobalResource whose Secret is disabled or deleted is a 409; naming a disabled Secret is a 400 ([docs/architecture/revoke-and-enabled.md#secrets]).
-- **Automated by:** Automated: `webserver/tests/test_secrets_quarantine.py`, `webserver/tests/test_global_resources.py`; a live node adds only the real store.
+- **Automated by:** Automated: `nexus/api/tests/test_secrets_quarantine.py`, `nexus/api/tests/test_global_resources.py`; a live node adds only the real store.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -62,7 +62,7 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 
 - **Expected:** step 1 is 409. Step 2 succeeds and the new value is in the original namespace. In step 3 the new value ends up in quarantine, not in the original namespace.
 - **Rule:** rotating a disabled Secret is a 409 unless the same request enables it ([docs/architecture/revoke-and-enabled.md#secrets]).
-- **Automated by:** Partly automated: `webserver/tests/test_secrets_quarantine.py`; it misses the real store.
+- **Automated by:** Partly automated: `nexus/api/tests/test_secrets_quarantine.py`; it misses the real store.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -73,7 +73,7 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 
 - **Expected:** the value is in the quarantine namespace from the start; the Secret is disabled.
 - **Rule:** a Secret created disabled is stored in quarantine ([docs/architecture/revoke-and-enabled.md#secrets]).
-- **Automated by:** Partly automated: `webserver/tests/test_secrets_quarantine.py` (`test_a_secret_created_disabled_is_stored_in_quarantine`); it misses the real store.
+- **Automated by:** Partly automated: `nexus/api/tests/test_secrets_quarantine.py` (`test_a_secret_created_disabled_is_stored_in_quarantine`); it misses the real store.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -86,7 +86,7 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 
 - **Expected:** step 1 is 409 naming the users. Step 2 works; the value is deleted from its namespace, or from quarantine if the Secret was disabled. Step 3 disables the users first and then deletes.
 - **Rule:** a Secret in use cannot be deleted; `force` disables its users first ([docs/architecture/revoke-and-enabled.md#secrets]).
-- **Automated by:** Partly automated: `webserver/tests/test_secrets_quarantine.py`, `webserver/tests/test_global_resources.py`; they miss the real store.
+- **Automated by:** Partly automated: `nexus/api/tests/test_secrets_quarantine.py`, `nexus/api/tests/test_global_resources.py`; they miss the real store.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -97,7 +97,7 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 
 - **Expected:** the check reports `secret_missing` (disabled), and does not read the store. No value is returned.
 - **Rule:** the healthcheck of a disabled Secret reports `secret_missing` without reading the store ([docs/architecture/revoke-and-enabled.md#secrets]).
-- **Automated by:** Automated: `webserver/tests/test_secrets_quarantine.py`, `webserver/tests/test_healthchecks_all.py`. They miss the real store.
+- **Automated by:** Automated: `nexus/api/tests/test_secrets_quarantine.py`, `nexus/api/tests/test_healthchecks_all.py`. They miss the real store.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -124,13 +124,13 @@ Needs the launcher stopped so the task is still `PENDING` (see "Make a change wh
 3. Start the launcher.
 
 - **Expected:** the task goes `FAILED` at launch with a cause naming the dataset. The dataset was switched off with its Secret, so the cause may say the dataset is not active rather than that the Secret is disabled (check and record the text). No run, no result.
-- **Rule:** the launcher fails a task whose dataset resource is not active or whose dataset's Secret is disabled ([Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]).
-- **Automated by:** Partly automated: `webserver/tests/test_task_config.py` (the order of the two causes); it misses the live launcher.
+- **Rule:** the launcher fails a task whose dataset resource is not active or whose dataset's Secret is disabled ([Responsibility: nexus-api owns the record and the rules; Dagster carries out decisions]).
+- **Automated by:** Partly automated: `nexus/api/tests/test_task_config.py` (the order of the two causes); it misses the live launcher.
 - [ ] Pass
 - [ ] Fail — notes:
 
 <!-- link definitions -->
 [Enabled, revoked and soft delete]: ../decisions/0008-enabled-revoked-and-soft-delete.md
 [Generic Secret model and SecretProvider; per-repository tokens]: ../decisions/0007-secrets-and-secret-providers.md
-[Responsibility: the webserver owns the record and the rules; Dagster carries out decisions]: ../decisions/0021-webserver-owns-the-record-and-the-rules.md
+[Responsibility: nexus-api owns the record and the rules; Dagster carries out decisions]: ../decisions/0021-nexus-api-owns-the-record-and-the-rules.md
 [docs/architecture/revoke-and-enabled.md#secrets]: ../../docs/architecture/revoke-and-enabled.md#secrets

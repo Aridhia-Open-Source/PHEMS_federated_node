@@ -28,8 +28,16 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0018](../project/decisions/0018-fncli-dev-ops-tool.md) | fncli as a dev and ops tool | Scope stays small; models are imported, not copied. |
 | [0019](../project/decisions/0019-gitea-port-4000-and-localhost-forward.md) | Gitea on port 4000, localhost forward | In-cluster versus host URL translation. |
 | [0020](../project/decisions/0020-tilt-dev-loop.md) | Tilt dev loop | Dev only; the chart does not depend on it. |
-| [0021](../project/decisions/0021-webserver-owns-the-record-and-the-rules.md) | Webserver owns the record and the rules | Dagster asks and acts; the launcher fails or launches as the config answer says. |
-| [0022](../project/decisions/0022-task-isolation.md) | Task isolation: storage, secrets, namespace and network | Each part separates what is built from what is decided and not built (#536); NetworkPolicy is not built. |
+| [0021](../project/decisions/0021-nexus-api-owns-the-record-and-the-rules.md) | nexus-api owns the record and the rules | Dagster asks and acts; the launcher fails or launches as the config answer says. |
+| [0022](../project/decisions/0022-task-isolation.md) | Task isolation: storage, secrets, namespace and network | Each part separates what is built from what is decided and not built (#536); the NetworkPolicy is built. |
+| [0023](../project/decisions/0023-fastapi-replaces-flask.md) | FastAPI replaces Flask: nexus-api owns the deploy, the migrations and the names | One baseline migration, regenerated from the models; the extras were left out on purpose (open questions). |
+| [0024](../project/decisions/0024-github-app-tokens-minted-by-the-backend.md) | Short-lived git tokens, minted by the backend (GitHub App and Gitea OAuth2) | The node mints its own git tokens; fncli and the sensors use them, no long-lived tokens in env. |
+| [0025](../project/decisions/0025-fncli-bootstrap-files-diff-apply-delete.md) | fncli configures a node from bootstrap files: diff, apply, delete | Replaces about 22 env-driven setup and teardown commands; no secret values in the files. |
+| [0026](../project/decisions/0026-apply-is-additive-delete-is-a-soft-delete.md) | Apply is additive; delete is a soft delete through nexus-api | Never `?force=true`: a resource another project still uses is skipped and reported. |
+| [0027](../project/decisions/0027-bootstrap-files-split-by-stage-of-use.md) | Bootstrap files are split by stage of use, and the node target is separate | Globals, projects and triggers in their own files; the node and defaults in a per-user context file. |
+| [0028](../project/decisions/0028-experiments-own-their-database-seed-image-and-dataset-file.md) | Experiments own their database, seed, image and dataset file | `fncli experiment setup` checks the dataset's names against the chart values before it applies. |
+| [0029](../project/decisions/0029-images-are-built-with-docker-buildx-bake.md) | Images are built with docker buildx bake | One bake file at the root and one per experiment; `mise run images`, `image`, `image-reload`, `images-release`. |
+| [0030](../project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md) | fncli demo only walks the pull request process | Setup and cleanup are `apply` and `delete`; the demo checks the node matches first. |
 
 ## Other docs by topic
 
@@ -49,10 +57,14 @@ Testing and open items:
 - [dagster/fncli/tests/e2e/README.md](../dagster/fncli/tests/e2e/README.md): how to run the live-cluster end-to-end suites.
 - The mirror service is developed on branch `moonshot/gitea-mirror`.
 
+Wiki ([docs/versions/2.x/docs](versions/2.x/docs/)):
+
+- The GitHub wiki pages live here, file names the same as on the wiki. Edit them in a pull request. The `Wiki sync` workflow copies this folder to the wiki when a change to it reaches `main`, so an edit made in the wiki itself is overwritten by the next sync.
+
 Operations:
 
 - [DEPLOYMENT.md](../DEPLOYMENT.md), [k8s/federated-node/README.md](../k8s/federated-node/README.md): install and chart values.
-- [dagster/README.md](../dagster/README.md), [dagster/fncli/README.md](../dagster/fncli/README.md): the Dagster code location and the fncli tool.
+- [dagster/fncli/README.md](../dagster/fncli/README.md): the Dagster code location and the fncli tool.
 
 ## Suggested reading order
 
@@ -62,4 +74,4 @@ Operations:
 4. ADRs [0010](../project/decisions/0010-git-api-protocol-and-factory.md) to [0013](../project/decisions/0013-results-delivered-as-branch-and-pull-request.md): the git side, pull requests and cursors, and delivery.
 5. [flows.md](architecture/flows.md): the whole path from a merged pull request to a results pull request.
 6. ADRs [0014](../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md) and [0015](../project/decisions/0015-run-keys-retries-and-results-pr-sync.md) and the sensor and job inventory in [flows.md](architecture/flows.md#sensor-and-job-inventory): run keys, retries, the launcher rules. Then the [sensors docs](architecture/sensors/README.md), one per sensor.
-7. ADRs [0016](../project/decisions/0016-pydantic-dto-layer.md) to [0020](../project/decisions/0020-tilt-dev-loop.md) as needed: DTOs, the detached authorization, and the tooling (fncli, Gitea, Tilt). [0021](../project/decisions/0021-webserver-owns-the-record-and-the-rules.md): who owns the rules. [0022](../project/decisions/0022-task-isolation.md): how a task is isolated, and what is still to build.
+7. ADRs [0016](../project/decisions/0016-pydantic-dto-layer.md) to [0020](../project/decisions/0020-tilt-dev-loop.md) as needed: DTOs, the detached authorization, and the tooling (fncli, Gitea, Tilt). [0021](../project/decisions/0021-nexus-api-owns-the-record-and-the-rules.md): who owns the rules. [0022](../project/decisions/0022-task-isolation.md): how a task is isolated, and what is still to build. [0023](../project/decisions/0023-fastapi-replaces-flask.md): why FastAPI replaced Flask, and what nexus-api owns. [0025](../project/decisions/0025-fncli-bootstrap-files-diff-apply-delete.md) to [0030](../project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md): how fncli sets up a dev node from files, and how images are built.

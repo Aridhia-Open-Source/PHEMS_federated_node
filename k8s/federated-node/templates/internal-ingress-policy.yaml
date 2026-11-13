@@ -1,0 +1,70 @@
+{{- if .Values.taskNetworkPolicy.enabled }}
+{{- /*
+Renders with the task network policy (taskNetworkPolicy.enabled, on by default).
+
+Task pods may reach the private address ranges, which include in-cluster pod IPs, so the node's own
+services refuse them instead: each internal pod accepts ingress from every namespace except the
+tasks namespace. The rule names a namespace, not an address range, so it holds on any cluster CIDR.
+
+Only pods that never take traffic from outside the cluster are selected. External traffic reaches
+the cluster from an address, not from a namespace, and a namespace rule would refuse it.
+- Postgres, Gitea, the Dagster webserver and the Dagster code server have no outside route.
+  Gitea is left out when its Service is not a ClusterIP.
+- nexus-api, nexus-ui and Keycloak are reached from outside through the chart's Traefik, which is
+  a pod in the release namespace and so allowed. With traefik.enabled: false they sit behind your
+  own ingress, which may send traffic straight to pod IPs, so they are left alone.
+Traefik itself is never selected. A database or Keycloak outside the chart is not a pod here, so
+nothing applies to it.
+
+Task pods need nothing from these services: Dagster starts a task through the Kubernetes API and
+reads its logs the same way (pipes.py injects no URL or callback), results go through the artifacts
+volume, and a task's dataset database lives outside the node.
+
+A NetworkPolicy does nothing on a CNI that does not enforce it.
+*/ -}}
+{{- $tasks := include "tasks_namespace" . }}
+{{- $apps := list }}
+{{- if .Values.traefik.enabled }}
+{{- $apps = append $apps "nexus-api" }}
+{{- if .Values.nexus.ui.enabled }}
+{{- $apps = append $apps "nexus-ui" }}
+{{- end }}
+{{- end }}
+{{- if .Values.create_db_deployment }}
+{{- $apps = append $apps "postgres" }}
+{{- end }}
+{{- if and .Values.gitea.enabled (eq (.Values.gitea.service.http.type | default "ClusterIP") "ClusterIP") }}
+{{- $apps = append $apps "gitea" }}
+{{- end }}
+{{- $policies := list }}
+{{- if $apps }}
+{{- $policies = append $policies (dict "name" "internal-ingress" "namespace" .Release.Namespace "selector" (dict "matchExpressions" (list (dict "key" "app" "operator" "In" "values" $apps)))) }}
+{{- end }}
+{{- if .Values.dagster.enabled }}
+{{- $policies = append $policies (dict "name" "dagster-ingress" "namespace" .Release.Namespace "selector" (dict "matchExpressions" (list (dict "key" "component" "operator" "In" "values" (list "dagster-webserver" "dagster-code-server"))))) }}
+{{- end }}
+{{- if .Values.traefik.enabled }}
+{{- $policies = append $policies (dict "name" "keycloak-ingress" "namespace" (include "kc_namespace" .) "selector" (dict "matchLabels" (dict "app" "keycloak"))) }}
+{{- end }}
+{{- range $policies }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $.Release.Name }}-{{ .name }}
+  namespace: {{ .namespace }}
+spec:
+  podSelector:
+    {{- toYaml .selector | nindent 4 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: NotIn
+                values:
+                  - {{ $tasks | quote }}
+{{- end }}
+{{- end }}

@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -9,12 +10,34 @@ import pytest
 import requests
 
 from fncli.cmds import pr
-from fncli.cmds.pr import KINDS, PrConfig, file_for, new_branch_name
+from fncli.cmds.pr import KINDS, file_for, load_trigger, new_branch_name
+from fncli.tests.conftest import NODE, results_config, trigger_config
 from app.models import TriggerState
+
+TRIGGER = {"spec": {"image": "busybox:1"}}
+
 
 @pytest.fixture
 def config():
-    return PrConfig(pr_image="busybox:1")
+    return trigger_config()
+
+
+@pytest.fixture
+def step(monkeypatch, context_file):
+    """What the step commands read from the node, faked: the project's repository configs (change them in the test)"""
+    configs = {"trigger": trigger_config(), "results": results_config()}
+    monkeypatch.setattr(pr, "step_repo_config", lambda entity, context, project: configs[entity])
+    return configs
+
+
+@pytest.fixture(autouse=True)
+def triggers(tmp_path, monkeypatch):
+    """A triggers/ folder with the default trigger file, from the current directory"""
+    folder = tmp_path / "triggers" / "examples"
+    folder.mkdir(parents=True)
+    (folder / "demo.json").write_text(json.dumps(TRIGGER))
+    monkeypatch.chdir(tmp_path)
+    return tmp_path / "triggers"
 
 
 def spec_of(content):
@@ -25,36 +48,59 @@ def test_the_kinds():
     assert KINDS == ["watched", "unwatched", "invalid", "failing"]
 
 
-def test_watched_file_is_under_the_watch_dir_with_a_valid_spec(config):
-    path, content = file_for(config, "pr-1", "watched")
+def test_watched_file_is_the_trigger_file_under_the_watch_dir(config):
+    path, content = file_for(config, "pr-1", "watched", TRIGGER)
 
     assert path == "specs/pr-1.json"
-    assert spec_of(content) == {"name": "pr-1", "image": "busybox:1"}
+    assert json.loads(content) == TRIGGER
 
 
-def test_watched_file_carries_the_extra_env_from_test_pr_env(monkeypatch):
-    monkeypatch.setenv("TEST_PR_ENV", '{"UC1_DEV": "1"}')
-    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
+def test_watched_file_carries_all_of_the_trigger_file_as_it_is(config):
+    trigger = {
+        "spec": {"image": "busybox:1", "env": {"A": "1"}, "tags": {"team": "a"}, "config": {"k": [1]}, "compute": {}},
+        "metadata": {"owner": "me"},
+    }
+    _, content = file_for(config, "pr-1", "watched", trigger)
 
-    assert spec_of(content)["env"] == {"UC1_DEV": "1"}
+    assert json.loads(content) == trigger
+
+
+def test_a_kind_changes_a_copy_never_the_trigger_file_loaded(config):
+    trigger = {"spec": {"image": "busybox:1", "env": {"A": "1"}}}
+    file_for(config, "pr-1", "failing", trigger)
+    file_for(config, "pr-1", "invalid", trigger)
+
+    assert trigger == {"spec": {"image": "busybox:1", "env": {"A": "1"}}}
+
+
+def test_a_trigger_file_is_found_as_given_or_under_triggers_from_here_up(triggers, tmp_path, monkeypatch):
+    (triggers / "mine.json").write_text('{"spec": {"image": "mine"}}')
+    (tmp_path / "deeper" / "still").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path / "deeper" / "still")
+
+    assert load_trigger(Path("mine.json")) == {"spec": {"image": "mine"}}
+    assert load_trigger(triggers / "mine.json") == {"spec": {"image": "mine"}}
+    assert load_trigger(pr.DEFAULT_TRIGGER_FILE) == TRIGGER
+    with pytest.raises(click.BadParameter, match="nope.json not found, as given or under triggers/ from here up"):
+        load_trigger(Path("nope.json"))
 
 
 def test_invalid_file_is_watched_but_has_a_field_the_spec_forbids(config):
-    path, content = file_for(config, "pr-1", "invalid")
+    path, content = file_for(config, "pr-1", "invalid", TRIGGER)
 
     assert path.startswith("specs/") and path.endswith(".json")
-    assert spec_of(content) == {"name": "pr-1", "image": "busybox:1", "unknown_field": True}
+    assert spec_of(content) == {"image": "busybox:1", "unknown_field": True}
 
 
 def test_unwatched_file_is_outside_the_watch_dir(config):
-    path, _ = file_for(config, "pr-1", "unwatched")
+    path, _ = file_for(config, "pr-1", "unwatched", TRIGGER)
 
     assert not path.startswith(config.watch_dir)
     assert not path.endswith(".json")
 
 
 def test_repo_path_is_the_admin_user_and_repo():
-    assert PrConfig(gitea_admin_user="admin").repo_path == "admin/trigger"
+    assert trigger_config(node=NODE.model_copy(update={"gitea_admin_user": "admin"})).repo_path == "admin/trigger"
 
 
 def test_branch_names_are_prefixed_with_the_time_and_a_random_suffix():
@@ -71,24 +117,31 @@ def test_branch_names_made_in_the_same_second_differ():
 # --watch
 
 class FakeBackend:
-    def __init__(self, prs, task_status="SUCCESS", deliveries=("OPENED",)):
+    def __init__(self, prs, task_status="SUCCESS", deliveries=("OPENED",), sensors=None):
         self.prs = prs
         self.task_status = task_status
         self.deliveries = list(deliveries)
+        self.sensors = sensors or {}
 
     def get_task_results(self, project_id, task_id):
-        """Each delivery is None (no result yet), a step, or a (step, error) of a failed attempt."""
+        """
+        Each delivery is None (no result yet), a step, or a (step, error) of a failed attempt: a failed
+        push (step UNKNOWN, state FAILED) or a failed opening of the PR (step PUSHED, state DELIVERED).
+        """
         delivery = self.deliveries.pop(0) if len(self.deliveries) > 1 else self.deliveries[0]
         if delivery is None:
             return []
         step, error = delivery if isinstance(delivery, tuple) else (delivery, None)
         opened = step in ("OPENED", "MERGED", "CLOSED")
-        state = "FAILED" if error else "DELIVERED" if opened else "IN_PROGRESS"
+        state = "DELIVERED" if step != "UNKNOWN" else "FAILED" if error else "IN_PROGRESS"
         return [SimpleNamespace(
-            id=1, type="PR", task_id=task_id, step=step, state=state, attempts=1, commit_sha="abc", error=error,
-            number=3 if opened else None,
+            id=1, type="PR", task_id=task_id, results_repository_id=2, step=step, state=state, attempts=1,
+            commit_sha="abc", error=error, number=3 if opened else None,
             url="http://gitea.fn.svc:4000/gitea_admin/results/pulls/3" if opened else None,
         )]
+
+    def get_sensor_status(self, name):
+        return self.sensors.get(name, "RUNNING")
 
     def find_repository(self, uri, project_id):
         return SimpleNamespace(trigger_repository=SimpleNamespace(id=7), repo_path="gitea_admin/trigger")
@@ -107,7 +160,7 @@ class FakeBackend:
 def run_of(status):
     return {
         "runId": "abc", "status": status, "jobName": "k8s_pipes_job",
-        "tags": [{"key": "attempt", "value": "1"}],
+        "tags": [{"key": "fn/attempt", "value": "1"}],
     }
 
 
@@ -130,12 +183,15 @@ def watch(monkeypatch):
 
         dagster_api.get_task_run.side_effect = get_task_run
         dagster_api.get_sensor_state.side_effect = lambda name: {"status": (sensors or {}).get(name, "RUNNING")}
-        monkeypatch.setattr(pr, "build_backend_api", lambda config: FakeBackend(list(prs), deliveries=deliveries))
+        monkeypatch.setattr(
+            pr, "build_backend_api",
+            lambda config: FakeBackend(list(prs), deliveries=deliveries, sensors=sensors),
+        )
         monkeypatch.setattr(pr, "DagsterAPI", lambda url: dagster_api)
         monkeypatch.setattr(pr, "find_project", lambda config, api: SimpleNamespace(id=1))
         monkeypatch.setattr(pr, "POLL_SECONDS", 0)
         try:
-            pr.watch_pr(PrConfig(), 5, timeout)
+            pr.watch_pr(trigger_config(), 5, timeout)
         except click.exceptions.Exit as exit:
             return exit.exit_code
         return 0
@@ -197,13 +253,34 @@ def test_watch_ends_on_a_results_pr_already_merged_or_closed(watch, caplog, stat
     assert f"Delivery: {state}" in caplog.text
 
 
-@pytest.mark.parametrize("state", ["UNKNOWN", "PUSHED"])
-def test_watch_a_failed_delivery_stops_waiting_and_exits_one(watch, caplog, monkeypatch, state):
+def test_watch_a_pushed_result_waits_for_the_results_pr_sensor_to_open_the_pr(watch, caplog, monkeypatch):
+    caplog.set_level(logging.INFO, logger="pr")
+    monkeypatch.setattr(pr, "DELIVERY_SECONDS", 0.05)
+
+    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=["PUSHED"]) == 1
+    assert "Delivery not finished after 0.05s, last seen: PUSHED" in caplog.text
+
+
+def test_watch_a_result_is_delivered_once_pushed_when_the_results_pr_sensor_is_stopped(watch, caplog, monkeypatch):
     caplog.set_level(logging.INFO, logger="pr")
     monkeypatch.setattr(pr, "DELIVERY_SECONDS", 5)
 
-    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[(state, "zip too big")]) == 1
-    assert f"Delivery: {state}: zip too big" in caplog.text
+    assert watch(
+        [[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[None, "UNKNOWN", "PUSHED"],
+        sensors={"results_pull_request_sync_sensor": "STOPPED"},
+    ) == 0
+    assert "Delivery: PUSHED" in caplog.text
+    assert "Delivery not finished" not in caplog.text
+
+
+@pytest.mark.parametrize("step", ["UNKNOWN", "PUSHED"])
+def test_watch_a_failed_delivery_stops_waiting_and_exits_one(watch, caplog, monkeypatch, step):
+    """A failed push leaves the step UNKNOWN, a failed opening of the PR leaves it PUSHED."""
+    caplog.set_level(logging.INFO, logger="pr")
+    monkeypatch.setattr(pr, "DELIVERY_SECONDS", 5)
+
+    assert watch([[pr_of("YIELDED")]], [run_of("SUCCESS")], deliveries=[(step, "zip too big")]) == 1
+    assert f"Delivery: {step}: zip too big" in caplog.text
     assert "Delivery not finished" not in caplog.text
 
 
@@ -259,7 +336,7 @@ def test_watch_gives_up_after_too_many_connection_errors(watch, caplog):
     assert f"{pr.MAX_CONNECTION_ERRORS} connection errors in a row" in caplog.text
 
 
-def test_merge_results_pr_merges_in_the_results_repo(monkeypatch):
+def test_merge_results_pr_merges_in_the_results_repo(monkeypatch, step):
     merged = []
 
     class FakeGitea:
@@ -267,16 +344,69 @@ def test_merge_results_pr_merges_in_the_results_repo(monkeypatch):
             merged.append((repo_path, number))
 
     monkeypatch.setattr(pr, "build_git_api", lambda config: FakeGitea())
-    monkeypatch.setenv("TEST_RESULTS_REPO", "results-demo-repo")
+    step["results"] = results_config(repo="results-demo-repo")
     result = CliRunner().invoke(pr.merge_results_pr_command, ["--number", "3"])
     assert result.exit_code == 0
     assert merged == [("gitea_admin/results-demo-repo", 3)]
 
 
 def test_a_failing_file_is_a_valid_spec_whose_task_exits_non_zero(config):
-    path, content = file_for(config, "pr-1", "failing")
+    path, content = file_for(config, "pr-1", "failing", {"spec": {"image": "busybox:1", "env": {"A": "1"}}})
 
     spec = json.loads(content)["spec"]
     assert path.startswith(config.watch_dir)
-    assert spec["env"] == {"PYPIPES_EXIT_CODE": "1"}
+    assert spec["env"] == {"A": "1", "PYPIPES_EXIT_CODE": "1"}
     assert "unknown_field" not in spec
+
+
+@pytest.fixture
+def researcher(monkeypatch, step):
+    """The researcher's client, which the trigger repo's writes must use: never the node's (a token the backend mints)."""
+    researcher = MagicMock()
+    monkeypatch.setattr(pr, "build_researcher_git_api", lambda config: researcher)
+    monkeypatch.setattr(pr, "build_git_api", lambda config: pytest.fail("the trigger repo's writes are the researcher's"))
+    return researcher
+
+
+def test_create_branch_is_the_researchers_off_the_base_branch_of_the_projects_record(researcher, step):
+    step["trigger"] = trigger_config(base_branch="release")
+
+    result = CliRunner().invoke(pr.create_gitea_branch_command, ["--branch", "b1"])
+
+    assert result.exit_code == 0, result.output
+    researcher.create_branch.assert_called_once_with("gitea_admin/trigger", "b1", "release")
+
+
+def test_commit_file_is_the_researchers_and_the_content_is_the_default_trigger_file(researcher):
+    result = CliRunner().invoke(pr.commit_gitea_file_command, ["--branch", "b1"])
+
+    assert result.exit_code == 0, result.output
+    assert researcher.create_file.call_args.args[:2] == ("gitea_admin/trigger", "specs/b1.json")
+    assert json.loads(researcher.create_file.call_args.args[2]) == TRIGGER
+
+
+def test_commit_file_takes_a_trigger_file_by_option(researcher, triggers):
+    (triggers / "mine.json").write_text('{"spec": {"image": "mine"}}')
+
+    result = CliRunner().invoke(pr.commit_gitea_file_command, ["--branch", "b1", "--trigger", "mine.json"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(researcher.create_file.call_args.args[2]) == {"spec": {"image": "mine"}}
+
+
+def test_create_pr_is_the_researchers_into_the_base_branch_of_the_projects_record(researcher, step):
+    step["trigger"] = trigger_config(base_branch="release")
+    researcher.create_pull_request.return_value = {"number": 4, "html_url": "http://gitea/pulls/4"}
+
+    result = CliRunner().invoke(pr.create_gitea_pr_command, ["--branch", "b1"])
+
+    assert result.exit_code == 0, result.output
+    assert researcher.create_pull_request.call_args.kwargs["head_branch"] == "b1"
+    assert researcher.create_pull_request.call_args.kwargs["base_branch"] == "release"
+
+
+def test_merge_gitea_pr_is_the_researchers(researcher):
+    result = CliRunner().invoke(pr.merge_gitea_pr_command, ["--number", "4"])
+
+    assert result.exit_code == 0, result.output
+    researcher.merge_pull_request.assert_called_once_with("gitea_admin/trigger", 4)

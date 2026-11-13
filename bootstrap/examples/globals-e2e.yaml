@@ -1,0 +1,49 @@
+# Global resources for the dev project the end-to-end suites use: its provider, two
+# Gitea repos, OAuth-app secrets and a stand-in dataset. The project is in projects/e2e.yaml. No secret values. The e2e
+# suites run these against bootstrap/examples/context.yaml.
+#   fncli apply -f examples/globals-e2e.yaml
+#   fncli apply -f examples/projects/e2e.yaml
+#   fncli delete -f examples/projects/e2e.yaml; fncli delete -f examples/globals-e2e.yaml --all
+# The step commands (verify-project, project-set, open-pr, ...) read the project's repositories and dataset from the node,
+# once these are applied: give them --project fn-dev, or make it the context's defaults.project (the e2e suites do).
+# Names: lowercase letters, digits, '-' and '.' only, because they become Secret labels.
+version: 1
+
+providers:
+  - name: gitea-local                              # the same name in every file for this Gitea, or applying one renames it for the others
+    type: gitea
+    uri: http://gitea.fn.svc:4000                  # as the node sees it, not the port-forward
+    api_uri: http://gitea.fn.svc:4000/api/v1
+
+secrets:
+  # Gitea tells OAuth apps apart by name: these differ from the demo's and the experiments', or replacing
+  # one token invalidates the other.
+  fn-trigger-repo-creds:
+    gitea_oauth: {app: fn-sensor}
+  fn-results-repo-creds:
+    gitea_oauth: {app: fn-results}
+  dev-dataset-dataset-creds:                       # stand-in credentials: its database is a dummy
+    values:
+      USERNAME: {generate: {length: 16}}
+      PASSWORD: {generate: {length: 24}}
+
+repositories:
+  triggers:
+    - uri: "http://gitea.fn.svc:4000/gitea_admin/fn-trigger-repo"
+      secret: fn-trigger-repo-creds
+  results:
+    - uri: "http://gitea.fn.svc:4000/gitea_admin/fn-results-repo"
+      secret: fn-results-repo-creds
+
+datasets:                                          # dataset names are unique across the whole node
+  - name: dev-dataset
+    type: postgres
+    host: db-datasets.experiments.svc
+    port: 5432
+    read_schema: cdm
+    write_schema: results
+    secret: dev-dataset-dataset-creds
+
+gitea:
+  provider: gitea-local
+  create_repositories: true

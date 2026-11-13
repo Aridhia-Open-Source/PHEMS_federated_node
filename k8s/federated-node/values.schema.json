@@ -11,10 +11,6 @@
                 "null"
             ]
         },
-        "taskReview": {
-            "type": "boolean",
-            "default": false
-        },
         "capacity": {
             "type": "string",
             "description": "How much to reserve for tasks, defaults to 10Gi. Other possible units are Mi, Ti, Ki",
@@ -52,6 +48,10 @@
                 "quarantine": {
                     "type": "string",
                     "default": "fn-quarantine"
+                },
+                "secrets": {
+                    "type": "string",
+                    "default": "fn-secrets"
                 }
             }
         },
@@ -61,18 +61,73 @@
                 "type": "string",
                 "pattern": "^[0-9]{1,3}/.[0-9]{1,3}/.[0-9]{1,3}/.[0-9]{1,3}(//[0-9]{1,3}){0,1}$"
             }
+        },
+        "cpuQuantity": {
+            "type": "string",
+            "description": "CPU in cores or millicores, e.g. 2, 0.5 or 500m",
+            "pattern": "^(\\d+m|\\d+(\\.\\d+)?)$"
+        },
+        "memoryQuantity": {
+            "type": "string",
+            "description": "Memory as a whole number with an optional unit, e.g. 512Mi, 4Gi or 2e9",
+            "pattern": "^\\d+(e\\d+|[EPTGM]i?|Ki|k|m)?$"
+        },
+        "computeQuantities": {
+            "type": "object",
+            "required": [
+                "cpu",
+                "memory"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "cpu": {
+                    "$ref": "#/definitions/cpuQuantity"
+                },
+                "memory": {
+                    "$ref": "#/definitions/memoryQuantity"
+                }
+            }
         }
     },
     "properties": {
-        "backend": {
+        "nexus": {
             "type": "object",
             "properties": {
-                "replicas": {
-                    "type": "integer",
-                    "default": 1
+                "api": {
+                    "type": "object",
+                    "properties": {
+                        "port": {
+                            "type": "integer",
+                            "default": 5000
+                        },
+                        "replicas": {
+                            "type": "integer",
+                            "default": 1
+                        },
+                        "tag": {
+                            "$ref": "#/definitions/tag"
+                        }
+                    }
                 },
-                "tag": {
-                    "$ref": "#/definitions/tag"
+                "ui": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "devServer": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "replicas": {
+                            "type": "integer",
+                            "default": 1
+                        },
+                        "tag": {
+                            "$ref": "#/definitions/tag"
+                        }
+                    }
                 }
             }
         },
@@ -99,23 +154,44 @@
                 "tokenCacheSeconds": {
                     "type": "integer",
                     "default": 30,
-                    "description": "Seconds a service-account token may be cached by the backend. 0 disables caching."
+                    "description": "Seconds a service-account token may be cached by nexus-api. 0 disables caching."
                 },
                 "credentialRotation": {
                     "type": "object",
                     "description": "Automatic rotation of platform-managed Keycloak credentials. Requires volume-mounted credentials; never rotates the operator-owned admin password.",
                     "properties": {
-                        "enabled": {"type": "boolean", "default": false},
-                        "schedule": {"type": "string", "default": "0 3 1 * *", "description": "Cron schedule. Cron cannot express exactly 30 days; monthly is the closest equivalent."},
+                        "enabled": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "schedule": {
+                            "type": "string",
+                            "default": "0 3 1 * *",
+                            "description": "Cron schedule. Cron cannot express exactly 30 days; monthly is the closest equivalent."
+                        },
                         "rotate": {
                             "type": "object",
                             "properties": {
-                                "clientSecret": {"type": "boolean", "default": true},
-                                "servicePassword": {"type": "boolean", "default": true},
-                                "dagsterPassword": {"type": "boolean", "default": true}
+                                "clientSecret": {
+                                    "type": "boolean",
+                                    "default": true
+                                },
+                                "servicePassword": {
+                                    "type": "boolean",
+                                    "default": true
+                                },
+                                "dagsterPassword": {
+                                    "type": "boolean",
+                                    "default": true
+                                }
                             }
                         }
                     }
+                },
+                "allowExternalEgress": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Leave Keycloak's egress unrestricted. By default (with taskNetworkPolicy.enabled) its pods reach only cluster DNS, pods in the cluster and taskNetworkPolicy.privateEgress, so set true for an external identity provider or a database on a public address."
                 },
                 "manageRealm": {
                     "type": "boolean",
@@ -241,7 +317,7 @@
                                 "null"
                             ]
                         },
-                        "backend": {
+                        "nexus": {
                             "type": [
                                 "string",
                                 "null"
@@ -273,8 +349,34 @@
                 }
             }
         },
-        "taskReview": {
-            "$ref": "#/definitions/taskReview"
+        "taskNetworkPolicy": {
+            "type": "object",
+            "description": "Network access of task pods. On by default: the tasks namespace denies all ingress, and all egress except DNS, privateEgress and datasetEgress, so task pods cannot reach the public internet",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Create the NetworkPolicy in the tasks namespace, and the policies that shut the node's own services (Postgres, Gitea, Dagster and, behind the chart's Traefik, nexus-api, nexus-ui and Keycloak) to the tasks namespace and keep Postgres, nexus-ui, Traefik and Keycloak off the public internet. On by default. Set false to manage policies yourself (e.g. Azure SQL redirect mode, or private endpoints whose IPs change). A database on a public address must be listed in datasetEgress"
+                },
+                "privateEgress": {
+                    "type": "array",
+                    "description": "Private address ranges (CIDRs) task pods may reach on any port. Defaults to 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16, which cover in-cluster pod and Service IPs on most clusters. Narrow it, or set [] to allow DNS and datasetEgress only",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "dns": {
+                    "type": "array",
+                    "description": "NetworkPolicy peers task pods may send DNS lookups to (UDP and TCP 53). Defaults to kube-dns in kube-system"
+                },
+                "datasetEgress": {
+                    "type": "array",
+                    "description": "NetworkPolicy egress rules for dataset databases on public addresses, which privateEgress does not cover. Every rule needs both `to` and `ports`. Empty by default",
+                    "items": {
+                        "type": "object"
+                    }
+                }
+            }
         },
         "firstUserSecret": {
             "type": "object",
@@ -307,17 +409,7 @@
             }
         },
         "federatedNode": {
-            "type": "object",
-            "properties": {
-                "enable_image_whitelist": {
-                    "type": "boolean",
-                    "default": false
-                },
-                "port": {
-                    "type": "integer",
-                    "default": 5000
-                }
-            }
+            "type": "object"
         },
         "storage": {
             "type": "object",
@@ -628,6 +720,18 @@
                     "type": "string",
                     "default": "artifacts-pvc"
                 },
+                "taskPod": {
+                    "type": "object",
+                    "description": "Limits on every task pod",
+                    "properties": {
+                        "activeDeadlineSeconds": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "default": 21600,
+                            "description": "Seconds a task pod may run before Kubernetes kills it. Keep dagster.dagsterDaemon.runMonitoring.maxRuntimeSeconds above it"
+                        }
+                    }
+                },
                 "artifacts": {
                     "type": "object",
                     "description": "Permissions on the artifacts volume that analytical (pipes) pods write results to",
@@ -680,7 +784,10 @@
                     "properties": {
                         "initialStatus": {
                             "type": "string",
-                            "enum": ["STOPPED", "RUNNING"],
+                            "enum": [
+                                "STOPPED",
+                                "RUNNING"
+                            ],
                             "default": "STOPPED",
                             "description": "Status every Dagster sensor starts in. Only applies to a sensor Dagster has not seen before"
                         },
@@ -708,7 +815,10 @@
                     "type": "object",
                     "properties": {
                         "uri": {
-                            "type": ["string", "null"],
+                            "type": [
+                                "string",
+                                "null"
+                            ],
                             "description": "In-cluster URL of the Dagster webserver, used by the API to read and toggle sensors. Empty derives it from the release name and namespace"
                         }
                     }
@@ -768,6 +878,42 @@
         "default_image_tag": {
             "$ref": "#/definitions/tag",
             "description": "Tag for every image this chart publishes. Unset means the chart's appVersion"
+        },
+        "taskCompute": {
+            "type": "object",
+            "description": "The CPU and memory of task pods: the task namespace's LimitRange defaults and max, which a spec file's compute is checked against too",
+            "required": [
+                "default",
+                "max"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "default": {
+                    "type": "object",
+                    "description": "What a container that asks for nothing gets. The default limits can't be over max, nor the default requests over the default limits",
+                    "required": [
+                        "requests",
+                        "limits"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                        "requests": {
+                            "$ref": "#/definitions/computeQuantities"
+                        },
+                        "limits": {
+                            "$ref": "#/definitions/computeQuantities"
+                        }
+                    }
+                },
+                "max": {
+                    "$ref": "#/definitions/computeQuantities"
+                }
+            }
+        },
+        "nodeId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Identifies this node (hospital) in the results delivered to the results repository (run.json, node.id). Required"
         }
     }
 }

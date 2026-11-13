@@ -1,0 +1,214 @@
+# Dev tools, environment and tasks. `mise run <task>`; `mise tasks` lists them.
+# Personal overrides go in mise.local.toml (gitignored).
+
+[tools]
+# dagster/Dockerfile (python:3.12-slim). nexus/api needs 3.13, pinned in nexus/api/mise.toml.
+python = "3.12"
+# nexus/ui/Dockerfile (node:20-alpine)
+node = "20"
+# Nothing in the repo or CI pins these: current stable. helm stays on v3 (DEPLOYMENT.md).
+kind = "0.33.0"
+kubectl = "1.37.2"
+helm = "3.22.1"
+tilt = "0.37.8"
+
+[env]
+_.file = ".dev.env"
+# fncli lives here (see `setup`), so it is on the PATH anywhere in the repo
+_.python.venv = { path = ".venv", create = true }
+
+[tasks.setup]
+description = "Install the pinned tools, the fncli virtualenv and the nexus/api and dagster virtualenvs"
+run = [
+  "command -v pyenv >/dev/null && mise sync python --pyenv || true",
+  "mise install",
+  # fncli, editable, into the root .venv (mise creates it)
+  "mise exec -- python -m pip install -e './dagster[cli]'",
+  "mise -C nexus/api install",
+  "mise -C dagster install",
+  # requirements-dev.txt is a superset of requirements.txt (adds pytest, pylint)
+  "mise -C nexus/api exec -- python -m pip install -r requirements-dev.txt",
+  "mise -C dagster exec -- python -m pip install -r requirements.txt",
+  "mise -C dagster exec -- python -m pip install --no-deps -e '.[cli]'",
+  # pip-compile resolves for the Python it runs on, so each component's own interpreter gets it
+  "mise -C nexus/api exec -- python -m pip install pip-tools",
+  "mise -C dagster exec -- python -m pip install pip-tools",
+  "mise -C build exec -- python -m pip install pip-tools",
+  # Print only, never edits the shell config. `mise run` works without activation;
+  # activating adds automatic tool and venv switching on cd.
+  '''
+  if [ -z "${MISE_SHELL:-}" ]; then
+    case "$(basename "${SHELL:-bash}")" in
+      zsh) line='eval "$(mise activate zsh)"'; file='~/.zshrc' ;;
+      fish) line='mise activate fish | source'; file='~/.config/fish/config.fish' ;;
+      *) line='eval "$(mise activate bash)"'; file='~/.bashrc' ;;
+    esac
+    echo
+    echo "mise is not activated in this shell. Add this line to $file and restart the shell:"
+    echo "  $line"
+  fi
+  ''',
+]
+
+[tasks.init-conf]
+description = "Create .dev.env and dev.values.yaml from the examples, ask for the first Keycloak user"
+run = "./scripts/init_conf.sh"
+
+[tasks.hadolint]
+description = "Lint the Dockerfiles"
+run = "./scripts/run_hadolint.sh"
+
+[tasks.pylint]
+description = "Lint nexus-api, or Dagster with `mise run pylint dagster`"
+usage = '''
+arg "[project]" default="nexus-api" help="nexus-api or dagster" {
+  choices "nexus-api" "dagster"
+}
+'''
+run = 'if [ "$usage_project" = dagster ]; then PROJECT=dagster ./scripts/pylint.sh; else ./scripts/pylint.sh; fi'
+
+[tasks.tests-dagster]
+description = "Run the Dagster tests the way CI does"
+run = "cd dagster && ./run_tests.sh ci"
+
+# mise run helm lint | template | tests | deps
+# charts/ is gitignored, so a fresh checkout has no subcharts and helm refuses to lint or
+# render: lint and template build them first. template renders with no cluster access, which
+# guards against a lookup that ArgoCD or CI cannot do.
+[tasks.helm]
+description = "Chart: lint, template (render with no cluster), tests (helm-unittest) or deps (build the subcharts)"
+usage = '''
+arg "<action>" help="lint, template, tests or deps" {
+  choices "lint" "template" "tests" "deps"
+}
+'''
+run = '''
+deps() { (cd k8s/federated-node && { helm dependency build || helm dependency update; }); }
+values=k8s/federated-node/dev.example.values.yml
+case "$usage_action" in
+  deps) deps ;;
+  tests) ./scripts/run_helm_tests.sh ;;
+  lint) deps && helm lint k8s/federated-node -f "$values" ;;
+  template) deps && helm template fn k8s/federated-node -f "$values" >/dev/null ;;
+esac
+'''
+
+[tasks.show-db-passwords]
+description = "Print the generated database passwords"
+quiet = true
+run = '''
+kubectl get secret -l federatednode.com/generated-password=true \
+  -o go-template='{% raw %}{{range .items}}{{printf "%-26s" .metadata.name}}{{range $k, $v := .data}}{{$k}}={{$v | base64decode}}{{end}}{{"\n"}}{{end}}{% endraw %}'
+'''
+
+# mise run pip-compile --dir nexus/api [--out requirements-dev.txt] [-- --upgrade]
+[tasks.pip-compile]
+description = "Lock a component's requirements"
+usage = '''
+flag "--dir <dir>" required=#true help="Component directory, e.g. nexus/api"
+flag "--out <file>" help="Output file (default requirements.txt)"
+arg "[flags]..." var=#true help="Extra pip-compile flags, e.g. --upgrade"
+'''
+run = './scripts/pip_compile.sh "$usage_dir" ${usage_out:-} ${usage_flags:-}'
+
+# Images are docker buildx bake targets, see docker-bake.hcl. Dev images are tagged latest and pushed to localhost:5001.
+[tasks.images]
+description = "Build and push every image to localhost:5001"
+run = "scripts/build_images.sh"
+
+[tasks.image]
+description = "Build and push one image, e.g. --target nexus-api-fn"
+usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
+run = 'scripts/build_images.sh "$usage_target"'
+
+[tasks.image-reload]
+description = "Build and push one image, then restart the deployments"
+usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
+run = 'scripts/build_images.sh "$usage_target" && kubectl rollout restart deployment'
+
+# The ghcr.io images the release publishes, tagged and loaded into the local docker, not pushed
+[tasks.images-release]
+description = "Build the release images into the local docker"
+usage = 'flag "--tag <tag>" default="1.0" help="Image tag, e.g. 1.2.3"'
+run = 'TAG="$usage_tag" docker buildx bake -f docker-bake.hcl release --load'
+
+[tasks.reload-app]
+description = "Rebuild the Dagster and nexus-api images and restart their pods"
+run = "./scripts/reload_app.sh"
+
+# mise run cluster up | down [--remove-registries] [--force-owner]
+[tasks.cluster]
+description = "Start (up) or delete (down) the kind cluster; down keeps the registries unless --remove-registries"
+quiet = true
+usage = '''
+arg "<action>" help="up or down" {
+  choices "up" "down"
+}
+flag "--remove-registries" help="down: also delete the registries"
+flag "--force-owner" help="down: delete the cluster even if another worktree owns it"
+'''
+run = 'env ${usage_force_owner:+FORCE_OWNER=1} ./scripts/cluster.sh "$usage_action" ${usage_remove_registries:+--remove-registries}'
+
+[tasks.deploy]
+description = "Build images, install or upgrade the Helm release, restart the app pods"
+usage = 'flag "--force-owner" help="Take over the dev cluster from another worktree"'
+run = 'env ${usage_force_owner:+FORCE_OWNER=1} ./scripts/deploy.sh'
+
+[tasks.teardown]
+description = "Remove the deployment and its persistent data"
+run = "./scripts/teardown.sh"
+
+[tasks.portfwd]
+description = "Port-forward the node's services (when Tilt is not running)"
+run = "./scripts/portfwd.sh"
+
+[tasks.deploy-owner]
+description = "Show which worktree owns the dev cluster"
+run = "./scripts/deploy_owner.sh show"
+
+# New sibling worktree with the gitignored dev config copied in
+[tasks.worktree]
+description = "New sibling worktree with the dev config"
+quiet = true
+usage = '''
+flag "--name <name>" required=#true help="Directory name of the new sibling worktree"
+flag "--branch <branch>" required=#true help="Branch to create"
+flag "--base <ref>" help="Base ref (default HEAD)"
+'''
+run = './scripts/new-worktree.sh "$usage_name" "$usage_branch" ${usage_base:+"$usage_base"}'
+
+# mise run docs [--port 8001] [--version 2.x]
+[tasks.docs]
+description = "Serve every docs version with the dropdown and live reload; --version for just one"
+quiet = true
+env = { NO_MKDOCS_2_WARNING = "1" }
+usage = '''
+flag "--version <version>" help="Only this folder under docs/versions"
+flag "--port <port>" default="8000" help="Local port"
+'''
+run = '''
+[ -x .venv-docs/bin/livereload ] || { python -m venv .venv-docs && .venv-docs/bin/pip install -q -r docs-requirements.txt livereload; }
+# Served under /<repo>/docs/<version>/, like the published site minus the branch
+origin=$(git remote get-url origin)
+repo=$(basename -s .git "$origin")
+base="/$repo/docs"
+# This branch's published docs, from the origin remote and the branch name (same names as docs.yml)
+owner=$(printf %s "$origin" | sed -E 's#^(git@[^:]+:|https?://[^/]+/)##; s#/.*##' | tr '[:upper:]' '[:lower:]')
+branch=$(git branch --show-current)
+case "$branch" in
+  dagster-develop) slug=beta/develop ;;
+  dagster-main) slug=beta/main ;;
+  *) slug=$(printf %s "$branch" | tr / -) ;;
+esac
+remote="https://$owner.github.io/$repo/docs/$slug/"
+if [ -n "${usage_version:-}" ]; then
+  v="$usage_version"
+  # A local config that inherits the version's own, so only site_url (the served path) changes
+  local_cfg="docs/versions/$v/.mkdocs.local.yml"
+  printf 'INHERIT: mkdocs.yml\nsite_url: http://localhost:%s%s/%s/\n' "$usage_port" "$base" "$v" > "$local_cfg"
+  echo "local:  http://localhost:$usage_port$base/$v/"
+  echo "remote: $remote"
+  exec .venv-docs/bin/mkdocs serve -q -f "$local_cfg" -a "localhost:$usage_port"
+fi
+exec .venv-docs/bin/python scripts/docs_serve.py "$base" "$usage_port" "$remote"
+'''

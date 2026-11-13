@@ -1,11 +1,10 @@
-import base64
 import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from app.definitions import pipes
-from app.secrets import K8sSecretProvider
+from app.models import TaskResources
 from app.definitions.pipes import (
     K8sPipe,
     K8sPipesResponse,
@@ -19,6 +18,7 @@ PIPES_ENV = {
     "DAGSTER_TASK_NAMESPACE": "tasks",
     "DAGSTER_ARTIFACTS_PVC_NAME": "artifacts-pvc",
     "DAGSTER_ARTIFACT_MOUNT_PATH": "/mnt/dagster/artifacts",
+    "DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS": "21600",
 }
 
 SECURITY_CONTEXT_ENV = (
@@ -36,9 +36,11 @@ DATASET_CONFIG = {
         "type": "postgres",
         "read_schema": "cdm_schema",
         "write_schema": "results",
-        "secret": {"provider": "K8S", "key": "db-host-cdm-creds", "namespace": "fn"},
     }
 }
+
+# What nexus-api answers when the run asks for its Secret and ConfigMap: their names, for the pod's spec
+RESOURCES = TaskResources(secret="task-9-run-1", config_map="task-9-run-1-config")
 
 
 @pytest.fixture
@@ -49,48 +51,52 @@ def pipes_env(monkeypatch):
         monkeypatch.delenv(key, raising=False)
 
 
-def make_pipe(client=None, ext_env=None, **config):
+def make_pipe(client=None, backend_api=None, ext_env=None, **config):
     context = MagicMock()
     context.run_id = "run-1"
+    context.dagster_run.tags = {"fn/task_id": "9", "fn/project_id": "3"}
     context.op_config = {"docker_image": "ghcr.io/org/experiment:latest", **config}
-    return K8sPipe(client=client or MagicMock(), context=context, ext_env=ext_env)
+    if backend_api is None:
+        backend_api = MagicMock()
+        backend_api.create_task_resources.return_value = RESOURCES
+    return K8sPipe(client=client or MagicMock(), backend_api=backend_api, context=context, ext_env=ext_env)
 
 
 class TestBasePodSpec:
     def test_task_pod_gets_no_service_account_token(self, pipes_env):
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["automountServiceAccountToken"] is False
         assert "serviceAccountName" not in spec
 
     def test_pod_defaults(self, pipes_env):
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["restartPolicy"] == "Never"
         assert spec["terminationGracePeriodSeconds"] == TERMINATION_GRACE_PERIOD_SECONDS
         assert spec["containers"][0]["imagePullPolicy"] == "Always"
 
     def test_no_image_pull_secrets_without_one_configured(self, pipes_env):
-        assert "imagePullSecrets" not in make_pipe()._build_base_pod_spec()
+        assert "imagePullSecrets" not in make_pipe()._build_base_pod_spec(RESOURCES)
 
     def test_image_pull_secrets_from_config(self, pipes_env):
-        spec = make_pipe(image_pull_secret="ghcr-io")._build_base_pod_spec()
+        spec = make_pipe(image_pull_secret="ghcr-io")._build_base_pod_spec(RESOURCES)
 
         assert spec["imagePullSecrets"] == [{"name": "ghcr-io"}]
 
     def test_no_security_context_when_unset(self, pipes_env):
-        assert "securityContext" not in make_pipe()._build_base_pod_spec()
+        assert "securityContext" not in make_pipe()._build_base_pod_spec(RESOURCES)
 
     def test_security_context_from_env(self, pipes_env, monkeypatch):
         monkeypatch.setenv("DAGSTER_PIPES_RUN_AS_USER", "1001")
         monkeypatch.setenv("DAGSTER_PIPES_FS_GROUP", "2001")
 
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["securityContext"] == {"fsGroup": 2001, "runAsUser": 1001}
 
-    def test_volume_is_the_artifacts_claim(self, pipes_env):
-        spec = make_pipe()._build_base_pod_spec()
+    def test_volume_is_the_artifacts_claim_mounted_at_the_runs_folder_only(self, pipes_env):
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["volumes"] == [{
             "name": "artifacts-pvc",
@@ -98,13 +104,53 @@ class TestBasePodSpec:
         }]
         assert spec["containers"][0]["volumeMounts"] == [{
             "name": "artifacts-pvc",
-            "mountPath": "/mnt/dagster/artifacts",
+            "mountPath": "/mnt/dagster/artifacts/run-1",
+            "subPath": "run-1",
         }]
 
+    def test_pod_is_killed_at_its_deadline(self, pipes_env):
+        assert make_pipe()._build_base_pod_spec(RESOURCES)["activeDeadlineSeconds"] == 21600
+
+    def test_missing_deadline_is_not_defaulted(self, pipes_env, monkeypatch):
+        monkeypatch.delenv("DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS")
+
+        with pytest.raises(KeyError):
+            make_pipe()
+
+    def test_container_is_locked_down(self, pipes_env):
+        container = make_pipe()._build_base_pod_spec(RESOURCES)["containers"][0]
+
+        assert container["securityContext"] == {
+            "allowPrivilegeEscalation": False,
+            "capabilities": {"drop": ["ALL"]},
+            "seccompProfile": {"type": "RuntimeDefault"},
+            "runAsNonRoot": True,
+        }
+
+    def test_the_container_has_no_resources_of_its_own(self, pipes_env):
+        """The spec has none to pass."""
+        assert "resources" not in make_pipe()._build_base_pod_spec(RESOURCES)["containers"][0]
+
     def test_container_is_named_for_the_run(self, pipes_env):
-        spec = make_pipe()._build_base_pod_spec()
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
         assert spec["containers"][0]["name"] == "pipes-run-1"
+
+    def test_a_dataset_task_has_its_limits_hardening_run_folder_and_secret_env_together(self, pipes_env):
+        resources = {"limits": {"cpu": "1", "memory": "2Gi"}}
+
+        spec = make_pipe(compute=resources, **DATASET_CONFIG)._build_base_pod_spec(RESOURCES)
+
+        container = spec["containers"][0]
+        names = [e["name"] for e in container["env"]]
+        assert container["resources"] == resources
+        assert container["securityContext"]["runAsNonRoot"] is True
+        assert spec["activeDeadlineSeconds"] == 21600
+        assert container["volumeMounts"][0]["subPath"] == "run-1"
+        assert container["env"][names.index("DB_PASSWORD")]["valueFrom"]["secretKeyRef"] == {
+            "name": "task-9-run-1", "key": "PASSWORD"
+        }
+        assert names[-3:] == ["DB_USERNAME", "DB_PASSWORD", "CONNECTION_STRING"]
 
 
 class TestNamespaces:
@@ -184,28 +230,36 @@ class TestEnvironment:
         assert pipe.env["KEY"] == "external"
 
     def test_pod_env_keys_are_upper_cased_strings(self, pipes_env):
-        env = make_pipe(env={"lower": 1})._pod_env()
+        env = make_pipe(env={"lower": 1})._pod_env(RESOURCES)
 
         assert {"name": "LOWER", "value": "1"} in env
 
     def test_no_connection_string_without_a_dataset(self, pipes_env):
-        names = [e["name"] for e in make_pipe()._pod_env()]
+        names = [e["name"] for e in make_pipe()._pod_env(RESOURCES)]
 
         assert "CONNECTION_STRING" not in names
 
-    def test_connection_string_is_resolved_from_the_secret(self, pipes_env):
-        pipe = make_pipe(**DATASET_CONFIG)
+    def test_credentials_come_from_the_secret_nexus_api_made_not_the_pod_spec(self, pipes_env):
+        env = make_pipe(**DATASET_CONFIG)._pod_env(RESOURCES)
 
-        with patch.object(pipes.SecretProvider, "get", side_effect=["user", "pass"]) as secret:
-            env = pipe._pod_env()
+        names = [e["name"] for e in env]
+        assert env[names.index("DB_USERNAME")] == {
+            "name": "DB_USERNAME", "valueFrom": {"secretKeyRef": {"name": "task-9-run-1", "key": "USERNAME"}}
+        }
+        assert env[names.index("DB_PASSWORD")] == {
+            "name": "DB_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "task-9-run-1", "key": "PASSWORD"}}
+        }
 
-        connstr = next(e["value"] for e in env if e["name"] == "CONNECTION_STRING")
+    def test_connection_string_refers_to_the_secret_variables_defined_before_it(self, pipes_env):
+        env = make_pipe(**DATASET_CONFIG)._pod_env(RESOURCES)
+
+        names = [e["name"] for e in env]
+        connstr = env[names.index("CONNECTION_STRING")]["value"]
         assert connstr == (
-            "driver={PostgreSQL ANSI};Uid=user;Pwd=pass;Server=db.host,5432;Database=cdm;"
+            "driver={PostgreSQL ANSI};Uid=$(DB_USERNAME);Pwd=$(DB_PASSWORD);Server=db.host,5432;Database=cdm;"
         )
-        assert secret.call_args_list[0].args == ("db-host-cdm-creds", "fn", "USERNAME")
-        assert secret.call_args_list[1].args == ("db-host-cdm-creds", "fn", "PASSWORD")
-
+        assert names.index("DB_USERNAME") < names.index("CONNECTION_STRING")
+        assert names.index("DB_PASSWORD") < names.index("CONNECTION_STRING")
 
     @pytest.mark.parametrize("db_type, expected", [
         ("mssql", "driver={ODBC Driver 18 for SQL Server};Uid=u;Pwd=p;Server=db.host,5432;Database=cdm;"),
@@ -249,14 +303,13 @@ class TestArtifactDir:
         assert os.stat(pipe.artifact_path).st_mode & 0o777 == 0o777
         assert os.stat(pipe.mnt_base_path).st_mode & 0o755 == 0o755
 
-    def test_unwritable_mount_root_warns_rather_than_raising(self, pipes_env, tmp_path):
+    def test_unwritable_mount_root_raises(self, pipes_env, tmp_path):
+        """The task pod only mounts this folder, and the kubelet would create a missing one root-owned."""
         pipe = self._pipe_on(tmp_path, pipes_env)
 
         with patch("app.definitions.pipes.Path.mkdir", side_effect=OSError("read-only")):
-            pipe._prepare_artifact_dir()
-
-        pipe.context.log.warning.assert_called_once()
-        assert "read-only" in pipe.context.log.warning.call_args.args[0]
+            with pytest.raises(RuntimeError, match="read-only"):
+                pipe._prepare_artifact_dir()
 
     def test_chmod_failure_is_tolerated(self, pipes_env, tmp_path):
         """CIFS rejects chmod outright and already mounts 0777."""
@@ -267,6 +320,37 @@ class TestArtifactDir:
 
         assert os.path.isdir(pipe.artifact_path)
         pipe.context.log.warning.assert_not_called()
+
+
+TASK_CONFIG = {"threshold": 0.5, "labels": ["a", None], "nested": {"on": True}}
+
+
+class TestTaskConfigPod:
+    def test_a_task_without_config_gets_no_volume_mount_or_env_var(self, pipes_env):
+        spec = make_pipe()._build_base_pod_spec(RESOURCES)
+
+        assert [volume["name"] for volume in spec["volumes"]] == ["artifacts-pvc"]
+        assert [mount["name"] for mount in spec["containers"][0]["volumeMounts"]] == ["artifacts-pvc"]
+        assert "CONFIG_PATH" not in [env["name"] for env in spec["containers"][0]["env"]]
+
+    def test_the_config_is_one_read_only_file_from_the_tasks_configmap(self, pipes_env):
+        spec = make_pipe(config=TASK_CONFIG)._build_base_pod_spec(RESOURCES)
+
+        assert spec["volumes"][1] == {"name": "task-config", "configMap": {"name": "task-9-run-1-config"}}
+        assert spec["containers"][0]["volumeMounts"][1] == {
+            "name": "task-config", "mountPath": "/etc/task/config.json", "subPath": "config.json", "readOnly": True,
+        }
+        assert {"name": "CONFIG_PATH", "value": "/etc/task/config.json"} in spec["containers"][0]["env"]
+
+    def test_the_config_path_cannot_be_set_by_the_specs_env(self, pipes_env):
+        pipe = make_pipe(config=TASK_CONFIG, env={"CONFIG_PATH": "/elsewhere"})
+
+        assert pipe.env["CONFIG_PATH"] == "/etc/task/config.json"
+
+    def test_an_empty_config_is_still_a_config(self, pipes_env):
+        spec = make_pipe(config={})._build_base_pod_spec(RESOURCES)
+
+        assert spec["volumes"][1]["configMap"] == {"name": "task-9-run-1-config"}
 
 
 class TestCall:
@@ -281,6 +365,7 @@ class TestCall:
         kwargs = client.run.call_args.kwargs
         assert kwargs["namespace"] == "tasks"
         assert kwargs["image"] == "ghcr.io/org/experiment:latest"
+        assert kwargs["pod_wait_timeout"] == 21600 + TERMINATION_GRACE_PERIOD_SECONDS
         assert kwargs["base_pod_spec"]["restartPolicy"] == "Never"
         assert response.output.value == {"artifacts_path": pipe.artifact_path}
 
@@ -298,6 +383,78 @@ class TestCall:
         pipe()
 
         assert seen["existed"] is True
+
+
+class TestRunResources:
+    """The Secret and ConfigMap of the run are nexus-api's: the pipe asks for them, then names them in the pod."""
+
+    def _pipe_on(self, tmp_path, client, backend_api=None, **config):
+        pipe = make_pipe(client=client, backend_api=backend_api, **config)
+        pipe.mnt_base_path = str(tmp_path)
+        pipe.artifact_path = str(tmp_path / "run-1")
+        return pipe
+
+    def test_the_backend_is_asked_for_them_by_project_task_and_run_before_the_pod_starts(self, pipes_env, tmp_path):
+        events = []
+        backend_api = MagicMock()
+        backend_api.create_task_resources.side_effect = lambda *args: events.append(("resources", *args)) or RESOURCES
+        client = MagicMock()
+        client.run.side_effect = lambda **_: events.append(("run",))
+
+        self._pipe_on(tmp_path, client, backend_api, **DATASET_CONFIG)()
+
+        assert events == [("resources", 3, "9", "run-1"), ("run",)]
+
+    def test_the_pod_spec_names_the_secret_and_the_configmap_the_backend_returned(self, pipes_env, tmp_path):
+        client = MagicMock()
+        backend_api = MagicMock()
+        backend_api.create_task_resources.return_value = TaskResources(secret="a-secret", config_map="a-config-map")
+
+        self._pipe_on(tmp_path, client, backend_api, config=TASK_CONFIG, **DATASET_CONFIG)()
+
+        spec = client.run.call_args.kwargs["base_pod_spec"]
+        assert spec["volumes"][1]["configMap"] == {"name": "a-config-map"}
+        secret_names = {e["valueFrom"]["secretKeyRef"]["name"] for e in spec["containers"][0]["env"] if "valueFrom" in e}
+        assert secret_names == {"a-secret"}
+
+    def test_the_pod_is_labelled_with_the_run_and_the_task(self, pipes_env, tmp_path):
+        client = MagicMock()
+
+        self._pipe_on(tmp_path, client)()
+
+        assert client.run.call_args.kwargs["base_pod_meta"] == {"labels": {"fn/run_id": "run-1", "fn/task_id": "9"}}
+
+    def test_a_task_without_a_dataset_or_config_still_asks_and_names_nothing(self, pipes_env, tmp_path):
+        client = MagicMock()
+        backend_api = MagicMock()
+        backend_api.create_task_resources.return_value = TaskResources(secret=None, config_map=None)
+
+        self._pipe_on(tmp_path, client, backend_api)()
+
+        spec = client.run.call_args.kwargs["base_pod_spec"]
+        assert [volume["name"] for volume in spec["volumes"]] == ["artifacts-pvc"]
+        assert all("valueFrom" not in e for e in spec["containers"][0]["env"])
+
+    def test_a_refusal_fails_the_run_before_the_pod_starts(self, pipes_env, tmp_path):
+        client = MagicMock()
+        backend_api = MagicMock()
+        backend_api.create_task_resources.side_effect = RuntimeError("409 Conflict")
+
+        with pytest.raises(RuntimeError, match="409 Conflict"):
+            self._pipe_on(tmp_path, client, backend_api)()
+
+        client.run.assert_not_called()
+
+    @pytest.mark.parametrize("missing", ["fn/task_id", "fn/project_id"])
+    def test_a_run_without_a_task_or_project_tag_is_rejected(self, pipes_env, missing):
+        context = MagicMock()
+        context.run_id = "run-1"
+        context.dagster_run.tags = {"fn/task_id": "9", "fn/project_id": "3"}
+        del context.dagster_run.tags[missing]
+        context.op_config = {"docker_image": "img"}
+
+        with pytest.raises(KeyError, match=missing):
+            K8sPipe(client=MagicMock(), backend_api=MagicMock(), context=context)
 
 
 class TestResponse:

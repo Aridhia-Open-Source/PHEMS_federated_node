@@ -4,11 +4,8 @@ set -euo pipefail
 # Load env
 source .dev.env
 
-echo "=== Building Dagster image ==="
-./scripts/build_image.sh dagster "$DOCKER_TAG"
-
-echo "=== Building Webserver image ==="
-./scripts/build_image.sh webserver "$DOCKER_TAG"
+echo "=== Building Dagster and nexus-api images ==="
+scripts/build_images.sh dagster-fn nexus-api-fn
 
 echo
 echo "=== Restarting Dagster pods ==="
@@ -18,13 +15,13 @@ kubectl rollout restart deployment/${RELEASE_NAME}-dagster-daemon -n "$NAMESPACE
 kubectl rollout restart deployment/${RELEASE_NAME}-dagster-webserver -n "$NAMESPACE"
 kubectl rollout restart "deployment/${RELEASE_NAME}-${DAGSTER_USER_DEPLOYMENT}" -n "$NAMESPACE"
 
-echo "=== Restarting Backend pod ==="
-kubectl rollout restart deployment/backend -n "$NAMESPACE"
+echo "=== Restarting nexus-api pod ==="
+kubectl rollout restart deployment/nexus-api -n "$NAMESPACE"
 
 echo
 echo "=== Waiting for rollout to complete ==="
-kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=5m
+kubectl rollout status deployment/nexus-api -n "$NAMESPACE" --timeout=5m
 
 echo
 echo "=== Pods refreshed successfully ==="
-kubectl get pods -n "$NAMESPACE" | grep -E "dagster|backend"
+kubectl get pods -n "$NAMESPACE" | grep -E "dagster|nexus-api"

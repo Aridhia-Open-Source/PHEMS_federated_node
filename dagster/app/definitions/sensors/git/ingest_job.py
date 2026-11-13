@@ -34,7 +34,7 @@ def ingest_pull_requests(context: OpExecCtx):
     git_api = git_apis.for_repository(repo)
 
     context.log.info(f"Fetching PRs for {repo.repo_path} since {repo.pr_cursor}")
-    merged = git_api.get_new_merged_pulls(repo_path=repo.repo_path, merged_after=repo.pr_cursor)
+    merged = git_api.get_pulls(repo_path=repo.repo_path, since=repo.pr_cursor, state="closed", merged_only=True)
     context.log.info(f"Git provider returned {len(merged)} PRs for {repo.repo_path}")
 
     pull_requests = sorted(
@@ -51,6 +51,6 @@ def ingest_pull_requests(context: OpExecCtx):
 def ingest_pull_requests_job():
     """
     Ingest the new merged pull requests of one global trigger repository (run config: repo_id).
-    Its tags are trigger=ingest and repo_id, never trigger=task: the run-status sensors act on that.
+    Its tags are fn/trigger=ingest and fn/repo_id, never fn/trigger=task: the run-status sensors act on that.
     """
     ingest_pull_requests()  # pylint: disable=no-value-for-parameter  # Dagster injects context

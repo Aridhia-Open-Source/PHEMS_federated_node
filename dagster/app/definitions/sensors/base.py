@@ -1,3 +1,4 @@
+import json
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Iterable, Union
@@ -5,7 +6,7 @@ from typing import Any, Iterable, Union
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
-from app.config import SENSOR_RETRY_INTERVAL_SECONDS
+from app.config import SENSOR_RETRY_INTERVAL_SECONDS, ArtifactsVolumeConfig
 
 IN_FLIGHT = [dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.QUEUED, dg.DagsterRunStatus.STARTING,
              dg.DagsterRunStatus.STARTED]
@@ -22,6 +23,25 @@ def run_key(kind: str, item_id: Any = None, state: Any = None) -> str:
     """
     slot = int(time.time() // SENSOR_RETRY_INTERVAL_SECONDS)
     return "/".join(str(part) for part in (kind, item_id, state, slot) if part is not None)
+
+
+def artifacts_volume_tags(run_id: str | None = None) -> dict[str, str]:
+    """
+    The run tag that gives a run pod the artifacts volume. The run launcher mounts nothing: a mount from
+    its config would reach every run, and a run tag only adds to it.
+    Without run_id, the whole volume read-write: a task's run pod creates the run's folder in it. With one, only
+    that run's folder, read-only, at the path delivery reads it from.
+    """
+    config = ArtifactsVolumeConfig()
+    mount = {"name": config.pvc_name, "mountPath": config.mount_path}
+    if run_id:
+        mount = {**mount, "mountPath": f"{config.mount_path}/{run_id}", "subPath": run_id, "readOnly": True}
+    return {"dagster-k8s/config": json.dumps({
+        "pod_spec_config": {"volumes": [
+            {"name": config.pvc_name, "persistentVolumeClaim": {"claimName": config.pvc_name}}
+        ]},
+        "container_config": {"volume_mounts": [mount]},
+    })}
 
 
 def run_in_flight(context: Union[OpExecCtx, dg.SensorEvaluationContext], job: Any, tags: dict[str, str]) -> bool:
@@ -71,6 +91,10 @@ class LaunchingSensor(BaseSensor):
     def tags(self, item: Any) -> dict[str, str]:
         """The tags of the item's run, which also find its runs in flight."""
 
+    def in_flight(self, item: Any) -> bool:
+        """Whether the item has a run queued or started. A sensor that launches more than one job overrides it."""
+        return run_in_flight(self.context, self.job, self.tags(item))
+
     @abstractmethod
     def ready(self, item: Any) -> bool:
         """Whether the item needs a run now. May call the backend or the git provider."""
@@ -92,7 +116,7 @@ class LaunchingSensor(BaseSensor):
         failed = []
         for item in self.items():
             try:
-                if run_in_flight(self.context, self.job, self.tags(item)):
+                if self.in_flight(item):
                     self.log.info(f"{self.describe(item)} is already in flight")
                     continue
                 if not self.ready(item):

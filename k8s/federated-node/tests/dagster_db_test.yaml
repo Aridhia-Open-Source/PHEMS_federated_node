@@ -46,7 +46,7 @@ tests:
       - failedTemplate:
           errorPattern: "must equal db.port"
 
-  - it: refuses TLS for the backend but not for Dagster
+  - it: refuses TLS for nexus-api but not for Dagster
     template: requirements-check.yaml
     set:
       db:
@@ -118,6 +118,21 @@ tests:
           path: kind
           value: ConfigMap
 
+  - it: passes the node id to dagster, which writes it in the results
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.NODE_ID
+          value: test-node
+
+  - it: refuses to render without a node id
+    template: dagster-env-config.yaml
+    set:
+      nodeId: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "nodeId"
+
   - it: passes the initial sensor status to the code server, STOPPED by default
     template: dagster-env-config.yaml
     asserts:
@@ -172,6 +187,34 @@ tests:
           path: data.DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS
           value: "5"
 
+  - it: passes the task pod deadline to the code server, 6 hours by default
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS
+          value: "21600"
+
+  - it: passes a configured task pod deadline to the code server
+    template: dagster-env-config.yaml
+    set:
+      fnDagster:
+        taskPod:
+          activeDeadlineSeconds: 600
+    asserts:
+      - equal:
+          path: data.DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS
+          value: "600"
+
+  - it: runs task pods as a non-root uid and gid by default
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_PIPES_RUN_AS_USER
+          value: "1001"
+      - equal:
+          path: data.DAGSTER_PIPES_RUN_AS_GROUP
+          value: "1001"
+
   - it: passes the delivery max attempts to the code server, 5 by default
     template: dagster-env-config.yaml
     asserts:
@@ -200,14 +243,14 @@ tests:
       - failedTemplate: {}
 
   - it: derives the Dagster webserver address from the release name and namespace
-    template: backend-configmap.yaml
+    template: nexus-api-configmap.yaml
     asserts:
       - equal:
           path: data.DAGSTER_WEBSERVER_URI
           value: http://federatednode-dagster-webserver.federatednode.svc:80
 
   - it: prefers an explicit fnDagster.webserver.uri over the derived Dagster webserver address
-    template: backend-configmap.yaml
+    template: nexus-api-configmap.yaml
     set:
       fnDagster:
         webserver:

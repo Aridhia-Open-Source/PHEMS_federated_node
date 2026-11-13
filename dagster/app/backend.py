@@ -1,11 +1,12 @@
 import logging
 from http import HTTPStatus
+from typing import Literal
 
 from app.utils import BackendSession
 from app.models import (
-    ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
+    GitToken, ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
     ResultsRepository, Task,
-    TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision
+    TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision, TaskResources
 )
 
 default_logger = logging.getLogger(__name__)
@@ -32,13 +33,13 @@ class BackendAPI:
         return data
 
     def get_projects(self, **filters: bool) -> list[Project]:
-        """Get all projects, automatically handling pagination. Filters are the webserver's, e.g. enabled=True."""
+        """Get all projects, automatically handling pagination. Filters are nexus-api's, e.g. enabled=True."""
         self.logger.info("Fetching projects")
         query = {name: str(value).lower() for name, value in filters.items()}
         projects = []
         page = 1
         while True:
-            response = self.session.get("/projects", params={**query, "page": page, "per_page": 100})
+            response = self.session.get("/projects", params={**query, "page": page, "size": 100})
             data = response.json()
             projects.extend(Project(**project) for project in data["items"])
             if page >= data["pages"]:
@@ -82,15 +83,15 @@ class BackendAPI:
     def get_pull_requests(self, project_id: int, repository_id: int, **filters: str | int) -> list[PullRequestTrigger]:
         """
         Get all pull requests of a project's trigger repository, automatically handling pagination.
-        Filters are the webserver's, e.g. state=.
+        Filters are nexus-api's, e.g. state=.
         """
         self.logger.info(f"Fetching pull requests for repo {repository_id} matching {filters}")
         all_prs = []
         page = 1
-        per_page = 100
+        size = 100
 
         while True:
-            params = {**filters, "page": page, "per_page": per_page}
+            params = {**filters, "page": page, "size": size}
             response = self.session.get(
                 f"/projects/{project_id}/repositories/triggers/{repository_id}/pull_requests",
                 params=params,
@@ -170,9 +171,9 @@ class BackendAPI:
         tasks = []
         page = 1
         while True:
-            response = self.session.get("/tasks", params={**query, "page": page, "per_page": 100})
+            response = self.session.get("/tasks", params={**query, "page": page, "size": 100})
             data = response.json()
-            tasks.extend(Task(**task) for task in data["tasks"])
+            tasks.extend(Task(**task) for task in data["items"])
             if page >= data["pages"]:
                 return tasks
             page += 1
@@ -209,6 +210,16 @@ class BackendAPI:
         response.raise_for_status()
         return LaunchDecision(**response.json())
 
+    def create_task_resources(self, project_id: int, task_id: int, run_id: str) -> TaskResources:
+        """
+        The run calls this before it starts the task pod. The backend creates the run's Secret (the dataset's credentials,
+        read by the backend and never returned) and ConfigMap (the config file) in the tasks namespace, labelled with the
+        run and the task, deletes them when the task finishes, and returns their names. 409 if the run has them already.
+        """
+        self.logger.info(f"Creating the Secret and ConfigMap of run {run_id} of task {task_id}")
+        response = self.session.post(f"/projects/{project_id}/tasks/{task_id}/runs/{run_id}/resources")
+        return TaskResources(**response.json())
+
     def get_task_trigger(self, project_id: int, task_id: int) -> TaskTrigger:
         """Get the pull request that yielded a task, with its trigger repository. 404 if the task has none."""
         self.logger.info(f"Fetching the trigger of task {task_id}")
@@ -226,6 +237,23 @@ class BackendAPI:
         self.logger.info(f"Fetching results repository {repository_id} of project {project_id}")
         response = self.session.get(f"/projects/{project_id}/repositories/results/{repository_id}")
         return ProjectResultsRepository(**response.json())
+
+    def get_repository_token(
+        self, kind: Literal["trigger", "results"], repository_id: int, project_id: int | None = None
+    ) -> GitToken:
+        """
+        Get a short-lived git token for a global trigger or results repository, from the backend, which is the only
+        reader of the repository's secret. project_id names the project the token is for, None for work on the
+        repository as a whole. 403 if the repository, its provider or its secret is disabled or revoked, or that
+        project or its assignment is revoked (a disabled project still gets one), 404 if the repository is unknown.
+        Never stored: ask again when the token is needed.
+        """
+        self.logger.info(f"Fetching a token for {kind} repository {repository_id}")
+        segment = "triggers" if kind == "trigger" else "results"
+        response = self.session.post(
+            f"/global/repositories/{segment}/{repository_id}/token", json={"project_id": project_id}
+        )
+        return GitToken(**response.json())
 
     def get_task_results(self, project_id: int, task_id: int) -> list[PullRequestResult]:
         """Get the deliveries of a task's results"""
