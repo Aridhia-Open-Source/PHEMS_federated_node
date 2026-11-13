@@ -1,5 +1,5 @@
-# A bare Debian laptop for scripts/sandbox/sandbox.sh: Docker (the installer's one
-# prerequisite), sudo and git, nothing else. scripts/install-dev.sh installs the rest.
+# A bare Debian laptop for scripts/sandbox/sandbox.sh: Docker (the one prerequisite), mise,
+# sudo and git. `mise run setup`, which sandbox.sh runs, installs the rest.
 # Build context is scripts/, to share the dind start script with proxy-sim.
 FROM docker:dind AS dind
 
@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # sandbox/ca/ holds the CA only when that is set; otherwise this layer is empty and nothing
 # below changes. With a CA, apt switches to https and trusts the file for its first run,
 # since ca-certificates is not installed yet; the CA then joins the system trust, which is
-# what curl, pipx, helm and the inner dockerd's registry pulls read.
+# what curl, mise and the inner dockerd's registry pulls read.
 COPY sandbox/ca/ /tmp/sandbox-ca/
 RUN APT_OPTS=""; \
     if [ -s /tmp/sandbox-ca/sandbox-ca.crt ]; then \
@@ -18,7 +18,7 @@ RUN APT_OPTS=""; \
       APT_OPTS="-o Acquire::https::CaInfo=/tmp/sandbox-ca/sandbox-ca.crt"; \
     fi; \
     apt-get $APT_OPTS update && apt-get $APT_OPTS install -y --no-install-recommends \
-      ca-certificates curl gnupg sudo git \
+      ca-certificates curl gnupg sudo git make jq openssl build-essential libpq-dev \
       iptables iproute2 pigz xz-utils kmod procps xfsprogs e2fsprogs \
  && if [ -s /tmp/sandbox-ca/sandbox-ca.crt ]; then \
       cp /tmp/sandbox-ca/sandbox-ca.crt /usr/local/share/ca-certificates/sandbox-ca.crt \
@@ -31,11 +31,15 @@ RUN APT_OPTS=""; \
       > /etc/apt/sources.list.d/docker.list \
  && apt-get update \
  && apt-get install -y --no-install-recommends docker-ce docker-ce-cli containerd.io docker-buildx-plugin \
- && apt-get purge -y curl gnupg && apt-get autoremove -y \
+ && apt-get purge -y gnupg && apt-get autoremove -y \
  && rm -rf /var/lib/apt/lists/*
 
+# mise, for `mise run setup` and every `mise run` task. The tools it installs go to the dev
+# user's ~/.local/share/mise.
+RUN curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+
 # A normal user with sudo and docker access, like a developer's account. sudo keeps the proxy and CA
-# variables, so the installer's `sudo apt-get` uses the proxy the sandbox was started with.
+# variables, so a `sudo apt-get` uses the proxy the sandbox was started with.
 # .cache is created here: scripts/sandbox/sandbox.sh mounts the host pip cache into it, and Docker would
 # otherwise create it as root.
 RUN useradd -m -s /bin/bash -G sudo,docker dev \

@@ -299,7 +299,7 @@ echo
 if [ "$failed" = 1 ]; then
   die "setup finished but a check failed: see PROXY_CA_SETUP.md, 'If something fails'"
 fi
-echo "Done. Open a new shell (or run: direnv allow) so the variables in .dev.env load."
-echo "Next: ./scripts/install-dev.sh, or mise run cluster-up."
+echo "Done. Open a new shell so the variables in .dev.env load (mise run loads them itself)."
+echo "Next: mise run setup, or mise run cluster-up."
 echo "Image builds get the CA as a build secret (needs BuildKit, Docker 23 or later)."
 echo "Known gap: the registry mirrors that mise run cluster-up starts do not get the CA yet."

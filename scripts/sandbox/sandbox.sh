@@ -5,12 +5,13 @@ set -euo pipefail
 # Federated Node - dev sandbox
 #
 # A throwaway Debian 13 laptop in Docker (scripts/sandbox/Dockerfile) with its own
-# Docker daemon, for testing scripts/install-dev.sh as a fresh clone would run it.
+# Docker daemon, for trying a fresh clone's setup (mise, then mise run setup) without touching
+# your machine.
 # Your own Docker, kind cluster, registries and ports are never touched; the services
 # are only reachable inside the sandbox.
 #
 #   ./scripts/sandbox/sandbox.sh [options] up   # create it if needed, copy the working tree
-#                                               #   in, run the installer (again: re-syncs)
+#                                               #   in, run mise run setup (again: re-syncs)
 #   ./scripts/sandbox/sandbox.sh down           # remove it; keeps its images and build cache
 #   ./scripts/sandbox/sandbox.sh shell          # a shell in the repo copy
 #   ./scripts/sandbox/sandbox.sh exec <cmd...>  # any command there, e.g. exec fncli project-show
@@ -34,7 +35,7 @@ set -euo pipefail
 # the host's kind network; its Docker uses the host's Docker Hub mirror, its own
 # mirrors fetch from the host's. mise run deploy builds every image in the sandbox. Tilt builds
 # nexus-api and dagster.
-# The host's pip cache (~/.cache/pip) is mounted too, for the fncli install.
+# The host's pip cache (~/.cache/pip) is mounted too, for mise run setup's pip installs.
 #
 # --host-network passes this shell's proxy variables in. The sandbox's Docker then shares
 # the host's network namespace (no default bridge, its own address pools), and the host's
@@ -43,7 +44,7 @@ set -euo pipefail
 # --ca-file is best effort. The CA goes into the image's system trust (the image build
 # switches apt to https and trusts the file for its first run), and the sandbox's shells get
 # CURL_CA_BUNDLE, SSL_CERT_FILE, REQUESTS_CA_BUNDLE and GIT_SSL_CAINFO pointing at the
-# system bundle, so install-dev.sh's curl, pipx and helm downloads verify against it. The
+# system bundle, so curl's and mise's downloads verify against it. The
 # inner Docker daemon reads the system trust for registry pulls. Verification is never
 # switched off. Not covered: images' own RUN steps.
 ####################################################################################
@@ -71,7 +72,7 @@ VOLUMES=(fn-sandbox-docker fn-sandbox-containerd)
 REPO=/home/dev/fn
 # Tilt's docker_build contexts (Tiltfile), mounted from the host for live reload.
 LIVE_DIRS=(nexus/api dagster)
-DEV_PATH=/home/dev/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+DEV_PATH=/home/dev/.local/share/mise/shims:/home/dev/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 TTY=(-i)
 [ -t 0 ] && [ -t 1 ] && TTY=(-it)
@@ -202,7 +203,11 @@ case "${1:-}" in
     docker exec -u dev -w "$REPO" "$NAME" sh -c \
       'git init -q -b sandbox 2>/dev/null; git add -A && git -c user.name=sandbox -c user.email=sandbox@localhost commit -qm sync --allow-empty'
 
-    as_dev ./scripts/install-dev.sh
+    as_dev mise trust --all
+    as_dev mise run setup
+    # What mise run setup suggests for a shell without it: `shell` gets it, tools on PATH.
+    as_dev sh -c 'grep -qs "mise activate" ~/.bashrc || echo "eval \"\$(mise activate bash)\"" >> ~/.bashrc'
+    echo "Sandbox ready. Next: $0 init-conf, then cluster-up and deploy."
     ;;
 
   down)
