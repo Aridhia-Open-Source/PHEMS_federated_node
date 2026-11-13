@@ -37,7 +37,7 @@ vi dagster/app/definitions/jobs.py
 
 ```bash
 # 1. Start cluster + registries
-mise run cluster-up
+mise run cluster up
 
 # 2. Deploy Helm (one time)
 mise run deploy
@@ -121,9 +121,9 @@ federated_node/
 
 ```bash
 # Cluster management
-mise run cluster-up              # Start Kind + registries
-mise run cluster-down            # Stop Kind, keep registries
-mise run cluster-down --remove-registries  # Full cleanup
+mise run cluster up              # Start Kind + registries
+mise run cluster down            # Stop Kind, keep registries
+mise run cluster down --remove-registries  # Full cleanup
 
 # Helm deployment (one time)
 mise run deploy             # Deploy all K8s resources + Helm release
@@ -166,7 +166,7 @@ Once everything is running:
 
 ### mise Additions
 
-- `mise run cluster-up` / `mise run cluster-down` — Manage Kind cluster
+- `mise run cluster up` / `mise run cluster down` — Manage Kind cluster
 - `tilt up` / `tilt down` — Manage Tilt
 
 ### No Changes Needed To
@@ -203,7 +203,7 @@ Once everything is running:
 ## Next Steps
 
 1. Read `.tilt/TILT_QUICKSTART.md` for quick reference
-2. Run `mise run cluster-up` to start the cluster
+2. Run `mise run cluster up` to start the cluster
 3. Run `mise run deploy` to deploy (one time)
 4. Run `tilt up` to start developing
 5. Read `.tilt/TILT.md` for detailed documentation
@@ -226,8 +226,8 @@ kubectl get all -n fn
 **Need to reset?**
 ```bash
 tilt down
-mise run cluster-down
-mise run cluster-up
+mise run cluster down
+mise run cluster up
 mise run deploy
 tilt up
 ```

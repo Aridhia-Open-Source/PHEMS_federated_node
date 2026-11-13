@@ -178,7 +178,7 @@ elif [ "$COMMAND" = "down" ]; then
   echo "Kind cluster '$CLUSTER_NAME' deleted"
   echo
   echo "To restart:"
-  echo "  mise run cluster-up                       # Just cluster + registries"
+  echo "  mise run cluster up                       # Just cluster + registries"
   echo "  mise run deploy                          # Full deployment with Helm"
   echo "  tilt up                                    # Start Tilt dev environment"
   echo

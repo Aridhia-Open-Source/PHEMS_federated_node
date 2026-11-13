@@ -40,7 +40,7 @@ Tilt is a local development environment that enables instant reloads for your Da
 
 - **Tilt**: https://docs.tilt.dev/install.html
 - **Docker**: Running on your machine
-- **Kind cluster**: Created by `mise run cluster-up`
+- **Kind cluster**: Created by `mise run cluster up`
 - **kubectl**: Configured to access the Kind cluster
 
 ### Installation
@@ -58,7 +58,7 @@ tilt version
 #### 1. Start the Cluster
 
 ```bash
-mise run cluster-up
+mise run cluster up
 ```
 
 This creates:
@@ -322,10 +322,10 @@ kubectl port-forward service/nexus-api 5000:5000 -n fn
 tilt down
 
 # Delete the cluster
-mise run cluster-down
+mise run cluster down
 
 # Start fresh
-mise run cluster-up
+mise run cluster up
 mise run deploy
 tilt up
 ```

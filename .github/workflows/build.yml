@@ -136,7 +136,7 @@ jobs:
       - name: Run pylint (dagster)
         if: ${{ !cancelled() }}
         run: |
-          mise run pylint-dagster
+          mise run pylint dagster
 
       - name: Run hadolint
         run: |
@@ -177,12 +177,12 @@ jobs:
       # renders for ArgoCD, `helm diff` and CI - this is what holds that.
       - name: Lint and render the chart without a cluster
         run: |
-          mise run helm-lint
-          mise run helm-template
+          mise run helm lint
+          mise run helm template
 
       - name: Run Helm unittests
         run: |
-          mise run helm-tests
+          mise run helm tests
 
       - name: Run Python Tests
         working-directory: nexus/api

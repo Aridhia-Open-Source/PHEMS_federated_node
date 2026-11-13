@@ -50,4 +50,4 @@ if grep -qE "^KEYCLOAK_FIRST_USER_PASSWORD=(''|\"\")?$" .dev.env; then
 fi
 
 echo
-echo "Done. Next: mise run cluster-up, then mise run deploy"
+echo "Done. Next: mise run cluster up, then mise run deploy"

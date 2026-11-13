@@ -51,4 +51,4 @@ echo "=== Copying gitignored dev config ========================================
 
 echo
 echo "=== Next ======================================================================="
-echo "cd $DEST && mise run helm-deps && mise run deploy"
+echo "cd $DEST && mise run helm deps && mise run deploy"
