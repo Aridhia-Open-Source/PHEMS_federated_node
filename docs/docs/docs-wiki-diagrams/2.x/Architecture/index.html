@@ -1289,14 +1289,16 @@
       direction LR
       Daemon("Daemon (sensors)") --&gt; RunPods("Run Pods")
     end
-    subgraph Tasks["tasks namespace (default-deny)"]
+    subgraph Tasks["tasks namespace"]
       TaskPods("Task Pods")
     end
     Daemon --&gt; Nexus
     RunPods --&gt; TaskPods
   end
 
-  Datasets[("Datasets")]
+  subgraph Institution["Institution Network"]
+    Datasets[("Datasets")]
+  end
 
   Researcher --&gt;|"Trigger PR"| TriggerRepo
   DataController --&gt;|"merges PRs"| GitProvider
