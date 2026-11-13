@@ -63,13 +63,13 @@ Images are built with `docker buildx bake`. The repo's root `docker-bake.hcl` ho
 
 | Command | What it does |
 |---|---|
-| `make images` | Build and push the node's images and every experiment's target to the local registry |
-| `make image NAME=<target>` | One target |
-| `make image-reload NAME=<target>` | Push one target, then roll the deployments |
-| `make images-release TAG=<tag>` | The release group, loaded into your local Docker, not pushed |
+| `mise run images` | Build and push the node's images and every experiment's target to the local registry |
+| `mise run image --target <target>` | One target |
+| `mise run image-reload --target <target>` | Push one target, then roll the deployments |
+| `mise run images-release --tag <tag>` | The release group, loaded into your local Docker, not pushed |
 | `fncli experiment build NAME` | Build and push just one experiment's image |
 
-Dev images are tagged `latest`. `make deploy` builds the default group for you.
+Dev images are tagged `latest`. `mise run deploy` builds the default group for you.
 
 
 ## Check task isolation

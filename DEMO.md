@@ -1,6 +1,6 @@
 # Demo: from a fresh cluster to a results pull request
 
-How to set up and run the demo once the node is deployed (`make deploy` done). For everything before that (tools, config, cluster), see [FRESH_SETUP.md](FRESH_SETUP.md).
+How to set up and run the demo once the node is deployed (`mise run deploy` done). For everything before that (tools, config, cluster), see [FRESH_SETUP.md](FRESH_SETUP.md).
 
 The flow: register the demo database, apply the shared resources, apply the project, then run the demo as often as you like. `fncli demo` creates nothing: it checks the node matches the files, then walks one pull request through task and results.
 
@@ -27,7 +27,7 @@ If `start-sensor` says a sensor is not found, Dagster is still loading its code:
 ## 2. The demo database
 
 ```bash
-make experiments deploy                 # the experiments release: demo-db, its role and secret
+fncli experiment deploy                 # the experiments release: demo-db, its role and secret
 fncli experiment seed demo          # cdm.person with three rows, and an empty results schema
 fncli apply -f experiments/demo/dataset.yaml      # registers demo-db with the node
 ```

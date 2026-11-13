@@ -32,13 +32,13 @@ Projects and repos stay in the node's own bootstrap file (e.g. `bootstrap/exampl
 3. **Demo node files** (`bootstrap/examples/projects/demo-*.yaml (and globals-*.yaml)`): drop their own dataset + secret, keep `datasets: [demo-db]` on the project.
 4. **`fncli experiment setup <name>`** (`cmds/experiment.py`, today applies bootstrap/examples/globals-<name>.yaml and projects/<name>.yaml): after `up` and `seed`, check that `dataset.yaml`'s dataset name and secret name match `values.yaml` (`dbs.<name>.name`, `dbs.<name>.secret.name`), then run the apply code on it.
 5. **`project.env`**: remove everything now in a bootstrap file (`DATASET_*`, `TEST_PROJECT_NAME`, `DEFAULT_PROJECT_DATASET`, `TEST_*_REPO*`, token names, `DEV_ENV`), keep `IMAGE`, `RUN_TIMEOUT`. Make `fncli experiment down` stop depending on `project.env` to find projects, so a missing name can no longer fall back to `.dev.env` and hit the dev project.
-6. Docs: `experiments/README.md`, `experiments/UC1_README.md`.
+6. Docs: `experiments/README.md`, `experiments/uc1/README.md`.
 7. Leftovers from the migration (same PR): docs still naming removed commands (`project/QA/*.md`, `docs/architecture/flows.md`, `project/TESTING.md`, ADR 0018; `second-project-*` -> `fncli apply|delete -f examples/projects/e2e-second-projects.yaml`), unused `GITEA_*_TOKEN_NAME` in project.env files, then tests (e2e imports SETUP_STEPS/TEARDOWN_STEPS, test_cli count, test_demo, test_experiment, test_dataset, test_repository, test_secret, test_config).
 
 ## Flow after
 
 ```bash
-make experiments deploy                 # chart: databases, roles, secrets
+fncli experiment deploy                 # chart: databases, roles, secrets
 fncli experiment seed demo          # schemas and rows
 fncli experiment setup demo         # name check, then apply experiments/demo/dataset.yaml
 fncli apply -f examples/projects/demo-github.yaml   # project, repos, assigns demo-db

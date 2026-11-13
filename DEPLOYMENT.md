@@ -56,7 +56,7 @@ Run these from the repo root.
 
 2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`). The file explains every other variable.
 
-3. Install fncli. `make deploy` runs `fncli experiment deploy`, so it has to be on your PATH before you deploy.
+3. Install fncli. `mise run deploy` runs `fncli experiment deploy`, so it has to be on your PATH before you deploy.
 
    ```bash
    pipx ensurepath          # then open a new terminal

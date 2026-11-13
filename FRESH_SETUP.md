@@ -37,7 +37,7 @@ You need these. The repo pins only two versions: Helm v3 and Python 3.12 or newe
 
    ```bash
    sudo apt update
-   sudo apt install -y git make curl jq pipx
+   sudo apt install -y git curl jq pipx
    python3 --version        # must be 3.12 or newer
    ```
 
@@ -86,7 +86,7 @@ You need these. The repo pins only two versions: Helm v3 and Python 3.12 or newe
 7. Check that everything is on the PATH:
 
    ```bash
-   for t in git make curl jq docker kubectl helm kind tilt pipx; do command -v $t >/dev/null || echo "missing: $t"; done
+   for t in git mise curl jq docker kubectl helm kind tilt pipx; do command -v $t >/dev/null || echo "missing: $t"; done
    ```
 
 ## 3. Clone
@@ -101,14 +101,14 @@ git checkout fncli-declarative-config
 
 Run every command from here on from the repo root, unless a step says otherwise.
 
-Worktrees are optional. One dev cluster has one owner at a time, so a second worktree needs the first one torn down, or `FORCE_OWNER=1 make deploy`. To make a sibling worktree with your gitignored config copied over (`.dev.env`, `dev.values.yaml`, your files under `bootstrap/` and `triggers/`):
+Worktrees are optional. One dev cluster has one owner at a time, so a second worktree needs the first one torn down, or `mise run deploy --force-owner`. To make a sibling worktree with your gitignored config copied over (`.dev.env`, `dev.values.yaml`, your files under `bootstrap/` and `triggers/`):
 
 ```bash
-make worktree NAME=wt-mine BRANCH=my-branch [BASE=<ref>]
+mise run worktree --name wt-mine --branch my-branch [--base <ref>]
 cd ../wt-mine
 ```
 
-Then install fncli from it (step 5) and run `make helm_deps && make deploy`.
+Then install fncli from it (step 5) and run `mise run helm-deps && mise run deploy`.
 
 ## 4. Local config
 
@@ -145,7 +145,7 @@ No CA files or `cadir` are needed: nothing in the repo's scripts, Tiltfile or ch
 
 ## 5. Install fncli
 
-Do this before the deploy in step 6: `make deploy` runs `fncli experiment deploy`.
+Do this before the deploy in step 6: `mise run deploy` runs `fncli experiment deploy`.
 
 ```bash
 pipx ensurepath          # then open a new terminal
@@ -170,13 +170,13 @@ The example matches this guide: `url: http://localhost:5000`, `kube_context: kin
 1. Fetch the chart's subcharts. `charts/` is gitignored, so a fresh clone has none and Helm will not render.
 
    ```bash
-   make helm_deps
+   mise run helm-deps
    ```
 
 2. Create the cluster and the registries.
 
    ```bash
-   make cluster up
+   mise run cluster-up
    ```
 
    It starts a registry at `localhost:5001` (your images) and two pull-through mirrors (`localhost:5002` Docker Hub, `localhost:5003` GHCR), then a kind cluster `fn` with the kubectl context `kind-fn`. Local volumes live in `~/.fn/data` (`FN_DATA_DIR`, fixed when the cluster is created).
@@ -184,12 +184,12 @@ The example matches this guide: `url: http://localhost:5000`, `kube_context: kin
 3. Build the images and install the chart.
 
    ```bash
-   make deploy
+   mise run deploy
    ```
 
    It claims the dev cluster, renders the chart as a check, builds and pushes every image to `localhost:5001` (including `demo-fn`, the demo's task image, so there is no separate build step; they are `docker buildx bake` targets in `docker-bake.hcl`), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). The first run is slow because Docker has no cache yet. At the end it prints the database passwords the chart generated.
 
-   `make deploy` runs `helm install`, so a second run on a live release fails. Use `make upgrade` for chart changes, or `make teardown` first (step 11). It also stops a running Tilt, so deploy first and start Tilt after.
+   `mise run deploy` runs `helm install`, so a second run on a live release fails. Use `make upgrade` for chart changes, or `mise run teardown` first (step 11). It also stops a running Tilt, so deploy first and start Tilt after.
 
 4. Start Tilt in a second terminal and leave it running.
 
@@ -208,7 +208,7 @@ The example matches this guide: `url: http://localhost:5000`, `kube_context: kin
    | nexus UI | http://localhost:8088/nexus-ui/ |
    | Tilt dashboard | http://localhost:10350 |
 
-   `make portfwd` also forwards some of these, but not Gitea, so use Tilt.
+   `mise run portfwd` also forwards some of these, but not Gitea, so use Tilt.
 
 5. Check that it is healthy.
 
@@ -232,7 +232,7 @@ The example matches this guide: `url: http://localhost:5000`, `kube_context: kin
 Both demos use one dataset, `demo-db`. It is a tiny Postgres in its own `experiments` release and namespace. These are `fncli` commands, so step 5 comes first.
 
 ```bash
-make experiments deploy
+fncli experiment deploy
 fncli experiment seed demo
 fncli experiment setup demo
 ```
@@ -249,7 +249,7 @@ fncli start-sensor --group all
 fncli sensor-status
 ```
 
-After a new `make deploy` or `make teardown`, start them again.
+After a new `mise run deploy` or `mise run teardown`, start them again.
 
 ## 8. The Gitea demo
 
@@ -308,7 +308,7 @@ The demo is two files: the global resources (the git provider, the OAuth-app sec
 
    For the Gitea web pages that the `Open:` lines point to, log in as `gitea_admin`.
 
-   > TODO(verify): the password is the chart-generated `gitea-admin` secret, and `make show-db-passwords` should list it. Not confirmed on a fresh install.
+   > TODO(verify): the password is the chart-generated `gitea-admin` secret, and `mise run show-db-passwords` should list it. Not confirmed on a fresh install.
 
 6. Clean up.
 
@@ -411,14 +411,14 @@ Only what the repo's scripts and docs already call out.
 | `fncli demo`: `The node does not match ... yet` | `fncli apply -f <your globals file>`, then `fncli apply -f <the project file>`, then the demo again |
 | A demo step failed | Fix the cause and rerun with `fncli demo -f <the project file> --from N` |
 | `Connection refused` on localhost 5000, 4000 or 3000 | Tilt must be running (`tilt up --stream`). Check `tilt logs \| grep "Port forward"`, or forward by hand: `kubectl port-forward service/nexus-api 5000:5000 -n fn` |
-| Helm will not render, or the chart's subcharts are missing | `make helm_deps` |
-| `make deploy`: `<FN_DATA_DIR> does not exist - run ./scripts/cluster.sh up first` | `make cluster up` first. The bind mount is set when the cluster is created |
-| `make deploy`: `dev cluster is owned by ...` | Tear down from the owning worktree, or `FORCE_OWNER=1 make deploy`. `make deploy-owner` shows the owner |
-| `make deploy` fails on an existing release | It runs `helm install`. Use `make upgrade`, or `make teardown` then `make deploy` |
-| `stale postgres data` on reinstall | Postgres only reads its password when it first creates its data. Keep the password secret and the data, or delete both: `make teardown` does |
+| Helm will not render, or the chart's subcharts are missing | `mise run helm-deps` |
+| `mise run deploy`: `<FN_DATA_DIR> does not exist - run ./scripts/cluster.sh up first` | `mise run cluster-up` first. The bind mount is set when the cluster is created |
+| `mise run deploy`: `dev cluster is owned by ...` | Tear down from the owning worktree, or `mise run deploy --force-owner`. `mise run deploy-owner` shows the owner |
+| `mise run deploy` fails on an existing release | It runs `helm install`. Use `make upgrade`, or `mise run teardown` then `mise run deploy` |
+| `stale postgres data` on reinstall | Postgres only reads its password when it first creates its data. Keep the password secret and the data, or delete both: `mise run teardown` does |
 | Pods in `ImagePullBackOff`, or the chart fails with a missing `nodeId` or a wrong database host | A stale or hand-edited `dev.values.yaml`. Compare it with `dev.example.values.yml`: `nodeId` set, tags equal to `DOCKER_TAG`, `db.host` equal to `db.<NAMESPACE>.svc` |
-| `make teardown`: `No cluster reachable, so nothing was wiped` | `~/.fn/data` is still on disk. Delete it before you reinstall, or keep the password secrets that go with it |
-| `make teardown`: `namespace fn is gone, so an earlier teardown already wiped /data` | Nothing to do. It is information |
+| `mise run teardown`: `No cluster reachable, so nothing was wiped` | `~/.fn/data` is still on disk. Delete it before you reinstall, or keep the password secrets that go with it |
+| `mise run teardown`: `namespace fn is gone, so an earlier teardown already wiped /data` | Nothing to do. It is information |
 | `delete --all` ends with `Skipped, the backend refused` | A project outside the file still uses what it deletes (the repository of the other demo, say). Delete that project first |
 | A pod is stuck in `CrashLoopBackOff` | `kubectl describe pod <pod> -n fn` and `kubectl logs <pod> -n fn` |
 
@@ -427,15 +427,15 @@ Only what the repo's scripts and docs already call out.
 | Goal | Command |
 |---|---|
 | Remove the demo project from the node | `fncli delete -f` its project file, then `fncli delete -f` its globals file with `--all` (steps 8 and 9) |
-| Remove the release and all of its data, keep the cluster | `make teardown`, then `make deploy` again |
-| Delete the cluster, keep the registries and their images | `make cluster down`, then `make cluster up` |
-| Delete the cluster and the registries | `./scripts/cluster.sh down --remove-registries` (run it directly: `make` would take the flag for its own) |
-| Teardown, new cluster and deploy in one go | `make nuke` |
+| Remove the release and all of its data, keep the cluster | `mise run teardown`, then `mise run deploy` again |
+| Delete the cluster, keep the registries and their images | `mise run cluster-down`, then `mise run cluster-up` |
+| Delete the cluster and the registries | `mise run cluster-down --remove-registries` |
+| Teardown, new cluster and deploy in one go | `mise run teardown`, `mise run cluster-down`, `mise run cluster-up`, then `mise run deploy` |
 | Remove the demo database release | `helm uninstall experiments -n experiments` (the secrets and database files stay, so a later `seed` gets the data back) |
 
-- `make teardown` wipes the node's data and releases the cluster's owner. It keeps the `experiments` release, so the demo database survives it.
-- After `make teardown` and `make deploy`, or `make nuke`, run `tilt up --stream` again, then `fncli start-sensor --group all`, then the demo. Your `.dev.env`, `dev.values.yaml`, `bootstrap/context.yaml`, your files under `bootstrap/` and the App's key file are untouched.
-- After `make nuke` or a new cluster, run `make experiments deploy` again if `kubectl get pods -n experiments` shows nothing.
+- `mise run teardown` wipes the node's data and releases the cluster's owner. It keeps the `experiments` release, so the demo database survives it.
+- After `mise run teardown` and `mise run deploy`, or after a new cluster, run `tilt up --stream` again, then `fncli start-sensor --group all`, then the demo. Your `.dev.env`, `dev.values.yaml`, `bootstrap/context.yaml`, your files under `bootstrap/` and the App's key file are untouched.
+- After a new cluster, run `fncli experiment deploy` again if `kubectl get pods -n experiments` shows nothing.
 - `fncli experiment down` removes every experiment's dataset from the node, then the release. It stops while a demo project still uses `demo-db`: run `fncli delete -f bootstrap/projects/<your-name>.yaml` first.
 
 - To start the demo database from empty: `kubectl delete ns experiments`, then delete `~/.fn/data/experiments`. Postgres owns it, so that needs root or the kind node.

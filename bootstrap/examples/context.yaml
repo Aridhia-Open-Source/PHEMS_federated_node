@@ -2,7 +2,7 @@
 # reads it, and it is all they need to reach the node (.dev.env holds only the deploy settings, the first Keycloak user and
 # the GitHub ids). A project's repositories and dataset are read from the node, not from here. Copy it to
 # bootstrap/context.yaml (gitignored) and edit; fncli finds that one from the current directory up, or give --context FILE
-# (or FNCLI_CONTEXT). The examples here are for the dev cluster (make cluster, make deploy).
+# (or FNCLI_CONTEXT). The examples here are for the dev cluster (make cluster, mise run deploy).
 node:
   url: http://localhost:5000                       # nexus-api (the Tilt port-forward)
   kube_context: kind-fn                            # fncli refuses to run when kubectl points elsewhere

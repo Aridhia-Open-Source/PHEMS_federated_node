@@ -16,7 +16,7 @@ from the federated-node chart. The node only sees the dataset that fncli registe
 | `NAME/values.yaml` | yes | the experiment's `dbs.NAME` entry for the chart: it makes the database, the role and the `db-datasets-NAME` secret (`username` and `password`) |
 | `NAME/dataset.yaml` | yes | a node file with only the dataset and its secret, read from the chart's secret: no project, no repos |
 | `NAME/seed.sh`, `seed/` | yes | prints the SQL that seeds the database (or what it needs); must be safe to rerun |
-| `NAME/docker-bake.hcl` | yes | the `NAME-fn` bake target: builds the task image from `image/` (demo, attacker) or the cloned source (uc1), tagged `localhost:5001/NAME-fn`. `make deploy` and `make images` build it (uc1 only when its source is there); `fncli experiment build NAME` builds just this one and pushes it |
+| `NAME/docker-bake.hcl` | yes | the `NAME-fn` bake target: builds the task image from `image/` (demo, attacker) or the cloned source (uc1), tagged `localhost:5001/NAME-fn`. `mise run deploy` and `mise run images` build it (uc1 only when its source is there); `fncli experiment build NAME` builds just this one and pushes it |
 | `NAME/image/` | yes | the task image's source, when it lives here (demo, attacker) |
 | `NAME/trigger.json` | yes | the trigger file `run` sends: the image the bake file builds, and what else the task is asked for (the attacker's CPU and memory limits). The same format as `triggers/examples/` (uc1, attacker) |
 | `NAME/project.env` | yes | the settings of `run` only: `RUN_TIMEOUT`; wins over `.dev.env` and the shell |
@@ -32,7 +32,7 @@ its own repo, so it is not always in this one: clone it into `sources/<name>`. N
 specific experiment are in `projects/<name>/README.md`.
 
 ```bash
-make experiments deploy                    # the release: Postgres with every project's database
+fncli experiment deploy                    # the release: Postgres with every project's database
 fncli experiment build uc1             # localhost:5001/uc1-fn:latest (slow: renv restore)
 fncli experiment seed uc1              # dummy OMOP data into uc1-omop
 fncli experiment setup uc1             # name check, then the dataset uc1-omop, then the repos and project "uc1"
@@ -41,7 +41,7 @@ fncli experiment run uc1               # trigger PR -> task -> results PR in uc1
 ```
 
 These call `fncli experiment deploy|seed|setup|build|run` (also `teardown NAME` and `down`, see Clean
-up). `--local` needs fncli directly, since make takes `--` options as its own. `seed` and `setup`
+up).  `seed` and `setup`
 fail and tell you to run `up` if the release isn't installed. `up`, `seed`, `setup`, `run` and
 `teardown` can be rerun after a failure. If `fncli experiment`
 says "No such command", reinstall fncli from this checkout:
@@ -67,13 +67,13 @@ repositories from the project file and the node, not from `.dev.env`, and the ta
    (`dbs.NAME`), `dataset.yaml` (the dataset and secret must match it), `trigger.json` (the image),
    `project.env`, and copies of `bootstrap/examples/globals-uc1.yaml` and `projects/uc1.yaml` for the
    repos and the project.
-3. Run `make experiments deploy` (it upgrades the release with the new database, so this works
+3. Run `fncli experiment deploy` (it upgrades the release with the new database, so this works
    on a running cluster), then `build NAME`, `seed NAME`, `setup NAME` and `run NAME`.
 
 `demo` is a no-op demo database (`demo-db`, user `demo_user`, a tiny `cdm.person` table and an empty `results` schema). It has no node project of its own, no `trigger.json` and no `project.env`: the demo node files (`bootstrap/examples/globals-gitea.yaml` and `projects/demo-gitea.yaml`, or the `github` ones) hold the repos and the project, which assigns the dataset by name (`datasets: [demo-db]`), and `triggers/examples/demo.json` is its trigger file. Its task image is at `experiments/demo/image`, built by its `docker-bake.hcl` as `demo-fn`.
 
 ```bash
-make experiments deploy                          # the release: databases, roles, secrets
+fncli experiment deploy                          # the release: databases, roles, secrets
 fncli experiment seed demo                   # the schemas and rows
 fncli experiment setup demo                  # name check, then the dataset demo-db with its secret
 fncli apply -f examples/globals-github.yaml  # the repos (or globals-gitea.yaml)

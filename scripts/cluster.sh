@@ -17,7 +17,7 @@ REMOVE_REGISTRIES="${2:-false}"
 source .dev.env
 
 # The cluster is the one bootstrap/context.yaml points fncli at (node.kube_context is
-# kind-<name>), so make and fncli always agree. The example's until it is copied.
+# kind-<name>), so mise and fncli always agree. The example's until it is copied.
 CONTEXT_FILE=bootstrap/context.yaml
 [ -f "$CONTEXT_FILE" ] || CONTEXT_FILE=bootstrap/examples/context.yaml
 KUBE_CONTEXT="$(sed -n 's/^ *kube_context: *\([^ #]*\).*/\1/p' "$CONTEXT_FILE")"

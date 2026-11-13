@@ -182,7 +182,7 @@ local_resource(
 DEV_URLS.append(('Gitea', 'http://localhost:4000'))
 
 # The experiments chart's database, in its own namespace and release rather than the node's.
-# Waits quietly until `fncli experiment deploy` (run by make deploy) has created it.
+# Waits quietly until `fncli experiment deploy` (run by mise run deploy) has created it.
 local_resource(
   'db-datasets-port-forward',
   serve_cmd='while true; do kubectl get svc db-datasets -n experiments >/dev/null 2>&1 && ' +
@@ -190,7 +190,7 @@ local_resource(
   labels=['infrastructure'],
 )
 
-# make deploy installs it; rerun this after adding an experiment to experiments/
+# mise run deploy installs it; rerun this after adding an experiment to experiments/
 local_resource(
   'experiments-deploy',
   cmd='fncli experiment deploy',

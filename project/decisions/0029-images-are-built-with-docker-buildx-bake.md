@@ -10,14 +10,14 @@ Two shell scripts built the images: `scripts/build_all_images.sh` listed the dir
 
 Images are `docker buildx bake` targets.
 
-- **The root `docker-bake.hcl` holds the node's images.** The `default` group is what `make deploy` builds and pushes to the kind registry (dagster, alpine, kc-init, keycloak, nexus-api, nexus-ui and its dev stage). The `release` group is what a release publishes to `ghcr.io`, built without the local registry.
-- **Each experiment brings its own `docker-bake.hcl`** with one target, `<name>-fn`, whose context is in its folder ([0028](0028-experiments-own-their-database-seed-image-and-dataset-file.md)). `scripts/bake_files.sh` finds them, so none is listed anywhere. It skips an experiment whose build context is missing (UC1 builds from a clone the repository does not hold). It also has a `targets` mode, because bake groups do not merge across files and `default` holds only the node's own images.
-- **The make targets are the interface:**
-  - `make images`: the `default` group and every experiment's target, pushed.
-  - `make image NAME=<target>`: one target, pushed.
-  - `make image-reload NAME=<target>`: push, then roll the deployments.
-  - `make images-release TAG=<tag>`: the `release` group, loaded into the local docker, not pushed.
-- **Tags:** one shared `DOCKER_TAG` (from `.dev.env`) plus `latest`. A target may pin its own tag in its bake file. A git SHA tag comes later.
+- **The root `docker-bake.hcl` holds the node's images.** The `default` group is what `mise run deploy` builds and pushes to the kind registry (dagster, alpine, kc-init, keycloak, nexus-api, nexus-ui and its dev stage). The `release` group is what a release publishes to `ghcr.io`, built without the local registry.
+- **Each experiment brings its own `docker-bake.hcl`** with one target, `<name>-fn`, whose context is in its folder ([0028](0028-experiments-own-their-database-seed-image-and-dataset-file.md)). `scripts/build_images.sh` finds them, so none is listed anywhere. It skips an experiment whose build context is missing (UC1 builds from a clone the repository does not hold). It also has a `targets` mode, because bake groups do not merge across files and `default` holds only the node's own images.
+- **The mise tasks are the interface:**
+  - `mise run images`: the `default` group and every experiment's target, pushed.
+  - `mise run image --target <target>`: one target, pushed.
+  - `mise run image-reload --target <target>`: push, then roll the deployments.
+  - `mise run images-release --tag <tag>`: the `release` group, loaded into the local docker, not pushed.
+- **Tags:** dev images are tagged `latest`; a release passes `TAG`. A target may pin its own tag in its bake file. A git SHA tag comes later.
 - `scripts/build_all_images.sh` and `scripts/build_image.sh` are deleted.
 
 ## Consequences

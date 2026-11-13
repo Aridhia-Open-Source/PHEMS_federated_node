@@ -14,7 +14,7 @@ root. If `fncli experiment` says "No such command", reinstall fncli from this ch
 
 ```bash
 git clone https://github.com/PHDS-centralized-services/MVP-Code experiments/sources/uc1
-make experiments deploy          # the experiments release, with the uc1-omop database
+fncli experiment deploy          # the experiments release, with the uc1-omop database
 fncli experiment build uc1   # localhost:5001/uc1-fn:latest (slow: R package restore)
 fncli experiment seed uc1    # dummy OMOP data into uc1-omop
 fncli experiment setup uc1   # project "uc1" in the node
@@ -41,7 +41,7 @@ small (832 patients); the time goes on the many small queries the R packages run
 ```bash
 fncli experiment teardown uc1 -y   # remove project "uc1", its global resources and dataset from the node (Gitea repos stay)
 fncli experiment down           # or: uninstall the release
-make experiments deploy             # back again (the database files survive `down`)
+fncli experiment deploy             # back again (the database files survive `down`)
 fncli experiment setup uc1      # `seed uc1` too if you wiped the data
 fncli experiment run uc1        # `build uc1` first only if the source changed
 ```

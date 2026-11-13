@@ -140,7 +140,7 @@ These act on the project in your context's defaults (or `--project NAME`), and t
 | `verify-git-secret [--entity trigger\|results]` | Asks nexus-api for a git token for the repository and checks the git host accepts it |
 | `merge-results-pr --number N` | Merges a results pull request, so the sync sensor records it as merged |
 
-`KIND` is `trigger`, `results`, `dataset` or `secret`. The `--revoked` options also need the `keycloak-first-user` secret that `make deploy` creates, so on a real node revoke through the API instead.
+`KIND` is `trigger`, `results`, `dataset` or `secret`. The `--revoked` options also need the `keycloak-first-user` secret that `mise run deploy` creates, so on a real node revoke through the API instead.
 
 
 ## Experiments

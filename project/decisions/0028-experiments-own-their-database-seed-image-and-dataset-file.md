@@ -22,8 +22,8 @@ An experiment is a real task image run against a real Postgres database with dum
 | `project.env` | the settings of `run` only: `IMAGE`, `RUN_TIMEOUT` |
 
 - **Projects and repositories stay in the project and globals files** ([0027](0027-bootstrap-files-split-by-stage-of-use.md)), which assign the dataset by name.
-- **`make experiments setup NAME` checks the names first.** After `up` and `seed`, it checks that the dataset name and the secret name in `bootstrap.yaml` equal `dbs.<name>.name` and `dbs.<name>.secret.name` in `values.yaml`, and only then applies the file.
-- **`make experiments down` finds its projects without `project.env`,** so a missing name cannot fall back to `.dev.env`.
+- **`fncli experiment setup NAME` checks the names first.** After `up` and `seed`, it checks that the dataset name and the secret name in `bootstrap.yaml` equal `dbs.<name>.name` and `dbs.<name>.secret.name` in `values.yaml`, and only then applies the file.
+- **`fncli experiment down` finds its projects without `project.env`,** so a missing name cannot fall back to `.dev.env`.
 - **The demo is a tiny experiment, `demo`:** database `demo-db`, role `demo_user`, a `cdm` schema with a small `person` table, an empty `results` schema, and the task image `demo-fn` (it was `pypipes-fn`).
 
 ## Consequences

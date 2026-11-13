@@ -312,7 +312,7 @@ fncli delete -f examples/projects/e2e.yaml; fncli delete -f examples/globals-e2e
 
 ### Operating the dev cluster with fncli
 
-These act on the project named by `--project NAME`, or the context's `defaults.project` (the first line says when it is used), and talk only to nexus-api and Dagster. They read the project's repositories and datasets from the node. They are written for the dev cluster. On another node they may work if you point the context file's `node.url` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `make deploy` creates, so on a real node revoke through the API instead.
+These act on the project named by `--project NAME`, or the context's `defaults.project` (the first line says when it is used), and talk only to nexus-api and Dagster. They read the project's repositories and datasets from the node. They are written for the dev cluster. On another node they may work if you point the context file's `node.url` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `mise run deploy` creates, so on a real node revoke through the API instead.
 
 | Command | What it does |
 |---|---|
