@@ -3,7 +3,12 @@ from typing import cast
 
 from kubernetes import client
 from kubernetes.client import V1Secret
-from kubernetes.config import load_kube_config
+from kubernetes.config import list_kube_config_contexts, load_kube_config
+
+
+def current_context() -> str:
+    """The name of the kubectl context that cluster secrets are read from"""
+    return list_kube_config_contexts()[1]["name"]
 
 
 def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:

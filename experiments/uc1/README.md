@@ -2,8 +2,8 @@
 
 UC1 is the cardiac benchmarking study (R, OMOP CDM 5.4). Its source is the private
 `PHDS-centralized-services/MVP-Code` repo, so it is not in this one. Everything else is here:
-`projects/uc1/` holds the database, the seed and the node project it runs as. The general
-mechanics are in [README.md](../../README.md).
+`experiments/uc1/` holds the database, the seed and the node project it runs as. The general
+mechanics are in [README.md](../README.md).
 
 ## Today: by hand
 
@@ -14,24 +14,24 @@ root. If `fncli experiment` says "No such command", reinstall fncli from this ch
 
 ```bash
 git clone https://github.com/PHDS-centralized-services/MVP-Code experiments/sources/uc1
-fncli experiment up          # the experiments release, with the uc1-omop database
+fncli experiment deploy          # the experiments release, with the uc1-omop database
 fncli experiment build uc1   # localhost:5001/uc1-fn:latest (slow: R package restore)
 fncli experiment seed uc1    # dummy OMOP data into uc1-omop
 fncli experiment setup uc1   # project "uc1" in the node
 fncli experiment run uc1     # trigger PR -> task -> results PR in Gitea uc1-results-repo
 ```
 
-`up`, `seed`, `setup` and `run` can be rerun after a failure. `fncli experiment run uc1 --local` runs the
+`deploy`, `seed`, `setup` and `run` can be rerun after a failure. `fncli experiment run uc1 --local` runs the
 image in docker straight against the database, with no node involved, to tell an analysis
 failure from a node one.
 
 | Step | What it does | Where |
 |---|---|---|
-| `up` | helm upgrade of the `experiments` release: Postgres, database `uc1-omop`, role `uc1_omop_user`, generated password | namespace `experiments` |
-| `build` | `docker build experiments/sources/uc1`, push to the kind registry | host Docker |
+| `deploy` | helm upgrade of the `experiments` release: Postgres, database `uc1-omop`, role `uc1_omop_user`, generated password | namespace `experiments` |
+| `build` | `docker buildx bake` with `experiments/uc1/docker-bake.hcl`: builds `experiments/sources/uc1`, pushes `uc1-fn` to the kind registry | host Docker |
 | `seed` | checks the release is up, loads the synthetic OMOP data over `kubectl exec` (recreating its schemas) | namespace `experiments` |
-| `setup` | checks the release is up, then `fncli setup-project`: project `uc1`, Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens, and the dataset at `db-datasets.experiments.svc` | backend + Gitea |
-| `run` | starts the sensors, opens and merges a spec PR, watches the task and the results PR | Gitea + Dagster |
+| `setup` | checks the release is up, then `fncli apply` of `experiments/uc1/dataset.yaml` (the dataset at `db-datasets.experiments.svc`), `bootstrap/examples/globals-uc1.yaml` (Gitea repos `uc1-trigger-repo` and `uc1-results-repo`, their tokens) and `projects/uc1.yaml` (project `uc1`); needs `bootstrap/context.yaml` | backend + Gitea |
+| `run` | starts the sensors, opens and merges a PR with `experiments/uc1/trigger.json`, watches the task and the results PR | Gitea + Dagster |
 
 A full run takes about 8 minutes, nearly all of it in the R cohort building. The data is
 small (832 patients); the time goes on the many small queries the R packages run.
@@ -39,9 +39,9 @@ small (832 patients); the time goes on the many small queries the R packages run
 ### Tear down and redeploy
 
 ```bash
-fncli experiment teardown uc1   # remove project "uc1", its global resources and Gitea repos
-fncli experiment down           # or: teardown every experiment, then uninstall the release
-fncli experiment up             # back again (the database files survive `down`)
+fncli experiment teardown uc1 -y   # remove project "uc1", its global resources and dataset from the node (Gitea repos stay)
+fncli experiment down           # or: uninstall the release
+fncli experiment deploy             # back again (the database files survive `down`)
 fncli experiment setup uc1      # `seed uc1` too if you wiped the data
 fncli experiment run uc1        # `build uc1` first only if the source changed
 ```
@@ -51,9 +51,9 @@ To start from empty data, after `down`: `kubectl delete ns experiments` and
 
 ### Dev mode
 
-`run` and `run --local` pass `DEV_ENV` from `projects/uc1/project.env` (`UC1_DEV=1`) to the
-task: fewer cohorts, for proving the pipeline. `FULL=1 fncli experiment run uc1` runs the
-whole study. `UC1_DEV` needs R changes that are not on MVP-Code's main yet. Without them
+`run` and `run --local` pass `DEV_ENV` from your shell to the task, e.g.
+`DEV_ENV='{"UC1_DEV":"1"}' fncli experiment run uc1`: fewer cohorts, for proving the pipeline.
+Without it the whole study runs. `UC1_DEV` needs R changes that are not on MVP-Code's main yet. Without them
 the variable is ignored and the full study runs, which still works, only slower.
 
 ## Planned: one command

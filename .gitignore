@@ -39,7 +39,7 @@ debug.yaml
 experiments/sources/
 experiments/results/
 # Committed: holds no secrets, the passwords come from the chart
-!experiments/projects/*/project.env
+!experiments/*/project.env
 
 # worktree include files
 .worktreeinclude
@@ -49,3 +49,8 @@ mise.local.toml
 site/
 .venv-docs/
 docs/versions/*/.mkdocs.local.yml
+# fncli node files (bootstrap) and trigger files (triggers): your own stay local, the examples are committed
+/bootstrap/*
+!/bootstrap/examples/
+/triggers/*
+!/triggers/examples/

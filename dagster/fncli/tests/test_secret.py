@@ -6,8 +6,8 @@ import pytest
 from click.testing import CliRunner
 
 from fncli.cmds import secret
-from fncli.cmds.common import ResultsRepoConfig, TriggerRepoConfig
 from fncli.cmds.secret import init_git_secret
+from fncli.tests.conftest import results_config, trigger_config
 
 SECRET_RECORD = {"label": "trigger-creds", "key": "trigger-creds-abc", "namespace": "fn"}
 OAUTH_TOKENS = {
@@ -31,17 +31,16 @@ def backend_api(k8s):
 
 
 def github_config(monkeypatch, **env):
-    monkeypatch.setenv("TEST_TRIGGER_REPO_URI", "https://github.com/aridhia/trigger")
     for key, value in env.items():
         monkeypatch.setenv(key, value)
-    return TriggerRepoConfig()
+    return trigger_config(repo_uri="https://github.com/aridhia/trigger")
 
 
 def test_gitea_defaults_to_oauth_credentials(backend_api):
     gitea_api = MagicMock()
     gitea_api.authorize_oauth_app.return_value = OAUTH_TOKENS
 
-    token = init_git_secret(TriggerRepoConfig(), gitea_api, backend_api)
+    token = init_git_secret(trigger_config(), gitea_api, backend_api)
 
     gitea_api.authorize_oauth_app.assert_called_once_with("fn-sensor")
     gitea_api.replace_token.assert_not_called()
@@ -55,7 +54,7 @@ def test_each_gitea_entity_has_its_own_oauth_application(backend_api):
     gitea_api = MagicMock()
     gitea_api.authorize_oauth_app.return_value = OAUTH_TOKENS
 
-    init_git_secret(ResultsRepoConfig(), gitea_api, backend_api)
+    init_git_secret(results_config(), gitea_api, backend_api)
 
     gitea_api.authorize_oauth_app.assert_called_once_with("fn-results")
 
@@ -64,7 +63,7 @@ def test_static_token_flag_stores_a_personal_access_token(backend_api):
     gitea_api = MagicMock()
     gitea_api.replace_token.return_value = "pat"
 
-    token = init_git_secret(TriggerRepoConfig(), gitea_api, backend_api, static_token=True)
+    token = init_git_secret(trigger_config(), gitea_api, backend_api, static_token=True)
 
     gitea_api.replace_token.assert_called_once_with("fn-sensor", ["read:repository"])
     gitea_api.authorize_oauth_app.assert_not_called()
@@ -109,59 +108,28 @@ def test_a_secret_that_does_not_hold_the_new_value_fails(backend_api, k8s):
     gitea_api.authorize_oauth_app.return_value = OAUTH_TOKENS
 
     with pytest.raises(RuntimeError, match="does not hold the new REFRESH_TOKEN"):
-        init_git_secret(TriggerRepoConfig(), gitea_api, backend_api)
+        init_git_secret(trigger_config(), gitea_api, backend_api)
 
 
-def run_command(command, monkeypatch, args, gitea_api=None):
-    """Run a command with its repo config, Gitea and backend replaced, and return the Gitea API it used."""
-    gitea_api = gitea_api or MagicMock()
-    monkeypatch.setattr(secret, "load_repo_config", lambda entity, from_backend, project: TriggerRepoConfig())
-    monkeypatch.setattr(secret, "build_gitea_api", lambda config: gitea_api)
-    monkeypatch.setattr(secret, "build_backend_api", lambda config: "backend")
-    result = CliRunner().invoke(command, args)
-    assert result.exit_code == 0, result.output
-    return gitea_api
-
-
-@pytest.mark.parametrize("args, static_token", [([], False), (["--static-token"], True)])
-def test_init_git_secret_command_selects_the_static_token_with_a_flag(monkeypatch, args, static_token):
-    calls = []
-    monkeypatch.setattr(secret, "init_git_secret", lambda **kwargs: calls.append(kwargs))
-
-    run_command(secret.init_git_secret_command, monkeypatch, args)
-
-    assert calls[0]["static_token"] is static_token
-
-
-def test_delete_gitea_token_deletes_the_token_and_the_oauth_application(monkeypatch):
+def test_delete_gitea_token_deletes_the_token_and_the_oauth_application(monkeypatch, context_file):
     gitea_api = MagicMock()
+    monkeypatch.setattr(secret, "step_repo_config", lambda entity, context, project: trigger_config())
+    monkeypatch.setattr(secret, "build_gitea_api", lambda config: gitea_api)
 
-    run_command(secret.delete_gitea_token_command, monkeypatch, [], gitea_api)
+    result = CliRunner().invoke(secret.delete_gitea_token_command, ["--project", "proj"])
 
+    assert result.exit_code == 0, result.output
     gitea_api.delete_token.assert_called_once_with("fn-sensor")
     gitea_api.delete_oauth_app.assert_called_once_with("fn-sensor")
 
 
-def test_init_git_secret_command_needs_no_gitea_for_a_github_repo(monkeypatch):
-    calls = []
-    monkeypatch.setattr(secret, "load_repo_config", lambda entity, from_backend, project: github_config(monkeypatch))
-    monkeypatch.setattr(secret, "build_gitea_api", lambda config: pytest.fail("a GitHub repo has no Gitea admin"))
-    monkeypatch.setattr(secret, "build_backend_api", lambda config: "backend")
-    monkeypatch.setattr(secret, "init_git_secret", lambda **kwargs: calls.append(kwargs))
-
-    result = CliRunner().invoke(secret.init_git_secret_command, [])
-
-    assert result.exit_code == 0, result.output
-    assert calls[0]["gitea_api"] is None
-
-
-def test_verify_git_secret_reads_the_repo_with_the_client_for_its_record(monkeypatch, caplog):
+def test_verify_git_secret_reads_the_repo_with_the_client_for_its_record(monkeypatch, caplog, context_file):
     caplog.set_level(logging.INFO, logger="secret")
     git_api = MagicMock()
-    monkeypatch.setattr(secret, "load_repo_config", lambda entity, from_backend, project: TriggerRepoConfig())
+    monkeypatch.setattr(secret, "step_repo_config", lambda entity, context, project: trigger_config())
     monkeypatch.setattr(secret, "build_git_api", lambda config: git_api)
 
-    result = CliRunner().invoke(secret.verify_git_secret_command, [])
+    result = CliRunner().invoke(secret.verify_git_secret_command, ["--project", "proj"])
 
     assert result.exit_code == 0, result.output
     git_api.get_default_branch.assert_called_once_with("gitea_admin/trigger")

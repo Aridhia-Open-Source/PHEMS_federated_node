@@ -25,6 +25,21 @@ class FncliBackendAPI(BackendAPI):
                 return items
             page += 1
 
+    def delete_dataset(self, dataset_id: int, force: bool = True) -> None:
+        """Delete a dataset, and with force every project's resource for it, else a 409 names the projects"""
+        self.logger.info(f"Deleting dataset {dataset_id}")
+        self.session.delete(f"/global/datasets/{dataset_id}", params={"force": "true"} if force else None)
+
+    def delete_repository(self, repo_id: int, force: bool = True) -> None:
+        """Delete a global trigger repository, and with force every project's resource for it, else a 409 names the projects"""
+        self.logger.info(f"Deleting trigger repository {repo_id}")
+        self.session.delete(f"/global/repositories/triggers/{repo_id}", params={"force": "true"} if force else None)
+
+    def get_dataset_healthcheck(self, dataset_id: int) -> dict:
+        """Whether the node can connect to the dataset's database with its secret: {"status": "ok", "health_check": {"message", ...}, ...}"""
+        self.logger.info(f"Checking health of dataset {dataset_id}")
+        return self.session.get(f"/global/datasets/{dataset_id}/healthcheck").json()
+
     def find_dataset(self, name: str) -> Dataset | None:
         """The global dataset of that name, if any"""
         for dataset in self.get_datasets():
@@ -37,14 +52,6 @@ class FncliBackendAPI(BackendAPI):
         self.logger.info("Fetching datasets")
         return [Dataset(**ds) for ds in self._get_all_pages("/global/datasets")]
 
-    def get_or_create_dataset(self, name: str, **kwargs) -> Dataset:
-        """Reuse the dataset of that name if there is one, else create it from kwargs"""
-        dataset = self.find_dataset(name)
-        if dataset:
-            self.logger.info(f"Reusing existing dataset {name} ({dataset.id})")
-            return dataset
-        return self.create_dataset(name=name, **kwargs)
-
     def get_project_datasets(self, project_id: int) -> list[ProjectDataset]:
         """The project's datasets, inactive ones included"""
         self.logger.info(f"Fetching datasets of project {project_id}")
@@ -56,6 +63,11 @@ class FncliBackendAPI(BackendAPI):
             if assignment.dataset.name.lower() == name.lower():
                 return assignment
         return None
+
+    def patch_dataset(self, dataset_id: int, data: dict) -> Dataset:
+        """Update a global dataset: any of name, host, port, type, read_schema, write_schema, secret_label"""
+        self.logger.info(f"Updating dataset {dataset_id}")
+        return Dataset(**self.session.patch(f"/global/datasets/{dataset_id}", json=data).json())
 
     def get_or_assign_dataset(self, project_id: int, dataset: Dataset) -> ProjectDataset:
         """Reuse the project's dataset if there is one, else assign it"""
@@ -158,6 +170,11 @@ class FncliBackendAPI(BackendAPI):
         data = {"name": name, "type": type, "uri": uri, "api_uri": api_uri}
         return GitProvider(**self.session.post("/global/providers", json=data).json())
 
+    def patch_git_provider(self, provider_id: int, data: dict) -> GitProvider:
+        """Update a global git provider: any of name, type, uri, api_uri"""
+        self.logger.info(f"Updating git provider {provider_id}")
+        return GitProvider(**self.session.patch(f"/global/providers/{provider_id}", json=data).json())
+
     def delete_git_provider(self, provider_id: int) -> None:
         """Delete a global git provider, which no repository may be on"""
         self.logger.info(f"Deleting git provider {provider_id}")
@@ -184,6 +201,11 @@ class FncliBackendAPI(BackendAPI):
             return repo
         return self.create_repository(provider_id, repo_path_of(uri), secret_label)
 
+    def patch_trigger_repository(self, repository_id: int, data: dict) -> TriggerRepository:
+        """Update a global trigger repository: any of provider_id and secret_label (its uri cannot change)"""
+        self.logger.info(f"Updating trigger repository {repository_id}")
+        return TriggerRepository(**self.session.patch(f"/global/repositories/triggers/{repository_id}", json=data).json())
+
     def find_repository(self, uri: str, project_id: int) -> ProjectTriggerRepository | None:
         """The project's trigger repository with that uri, if any"""
         stored_uri = normalise_repo_uri(uri)
@@ -209,6 +231,18 @@ class FncliBackendAPI(BackendAPI):
         response = self.session.put(f"/projects/{project_id}/repositories/triggers/{repo.id}", json=data)
         return ProjectTriggerRepository(**response.json())
 
+    def put_project_trigger_repository(
+        self, project_id: int, repository_id: int, watch_dir: str, base_branch: str, enabled: bool
+    ) -> ProjectTriggerRepository:
+        """
+        Assign a global trigger repository to a project, with enabled as given. A PUT also replaces the settings
+        of an assignment that exists: change one with patch_project_trigger_repository.
+        """
+        self.logger.info(f"Assigning repository {repository_id} to project {project_id}")
+        data = {"watch_dir": watch_dir, "base_branch": base_branch, "enabled": enabled}
+        response = self.session.put(f"/projects/{project_id}/repositories/triggers/{repository_id}", json=data)
+        return ProjectTriggerRepository(**response.json())
+
     def get_results_repositories(self) -> list[ResultsRepository]:
         """The global results repositories"""
         response = self.session.get("/global/repositories/results")
@@ -229,6 +263,11 @@ class FncliBackendAPI(BackendAPI):
         response = self.session.post("/global/repositories/results", json=data)
         return ResultsRepository(**response.json())
 
+    def patch_results_repository(self, repository_id: int, data: dict) -> ResultsRepository:
+        """Update a global results repository: any of provider_id and secret_label (its uri cannot change)"""
+        self.logger.info(f"Updating results repository {repository_id}")
+        return ResultsRepository(**self.session.patch(f"/global/repositories/results/{repository_id}", json=data).json())
+
     def get_or_create_results_repository(self, uri: str, provider_id: int, secret_label: str) -> ResultsRepository:
         """Reuse the global results repository with that uri if there is one, else create it on the provider"""
         repo = self.find_results_repository(uri)
@@ -246,6 +285,25 @@ class FncliBackendAPI(BackendAPI):
         """The project's results repositories (it has at most one), inactive ones included"""
         response = self.session.get(f"/projects/{project_id}/repositories/results")
         return [ProjectResultsRepository(**a) for a in response.json()]
+
+    def put_project_results_repository(
+        self, project_id: int, repository_id: int, target_dir: str, base_branch: str, enabled: bool
+    ) -> ProjectResultsRepository:
+        """
+        Assign a global results repository to a project that has none, with enabled as given, which needs the
+        project disabled. A PUT also resets what the body omits (enabled, owned_by_federated_node) of an assignment
+        that exists: change one with patch_project_results_repository.
+        """
+        self.logger.info(f"Assigning results repository {repository_id} to project {project_id}")
+        data = {"target_dir": target_dir, "base_branch": base_branch, "enabled": enabled}
+        response = self.session.put(f"/projects/{project_id}/repositories/results/{repository_id}", json=data)
+        return ProjectResultsRepository(**response.json())
+
+    def patch_project_results_repository(self, project_id: int, repository_id: int, data: dict) -> ProjectResultsRepository:
+        """Update a project's results repository: any of target_dir, base_branch, enabled"""
+        self.logger.info(f"Updating results repository {repository_id} of project {project_id}")
+        response = self.session.patch(f"/projects/{project_id}/repositories/results/{repository_id}", json=data)
+        return ProjectResultsRepository(**response.json())
 
     def get_or_assign_results_repository(
         self, project_id: int, repo: ResultsRepository, target_dir: str, base_branch: str,
@@ -265,7 +323,7 @@ class FncliBackendAPI(BackendAPI):
         response = self.session.put(f"/projects/{project_id}/repositories/results/{repo.id}", json=data)
         return ProjectResultsRepository(**response.json())
 
-    def delete_results_repository(self, repo_id: int) -> None:
-        """Delete a global results repository, and with it (force) every project's resource for it"""
+    def delete_results_repository(self, repo_id: int, force: bool = True) -> None:
+        """Delete a global results repository, and with force every project's resource for it, else a 409 names the projects"""
         self.logger.info(f"Deleting results repository {repo_id}")
-        self.session.delete(f"/global/repositories/results/{repo_id}", params={"force": "true"})
+        self.session.delete(f"/global/repositories/results/{repo_id}", params={"force": "true"} if force else None)

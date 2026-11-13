@@ -142,6 +142,11 @@ kubectl config set-context \
   --current --namespace="$NAMESPACE"
 
 echo
+echo "=== Experiments Release ================================================="
+# The demo and experiment databases, in their own release so they outlive a teardown
+fncli experiment deploy
+
+echo
 echo "=== Helm Deployment Complete ==========================================="
 echo "Namespace: $NAMESPACE"
 echo "Release: $RELEASE_NAME"

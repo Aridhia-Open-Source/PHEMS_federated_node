@@ -17,15 +17,15 @@ The failure paths are split by what a group waits for. `failure` holds the group
 - Run against the local `kind-fn` cluster only: never a shared or production cluster.
 - Never tear the dev cluster down (`mise run teardown`) to run the suites. Use the cluster that is running (`kubectl` on context `kind-fn`, Tilt green). If there is none, create it with `mise run helm deps && mise run deploy` and `tilt up --stream` ([EXAMPLES.md](../../EXAMPLES.md)).
 - Work from the worktree that owns the cluster (`mise run deploy-owner` shows it) and do not switch branches in the main checkout.
-- Only the test project, its global resources, its Gitea repositories and the `QaTwo` project are created or changed. `teardown-project` removes them.
+- Only the test project, its global resources, its Gitea repositories and the `QaTwo` project are created or changed. `fncli delete -f examples/projects/e2e.yaml -y` and then `fncli delete -f examples/globals-e2e.yaml --all -y` (the suite's teardown) remove them. The suites run on `bootstrap/examples/context.yaml`, not on your own `bootstrap/context.yaml`.
 - A failing test is a finding: the suites report, they do not fix. Record the scenario, the commands, the expected and the actual result, and the logs.
 
 ## Preflight
 
 - `kubectl config current-context` is `kind-fn`.
 - nexus-api (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answer on localhost (port-forwards or Tilt).
-- `.dev.env` exists in the repo root and defines `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD` (the first Keycloak user, needed to revoke project resources) and the `TEST_*` values documented in `.dev.env.example`.
-- The images in the cluster are built from the branch under test (`mise run deploy`), including `pypipes-fn`.
+- `.dev.env` exists in the repo root and defines `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD` (the first Keycloak user, needed to revoke project resources) and the deploy settings in `.dev.env.example`. The node and the project are not in it: the suites use `bootstrap/examples/context.yaml` and the project of `bootstrap/examples/projects/e2e.yaml` (`fn-dev`), whatever your own `bootstrap/context.yaml` says.
+- The images in the cluster are built from the branch under test (`mise run deploy`), including `demo-fn`.
 - `jq` is installed when you run the scenarios by hand.
 
 ## Run
@@ -40,7 +40,7 @@ dagster/.venv/bin/python -m pytest dagster --e2e failure_long -v -x -p no:cachep
 
 All sensors must already be running before a run (`fncli start-sensor --group all`); the suites do not start them. `--e2e` alone runs all three in that order: `success`, `failure`, then `failure_long`. The project is cleared at the start of each run and left in place afterwards for inspection; `E2E_TEARDOWN=1` tears it down at the end. `E2E_FAST_SENSORS=1` sets the sensor interval to 1 s for the run (it patches the Dagster config and restarts the code server, which stops the sensors, so start them again with `fncli start-sensor --group all` before the run). `E2E_TASK_TIMEOUT` (default 600 s) bounds a task that has to start. Wrap a run in `timeout 3600` if `pytest-timeout` is not installed.
 
-The `failing task` scenario needs the run image to honour `PYPIPES_EXIT_CODE`, which the rebuilt `pypipes-fn` does.
+The `failing task` scenario needs the run image to honour `PYPIPES_EXIT_CODE`, which the rebuilt `demo-fn` does.
 
 ## Removed for now
 
@@ -56,11 +56,11 @@ The scenarios that stop and start sensors were removed from the suites and will 
 
 ## After a failure
 
-Capture `fncli sensor-status` and the last 200 lines of nexus-api and the Dagster code server (`kubectl get pods -A | grep -E "backend|dagster"`, then `kubectl logs <pod> --tail=200`). `fncli project-show` prints the project's resources, pull requests, tasks and results as JSON.
+Capture `fncli sensor-status` and the last 200 lines of nexus-api and the Dagster code server (`kubectl get pods -A | grep -E "backend|dagster"`, then `kubectl logs <pod> --tail=200`). `fncli project-show --project fn-dev` prints the project's resources, pull requests, tasks and results as JSON.
 
 ## Probes outside the suites
 
 These are worth a manual check, not a pass or fail:
 
 - More than 100 merged PRs behind one cursor: stop ingest, merge 101 watched PRs, start ingest. Ingest posts them in batches of 100, so all are stored.
-- A revoked secret resource: `fncli resource-set secret --revoked true`, then open a PR. Revoked secret resources are not checked when a token is read.
+- A revoked secret resource: `fncli resource-set secret --revoked true --project fn-dev`, then open a PR. Revoked secret resources are not checked when a token is read.

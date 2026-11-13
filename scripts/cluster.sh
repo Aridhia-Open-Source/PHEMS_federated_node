@@ -16,7 +16,12 @@ REMOVE_REGISTRIES="${2:-false}"
 # Load env
 source .dev.env
 
-CLUSTER_NAME="${CLUSTER_NAME:-fn}"
+# The cluster is the one bootstrap/context.yaml points fncli at (node.kube_context is
+# kind-<name>), so the cluster tasks and fncli always agree. The example's until it is copied.
+CONTEXT_FILE=bootstrap/context.yaml
+[ -f "$CONTEXT_FILE" ] || CONTEXT_FILE=bootstrap/examples/context.yaml
+KUBE_CONTEXT="$(sed -n 's/^ *kube_context: *\([^ #]*\).*/\1/p' "$CONTEXT_FILE")"
+CLUSTER_NAME="${KUBE_CONTEXT#kind-}"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 
 # Host directory backing the cluster's local PVs, bind-mounted to /data in the node.

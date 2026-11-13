@@ -1,0 +1,4 @@
+# Keep in step with dagster/requirements.txt: the orchestrator and the analytical
+# image speak the same pipes protocol, so a version skew here shows up as a broken
+# run rather than a build failure.
+dagster-pipes==1.12.14

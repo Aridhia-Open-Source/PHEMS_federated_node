@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -9,12 +10,34 @@ import pytest
 import requests
 
 from fncli.cmds import pr
-from fncli.cmds.pr import KINDS, PrConfig, file_for, new_branch_name
+from fncli.cmds.pr import KINDS, file_for, load_trigger, new_branch_name
+from fncli.tests.conftest import NODE, results_config, trigger_config
 from app.models import TriggerState
+
+TRIGGER = {"spec": {"image": "busybox:1"}}
+
 
 @pytest.fixture
 def config():
-    return PrConfig(pr_image="busybox:1")
+    return trigger_config()
+
+
+@pytest.fixture
+def step(monkeypatch, context_file):
+    """What the step commands read from the node, faked: the project's repository configs (change them in the test)"""
+    configs = {"trigger": trigger_config(), "results": results_config()}
+    monkeypatch.setattr(pr, "step_repo_config", lambda entity, context, project: configs[entity])
+    return configs
+
+
+@pytest.fixture(autouse=True)
+def triggers(tmp_path, monkeypatch):
+    """A triggers/ folder with the default trigger file, from the current directory"""
+    folder = tmp_path / "triggers" / "examples"
+    folder.mkdir(parents=True)
+    (folder / "demo.json").write_text(json.dumps(TRIGGER))
+    monkeypatch.chdir(tmp_path)
+    return tmp_path / "triggers"
 
 
 def spec_of(content):
@@ -25,60 +48,59 @@ def test_the_kinds():
     assert KINDS == ["watched", "unwatched", "invalid", "failing"]
 
 
-def test_watched_file_is_under_the_watch_dir_with_a_valid_spec(config):
-    path, content = file_for(config, "pr-1", "watched")
+def test_watched_file_is_the_trigger_file_under_the_watch_dir(config):
+    path, content = file_for(config, "pr-1", "watched", TRIGGER)
 
     assert path == "specs/pr-1.json"
-    assert json.loads(content) == {"spec": {"image": "busybox:1"}}
+    assert json.loads(content) == TRIGGER
 
 
-def test_watched_file_carries_the_extra_env_from_test_pr_env(monkeypatch):
-    monkeypatch.setenv("TEST_PR_ENV", '{"EXAMPLE_FLAG": "1"}')
-    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
+def test_watched_file_carries_all_of_the_trigger_file_as_it_is(config):
+    trigger = {
+        "spec": {"image": "busybox:1", "env": {"A": "1"}, "tags": {"team": "a"}, "config": {"k": [1]}, "compute": {}},
+        "metadata": {"owner": "me"},
+    }
+    _, content = file_for(config, "pr-1", "watched", trigger)
 
-    assert spec_of(content)["env"] == {"EXAMPLE_FLAG": "1"}
-
-
-def test_watched_file_carries_the_tags_from_test_pr_tags(monkeypatch):
-    monkeypatch.setenv("TEST_PR_TAGS", '{"team": "a"}')
-    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
-
-    assert spec_of(content)["tags"] == {"team": "a"}
+    assert json.loads(content) == trigger
 
 
-def test_watched_file_carries_the_config_from_test_pr_config(monkeypatch):
-    monkeypatch.setenv("TEST_PR_CONFIG", '{"threshold": 0.5, "labels": ["a"]}')
-    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
+def test_a_kind_changes_a_copy_never_the_trigger_file_loaded(config):
+    trigger = {"spec": {"image": "busybox:1", "env": {"A": "1"}}}
+    file_for(config, "pr-1", "failing", trigger)
+    file_for(config, "pr-1", "invalid", trigger)
 
-    assert spec_of(content)["config"] == {"threshold": 0.5, "labels": ["a"]}
+    assert trigger == {"spec": {"image": "busybox:1", "env": {"A": "1"}}}
 
 
-def test_the_spec_file_has_none_of_the_removed_keys(monkeypatch):
-    monkeypatch.setenv("TEST_PR_ENV", '{"A": "1"}')
-    monkeypatch.setenv("TEST_PR_TAGS", '{"team": "a"}')
-    monkeypatch.setenv("TEST_PR_CONFIG", '{"k": 1}')
-    _, content = file_for(PrConfig(pr_image="busybox:1"), "pr-1", "watched")
+def test_a_trigger_file_is_found_as_given_or_under_triggers_from_here_up(triggers, tmp_path, monkeypatch):
+    (triggers / "mine.json").write_text('{"spec": {"image": "mine"}}')
+    (tmp_path / "deeper" / "still").mkdir(parents=True)
+    monkeypatch.chdir(tmp_path / "deeper" / "still")
 
-    assert list(json.loads(content)) == ["spec"]
-    assert list(spec_of(content)) == ["image", "env", "tags", "config"]
+    assert load_trigger(Path("mine.json")) == {"spec": {"image": "mine"}}
+    assert load_trigger(triggers / "mine.json") == {"spec": {"image": "mine"}}
+    assert load_trigger(pr.DEFAULT_TRIGGER_FILE) == TRIGGER
+    with pytest.raises(click.BadParameter, match="nope.json not found, as given or under triggers/ from here up"):
+        load_trigger(Path("nope.json"))
 
 
 def test_invalid_file_is_watched_but_has_a_field_the_spec_forbids(config):
-    path, content = file_for(config, "pr-1", "invalid")
+    path, content = file_for(config, "pr-1", "invalid", TRIGGER)
 
     assert path.startswith("specs/") and path.endswith(".json")
     assert spec_of(content) == {"image": "busybox:1", "unknown_field": True}
 
 
 def test_unwatched_file_is_outside_the_watch_dir(config):
-    path, _ = file_for(config, "pr-1", "unwatched")
+    path, _ = file_for(config, "pr-1", "unwatched", TRIGGER)
 
     assert not path.startswith(config.watch_dir)
     assert not path.endswith(".json")
 
 
 def test_repo_path_is_the_admin_user_and_repo():
-    assert PrConfig(gitea_admin_user="admin").repo_path == "admin/trigger"
+    assert trigger_config(node=NODE.model_copy(update={"gitea_admin_user": "admin"})).repo_path == "admin/trigger"
 
 
 def test_branch_names_are_prefixed_with_the_time_and_a_random_suffix():
@@ -169,7 +191,7 @@ def watch(monkeypatch):
         monkeypatch.setattr(pr, "find_project", lambda config, api: SimpleNamespace(id=1))
         monkeypatch.setattr(pr, "POLL_SECONDS", 0)
         try:
-            pr.watch_pr(PrConfig(), 5, timeout)
+            pr.watch_pr(trigger_config(), 5, timeout)
         except click.exceptions.Exit as exit:
             return exit.exit_code
         return 0
@@ -314,7 +336,7 @@ def test_watch_gives_up_after_too_many_connection_errors(watch, caplog):
     assert f"{pr.MAX_CONNECTION_ERRORS} connection errors in a row" in caplog.text
 
 
-def test_merge_results_pr_merges_in_the_results_repo(monkeypatch):
+def test_merge_results_pr_merges_in_the_results_repo(monkeypatch, step):
     merged = []
 
     class FakeGitea:
@@ -322,23 +344,23 @@ def test_merge_results_pr_merges_in_the_results_repo(monkeypatch):
             merged.append((repo_path, number))
 
     monkeypatch.setattr(pr, "build_git_api", lambda config: FakeGitea())
-    monkeypatch.setenv("TEST_RESULTS_REPO", "results-demo-repo")
+    step["results"] = results_config(repo="results-demo-repo")
     result = CliRunner().invoke(pr.merge_results_pr_command, ["--number", "3"])
     assert result.exit_code == 0
     assert merged == [("gitea_admin/results-demo-repo", 3)]
 
 
 def test_a_failing_file_is_a_valid_spec_whose_task_exits_non_zero(config):
-    path, content = file_for(config, "pr-1", "failing")
+    path, content = file_for(config, "pr-1", "failing", {"spec": {"image": "busybox:1", "env": {"A": "1"}}})
 
     spec = json.loads(content)["spec"]
     assert path.startswith(config.watch_dir)
-    assert spec["env"] == {"PYPIPES_EXIT_CODE": "1"}
+    assert spec["env"] == {"A": "1", "PYPIPES_EXIT_CODE": "1"}
     assert "unknown_field" not in spec
 
 
 @pytest.fixture
-def researcher(monkeypatch):
+def researcher(monkeypatch, step):
     """The researcher's client, which the trigger repo's writes must use: never the node's (a token the backend mints)."""
     researcher = MagicMock()
     monkeypatch.setattr(pr, "build_researcher_git_api", lambda config: researcher)
@@ -346,8 +368,8 @@ def researcher(monkeypatch):
     return researcher
 
 
-def test_create_branch_is_the_researchers_off_the_base_branch_in_the_env(researcher, monkeypatch):
-    monkeypatch.setenv("TEST_TRIGGER_REPO_BASE_BRANCH", "release")
+def test_create_branch_is_the_researchers_off_the_base_branch_of_the_projects_record(researcher, step):
+    step["trigger"] = trigger_config(base_branch="release")
 
     result = CliRunner().invoke(pr.create_gitea_branch_command, ["--branch", "b1"])
 
@@ -355,15 +377,25 @@ def test_create_branch_is_the_researchers_off_the_base_branch_in_the_env(researc
     researcher.create_branch.assert_called_once_with("gitea_admin/trigger", "b1", "release")
 
 
-def test_commit_file_is_the_researchers(researcher):
+def test_commit_file_is_the_researchers_and_the_content_is_the_default_trigger_file(researcher):
     result = CliRunner().invoke(pr.commit_gitea_file_command, ["--branch", "b1"])
 
     assert result.exit_code == 0, result.output
     assert researcher.create_file.call_args.args[:2] == ("gitea_admin/trigger", "specs/b1.json")
+    assert json.loads(researcher.create_file.call_args.args[2]) == TRIGGER
 
 
-def test_create_pr_is_the_researchers_into_the_base_branch_in_the_env(researcher, monkeypatch):
-    monkeypatch.setenv("TEST_TRIGGER_REPO_BASE_BRANCH", "release")
+def test_commit_file_takes_a_trigger_file_by_option(researcher, triggers):
+    (triggers / "mine.json").write_text('{"spec": {"image": "mine"}}')
+
+    result = CliRunner().invoke(pr.commit_gitea_file_command, ["--branch", "b1", "--trigger", "mine.json"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(researcher.create_file.call_args.args[2]) == {"spec": {"image": "mine"}}
+
+
+def test_create_pr_is_the_researchers_into_the_base_branch_of_the_projects_record(researcher, step):
+    step["trigger"] = trigger_config(base_branch="release")
     researcher.create_pull_request.return_value = {"number": 4, "html_url": "http://gitea/pulls/4"}
 
     result = CliRunner().invoke(pr.create_gitea_pr_command, ["--branch", "b1"])
@@ -371,18 +403,6 @@ def test_create_pr_is_the_researchers_into_the_base_branch_in_the_env(researcher
     assert result.exit_code == 0, result.output
     assert researcher.create_pull_request.call_args.kwargs["head_branch"] == "b1"
     assert researcher.create_pull_request.call_args.kwargs["base_branch"] == "release"
-
-
-def test_without_the_env_var_the_pr_base_branch_is_the_one_the_projects_assignment_watches(monkeypatch):
-    monkeypatch.delenv("TEST_TRIGGER_REPO_BASE_BRANCH", raising=False)
-    backend_api = MagicMock()
-    backend_api.find_repository.return_value = SimpleNamespace(base_branch="develop")
-    monkeypatch.setattr(pr, "build_backend_api", lambda config: backend_api)
-
-    assert pr.get_pr_base_branch(PrConfig()) == "develop"
-    backend_api.find_repository.assert_called_once_with(
-        "http://gitea.fn.svc:3000/gitea_admin/trigger", backend_api.find_project.return_value.id
-    )
 
 
 def test_merge_gitea_pr_is_the_researchers(researcher):
