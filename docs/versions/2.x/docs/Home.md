@@ -30,12 +30,23 @@ You also need a git host for the trigger and results repositories: GitHub (with 
 5. Someone at the institution reviews that pull request. Merging it is the release of the results.
 
 ```mermaid
-flowchart LR
-    R([Researcher]) -->|"pull request"| GP[Git Provider]
-    GP -->|"merged, ingested by sensor"| DG["dagster"]
-    DG -->|"launches task"| TP["task pod"]
-    TP -->|"results pushed"| RP["Git Provider<br/>results pull request"]
-    RP --> V([Reviewer merges])
+sequenceDiagram
+    participant Researcher
+    participant Trigger as Trigger Repo
+    participant DataController as Data Controller
+    participant Node as Federated Node
+    participant Task as Task Pod
+    participant Results as Results Repo
+
+    Researcher->>Trigger: Raise PR (task spec: image + dataset)
+    DataController->>Trigger: Review & Merge PR (approval gate)
+    Node->>Trigger: Poll merged PRs, read the task spec
+    Node->>Node: Create task, check the project, dataset and repos are allowed
+    Node->>Task: Start pod in the tasks namespace, next to the dataset
+    Task-->>Node: Write results to its output folder
+    Node->>Results: Push results branch, open results PR
+    DataController->>Results: Review & Merge results PR (release gate)
+    Node->>Results: Sync PR state, record the result as merged
 ```
 
 [Architecture](./Architecture) explains each part. [Researcher guide](./Researcher-Guide) shows the researcher's side.
