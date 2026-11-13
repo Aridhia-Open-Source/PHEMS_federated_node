@@ -1,0 +1,50 @@
+name: Wiki sync
+run-name: Sync docs/wiki to the GitHub wiki
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - dagster-main
+      - dagster-develop
+    paths:
+      - 'docs/wiki/**'
+
+permissions:
+  contents: write
+
+# One sync at a time, so two pushes cannot race on the wiki repo.
+concurrency:
+  group: wiki-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # Only these three branches publish. A manual run from any other branch would publish
+    # that branch's pages.
+    if: contains(fromJSON('["refs/heads/main","refs/heads/dagster-main","refs/heads/dagster-develop"]'), github.ref)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Mirror docs/wiki to the wiki
+        env:
+          # GITHUB_TOKEN can push to the wiki once the wiki is enabled and has a first
+          # page. If the push is refused (403), create a personal access token that can
+          # write to this repo and save it as the repository secret WIKI_TOKEN.
+          TOKEN: ${{ secrets.WIKI_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          git clone --branch master \
+            "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki
+          # api/ is the MkDocs API reference page and does not belong in the wiki
+          rsync -a --delete --exclude .git --exclude api/ docs/wiki/ wiki/
+          cd wiki
+          git add --all
+          if git diff --cached --quiet; then
+            echo "The wiki already matches docs/wiki, nothing to push."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Sync docs/wiki from ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
+          git push origin HEAD:master
