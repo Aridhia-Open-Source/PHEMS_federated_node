@@ -55,14 +55,16 @@ flowchart LR
       direction LR
       Daemon("Daemon (sensors)") --> RunPods("Run Pods")
     end
-    subgraph Tasks["tasks namespace (default-deny)"]
+    subgraph Tasks["tasks namespace"]
       TaskPods("Task Pods")
     end
     Daemon --> Nexus
     RunPods --> TaskPods
   end
 
-  Datasets[("Datasets")]
+  subgraph Institution["Institution Network"]
+    Datasets[("Datasets")]
+  end
 
   Researcher -->|"Trigger PR"| TriggerRepo
   DataController -->|"merges PRs"| GitProvider
