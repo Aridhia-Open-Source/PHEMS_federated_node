@@ -68,10 +68,15 @@ nav:
       - Deploy on GCP (UNTESTED): Deploy-GCP.md
       - Deploy on-premises (UNTESTED): Deploy-On-Premises.md
       - Post-deploy testing: Post-Deploy-Testing.md
+      - Run locally: Run-Locally.md
   - Using the node:
+      - Set up a project: Set-Up-A-Project.md
       - Researcher guide: Researcher-Guide.md
       - Analytics container development: Analytics-Container-Development.md
       - Datasets: Datasets.md
       - Using the API: Using-The-API.md
       - Operations: Operations.md
+  - Development:
+      - Using fncli: Using-fncli.md
+      - Experiments: Experiments.md
   - API reference: api/index.md

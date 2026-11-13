@@ -14,12 +14,16 @@ tilt = "0.37.8"
 
 [env]
 _.file = ".dev.env"
+# fncli lives here (see `setup`), so it is on the PATH anywhere in the repo
+_.python.venv = { path = ".venv", create = true }
 
 [tasks.setup]
-description = "Install the pinned tools and the nexus/api and dagster virtualenvs"
+description = "Install the pinned tools, the fncli virtualenv and the nexus/api and dagster virtualenvs"
 run = [
   "command -v pyenv >/dev/null && mise sync python --pyenv || true",
   "mise install",
+  # fncli, editable, into the root .venv (mise creates it)
+  "mise exec -- python -m pip install -e './dagster[cli]'",
   "mise -C nexus/api install",
   "mise -C dagster install",
   # requirements-dev.txt is a superset of requirements.txt (adds pytest, pylint)

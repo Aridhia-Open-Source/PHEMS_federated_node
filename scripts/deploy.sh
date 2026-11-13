@@ -14,6 +14,8 @@ source .dev.env
 echo
 echo "=== Validating Helm templates ==========================================="
 
+# charts/ is gitignored: build the subcharts so a fresh checkout deploys with no extra step
+mise run helm deps
 (cd k8s/federated-node && helm template "$RELEASE_NAME" . -f "$VALUES_FILE" --namespace "$NAMESPACE" > /dev/null)
 
 # Host directory backing the cluster's local PVs. cluster.sh bind-mounts it to /data
@@ -47,7 +49,7 @@ echo
 echo "=== Reconciling PersistentVolumes ======================================"
 
 if [ ! -d "$FN_DATA_DIR" ]; then
-  echo "$FN_DATA_DIR does not exist - run ./scripts/cluster.sh up first, since the"
+  echo "$FN_DATA_DIR does not exist - run mise run cluster up first, since the"
   echo "bind mount into the kind node is set when the cluster is created." >&2
   exit 1
 fi
@@ -140,6 +142,11 @@ fi
 
 kubectl config set-context \
   --current --namespace="$NAMESPACE"
+
+echo
+echo "=== Experiments Release ================================================="
+# The demo and experiment databases, in their own release so they outlive a teardown
+fncli experiment deploy
 
 echo
 echo "=== Helm Deployment Complete ==========================================="

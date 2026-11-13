@@ -31,7 +31,7 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 2. Write nexus-api, Dagster and run-image tags in the results header (see [the index](README.md)).
 
 - **Expected:** the tags match the release being tested, including the run image that task pods and delivery use.
-- **Rule:** the end-to-end README requires images built from the branch under test, `pypipes-fn` included ([dagster/fncli/tests/e2e/README.md]).
+- **Rule:** the end-to-end README requires images built from the branch under test, `demo-fn` included ([dagster/fncli/tests/e2e/README.md]).
 - **Automated by:** Manual only.
 - [ ] Pass
 - [ ] Fail — notes:

@@ -1,5 +1,5 @@
 # Where the database files live inside the kind node. cluster.sh bind-mounts $FN_DATA_DIR
-# (~/.fn/data) there as /data, and fncli experiment up creates the host side.
+# (~/.fn/data) there as /data, and fncli experiment deploy creates the host side.
 storagePath: /data/experiments/datasets
 
 postgres:
@@ -10,7 +10,7 @@ postgres:
     name: db-datasets-superuser
     key: password
 
-# One entry per experiment, from experiments/projects/<name>/values.yaml:
+# One entry per experiment, from experiments/<name>/values.yaml:
 #   study:
 #     name: study-omop          database, and the dataset's name in the node
 #     user: study_omop_user

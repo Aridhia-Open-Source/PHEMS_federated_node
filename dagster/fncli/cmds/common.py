@@ -4,6 +4,7 @@ APIs built from it.
 """
 
 import subprocess
+from pathlib import Path
 from typing import ClassVar
 from urllib.parse import urlparse
 
@@ -19,6 +20,7 @@ from app.github import GH_API_BASE_URL, GithubAPI, GithubClient
 from app.models import ResultsRepository, TriggerRepository
 from fncli.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaWebClient
 from fncli.k8s import get_k8s_secret
+from fncli.nodefile.schema import NodeSpec
 from app.utils import BackendAdapter, BackendSession
 
 IN_CLUSTER_SUFFIX = "fn.svc"
@@ -36,11 +38,37 @@ def to_host_url(url: str) -> str:
     return url.replace(host, "localhost", 1)
 
 
-class GiteaConfig(EnvConfig):
-    # Host-side script, so it needs the port-forwarded addresses, not in-cluster DNS.
-    gitea_url: str = Field(default="http://localhost:4000", alias="GITEA_URL")
-    gitea_admin_user: str = Field(default="gitea_admin", alias="GITEA_ADMIN_USER")
+def find_under(directory: str, value: Path, hint: str = "") -> Path:
+    """The path as given, else the same path under the nearest `directory`/ from here up (bootstrap/, triggers/)"""
+    if value.is_file():
+        return value
+    for parent in (Path.cwd(), *Path.cwd().parents):
+        candidate = parent / directory / value
+        if candidate.is_file():
+            return candidate
+    raise click.BadParameter(f"{value} not found, as given or under {directory}/ from here up{hint}")
+
+
+class BackendConfig(EnvConfig):
+    """What reaches the node: the context's node (bootstrap/context.yaml), never the env"""
+
+    node: NodeSpec
+
+
+class NamespaceConfig(EnvConfig):
+    """The release namespace, a deploy setting that stays in .dev.env"""
+
     namespace: str = Field(default="", alias="NAMESPACE")
+
+
+class GiteaConfig(BackendConfig, NamespaceConfig):
+    # Host-side script: the address comes from the Gitea provider's uri on the node, and an in-cluster host
+    # (gitea.fn.svc) is reached through the Tilt port-forward on localhost.
+    gitea_url: str
+
+    @property
+    def gitea_admin_user(self) -> str:
+        return self.node.gitea_admin_user
 
     @property
     def gitea_host_uri(self) -> str:
@@ -55,13 +83,8 @@ class DagsterConfig(EnvConfig):
     dagster_url: str = Field(default="http://localhost:3000", alias="DAGSTER_URL")
 
 
-class BackendConfig(EnvConfig):
-    keycloak_namespace: str = Field(default="", alias="KEYCLOAK_NAMESPACE")
-    nexus_api_url: str = Field(default="", alias="NEXUS_API_URL")
-
-
 class ProjectConfig(BackendConfig):
-    project_name: str = Field(default="", alias="TEST_PROJECT_NAME")
+    project_name: str
 
 
 class RepoConfig(GiteaConfig, ProjectConfig):
@@ -70,13 +93,13 @@ class RepoConfig(GiteaConfig, ProjectConfig):
     own env vars, and the token scope it needs.
     """
 
-    # The address the sensor uses from inside the cluster.
-    gitea_api_uri: str = Field(default="", alias="GITEA_API_URI")
+    # The address the sensor uses from inside the cluster: the provider's api_uri.
+    gitea_api_uri: str
     # Set when the repo comes from a backend record: the label that record's secret has.
     backend_secret_label: str = Field(default="", validate_default=False)
     # Set when the repo comes from a backend record: the type of that record's provider.
     backend_provider_type: str = Field(default="", validate_default=False)
-    # GitHub only: what init-git-secret stores in the repo's secret, for the backend to mint installation tokens from.
+    # GitHub only: what init_git_secret stores in the repo's secret, for the backend to mint installation tokens from.
     github_app_id: str = Field(default="", alias="GH_APP_ID", validate_default=False)
     github_installation_id: str = Field(default="", alias="GH_INSTALLATION_ID", validate_default=False)
     github_private_key: str = Field(default="", alias="GH_PRIVATE_KEY", validate_default=False)
@@ -128,11 +151,11 @@ class RepoConfig(GiteaConfig, ProjectConfig):
 
 
 class TriggerRepoConfig(RepoConfig):
-    repo: str = Field(default="", alias="TEST_TRIGGER_REPO")
-    repo_uri: str = Field(default="", alias="TEST_TRIGGER_REPO_URI")
-    watch_dir: str = Field(default="", alias="TEST_TRIGGER_REPO_WATCH_DIR")
-    # The branch the project watches. Stated, never guessed from the repo's default branch.
-    base_branch: str = Field(default="", alias="TEST_TRIGGER_REPO_BASE_BRANCH", validate_default=False)
+    repo: str
+    repo_uri: str
+    watch_dir: str
+    # The branch the project watches, from the project's record. Stated, never guessed from the repo's default branch.
+    base_branch: str = Field(default="", validate_default=False)
     # Gitea tells tokens apart by name: reusing one name for both entities would invalidate
     # the other entity's token.
     token_name: str = Field(default="fn-sensor", alias="GITEA_TOKEN_NAME")
@@ -141,34 +164,17 @@ class TriggerRepoConfig(RepoConfig):
 
 
 class ResultsRepoConfig(RepoConfig):
-    repo: str = Field(default="", alias="TEST_RESULTS_REPO")
-    repo_uri: str = Field(default="", alias="TEST_RESULTS_REPO_URI")
-    target_dir: str = Field(default="", alias="TEST_RESULTS_TARGET_DIR")
-    # The branch results pull requests start from and go into. Stated, never guessed from the repo's default branch.
-    base_branch: str = Field(default="", alias="TEST_RESULTS_REPO_BASE_BRANCH", validate_default=False)
+    repo: str
+    repo_uri: str
+    target_dir: str
+    # The branch results pull requests start from and go into, from the project's record. Stated, never guessed.
+    base_branch: str = Field(default="", validate_default=False)
     token_name: str = Field(default="fn-results", alias="GITEA_RESULTS_TOKEN_NAME")
     entity: ClassVar[str] = "results"
     token_scope: ClassVar[str] = "write:repository"
 
 
-class DatasetConfig(ProjectConfig):
-    dataset_name: str = Field(default="", alias="DEFAULT_PROJECT_DATASET")
-    # The defaults are the dummy stand-in dataset. fncli experiment setup sets these for a real experiment.
-    dataset_host: str = Field(default="db-datasets.experiments.svc", alias="CLUSTER_DATASET_HOST")
-    dataset_port: int = Field(default=5432, alias="DATASET_PORT")
-    dataset_type: str = Field(default="postgres", alias="DATASET_TYPE")
-    dataset_read_schema: str = Field(default="cdm", alias="DATASET_SCHEMA")
-    dataset_write_schema: str = Field(default="results", alias="DATASET_SCHEMA_WRITE")
-    dataset_username: str = Field(default="dummy", alias="DATASET_USERNAME")
-    dataset_password: str = Field(default="dummy", alias="DATASET_PASSWORD")
-
-    @property
-    def secret_label(self) -> str:
-        return f"{self.dataset_name}-dataset-creds"
-
-
 ENTITY_CONFIGS = {"trigger": TriggerRepoConfig, "results": ResultsRepoConfig}
-SECRET_CONFIGS = {**ENTITY_CONFIGS, "dataset": DatasetConfig}
 
 entity_option = click.option(
     "--entity",
@@ -188,16 +194,6 @@ def build_gitea_api(config: GiteaConfig) -> GiteaAdminAPI:
     return GiteaAdminAPI(client, config.gitea_admin_user, web)
 
 
-def get_base_branch(config: RepoConfig, option: str | None = None) -> str:
-    """The branch to assign the repo with: the --base-branch option, else TEST_<TRIGGER|RESULTS>_REPO_BASE_BRANCH."""
-    base_branch = option or config.base_branch
-    if not base_branch:
-        raise click.ClickException(
-            f"No base branch: give --base-branch or set TEST_{config.entity.upper()}_REPO_BASE_BRANCH"
-        )
-    return base_branch
-
-
 def get_repository(config: RepoConfig, backend_api: FncliBackendAPI) -> TriggerRepository | ResultsRepository:
     """The repo's global record in the backend, which names its provider."""
     find = backend_api.find_trigger_repository if config.entity == "trigger" else backend_api.find_results_repository
@@ -205,7 +201,7 @@ def get_repository(config: RepoConfig, backend_api: FncliBackendAPI) -> TriggerR
     if repository is None:
         raise click.ClickException(
             f"Backend {config.entity} repository {config.repo_uri} does not exist "
-            f"(run init-backend-{config.entity}-repo first)"
+            f"(run fncli apply first)"
         )
     return repository
 
@@ -244,15 +240,15 @@ def build_git_api(config: RepoConfig) -> GiteaAPI | GithubAPI:
 def build_backend_api(config: BackendConfig) -> FncliBackendAPI:
     """Logs in as the dagster system user, the identity the sensors use."""
     adapter = BackendAdapter(
-        base_url=config.nexus_api_url,
+        base_url=config.node.url,
         username=get_k8s_secret(
             secret_name="dagster-keycloak-creds",
-            namespace=config.keycloak_namespace,
+            namespace=config.node.keycloak_namespace,
             key="DAGSTER_KC_USER",
         ),
         password=get_k8s_secret(
             secret_name="dagster-keycloak-creds",
-            namespace=config.keycloak_namespace,
+            namespace=config.node.keycloak_namespace,
             key="DAGSTER_KC_PASSWORD",
         ),
     )
@@ -262,8 +258,8 @@ def build_backend_api(config: BackendConfig) -> FncliBackendAPI:
 def build_admin_backend_api(config: BackendConfig) -> FncliBackendAPI:
     """Logs in as the first Keycloak user (an Administrator), which deploy.sh stores in the keycloak-first-user secret."""
     adapter = BackendAdapter(
-        base_url=config.nexus_api_url,
-        username=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.keycloak_namespace, key="EMAIL"),
-        password=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.keycloak_namespace, key="PASSWORD"),
+        base_url=config.node.url,
+        username=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.node.keycloak_namespace, key="EMAIL"),
+        password=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.node.keycloak_namespace, key="PASSWORD"),
     )
     return FncliBackendAPI(BackendSession(adapter))

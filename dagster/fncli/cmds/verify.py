@@ -1,22 +1,17 @@
 """
-verify-project: a read-only check of the test project, as a report. The backend's
+verify-project: a read-only check of a project, as a report. The backend's
 healthcheck does the repo and token checks (it reaches each repo with its stored token), so
-this adds only what the healthcheck leaves out: the dataset. Nothing is created or changed.
+this adds only what the healthcheck leaves out: the project's datasets. Nothing is created or changed.
 """
 
 from dataclasses import dataclass
 
 import click
 
-from fncli.cmds.common import (
-    DagsterConfig,
-    DatasetConfig,
-    ProjectConfig,
-    TriggerRepoConfig,
-    build_backend_api,
-    to_host_url,
-)
+from fncli.cmds.common import DagsterConfig, build_backend_api, to_host_url
+from fncli.cmds.nodefile import context_option, step_project_option, step_target
 from fncli.cmds.project import find_project
+from fncli.cmds.repository import step_repo_config
 from fncli.cmds.sensor import RESULTS_PR_SYNC_SENSOR
 from app.models import TriggerState
 from fncli.sensors import DagsterAPI
@@ -127,19 +122,14 @@ def record_repo_health(report: Report, kind: str, repo: dict):
     )
 
 
-def verify_project(report: Report, config: ProjectConfig, dataset_config: DatasetConfig):
-    backend_api = report.check("Backend login: POST /login", lambda: build_backend_api(config))
-    if backend_api is None:
-        report.skip("everything else", "no backend login")
-        return
-
+def verify_project(report: Report, project_name: str, backend_api):
     project = report.check(
         "Project exists: GET /projects",
-        lambda: require(backend_api.find_project(config.project_name), config.project_name),
+        lambda: require(backend_api.find_project(project_name), project_name),
         lambda p: f"id {p.id}",
     )
     if project is None:
-        report.skip("everything else", "no project, run setup-project first")
+        report.skip("everything else", "no project, run fncli apply first")
         return
 
     health = report.check(
@@ -159,18 +149,17 @@ def verify_project(report: Report, config: ProjectConfig, dataset_config: Datase
         else:
             record_repo_health(report, "Results", health["results_repository"])
 
-    assignment = report.check(
-        f"Dataset assigned: GET /projects/{project.id}/datasets ({dataset_config.dataset_name})",
-        lambda: require(
-            backend_api.find_project_dataset(dataset_config.dataset_name, project.id),
-            dataset_config.dataset_name,
-        ),
-        lambda a: f"id {a.dataset.id}, active {a.active}",
+    assignments = report.check(
+        f"Datasets assigned: GET /projects/{project.id}/datasets",
+        lambda: backend_api.get_project_datasets(project.id),
+        lambda found: ", ".join(f"{a.dataset.name} (id {a.dataset.id}, active {a.active})" for a in found) or "none",
     )
-    if assignment is not None:
+    if assignments is not None and not assignments:
+        report.record(False, "A dataset is assigned", "none on the project")
+    for assignment in assignments or []:
         dataset = assignment.dataset
         report.check(
-            f"Dataset fetch: GET /global/datasets/{dataset.id}", lambda: backend_api.get_dataset(dataset.id)
+            f"Dataset fetch: GET /global/datasets/{dataset.id} ({dataset.name})", lambda: backend_api.get_dataset(dataset.id)
         )
         report.check(
             f"Dataset secret exists: GET /global/secrets/{dataset.secret.label}",
@@ -310,9 +299,11 @@ def verify_repo(
 
 @click.command("verify-repo")
 @click.option("--tail", type=int, default=None, help="Only check the last N PRs, by number. Default: all.")
-def verify_repo_command(tail):
-    """Check, read-only, that every merged PR of the trigger repo ran in Dagster and the backend agrees. Exits 1 on a failure."""
-    config = TriggerRepoConfig()
+@context_option
+@step_project_option
+def verify_repo_command(tail, context, project):
+    """Check, read-only, that every merged PR of the project's trigger repo ran in Dagster and the backend agrees. Exits 1 on a failure."""
+    config = step_repo_config("trigger", context, project)
     backend_api = build_backend_api(config)
     project = find_project(config, backend_api)
     repo = backend_api.find_repository(config.repo_uri, project.id)
@@ -323,10 +314,13 @@ def verify_repo_command(tail):
 
 
 @click.command("verify-project")
-def verify_project_command():
-    """Check, read-only, the test project: its healthcheck and its dataset. Exits 1 on a failure."""
+@context_option
+@step_project_option
+def verify_project_command(context, project):
+    """Check, read-only, a project: its healthcheck and its datasets. Exits 1 on a failure."""
+    name, backend_api = step_target(context, project)
     report = Report()
-    verify_project(report, ProjectConfig(), DatasetConfig())
+    verify_project(report, name, backend_api)
     report.echo()
     if report.failed:
         raise click.exceptions.Exit(1)

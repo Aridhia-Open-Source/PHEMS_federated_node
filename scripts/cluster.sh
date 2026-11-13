@@ -16,7 +16,12 @@ REMOVE_REGISTRIES="${2:-false}"
 # Load env
 source .dev.env
 
-CLUSTER_NAME="${CLUSTER_NAME:-fn}"
+# The cluster is the one bootstrap/context.yaml points fncli at (node.kube_context is
+# kind-<name>), so the cluster tasks and fncli always agree. The example's until it is copied.
+CONTEXT_FILE=bootstrap/context.yaml
+[ -f "$CONTEXT_FILE" ] || CONTEXT_FILE=bootstrap/examples/context.yaml
+KUBE_CONTEXT="$(sed -n 's/^ *kube_context: *\([^ #]*\).*/\1/p' "$CONTEXT_FILE")"
+CLUSTER_NAME="${KUBE_CONTEXT#kind-}"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 
 # Host directory backing the cluster's local PVs, bind-mounted to /data in the node.
@@ -120,7 +125,7 @@ if [ "$COMMAND" = "up" ]; then
   echo
   echo "Next steps:"
   echo "  1. Create namespace: kubectl create namespace $NAMESPACE"
-  echo "  2. Deploy Helm: ./scripts/deploy.sh"
+  echo "  2. Deploy Helm: mise run deploy"
   echo "  3. Or use Tilt: tilt up"
   echo
 
@@ -170,7 +175,7 @@ elif [ "$COMMAND" = "down" ]; then
     docker ps 2>/dev/null | grep -E "kind-registry|proxy.*registry" || echo "No registries found"
     echo
     echo "To remove registries, run:"
-    echo "  ./scripts/cluster.sh down --remove-registries"
+    echo "  mise run cluster down --remove-registries"
   fi
 
   echo

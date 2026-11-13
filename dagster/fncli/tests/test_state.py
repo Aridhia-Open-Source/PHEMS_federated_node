@@ -82,7 +82,7 @@ def test_project_set_needs_a_flag(calls):
 
 
 def test_project_set_command_options():
-    assert {param.name for param in state.project_set_command.params} == {"enabled", "revoked", "backfill", "project", "expect"}
+    assert {param.name for param in state.project_set_command.params} == {"enabled", "revoked", "backfill", "project", "expect", "context"}
 
 
 def test_revoking_a_project_uses_the_admin_login(calls):
@@ -136,25 +136,3 @@ def test_only_repositories_can_be_revoked_globally(calls):
 def test_global_set_needs_a_flag(calls):
     with pytest.raises(Exception, match="--enabled and/or --revoked"):
         state.set_global(MagicMock(), "p", "trigger", None, None)
-
-
-def test_second_project_is_created_disabled_assigned_then_enabled(monkeypatch):
-    sent = []
-
-    def respond(api, method, path, **kwargs):
-        sent.append((method, path, kwargs.get("json")))
-        return SimpleNamespace(status_code=201, content=b"{}", json=lambda: {"id": 5}, text="")
-
-    monkeypatch.setattr(state, "find_project", lambda api, name: SimpleNamespace(id=1))
-    monkeypatch.setattr(state, "project_resources", lambda api, pid: {
-        "secret": [{"secret": {"label": "s"}}], "dataset": [{"dataset": {"id": 2}}], "trigger": [],
-        "results": [{"results_repository": {"id": 3}, "target_dir": "out", "base_branch": "main"}],
-    })
-    monkeypatch.setattr(state, "call", respond)
-
-    state.setup_second_project(MagicMock(), SimpleNamespace(project_name="p"), "two")
-
-    assert sent[0] == ("POST", "/projects", {"name": "two"})  # no enabled: a new project is disabled
-    assert sent[-1] == ("PATCH", "/projects/5", {"enabled": True})
-    assert [method for method, _, _ in sent[1:-1]] == ["PUT", "PUT", "PUT"]
-    assert sent[3][2] == {"target_dir": "out", "base_branch": "main"}

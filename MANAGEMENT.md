@@ -264,55 +264,55 @@ How often they tick (`fnDagster.sensors.minIntervalSeconds`, default 30 s) and h
 
 ### Install
 
-From the repo root. You need Python 3.12+ and `pipx`.
+From the repo root. You need [mise](https://mise.jdx.dev/), activated in your shell.
 
 ```bash
-pipx install --force --editable './dagster[cli]'
+mise run setup
 fncli hello-world        # prints "Hello, world!"
 ```
 
-If the shell cannot find `fncli`, run `pipx ensurepath` and open a new terminal. The full install notes, troubleshooting and uninstall are in [dagster/fncli/README.md](dagster/fncli/README.md).
+`mise run setup` installs fncli, editable, into `.venv` at the repo root. If you installed it with pipx before, run `pipx uninstall phems`. The full install notes, troubleshooting and uninstall are in [dagster/fncli/README.md](dagster/fncli/README.md).
 
 ### What it needs
 
 - The dev cluster running with Tilt up (`mise run deploy`, then `tilt up`: [DEPLOYMENT.md](DEPLOYMENT.md#run-it-locally)). That gives the port-forwards: nexus-api `localhost:5000`, Dagster `localhost:3000`, Gitea `localhost:4000`.
 - `kubectl` pointing at the cluster. fncli reads secrets (the Dagster system login, the Gitea admin password, the first user) from the **current context**, so check `kubectl config current-context` is the cluster you mean.
-- A `.dev.env`, which fncli finds by searching up from your current directory. `.dev.env.example` documents every variable; the ones that matter here are `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE`, `NAMESPACE`, `GITEA_API_URI`, the `TEST_*` names of the project, repositories and watch directory, and `DEFAULT_PROJECT_DATASET`.
+- A `.dev.env`, which fncli finds by searching up from your current directory. It holds only the deploy settings (`NAMESPACE` among them), the first Keycloak user and the optional GitHub ids: `.dev.env.example` documents them. The node itself is described by node files in `bootstrap/examples`, which `fncli apply` makes real, and which node that is (and the defaults of `fncli trigger`) is in `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
 
 ### The short way
 
 ```bash
-fncli setup-project                  # build the whole dev project
-fncli start-sensor --group all       # start the twelve sensors
-fncli open-pr --merge                # open and merge a pull request with a spec file
-fncli project-show | jq              # watch it: project resources, pull requests, tasks, results
-fncli teardown-project -y            # delete it all again (dev only)
+fncli diff  -f examples/globals-e2e.yaml      # what applying the node file would change; reads only
+fncli apply -f examples/globals-e2e.yaml      # the global resources of the dev project (shows the same, asks, then does it)
+fncli apply -f examples/projects/e2e.yaml     # the dev project
+fncli start-sensor --group all                # start the twelve sensors
+fncli trigger triggers/examples/demo.json --project fn-dev --pr --merge   # open and merge a pull request with a trigger file
+fncli project-show --project fn-dev | jq                       # watch it: project resources, pull requests, tasks, results
+fncli delete -f examples/projects/e2e.yaml; fncli delete -f examples/globals-e2e.yaml --all   # delete it all again (dev only; Gitea repos stay)
 ```
 
-`fncli demo` does the same one step at a time. Before each step it says what the step creates and shows the command, then asks: Enter runs it, `s` skips it, `q` quits. Copy `.demo.env.example` to `.demo.env` first. It uses its own project and repository names, so it never touches your test project.
+`examples/globals-e2e.yaml` is found under the nearest `bootstrap/` directory. A node file lists any of the providers, secrets (each value says where it is read from, never the value), repositories, datasets and projects of a node; what it names but does not hold (a project's repository or dataset) must be on the node already. Which node it is applied to is in `bootstrap/context.yaml` (or `--context FILE`, `FNCLI_CONTEXT`): `fncli` refuses to run when `kubectl` points at another cluster. `apply` creates what is missing, changes what differs (only the differing fields), never rewrites a secret that exists unless `--rotate LABEL`, and never deletes. `delete -f FILE` deletes only the file's projects; `--all` also deletes the global repositories, datasets, secrets and providers, and skips, with the backend's reason, whatever a project outside the file still uses. Both can be repeated after a failure.
 
-### API step to fncli command
+`fncli demo -f examples/projects/demo-gitea.yaml` (or `demo-github.yaml`) walks the pull request part one step at a time, on a node that `fncli apply` has set up with `examples/globals-gitea.yaml` and then that file (it stops unless `fncli diff` shows nothing to change). Before each step it says what the step does and shows the command, then asks: Enter runs it, `s` skips it, `q` quits. It adds the trigger file `triggers/examples/demo.json` in a pull request, or the one you name after the command. It creates and deletes nothing: `fncli delete` of the two files cleans up. It uses its own project and repository names, so it never touches your test project.
 
-| API step | fncli command |
-|---|---|
-| Secrets (git tokens) | `init-git-secret --entity trigger\|results` (mints a Gitea token and stores it) |
-| Secret (dataset login) | `init-dataset-secret` (`DATASET_USERNAME`, `DATASET_PASSWORD`) |
-| Git provider, trigger repository | `init-backend-trigger-repo` |
-| Results repository | `init-backend-results-repo` |
-| Dataset | `init-backend-dataset` |
-| Project | `init-backend-project` |
-| Project resources | done by the three `init-backend-*` commands above |
-| Enable | `project-set --enabled true` |
-| Check | `project-healthcheck`, `verify-project` |
-| Start sensors | `start-sensor --group all` |
-| Open and merge a spec pull request | `open-pr --merge` |
-| Merge the results pull request | `merge-results-pr --number N` |
+### API step to fncli
 
-Group commands chain these: `setup-project` (everything, including the Gitea side), or `setup-backend` then `setup-gitea` (the backend records first, with placeholder tokens, then the Gitea repositories and the real tokens). Every step is idempotent, so a failed run can be repeated.
+| API step | In the node file | Run with |
+|---|---|---|
+| Secrets (git tokens) | `secrets:` with `gitea_oauth` (mints a Gitea OAuth app) or `values` read from env, a file or a cluster secret | `apply` |
+| Secret (dataset login) | `secrets:` with `values` | `apply` |
+| Git provider, trigger repository, results repository | `providers:`, `repositories:` | `apply` |
+| Dataset | `datasets:` | `apply` |
+| Project and its resources | `projects:` (created disabled, enabled last) | `apply` |
+| Enable | `enabled:` of the project | `apply`, or `project-set --enabled true` |
+| Check | | `project-healthcheck`, `verify-project` |
+| Start sensors | | `start-sensor --group all` |
+| Open and merge a spec pull request | a trigger file (`triggers/`) | `trigger FILE --pr --merge` |
+| Merge the results pull request | | `merge-results-pr --number N` |
 
 ### Operating the dev cluster with fncli
 
-These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and talk only to nexus-api and Dagster. They are written for the dev cluster. On another node they may work if you point `NEXUS_API_URL` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `mise run deploy` creates, so on a real node revoke through the API instead.
+These act on the project named by `--project NAME`, or the context's `defaults.project` (the first line says when it is used), and talk only to nexus-api and Dagster. They read the project's repositories and datasets from the node. They are written for the dev cluster. On another node they may work if you point the context file's `node.url` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `mise run deploy` creates, so on a real node revoke through the API instead.
 
 | Command | What it does |
 |---|---|
@@ -323,14 +323,13 @@ These act on the project named by `TEST_PROJECT_NAME`, or `--project NAME`, and 
 | `resource-set KIND --enabled/--revoked ...` | The flags on a project resource (a project's use of a global resource). `KIND` is `trigger`, `results`, `dataset` or `secret` |
 | `global-set KIND --enabled/--revoked ...` | The flags on the global resource itself |
 | `secret-set --entity ... --enabled ...` | Turns a secret on or off, and with it everything that uses it |
-| `project-healthcheck`, `verify-project` | The project's healthcheck, and its dataset; exit 1 on a failure |
-| `second-project-setup NAME` | A second project with the same global resources assigned, enabled |
+| `project-healthcheck`, `verify-project` | The project's healthcheck, and its datasets; exit 1 on a failure |
 
 ### What not to do with it
 
-- **On a real node, set up the git provider, repositories and secrets with the API.** fncli only creates `gitea`-type providers, and it mints Gitea tokens: for GitHub it would create the records with placeholder tokens (`setup-backend`) that you then have to replace by hand.
-- **Never run `teardown-project`, `teardown-backend` or `teardown-gitea` against a node you care about.** They delete the project, its global dataset, repositories and secrets, and (Gitea) the repositories with all their pull requests.
-- fncli's dataset defaults to a dummy. To register a real database set `CLUSTER_DATASET_HOST`, `DATASET_PORT`, `DATASET_TYPE`, `DATASET_SCHEMA`, `DATASET_SCHEMA_WRITE`, `DATASET_USERNAME` and `DATASET_PASSWORD`. `fncli experiment setup <name>` does this for an experiment's data.
+- **On a real node, set up the git provider, repositories and secrets with the API.** `apply` and `delete` are written for the dev and demo clusters, with the confirmation they ask for: using them on a node you care about needs a decision of its own (ADR 0018).
+- **Never run `delete --all` against a node you care about.** It deletes the project, its global dataset, repositories and secrets (their stored values too).
+- A node file's dataset is whatever its `datasets:` entry says, and a project may be assigned a dataset by name that another file made. `fncli experiment setup uc1` applies the UC1 dataset (`experiments/uc1/dataset.yaml`), its global resources (`bootstrap/examples/globals-uc1.yaml`) and then its project (`bootstrap/examples/projects/uc1.yaml`).
 
 ## Switch things on and off
 
@@ -360,14 +359,14 @@ curl -sS -X PUT "$FN/projects/$PROJECT2_ID/repositories/results/$RESULTS_ID" "${
 curl -sS -X PATCH "$FN/projects/$PROJECT2_ID" "${AUTH[@]}" -d '{"enabled": true}'
 ```
 
-A merged pull request is stored once, whatever the number of projects watching the repository, and each project whose `watch_dir` and `base_branch` match gets its own trigger and task. The project's own dataset resource decides which dataset its tasks use. `fncli second-project-setup NAME` does this on the dev cluster.
+A merged pull request is stored once, whatever the number of projects watching the repository, and each project whose `watch_dir` and `base_branch` match gets its own trigger and task. The project's own dataset resource decides which dataset its tasks use. `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo` does this on the dev cluster.
 
 ## Checking on it
 
 | Question | Where to look |
 |---|---|
 | Can everything be reached? | `GET /global/healthcheck`, `GET /projects/<id>/healthcheck`, and per resource `GET /global/datasets/<id>/healthcheck`, `/global/secrets/<label>/healthcheck`, `/global/providers/<id>/healthcheck`, `/global/repositories/triggers/<id>/healthcheck`, `/global/repositories/results/<id>/healthcheck` |
-| What is this project doing? | `fncli project-show`, or `GET /projects/<id>/tasks` |
+| What is this project doing? | `fncli project-show --project NAME`, or `GET /projects/<id>/tasks` |
 | Is a run stuck or failing? | Dagster UI, **Runs**, for the logs of each step |
 | Are the sensors running? | `fncli sensor-status`, or the Dagster UI **Automation** page |
 | Whole-node checklist | [project/QA/deploy-and-health.md](project/QA/deploy-and-health.md) |

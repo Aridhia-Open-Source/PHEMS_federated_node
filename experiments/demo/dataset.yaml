@@ -1,0 +1,22 @@
+# The dataset of the demo experiment and the secret holding its database login, as node resources. `fncli experiment
+# setup demo` applies this file and `teardown demo` deletes it (`fncli delete --all -f` does). Both values of the
+# login are read from the secret that the experiments chart makes for demo-db, so no secret value is in the file.
+# The names match values.yaml: dbs.demo.name is the dataset's name and dbs.demo.secret.name the chart's secret
+# (`setup` checks this). Projects are assigned the dataset by name, from their own node file:
+# bootstrap/examples/projects/demo-gitea.yaml and demo-github.yaml (`datasets: [demo-db]`).
+version: 1
+
+secrets:
+  demo-db-dataset-creds:
+    values:
+      USERNAME: {k8s_secret: {name: db-datasets-demo, namespace: experiments, key: username}}
+      PASSWORD: {k8s_secret: {name: db-datasets-demo, namespace: experiments, key: password}}
+
+datasets:                                          # dataset names are unique across the whole node
+  - name: demo-db
+    type: postgres
+    host: db-datasets.experiments.svc
+    port: 5432
+    read_schema: cdm
+    write_schema: results
+    secret: demo-db-dataset-creds

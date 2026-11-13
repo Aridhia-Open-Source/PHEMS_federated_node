@@ -1,13 +1,11 @@
-import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import click
 import pytest
-from click.testing import CliRunner
 
 from fncli.cmds import repository
-from fncli.cmds.common import ResultsRepoConfig, TriggerRepoConfig, get_base_branch
+from fncli.tests.conftest import NODE, results_config, trigger_config
 
 PROJECT = SimpleNamespace(id=7)
 
@@ -22,50 +20,51 @@ def backend_api():
 
 
 def test_the_trigger_repo_is_assigned_with_the_given_base_branch(backend_api):
-    repository.init_backend_trigger_repo(TriggerRepoConfig(), backend_api, PROJECT, "release")
+    repository.init_backend_trigger_repo(trigger_config(), backend_api, PROJECT, "release")
 
     assert backend_api.get_or_assign_repository.call_args.kwargs["base_branch"] == "release"
 
 
 def test_the_results_repo_is_assigned_with_the_given_base_branch(backend_api):
-    repository.init_backend_results_repo(ResultsRepoConfig(), backend_api, PROJECT, "release")
+    repository.init_backend_results_repo(results_config(), backend_api, PROJECT, "release")
 
     assert backend_api.get_or_assign_results_repository.call_args.args[-1] == "release"
 
 
-def test_the_base_branch_option_wins_over_the_env_var(monkeypatch):
-    monkeypatch.setenv("TEST_TRIGGER_REPO_BASE_BRANCH", "from-env")
+# The config of a project's repository, read from the node
 
-    assert get_base_branch(TriggerRepoConfig(), "from-option") == "from-option"
-    assert get_base_branch(TriggerRepoConfig()) == "from-env"
-
-
-@pytest.mark.parametrize("config_class, variable", [
-    (TriggerRepoConfig, "TEST_TRIGGER_REPO_BASE_BRANCH"), (ResultsRepoConfig, "TEST_RESULTS_REPO_BASE_BRANCH"),
-])
-def test_no_base_branch_is_an_error_that_names_the_env_var(monkeypatch, config_class, variable):
-    monkeypatch.delenv(variable, raising=False)
-
-    with pytest.raises(click.ClickException, match=variable):
-        get_base_branch(config_class())
+def trigger_record(owner="gitea_admin"):
+    """A project's trigger repository assignment, as the backend returns it"""
+    trigger = SimpleNamespace(
+        uri=f"gitea.fn.svc:4000/{owner}/trigger-x",
+        provider=SimpleNamespace(uri="http://gitea.fn.svc:4000", api_uri="http://gitea.fn.svc:4000/api/v1", type="gitea"),
+        secret=SimpleNamespace(label="trigger-x-creds"),
+    )
+    return SimpleNamespace(trigger_repository=trigger, watch_dir="specs/", base_branch="release")
 
 
-def test_init_backend_trigger_repo_fails_before_the_backend_without_a_base_branch(monkeypatch):
-    monkeypatch.delenv("TEST_TRIGGER_REPO_BASE_BRANCH", raising=False)
-    monkeypatch.setattr(repository, "build_backend_api", lambda config: pytest.fail("no base branch, no backend"))
-
-    result = CliRunner().invoke(repository.init_backend_trigger_repo_command, [])
-
-    assert result.exit_code == 1
-    assert "TEST_TRIGGER_REPO_BASE_BRANCH" in result.output
+def node_with(record, project=SimpleNamespace(id=3, name="demo")):
+    api = MagicMock()
+    api.find_project.return_value = project
+    api.get_project_trigger_repositories.return_value = [record]
+    return api
 
 
-def test_init_gitea_repo_does_nothing_for_a_github_repo(monkeypatch, caplog):
-    caplog.set_level(logging.INFO, logger="repository")
-    monkeypatch.setenv("TEST_TRIGGER_REPO_URI", "https://github.com/aridhia/trigger")
-    monkeypatch.setattr(repository, "build_gitea_api", lambda config: pytest.fail("a GitHub repo has no Gitea admin"))
+def test_a_repo_config_is_the_projects_record_on_the_node_with_no_env():
+    config = repository.load_repo_config("trigger", SimpleNamespace(node=NODE), "demo", node_with(trigger_record()))
 
-    result = CliRunner().invoke(repository.init_gitea_repo_command, [])
+    assert (config.project_name, config.repo, config.watch_dir, config.base_branch) == ("demo", "trigger-x", "specs/", "release")
+    assert (config.gitea_url, config.gitea_api_uri) == ("http://gitea.fn.svc:4000", "http://gitea.fn.svc:4000/api/v1")
+    assert (config.secret_label, config.git_provider, config.node) == ("trigger-x-creds", "gitea", NODE)
 
-    assert result.exit_code == 0, result.output
-    assert "Not creating GitHub repo aridhia/trigger" in caplog.text
+
+def test_a_gitea_repo_that_is_not_the_admin_users_is_refused():
+    with pytest.raises(click.ClickException, match="owned by someone-else, not the Gitea admin user gitea_admin"):
+        repository.load_repo_config(
+            "trigger", SimpleNamespace(node=NODE), "demo", node_with(trigger_record(owner="someone-else"))
+        )
+
+
+def test_a_project_that_is_not_on_the_node_says_to_apply_it():
+    with pytest.raises(click.ClickException, match="fncli apply"):
+        repository.load_repo_config("trigger", SimpleNamespace(node=NODE), "demo", node_with(trigger_record(), project=None))

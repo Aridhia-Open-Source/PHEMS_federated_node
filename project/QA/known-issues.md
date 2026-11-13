@@ -2,13 +2,13 @@
 
 Open items and the known limits in [docs/architecture/revoke-and-enabled.md#known-limits]. They are known: a case here does not fail the beta by itself. Run the case, write down what the node does today, and say whether it still matches the description. Where the description and a unit test disagree, that is a finding.
 
-Needs: the dev project, an administrator login, and the second project (`fncli second-project-setup QaTwo`) for the destructive cases.
+Needs: the dev project, an administrator login, and the second project (`fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y`) for the destructive cases.
 
 ## Deleting a trigger resource that has pull requests
 
-1. Run a watched pull request through so the second project has a trigger (`fncli second-project-setup QaTwo` before the merge).
+1. Run a watched pull request through so the second project has a trigger (`fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y` before the merge).
 2. `DELETE /projects/<QaTwo pid>/repositories/triggers/<id>`.
-3. `fncli second-project-teardown QaTwo` when finished.
+3. `fncli delete -f examples/projects/e2e-second-projects.yaml -y` when finished.
 
 - **Expected today:** 204. The unassign is a soft delete that also revokes the project resource, so the `RESTRICT` keys of the triggers never fire. The project resource is gone from the API (`GET` is 404), and its triggers and pull requests are kept. Record the status; a 400 or 409 is a fail.
 - **Rule:** a project resource is only ever soft deleted ([Enabled, revoked and soft delete]); `RESTRICT` stops a real row delete while triggers exist, and no route makes one ([Pull requests stored once per repository, fanned out to project resources, with cursors]).

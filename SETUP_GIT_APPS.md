@@ -15,18 +15,17 @@ the API client.
 2. Note the **App ID**, then **Generate a private key** (a `.pem`; keep it out of git).
 3. **Install App** on only the repositories the node uses. The number at the end of the
    installation URL is the **installation ID**.
-4. Store the credentials and register the repositories:
+4. Store the credentials and register the repositories from a node file
+   (`bootstrap/examples/globals-github.yaml` is the pattern). Put the two ids in `.dev.env` (the `node.env_file` of
+   your `bootstrap/context.yaml`, `cp bootstrap/examples/context.yaml bootstrap/context.yaml`)
+   as `GH_APP_ID` and `GH_INSTALLATION_ID`, and the key at the path the file names (`~/.config/phems/phems-sandbox.private-key.pem`):
 
 ```bash
-export FNCLI_ENV_FILE=.demo-github.env          # the repo URIs: github.com makes fncli use GitHub
-export GH_APP_ID=<app id> GH_INSTALLATION_ID=<installation id>
-export GH_PRIVATE_KEY="$(cat path/to/key.pem)"
-fncli init-git-secret --entity trigger
-fncli init-git-secret --entity results
-fncli init-backend-trigger-repo
-fncli init-backend-results-repo
-fncli verify-git-secret --entity trigger      # nexus-api mints a token, GitHub accepts it
-fncli verify-git-secret --entity results
+fncli diff  -f examples/globals-github.yaml     # what it would create; shows each value's source, never the value
+fncli apply -f examples/globals-github.yaml
+fncli apply -f examples/projects/demo-github.yaml   # the project the checks below work on: its repos are read from the node
+fncli verify-git-secret --entity trigger --project demo-github   # nexus-api mints a token, GitHub accepts it
+fncli verify-git-secret --entity results --project demo-github
 ```
 
 Tokens last an hour and are scoped to the one repository. There are no refresh tokens.
@@ -34,7 +33,7 @@ GitHub OAuth Apps (user tokens) are not supported.
 
 ## Gitea: an OAuth2 application
 
-The default dev setup. `fncli init-git-secret` creates an OAuth2 application for the admin user
+The default dev setup. `fncli apply` of a node file with a `gitea_oauth` secret creates an OAuth2 application for the admin user
 and stores `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN`; nexus-api refreshes from them.
 The chart pins Gitea's `INVALIDATE_REFRESH_TOKENS=false`, which is what makes concurrent
 refreshes safe (see the concurrent-refresh e2e test).

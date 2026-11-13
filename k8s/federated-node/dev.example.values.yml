@@ -133,3 +133,13 @@ dagster:
   #     registry: localhost:5002
   #     repository: library/postgres
   #     tag: "14.6"
+
+# The in-cluster Gitea for the Gitea demo and the e2e suites. Its admin password is generated into the gitea-admin secret.
+gitea:
+  enabled: true
+  admin:
+    user: gitea_admin
+    email: admin@example.com
+    secret:
+      name: gitea-admin
+      key: password
