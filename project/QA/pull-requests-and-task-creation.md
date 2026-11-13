@@ -68,10 +68,10 @@ Needs: the dev project with all sensors running, and a way to create a branch, a
 ## A pull request merged before a project was assigned gets no trigger for it
 
 1. `fncli open-pr --kind watched --merge` and wait until it is stored.
-2. `fncli second-project-setup QaTwo` (assigns the same GlobalResources, enabled).
+2. `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y` (assigns the same GlobalResources, enabled).
 3. `fncli project-show --project QaTwo`.
 4. `fncli open-pr --kind watched --merge` again.
-5. `fncli project-show --project QaTwo`, then `fncli second-project-teardown QaTwo`.
+5. `fncli project-show --project QaTwo`, then `fncli delete -f examples/projects/e2e-second-projects.yaml -y`.
 
 - **Expected:** step 3: no pull requests and no tasks for the new project, although the pull request is stored. Step 5: only the new pull request has a trigger and a task there.
 - **Rule:** a new project resource's cursor is the latest stored pull request (or the project resource's creation time); history before it is not replayed ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
@@ -109,9 +109,9 @@ This is a probe listed in the end-to-end README, not a pass or fail there.
 
 Optional; do it only if you can produce a fast-forward merge to two base branches (check how in your Gitea).
 
-1. `fncli second-project-setup QaTwo`, then `PATCH /projects/<pid>/repositories/triggers/<id>` on it with `{"base_branch": "qa-other"}`. In Gitea create the branch `qa-other` at the same commit as the default branch.
+1. `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y`, then `PATCH /projects/<pid>/repositories/triggers/<id>` on it with `{"base_branch": "qa-other"}`. In Gitea create the branch `qa-other` at the same commit as the default branch.
 2. Create a branch with a new watched spec file. Open two pull requests from it, one into the default branch and one into `qa-other`, and merge both with fast-forward merges (check how your Gitea does that) so both get the same merge commit.
-3. Look at the stored pull requests and each project's triggers (`fncli project-show` and `fncli project-show --project QaTwo`), then `fncli second-project-teardown QaTwo`.
+3. Look at the stored pull requests and each project's triggers (`fncli project-show` and `fncli project-show --project QaTwo`), then `fncli delete -f examples/projects/e2e-second-projects.yaml -y`.
 
 - **Expected:** both pull requests are stored, and each project's resource gets a trigger only for the pull request on its own base branch. A pull request that repeats a merge commit already stored on the same base branch under a new number is skipped (a warning naming both numbers) and does not fail the batch.
 - **Rule:** one commit on one base branch belongs to one pull request ([Pull requests stored once per repository, fanned out to project resources, with cursors]).

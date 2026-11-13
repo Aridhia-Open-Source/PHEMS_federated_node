@@ -56,13 +56,20 @@ Run these from the repo root.
 
 2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`). The file explains every other variable.
 
-3. Fetch the chart's subcharts. `charts/` is gitignored, so a fresh checkout has none and Helm refuses to render.
+3. Install fncli. `mise run deploy` runs `fncli experiment deploy`, so it has to be on your PATH before you deploy.
+
+   ```bash
+   pipx ensurepath          # then open a new terminal
+   pipx install --force --editable './dagster[cli]'
+   ```
+
+4. Fetch the chart's subcharts. `charts/` is gitignored, so a fresh checkout has none and Helm refuses to render.
 
    ```bash
    mise run helm deps
    ```
 
-4. Create the cluster and the registries.
+5. Create the cluster and the registries.
 
    ```bash
    mise run cluster up
@@ -70,7 +77,7 @@ Run these from the repo root.
 
    This starts a registry at `localhost:5001` (your images) and two pull-through mirrors (`localhost:5002` Docker Hub, `localhost:5003` GHCR), then a kind cluster named `fn` with its context `kind-fn`. Local volumes live in `~/.fn/data` (set `FN_DATA_DIR` to move it; the cluster must be recreated for that to take effect).
 
-5. Build the images and install the chart.
+6. Build the images and install the chart.
 
    ```bash
    mise run deploy
@@ -78,7 +85,7 @@ Run these from the repo root.
 
    It claims the dev cluster (see [one owner at a time](#one-owner-at-a-time)), renders the chart as a check, prepares the host directories, builds every image into `localhost:5001` (`docker-bake.hcl`; `mise run image --target nexus-api-fn` rebuilds one), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). At the end it prints the database passwords the chart generated.
 
-6. Start Tilt for the port-forwards and live reload.
+7. Start Tilt for the port-forwards and live reload.
 
    ```bash
    tilt up
@@ -95,7 +102,7 @@ Run these from the repo root.
 
    The `dagster-reload` resource prints this list in the Tilt log once the Dagster code location has loaded, and again after each reload.
 
-7. Check it works. Log in with the first user. `/login` takes form fields, not JSON, and returns a bearer token.
+8. Check it works. Log in with the first user. `/login` takes form fields, not JSON, and returns a bearer token.
 
    ```bash
    source .dev.env
@@ -104,7 +111,7 @@ Run these from the repo root.
      -F "password=$KEYCLOAK_FIRST_USER_PASSWORD" | jq -r .token
    ```
 
-8. Build a working project and watch a pull request run end to end. `fncli demo` does it one confirmed step at a time. Install and usage are in [MANAGEMENT.md](MANAGEMENT.md#using-fncli).
+9. Build a working project and watch a pull request run end to end. `fncli apply -f FILE` then `fncli demo -f FILE` does it, the demo one confirmed step at a time. Usage is in [MANAGEMENT.md](MANAGEMENT.md#using-fncli).
 
 ### Day to day
 

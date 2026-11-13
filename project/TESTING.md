@@ -133,9 +133,9 @@ They cannot show that a command works against the real cluster; that is what the
 - The local dev cluster only (`kubectl` context `kind-fn`, Tilt green). Never a shared or production cluster, and never `mise run teardown` to run them. Work from the worktree that owns the cluster.
 - nexus-api (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answering on localhost (the Tilt port-forwards).
 - All sensors already running: `fncli start-sensor --group all`. The suites do not start or stop them.
-- `.dev.env` in the repo root, with the `TEST_*` values from `.dev.env.example`.
+- `.dev.env` in the repo root, with the deploy settings from `.dev.env.example`. The suites take the node from `bootstrap/examples/context.yaml` and the project from `bootstrap/examples/projects/e2e.yaml` (`fn-dev`).
 - An admin login: revoking is admin only, so fncli logs in as the first Keycloak user, whose credentials `deploy.sh` stores in the `keycloak-first-user` secret from `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD` in `.dev.env`. (The end-to-end README calls these `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD`; the code reads the secret. Check.) The failure suite checks the login first and fails with the cause.
-- Images built from the branch under test (`mise run deploy`), including `pypipes-fn`: the failing-task group needs the run image to honour `PYPIPES_EXIT_CODE`.
+- Images built from the branch under test (`mise run deploy`), including `demo-fn`: the failing-task group needs the run image to honour `PYPIPES_EXIT_CODE`.
 
 ### How to run
 
@@ -152,7 +152,7 @@ dagster/.venv/bin/python -m pytest dagster --e2e failure -v -x -p no:cacheprovid
 
 The success suite runs first, then the failure suite. Within a suite the tests run in file order.
 
-**Success suite** (`test_happy_path.py`): clear leftovers, `setup-project` steps, `verify-project`; then branch, commit a watched spec, open and merge the pull request; the pull request is ingested (UNKNOWN) and YIELDED with a task; the task is created, QUEUED, RUNNING, SUCCESS; a result exists, reaches PUSHED (delivery) and OPENED (the results PR sensor opens the pull request); the results pull request is merged with `merge-results-pr`; the result is MERGED; `verify-project` and `verify-repo --tail 1` pass; teardown (only with `E2E_TEARDOWN=1`).
+**Success suite** (`test_happy_path.py`): clear leftovers, `fncli apply -f examples/globals-e2e.yaml -y` then `fncli apply -f examples/projects/e2e.yaml -y` steps, `verify-project`; then branch, commit a watched spec, open and merge the pull request; the pull request is ingested (UNKNOWN) and YIELDED with a task; the task is created, QUEUED, RUNNING, SUCCESS; a result exists, reaches PUSHED (delivery) and OPENED (the results PR sensor opens the pull request); the results pull request is merged with `merge-results-pr`; the result is MERGED; `verify-project` and `verify-repo --tail 1` pass; teardown (only with `E2E_TEARDOWN=1`).
 
 **Failure suite** (`test_failure_paths.py`): the admin login check; clear leftovers (including the second project) and set up; the project starts empty; then these groups, in this order:
 
@@ -195,7 +195,7 @@ Also not covered, from the end-to-end README: the Gitea mirror, authentication a
 Probes the end-to-end README lists as worth a manual check, not a pass or fail:
 
 - More than 100 merged pull requests behind one cursor: stop ingest, merge 101 watched pull requests, start ingest. Ingest posts them in batches of 100, so all are stored.
-- A revoked Secret resource: `fncli resource-set secret --revoked true`, then open a pull request. Revoked Secret resources are not checked when a token is read.
+- A revoked Secret resource: `fncli resource-set secret --revoked true --project fn-dev`, then open a pull request. Revoked Secret resources are not checked when a token is read.
 
 ### Checks that have never run on a cluster
 

@@ -63,7 +63,7 @@ sequenceDiagram
     participant DG as Dagster (daemon + run pods)
     participant K8s as Kubernetes
 
-    Dev->>CLI: setup-project
+    Dev->>CLI: apply -f examples/globals-e2e.yaml -y, then apply -f examples/projects/e2e.yaml -y
     CLI->>BE: create project, then the global secrets, trigger and results repository, dataset
     CLI->>BE: assign the repositories and dataset to the project
     CLI->>Git: create repos and tokens (Gitea, via localhost:4000)

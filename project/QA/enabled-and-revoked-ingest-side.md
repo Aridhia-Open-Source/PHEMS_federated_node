@@ -123,11 +123,11 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 ## A revoked trigger repository stops every project, and restoring it skips the gap
 
-1. Needs the second project: `fncli second-project-setup QaTwo`. Before (both projects).
+1. Needs the second project: `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y`. Before (both projects).
 2. `fncli global-set trigger --revoked true`. `fncli project-show` for both (project resources `active` false).
 3. Merge. Counts for both.
 4. `fncli global-set trigger --revoked false`. Counts for both after five intervals.
-5. `fncli second-project-teardown QaTwo`.
+5. `fncli delete -f examples/projects/e2e-second-projects.yaml -y`.
 
 - **Expected:** step 3: no trigger or task in either project. Step 4: still none; the pull request is stored. The GlobalResource's `enabled` stayed `true`.
 - **Rule:** GlobalResource flags are read live and apply to every project resource ([Enabled, revoked and soft delete]).
@@ -191,8 +191,8 @@ No fncli command changes a GitProvider: use `PATCH /global/providers/<id>` with 
 ## A project resource created after its GlobalResource was revoked is inactive from the start
 
 1. `fncli global-set trigger --revoked true`.
-2. `fncli second-project-setup QaTwo`. `fncli project-show --project QaTwo`.
-3. `fncli global-set trigger --revoked false`. `fncli second-project-teardown QaTwo`.
+2. `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y`. `fncli project-show --project QaTwo`.
+3. `fncli global-set trigger --revoked false`. `fncli delete -f examples/projects/e2e-second-projects.yaml -y`.
 
 - **Expected:** step 2: the new project's trigger resource exists and shows `active` false. After step 3 it is active.
 - **Rule:** GlobalResource flags are read live, so they apply to project resources created later ([docs/architecture/revoke-and-enabled.md#where-each-flag-lives]).

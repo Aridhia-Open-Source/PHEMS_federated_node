@@ -29,8 +29,8 @@ It is written against the code at commit `6c46e803` (branch `moonshot/shared-res
 
 Which environment the commands are for:
 
-- The `fncli` commands are written for the dev cluster: context `kind-fn`, the Tilt port-forwards (backend `:5000`, Gitea `:4000`, Dagster `:3000`, Keycloak `:8080`), a `.dev.env` in the repo root and the project that `fncli setup-project` creates. On any other node, check that `fncli` can reach it; if it cannot, use the HTTP route the case names, with an administrator bearer token.
-- `fncli setup-project`, `teardown-project` and the `init-` and `delete-` commands create and delete GlobalResources and git repositories. Use them on the test project only, never on a shared node.
+- The `fncli` commands are written for the dev cluster: context `kind-fn`, the Tilt port-forwards (backend `:5000`, Gitea `:4000`, Dagster `:3000`, Keycloak `:8080`), a `.dev.env` in the repo root, a `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`) and the project that `fncli apply -f examples/globals-e2e.yaml -y` then `fncli apply -f examples/projects/e2e.yaml -y` creates (they work on the project from `--project`, else the context's `defaults.project`: `export FNCLI_DEFAULT_PROJECT=fn-dev`). On any other node, check that `fncli` can reach it; if it cannot, use the HTTP route the case names, with an administrator bearer token.
+- `fncli apply` and `fncli delete` with bootstrap files create and delete GlobalResources and git repositories. Use them on the test project only, never on a shared node.
 - The end-to-end suites use Gitea only. GitHub is checked by one case in [pull request ingest and task creation](pull-requests-and-task-creation.md).
 
 Rules for the notes you keep:
@@ -50,7 +50,7 @@ fncli project-show | jq -c '{prs: .trigger_resources[0].pr_count, stored: .trigg
 
 `prs` are the pull requests that have a trigger in the project; `stored` is how many the repository has stored, with or without a trigger for this project.
 
-**Keep the project small.** `fncli project-show` lists at most 100 pull requests (the newest) and 100 tasks (the oldest, by id), so `tasks` in both commands, and the lists in the state command, stop growing at 100 and every "up by one" check is then silently wrong. `prs` and `stored` are totals and stay right. Before the project nears 90 tasks, recreate it: `fncli teardown-project -y`, then `fncli setup-project` (test project only), and start `fncli start-sensor --group all` again if the sensors stopped.
+**Keep the project small.** `fncli project-show` lists at most 100 pull requests (the newest) and 100 tasks (the oldest, by id), so `tasks` in both commands, and the lists in the state command, stop growing at 100 and every "up by one" check is then silently wrong. `prs` and `stored` are totals and stay right. Before the project nears 90 tasks, recreate it: `fncli delete -f examples/projects/e2e.yaml -y`, then `fncli apply -f examples/globals-e2e.yaml -y` then `fncli apply -f examples/projects/e2e.yaml -y` (test project only), and start `fncli start-sensor --group all` again if the sensors stopped.
 
 **State.** The states a case watches:
 
@@ -62,7 +62,7 @@ Add `--project QaTwo` to look at the second project.
 
 **Merge a watched pull request.** `fncli open-pr --kind watched --merge`. Other kinds: `unwatched`, `invalid`, `failing` (a valid spec whose task exits non-zero).
 
-**Second project.** `fncli second-project-setup QaTwo` creates a project with the same Secrets, dataset and repositories assigned as the test project, with the same settings, and enables it. `fncli second-project-teardown QaTwo` deletes it and leaves the GlobalResources. Use `QaThree` for a third.
+**Second project.** `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y` creates a project with the same Secrets, dataset and repositories assigned as the test project, with the same settings, and enables it. `fncli delete -f examples/projects/e2e-second-projects.yaml -y` deletes it and leaves the GlobalResources. Use `QaThree` for a third.
 
 **Make a change while a task is still PENDING.** Used by [task pinning](task-pinning.md) and [enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md).
 

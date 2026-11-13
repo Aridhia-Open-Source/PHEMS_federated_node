@@ -1,7 +1,7 @@
 # Releases Changelog
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller
-- Add storage mount options configuration to task controller 
+- Add storage mount options configuration to task controller
 
 ## 1.16.0
 - Add task storage PV parameter to configure mount options
