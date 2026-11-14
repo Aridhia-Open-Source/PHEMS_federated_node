@@ -1382,7 +1382,7 @@ curl<span class="w"> </span>-sS<span class="w"> </span><span class="s2">"</span>
 </tr>
 <tr>
 <td>The task starts but its container cannot reach the database</td>
-<td>The container times out connecting. The database is not in <code>taskNetworkPolicy.datasetEgress</code> (<a href="../Deploy-Core/#let-tasks-reach-their-dataset">Deploy: Core</a>)</td>
+<td>The container times out connecting. The database is outside the private address ranges and not in <code>taskNetworkPolicy.datasetEgress</code> (<a href="../Deploy-Core/#let-tasks-reach-their-dataset">Deploy: Core</a>)</td>
 </tr>
 </tbody>
 </table>
