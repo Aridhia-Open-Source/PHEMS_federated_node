@@ -274,6 +274,17 @@ customCA:
   # Or the PEM itself; the chart renders a Secret called fn-custom-ca from it.
   pem: ""
 
+# An explicit proxy for OUTBOUND calls (nexus-api, the Dagster code server and its run pods,
+# Keycloak). Sets HTTP_PROXY, HTTPS_PROXY and NO_PROXY, upper and lower case. Off unless
+# httpProxy or httpsProxy is set. Calls between the node's own services always skip it. Goes
+# with customCA when the proxy intercepts TLS. See "Proxy" in the README.
+proxy:
+  # e.g. http://proxy.example.org:3128
+  httpProxy: ""
+  httpsProxy: ""
+  # More hosts and domains that skip the proxy, comma separated.
+  noProxy: ""
+
 # Running on azure?
 on_aks: false
 # Running on AWS?

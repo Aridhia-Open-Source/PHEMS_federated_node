@@ -34,6 +34,14 @@ taskNetworkPolicy:
 # Optional, all off by default:
 # smoketests: true           # `helm test` creates and deletes real db/keycloak rows
 
+# Behind a corporate proxy: the address goes in proxy, and customCA (a Secret holding the
+# proxy's CA, or the PEM itself) makes the pods trust it. See "Proxy" in the chart README.
+# proxy:
+#   httpsProxy: http://proxy.example.org:3128
+#   noProxy: .example.org
+# customCA:
+#   secretName: corp-ca
+
 host: phems-federatednode.net
 
 # Required. Names this node in the results it delivers (run.json, node.id).

@@ -1,0 +1,229 @@
+## proxy: off changes nothing. On, nexus-api, the Dagster code server (and the run pods it
+## launches) and Keycloak get HTTP_PROXY, HTTPS_PROXY and NO_PROXY in upper and lower case,
+## and NO_PROXY always keeps the in-cluster addresses off the proxy.
+suite: Proxy for outbound calls
+release:
+  namespace: federatednode
+  name: federatednode
+templates:
+  - templates/nexus-api-deployment.yaml
+  - templates/dagster-code-server.yaml
+  - templates/keycloak-statefulset.yaml
+  - templates/keycloak-configmap.yaml
+values:
+  - values/values-local.yaml
+set:
+  dagster:
+    enabled: true
+    postgresql:
+      postgresqlHost: db.default.svc
+  fnDagster:
+    createDB: true
+
+tests:
+  - it: adds nothing to nexus-api by default
+    template: templates/nexus-api-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: NEXUS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-db
+                  key: password
+
+  - it: adds nothing to the Dagster code server by default
+    template: templates/dagster-code-server.yaml
+    documentIndex: 3
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NO_PROXY
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DAGSTER_CONTAINER_CONTEXT
+          any: true
+
+  - it: adds nothing to Keycloak by default
+    template: templates/keycloak-statefulset.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NO_PROXY
+          any: true
+
+  - it: adds nothing when only noProxy is set
+    template: templates/nexus-api-deployment.yaml
+    set:
+      proxy:
+        noProxy: .corp.example
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NO_PROXY
+          any: true
+
+  - it: gives nexus-api the six variables
+    template: templates/nexus-api-deployment.yaml
+    set:
+      proxy:
+        httpProxy: http://proxy.example.org:3128
+        httpsProxy: http://proxy.example.org:3129
+    asserts: &sixVariables
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: http://proxy.example.org:3129
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: https_proxy
+            value: http://proxy.example.org:3129
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTP_PROXY
+            value: http://proxy.example.org:3128
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: http_proxy
+            value: http://proxy.example.org:3128
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NO_PROXY
+            value: "localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local,$(KUBERNETES_SERVICE_HOST)"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: no_proxy
+            value: "localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local,$(KUBERNETES_SERVICE_HOST)"
+
+  - it: gives the Dagster code server the six variables
+    template: templates/dagster-code-server.yaml
+    documentIndex: 3
+    set:
+      proxy:
+        httpProxy: http://proxy.example.org:3128
+        httpsProxy: http://proxy.example.org:3129
+    asserts: *sixVariables
+
+  - it: gives Keycloak the six variables
+    template: templates/keycloak-statefulset.yaml
+    set:
+      proxy:
+        httpProxy: http://proxy.example.org:3128
+        httpsProxy: http://proxy.example.org:3129
+    asserts: *sixVariables
+
+  - it: sets only the proxy that is given, plus NO_PROXY
+    template: templates/nexus-api-deployment.yaml
+    set:
+      proxy:
+        httpsProxy: http://proxy.example.org:3129
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: http://proxy.example.org:3129
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: no_proxy
+            value: "localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local,$(KUBERNETES_SERVICE_HOST)"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTP_PROXY
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: http_proxy
+          any: true
+
+  - it: appends noProxy after the in-cluster addresses
+    template: templates/nexus-api-deployment.yaml
+    set:
+      proxy:
+        httpsProxy: http://proxy.example.org:3129
+        noProxy: ".corp.example,10.20.0.0/16"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name == "NO_PROXY")].value
+          value: "localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local,$(KUBERNETES_SERVICE_HOST),.corp.example,10.20.0.0/16"
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name == "no_proxy")].value
+          value: "localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local,$(KUBERNETES_SERVICE_HOST),.corp.example,10.20.0.0/16"
+
+  - it: hands the proxy to every Dagster run pod, with no volumes or init container without customCA
+    template: templates/dagster-code-server.yaml
+    documentIndex: 3
+    set:
+      proxy:
+        httpProxy: http://proxy.example.org:3128
+        httpsProxy: http://proxy.example.org:3129
+        noProxy: .corp.example
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT")].value
+          pattern: '"name":"HTTPS_PROXY","value":"http://proxy.example.org:3129"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CONTAINER_CONTEXT")].value
+          pattern: '"name":"http_proxy","value":"http://proxy.example.org:3128"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CONTAINER_CONTEXT")].value
+          pattern: '"name":"NO_PROXY","value":"localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local,\$\(KUBERNETES_SERVICE_HOST\),.corp.example"'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CONTAINER_CONTEXT")].value
+          pattern: 'volumes|init_containers'
+      - notExists:
+          path: spec.template.spec.initContainers
+
+  - it: sets the proxy and the custom CA together on the code server and its run pods
+    template: templates/dagster-code-server.yaml
+    documentIndex: 3
+    set:
+      customCA:
+        secretName: corp-ca
+      proxy:
+        httpsProxy: http://proxy.example.org:3129
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GIT_SSL_CAINFO
+            value: /etc/fn-ca/ca-bundle.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HTTPS_PROXY
+            value: http://proxy.example.org:3129
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CONTAINER_CONTEXT")].value
+          pattern: '"name":"GIT_SSL_CAINFO","value":"/etc/fn-ca/ca-bundle.crt"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CONTAINER_CONTEXT")].value
+          pattern: '"name":"HTTPS_PROXY","value":"http://proxy.example.org:3129"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name == "DAGSTER_CONTAINER_CONTEXT")].value
+          pattern: '"init_containers":\[\{"command"'

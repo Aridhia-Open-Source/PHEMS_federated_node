@@ -411,20 +411,57 @@ CAs it copies are the ones that workload would have used.
 {{- end -}}
 
 {{/*
+Proxy for OUTBOUND calls (proxy in values.yaml): the standard environment variables, in
+upper and lower case because tools differ in which they read. Everything is off unless
+proxy.httpProxy or proxy.httpsProxy is set. NO_PROXY always starts with the in-cluster
+addresses, so calls between the node's own services skip the proxy; the operator's
+proxy.noProxy follows. The kubelet expands $(KUBERNETES_SERVICE_HOST) in the value.
+*/}}
+{{- define "fn.proxy.enabled" -}}
+{{- if or (.Values.proxy).httpProxy (.Values.proxy).httpsProxy -}}true{{- end -}}
+{{- end -}}
+
+{{- define "fn.proxy.noProxy" -}}
+localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local,$(KUBERNETES_SERVICE_HOST)
+{{- with .Values.proxy.noProxy -}},{{ . }}{{- end -}}
+{{- end -}}
+
+{{/* Only the variables that have a value; NO_PROXY always has one. */}}
+{{- define "fn.proxy.env" -}}
+{{- $vars := dict "HTTPS_PROXY" .Values.proxy.httpsProxy "HTTP_PROXY" .Values.proxy.httpProxy "NO_PROXY" (include "fn.proxy.noProxy" .) }}
+{{- range $name, $value := $vars }}
+{{- if $value }}
+{{- range (list $name (lower $name)) }}
+- name: {{ . }}
+  value: {{ $value | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end -}}
+
+{{/*
 The Dagster container context for run pods (JSON). The code server hands it to the
 K8sRunLauncher with every run, so the pods that clone and push git and deliver
-results get the same volumes, init container and env as the code server.
-Task (pipes) pods are not given it: they run partner code and have no outbound access.
+results get the same env as the code server; with customCA, the same volumes and
+init container too. Task (pipes) pods are not given it: they run partner code and have
+no outbound access. Call it only when customCA or the proxy is enabled.
 
 @param .ctx   root context
 @param .image the dagster image
 */}}
-{{- define "fn.customCA.runContainerContext" -}}
+{{- define "fn.runContainerContext" -}}
 {{- $ctx := .ctx -}}
-{{- dict "k8s" (dict
-      "env" (include "fn.customCA.env" $ctx | fromYamlArray)
-      "volumes" (include "fn.customCA.volumes" $ctx | fromYamlArray)
-      "volume_mounts" (include "fn.customCA.volumeMounts" $ctx | fromYamlArray)
-      "run_k8s_config" (dict "pod_spec_config" (dict "init_containers" (include "fn.customCA.initContainer" (dict "ctx" $ctx "image" .image) | fromYamlArray)))
-    ) | toJson -}}
+{{- $k8s := dict -}}
+{{- $env := list -}}
+{{- if include "fn.customCA.enabled" $ctx -}}
+{{- $env = include "fn.customCA.env" $ctx | fromYamlArray -}}
+{{- $_ := set $k8s "volumes" (include "fn.customCA.volumes" $ctx | fromYamlArray) -}}
+{{- $_ := set $k8s "volume_mounts" (include "fn.customCA.volumeMounts" $ctx | fromYamlArray) -}}
+{{- $_ := set $k8s "run_k8s_config" (dict "pod_spec_config" (dict "init_containers" (include "fn.customCA.initContainer" (dict "ctx" $ctx "image" .image) | fromYamlArray))) -}}
+{{- end -}}
+{{- if include "fn.proxy.enabled" $ctx -}}
+{{- $env = concat $env (include "fn.proxy.env" $ctx | fromYamlArray) -}}
+{{- end -}}
+{{- $_ := set $k8s "env" $env -}}
+{{- dict "k8s" $k8s | toJson -}}
 {{- end -}}

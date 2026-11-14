@@ -45,6 +45,9 @@ The necessary values are:
 |customCA|secretName|Optional. An existing Secret holding a CA the node trusts for OUTBOUND TLS, in addition to the system CAs. See [Custom CA](#custom-ca)|
 |customCA|key|The key in that Secret holding the PEM, default `ca.crt`|
 |customCA|pem|Optional. The PEM itself; the chart renders a Secret `fn-custom-ca` from it. Not together with `secretName`|
+|proxy|httpProxy|Optional. Address of an explicit proxy for OUTBOUND `http://` calls, e.g. `http://proxy.example.org:3128`. See [Proxy](#proxy)|
+|proxy|httpsProxy|Optional. Address of the proxy for OUTBOUND `https://` calls. The proxy is off unless this or `httpProxy` is set|
+|proxy|noProxy|Optional. More hosts and domains that skip the proxy, comma separated. In-cluster addresses always skip it|
 
 ### Existing secrets
 Most secrets are created by the chart: the per-service database passwords are generated on first
@@ -121,6 +124,23 @@ What gets it:
 Not covered, on purpose or because the chart cannot: task (pipes) pods run partner code with no outbound access and are not given it; the Dagster webserver and daemon belong to the Dagster subchart, whose values the chart cannot template, and make no outbound HTTPS calls; the kubelet and containerd pull images with the node's own trust store, so a registry behind a private CA needs that CA on every node, which the cluster operator sets up.
 
 Rotation: the bundle is built when a pod starts, so the pods restart when the CA changes. With `pem`, or a Secret that Helm can read, `helm upgrade` does it through a `checksum/custom-ca` pod annotation. A Secret managed outside Helm and changed in place is not noticed: run `kubectl rollout restart deployment/nexus-api deployment/<release>-dagster-fn -n <namespace>` and `kubectl rollout restart statefulset/keycloak -n <keycloak namespace>`, or use a reloader controller. New Dagster run pods read the current Secret when they start. Where the chart cannot read the cluster (`helm template`, `helm diff`) the annotation hashes the Secret's name and key only.
+
+## Proxy
+
+`customCA` makes the node trust a proxy's certificate. It does not tell the node the proxy exists. Behind an explicit proxy, also set `proxy`, or the pods trust it but never use it and calls such as the Dagster sensors' to GitHub fail. The two go together when the proxy intercepts TLS.
+
+```yaml
+proxy:
+  httpsProxy: http://proxy.example.org:3128
+  httpProxy: http://proxy.example.org:3128   # optional, only for plain http:// calls
+  noProxy: .corp.example,10.20.0.0/16        # optional, more hosts that skip the proxy
+customCA:
+  secretName: corp-ca
+```
+
+The chart sets `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY` in upper and lower case, because tools differ in which they read, on nexus-api, the Dagster code server, the Dagster run pods and Keycloak. Nothing is set unless `httpsProxy` or `httpProxy` is. `NO_PROXY` always starts with `localhost,127.0.0.1,.svc,.svc.cluster.local,.cluster.local` and the Kubernetes API server address, so calls between the node's own services skip the proxy; your `noProxy` follows. Task (pipes) pods have no outbound access and are not given it.
+
+The proxy address is stored as plain text in the pod specs, so do not put credentials in it.
 
 ## Gateway API CRD update
 ```sh

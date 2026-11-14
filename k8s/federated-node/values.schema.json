@@ -552,6 +552,25 @@
                 }
             }
         },
+        "proxy": {
+            "type": "object",
+            "description": "An explicit proxy for outbound calls, set as HTTP_PROXY, HTTPS_PROXY and NO_PROXY on nexus-api, the Dagster code server and its run pods, and Keycloak. Off unless httpProxy or httpsProxy is set.",
+            "additionalProperties": false,
+            "properties": {
+                "httpProxy": {
+                    "type": "string",
+                    "description": "Proxy for http:// calls, e.g. http://proxy.example.org:3128."
+                },
+                "httpsProxy": {
+                    "type": "string",
+                    "description": "Proxy for https:// calls, e.g. http://proxy.example.org:3128."
+                },
+                "noProxy": {
+                    "type": "string",
+                    "description": "More hosts and domains that skip the proxy, comma separated. Added after the in-cluster addresses, which always skip it."
+                }
+            }
+        },
         "on_aks": {
             "type": "boolean",
             "description": "Deploying on Azure?",
