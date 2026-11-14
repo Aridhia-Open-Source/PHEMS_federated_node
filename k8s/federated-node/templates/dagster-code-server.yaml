@@ -112,14 +112,19 @@ spec:
                   key: {{ include "dagsterDbSecretKey" . }}
             {{- if include "fn.customCA.enabled" . }}
             {{- include "fn.customCA.env" . | nindent 12 }}
+            {{- end }}
+            {{- if include "fn.proxy.enabled" . }}
+            {{- include "fn.proxy.env" . | nindent 12 }}
+            {{- end }}
+            {{- if or (include "fn.customCA.enabled" .) (include "fn.proxy.enabled" .) }}
             {{- /* What the K8sRunLauncher applies to every run pod launched from this
                    code location. DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT is how the
                    dagster-user-deployments chart sets `dagster api grpc --container-context`;
                    newer dagster reads DAGSTER_CONTAINER_CONTEXT. */}}
             - name: DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT
-              value: {{ include "fn.customCA.runContainerContext" (dict "ctx" . "image" $image) | quote }}
+              value: {{ include "fn.runContainerContext" (dict "ctx" . "image" $image) | quote }}
             - name: DAGSTER_CONTAINER_CONTEXT
-              value: {{ include "fn.customCA.runContainerContext" (dict "ctx" . "image" $image) | quote }}
+              value: {{ include "fn.runContainerContext" (dict "ctx" . "image" $image) | quote }}
             {{- end }}
           envFrom:
             - configMapRef:

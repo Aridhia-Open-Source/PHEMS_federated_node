@@ -94,6 +94,9 @@ spec:
           {{- if include "fn.customCA.enabled" . }}
           {{- include "fn.customCA.env" . | nindent 10 }}
           {{- end }}
+          {{- if include "fn.proxy.enabled" . }}
+          {{- include "fn.proxy.env" . | nindent 10 }}
+          {{- end }}
           volumeMounts:
             - name: kc-secrets
               mountPath: {{ include "kcSecretsMountPath" . }}

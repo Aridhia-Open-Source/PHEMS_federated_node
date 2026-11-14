@@ -57,6 +57,9 @@ spec:
             - name: KC_TRUSTSTORE_PATHS
               value: /opt/keycloak/conf/custom-ca/ca.crt
             {{- end }}
+            {{- if include "fn.proxy.enabled" . }}
+            {{- include "fn.proxy.env" . | nindent 12 }}
+            {{- end }}
           envFrom:
           - secretRef:
               name: kc-secrets
