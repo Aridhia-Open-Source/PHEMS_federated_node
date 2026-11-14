@@ -37,7 +37,7 @@ Docker has to restart for the proxy setting to apply. **That stops every running
 
 Then open a new shell so the new variables load (`mise run` loads `.dev.env` itself). Continue with `mise run setup` (install [mise](https://mise.jdx.dev/) first on a fresh machine; run this script before that, so its download verifies), then `mise run cluster-up`.
 
-In the dev container (see [DEPLOYMENT.md](DEPLOYMENT.md#dev-container)) there is nothing more to run: it copies the CA from `CUSTOM_CA_FILE` in `.dev.env` and trusts it when it is created, so rebuild the container after this script has run.
+In the dev container (see [DEPLOYMENT.md](DEPLOYMENT.md#dev-container)) there is nothing more to run: its image build copies the CA from `CUSTOM_CA_FILE` in `.dev.env` and trusts it, so rebuild the container after this script has run.
 
 ## What it changes
 
