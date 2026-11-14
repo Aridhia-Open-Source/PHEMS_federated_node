@@ -44,6 +44,14 @@ if command -v tilt &> /dev/null; then
   fi
 fi
 
+# A Tilt session that ended without `tilt down` leaves that command behind too.
+for d in $(kubectl get deployments -n "$NAMESPACE" -o name 2>/dev/null); do
+  if [ "$(kubectl get "$d" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].command[0]}')" = /tilt-restart-wrapper ]; then
+    echo "Removing Tilt's command from $d"
+    kubectl patch "$d" -n "$NAMESPACE" --type json -p '[{"op":"remove","path":"/spec/template/spec/containers/0/command"}]'
+  fi
+done
+
 echo
 echo "=== Reconciling PersistentVolumes ======================================"
 
@@ -107,6 +115,15 @@ fi
 source ./scripts/custom_ca.sh
 custom_ca_prepare
 
+# DEV_PROXY_URL (optional): the proxy the release's pods send outbound calls through, e.g.
+# http://proxy.example:3128 (the chart's proxy value). Not HTTPS_PROXY: this script's own
+# docker, helm and kubectl calls must not use it.
+PROXY_HELM_ARGS=()
+if [ -n "${DEV_PROXY_URL:-}" ]; then
+  echo "Proxy: $DEV_PROXY_URL"
+  PROXY_HELM_ARGS=(--set "proxy.httpProxy=$DEV_PROXY_URL" --set "proxy.httpsProxy=$DEV_PROXY_URL")
+fi
+
 echo
 echo "=== Deploying Helm Release =============================================="
 
@@ -127,6 +144,7 @@ helm upgrade --install "$RELEASE_NAME" . \
   --timeout 30m \
   --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
   ${CUSTOM_CA_HELM_ARGS[@]+"${CUSTOM_CA_HELM_ARGS[@]}"} \
+  ${PROXY_HELM_ARGS[@]+"${PROXY_HELM_ARGS[@]}"} \
   --namespace "$NAMESPACE" \
   --debug
 

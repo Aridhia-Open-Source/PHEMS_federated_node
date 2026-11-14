@@ -80,6 +80,8 @@ On a production cluster you do not use the script. Put the CA in a Secret and na
 
 Add `--mode none|wrong|right` to run one mode. `mise run proxy-sim-down` removes it all. Your own images, cluster and registry are not touched.
 
+`scripts/proxy-sim-sensors.sh` tests the Dagster pull-request pipeline the same way, on the dev cluster (it deploys the release, so this checkout must own the cluster). mitmproxy runs as a pod, and the in-cluster Gitea is registered under an outside-looking HTTPS name that only the proxy answers, so every call, clone and push crosses it. With no CA or a wrong CA the pipeline fails with a certificate error; with mitmproxy's CA as `customCA` the merged pull request is ingested and the results pull request is opened. The steps are at the top of the script.
+
 ## Known gaps
 
 - Image builds get the CA as a BuildKit secret (`proxy_ca`) in the pip steps, and use http repositories for `apk` (apk checks package signatures itself). `mise run proxy-sim-build` tests the nexus-api image.
