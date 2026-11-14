@@ -80,7 +80,7 @@ Open the Dagster UI by port-forward (above), and go to **Runs**. A task's run is
 | It adds more than one spec file, or the spec is not valid | The trigger is `REJECTED` and `state_cause` says why |
 | A token is wrong or expired | The resource's healthcheck fails and names it. Rotate it with `PATCH /global/secrets/<label>` |
 | The task stays pending | `state_cause` on the task: usually the dataset assignment is inactive or its secret is disabled. Fix the cause, then `POST /projects/<id>/tasks/<task_id>/retry` |
-| The task starts but its container cannot reach the database | The container times out connecting. The database is not in `taskNetworkPolicy.datasetEgress` ([Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset)) |
+| The task starts but its container cannot reach the database | The container times out connecting. The database is outside the private address ranges and not in `taskNetworkPolicy.datasetEgress` ([Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset)) |
 
 ### Results not delivered
 

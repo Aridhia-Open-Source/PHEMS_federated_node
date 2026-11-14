@@ -8,44 +8,73 @@ The Federated Node runs analysis tasks next to sensitive data and lets out only 
 A researcher opens a pull request on a watched git repository, adding a task spec. When it is merged, the node creates a task and runs it in an isolated pod against one dataset. The results come back as a results pull request, which a reviewer merges or closes.
 
 ```mermaid
-flowchart LR
-    R([Researcher]) -->|"pull request"| GP[Git Provider]
-    GP -->|"merged, ingested by sensor"| DG["dagster"]
-    DG -->|"launches task"| TP["task pod"]
-    TP -->|"results pushed"| RP["Git Provider<br/>results pull request"]
-    RP --> V([Reviewer merges])
+sequenceDiagram
+    participant Researcher
+    participant Trigger as Trigger Repo
+    participant DataController as Data Controller
+    participant Node as Federated Node
+    participant Task as Task Pod
+    participant Results as Results Repo
+
+    Researcher->>Trigger: Raise PR (task spec: image + dataset)
+    DataController->>Trigger: Approve PR
+    DataController->>Trigger: Merge PR
+    Node->>Trigger: Poll merged PRs, read the task spec
+    Node->>Node: Create task, check the project, dataset and repos are allowed
+    Node->>Task: Start pod in the tasks namespace, next to the dataset
+    Task-->>Node: Write results to its output folder
+    Node->>Results: Push results branch, open Results PR
+    DataController->>Results: Approve Results PR
+    DataController->>Results: Merge Results PR
+    Node->>Results: Sync PR state, record the result as merged
 ```
 
 ## Components
 
 ```mermaid
 flowchart LR
-    subgraph Node["Federated Node"]
-        TR[Traefik]
-        UI["nexus/ui"]
-        API["nexus/api"]
-        KC[Keycloak]
-        DB[(Postgres)]
-        DG["dagster"]
-        subgraph Tasks["tasks namespace"]
-            TP["task pods"]
-            NP["default-deny network policy"]
-        end
+  subgraph People["People"]
+    direction TB
+    Researcher("Researcher")
+    DataController("Data Controller")
+    Admin("Admin")
+  end
+
+  subgraph GitProvider["Git Provider"]
+    direction TB
+    TriggerRepo("Trigger Repo")
+    ResultsRepo("Results Repo")
+  end
+
+  subgraph FederatedNode["Federated Node"]
+    direction TB
+    subgraph Control["Control"]
+      direction LR
+      Traefik("Traefik") --> Nexus("nexus-ui + nexus-api") --> Keycloak("Keycloak")
+      Nexus --- Postgres[("Postgres")]
     end
-    GP[Git Provider]
-    DS[(Datasets)]
-    TR --> UI
-    TR --> API
-    TR --> KC
-    API --> KC
-    API --> DB
-    KC --> DB
-    DG --> API
-    DG --> DB
-    DG -->|"launches"| TP
-    DG <-->|"pull requests"| GP
-    TP --> NP
-    NP -->|"only route out"| DS
+    subgraph Dagster["Dagster"]
+      direction LR
+      Daemon("Daemon (sensors)") --> RunPods("Run Pods")
+    end
+    subgraph Tasks["tasks namespace"]
+      TaskPods("Task Pods")
+    end
+    Daemon --> Nexus
+    RunPods --> Nexus
+    RunPods --> TaskPods
+  end
+
+  subgraph Institution["Institution Network"]
+    Datasets[("Datasets")]
+  end
+
+  Researcher -->|"Trigger PR"| TriggerRepo
+  DataController -->|"merges PRs"| GitProvider
+  Admin --> Traefik
+  Daemon -.->|"polls"| TriggerRepo
+  RunPods -.->|"Results PR"| ResultsRepo
+  TaskPods --> Datasets
 ```
 
 ## Principles

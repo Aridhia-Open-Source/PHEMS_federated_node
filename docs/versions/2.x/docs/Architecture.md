@@ -14,6 +14,52 @@ The FN inverts the usual data sharing model. Instead of copying patient data out
 
 Everything below is deployed by a single Helm chart. Some parts are subcharts you can turn on or off.
 
+```mermaid
+flowchart LR
+  subgraph People["People"]
+    direction TB
+    Researcher("Researcher")
+    DataController("Data Controller")
+    Admin("Admin")
+  end
+
+  subgraph GitProvider["Git Provider"]
+    direction TB
+    TriggerRepo("Trigger Repo")
+    ResultsRepo("Results Repo")
+  end
+
+  subgraph FederatedNode["Federated Node"]
+    direction TB
+    subgraph Control["Control"]
+      direction LR
+      Traefik("Traefik") --> Nexus("nexus-ui + nexus-api") --> Keycloak("Keycloak")
+      Nexus --- Postgres[("Postgres")]
+    end
+    subgraph Dagster["Dagster"]
+      direction LR
+      Daemon("Daemon (sensors)") --> RunPods("Run Pods")
+    end
+    subgraph Tasks["tasks namespace"]
+      TaskPods("Task Pods")
+    end
+    Daemon --> Nexus
+    RunPods --> Nexus
+    RunPods --> TaskPods
+  end
+
+  subgraph Institution["Institution Network"]
+    Datasets[("Datasets")]
+  end
+
+  Researcher -->|"Trigger PR"| TriggerRepo
+  DataController -->|"merges PRs"| GitProvider
+  Admin --> Traefik
+  Daemon -.->|"polls"| TriggerRepo
+  RunPods -.->|"Results PR"| ResultsRepo
+  TaskPods --> Datasets
+```
+
 | Component | Namespace | What it does |
 |---|---|---|
 | **nexus-api** | release namespace | The FN API (FastAPI, port 5000). It is the record and the rules: projects, datasets, repositories, tasks and results live in its database, and it decides whether a task may run. It also mints short-lived git tokens for the repositories. |
@@ -31,6 +77,28 @@ Task pods get their own namespace on purpose: it holds nothing but task pods, so
 
 
 ## How a task runs
+
+```mermaid
+sequenceDiagram
+    participant Researcher
+    participant Trigger as Trigger Repo
+    participant DataController as Data Controller
+    participant Node as Federated Node
+    participant Task as Task Pod
+    participant Results as Results Repo
+
+    Researcher->>Trigger: Raise PR (task spec: image + dataset)
+    DataController->>Trigger: Approve PR
+    DataController->>Trigger: Merge PR
+    Node->>Trigger: Poll merged PRs, read the task spec
+    Node->>Node: Create task, check the project, dataset and repos are allowed
+    Node->>Task: Start pod in the tasks namespace, next to the dataset
+    Task-->>Node: Write results to its output folder
+    Node->>Results: Push results branch, open Results PR
+    DataController->>Results: Approve Results PR
+    DataController->>Results: Merge Results PR
+    Node->>Results: Sync PR state, record the result as merged
+```
 
 1. **Ingest.** A Dagster sensor polls each trigger repository for merged pull requests. nexus-api stores each pull request once, however many projects watch the repository.
 2. **Evaluate.** For each project that watches that repository and branch, a pull request that **adds one `.json` file** under the project's watch directory becomes a task. A pull request that adds no such file is ignored. One that adds several, or whose spec is not valid, is marked `REJECTED` with the reason.
@@ -68,7 +136,7 @@ A researcher never talks to the FN to start a task: they talk to git. The FN's o
 - **Dagster to git.** The sensors and run pods call your git host (`api.github.com` for GitHub) to read merged pull requests and to push and open results.
 - **Dagster to nexus-api.** Every decision goes through nexus-api. Dagster logs in as a system user.
 - **nexus-api to Keycloak.** nexus-api checks logins and tokens against Keycloak.
-- **Task pods to the dataset.** A task pod can reach DNS and the dataset database, and nothing else. It does not talk to nexus-api, Dagster, git or the Kubernetes API.
+- **Task pods to the dataset.** A task pod can reach DNS, the private address ranges, and the dataset databases you list. Nothing else. It does not talk to nexus-api, Dagster, git or the Kubernetes API.
 
 Admins and researchers who use the API reach it over HTTPS through Traefik. The Dagster UI is never exposed: reach it with a port-forward.
 
@@ -82,12 +150,12 @@ A task runs an image that you did not write, next to your data. Four limits keep
 | **Storage** | The pod mounts only its own run's folder on the shared volume, not the volume. Delivery skips symbolic links. |
 | **Secrets** | The pod gets one dataset's login in a Secret made for that task, and deleted when it ends. It has no Kubernetes token, and no git credentials. |
 | **Namespace** | All tasks run in the `tasks` namespace, apart from nexus-api, Dagster and Keycloak. |
-| **Network** | A NetworkPolicy denies all traffic in and out of the namespace, except DNS and the dataset databases you list in `taskNetworkPolicy.datasetEgress`. |
+| **Network** | A NetworkPolicy denies all traffic in and out of the namespace, except DNS, the private address ranges in `taskNetworkPolicy.privateEgress`, and the dataset databases you list in `taskNetworkPolicy.datasetEgress`. |
 
 Two things to know:
 
 - The network rule only works if your cluster's network plugin enforces NetworkPolicy (Calico, Cilium, or your cloud's add-on). On one that ignores it, the rule does nothing.
-- `datasetEgress` is empty by default. A task whose dataset database is not listed there will time out when it connects. [Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset) shows the value.
+- `datasetEgress` is empty by default. A dataset database on a private address (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) is reachable without it. One on any other address must be listed there, or the task times out when it connects. [Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset) shows the value.
 
 None of this limits what a task does with the dataset it was given. What leaves the node is the zip in the results pull request, and a person reads it first.
 
