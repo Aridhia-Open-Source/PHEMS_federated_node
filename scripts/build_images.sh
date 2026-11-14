@@ -29,7 +29,15 @@ if [[ $# -gt 0 ]]; then
   TARGETS=("$@")
 fi
 
+# CUSTOM_CA_FILE (optional, from .dev.env): given to the Dockerfiles as the BuildKit secret
+# proxy_ca, for builds behind a TLS-inspecting proxy.
+SECRET_ARGS=()
+if [[ -n "${CUSTOM_CA_FILE:-}" ]]; then
+  SECRET_ARGS=(--set "*.secrets=id=proxy_ca,src=$(realpath "$CUSTOM_CA_FILE")")
+fi
+
 docker buildx bake \
   "${FILES[@]}" \
+  ${SECRET_ARGS[@]+"${SECRET_ARGS[@]}"} \
   "${TARGETS[@]}" \
   --push

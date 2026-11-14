@@ -34,6 +34,10 @@ The components and the network between them are drawn in [docs/architecture/flow
 
 The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image registry, the chart installed with development values, and [Tilt](https://tilt.dev/) for live reload.
 
+### Try it on a clean machine
+
+`./scripts/sandbox/sandbox.sh up` makes a throwaway Debian container with its own Docker and installs the tools the way a fresh clone does: it has mise, and runs `mise trust --all && mise run setup`. Then `sandbox.sh init-conf`, `sandbox.sh cluster-up` and `sandbox.sh deploy` run those mise tasks in it. `shell` opens a shell in there, `exec <command>` runs a command, any other word runs that mise task, and `down` removes it. Edits to `nexus/api/` and `dagster/` live-reload in the sandbox too. The options and details are at the top of `scripts/sandbox/sandbox.sh`.
+
 ### You need
 
 - Docker
@@ -176,6 +180,15 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 `--force-owner` also works on `cluster down`, and `--base` is optional (it defaults to `HEAD`).
 
+### Behind a TLS-intercepting proxy
+
+Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `./scripts/setup-proxy-ca.sh --ca-file PATH --proxy URL` sets up the machine side. The two settings below are optional dev tooling and do nothing when unset.
+
+- `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env`, set before `mise run cluster-up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in a Secret and set `customCA.secretName`, so the pods trust it for outbound TLS.
+- `./scripts/sandbox/sandbox.sh --ca-file /path/ca.pem up`: the sandbox trusts the CA, so mise's and curl's downloads and its Docker's registry pulls verify against it. Set it when the sandbox is created: `down` first if it exists.
+
+Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `mise run cluster-up` starts.
+
 ### One owner at a time
 
 There is one dev cluster and one worktree owns it. `mise run deploy` claims it, `mise run teardown` releases it. A deploy from another worktree fails while it is owned: tear down from the owner, or rerun with `mise run deploy --force-owner` to take over. `mise run deploy-owner` shows who owns it.
@@ -206,6 +219,7 @@ An optional alternative to installing the tools on your machine. Open the repo i
 - Its venvs live in the container (`/home/vscode/venvs/`), not in the checkout, so they don't clash with yours.
 - Installed tools are kept in the `fn-mise-data` volume, so rebuilds and other worktrees' containers reuse them.
 - The cluster ownership rules apply inside it as well: it's the same cluster.
+- Behind a TLS-inspecting proxy it trusts the CA that `CUSTOM_CA_FILE` in `.dev.env` names (see [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md)): it is copied in read-only and added to the container's system trust on create, so rebuild the container after setting the CA up. With no CA nothing changes.
 
 ## Deploy to production
 
@@ -362,6 +376,21 @@ Set `storage.nfs.provisioner` (for example `nfs.csi.k8s.io`) even without that d
 #### TLS
 
 Either create the `tls` secret yourself (step 4), or let cert-manager renew it: `cert-manager.enabled: true` plus `certs.azure.*` or `certs.aws` for DNS-01. For another CA, run cert-manager yourself and point `tls.secretName` at the secret it produces.
+
+#### Custom CA
+
+For outbound TLS to a git host, identity provider or registry signed by a private CA, or behind a TLS-intercepting proxy, put the CA in a Secret and name it:
+
+```bash
+kubectl create secret generic corp-ca -n "$NAMESPACE" --from-file=ca.crt=corp-ca.pem
+```
+
+```yaml
+customCA:
+  secretName: corp-ca     # or customCA.pem: | the PEM, to have the chart render the Secret
+```
+
+The CA is added to the system CAs of nexus-api, the Dagster code server, every Dagster run pod and Keycloak, and certificates are always verified: there is no way to skip verification. The pods restart when the CA changes on `helm upgrade`. A Secret changed outside Helm needs `kubectl rollout restart` on the nexus-api and code server deployments and the Keycloak StatefulSet, or a reloader controller. The chart cannot give the nodes' containerd the CA: if the container registry is behind a private CA, install it on each node. For a dev kind cluster, `CUSTOM_CA_FILE` does this when the cluster is created (`scripts/cluster.sh`). Details, and what is not covered, are in the [chart README](k8s/federated-node/README.md#custom-ca).
 
 #### Databases
 

@@ -16,6 +16,9 @@ spec:
       annotations:
         fn.aridhia.com/credential-generation: {{ .Values.keycloak.credentialGeneration | default 1 | quote }}
         checksum/kc-config: {{ include (print $.Template.BasePath "/keycloak-configmap.yaml") . | sha256sum }}
+        {{- if include "fn.customCA.enabled" . }}
+        {{- include "fn.customCA.annotations" (dict "ctx" . "namespace" (include "kc_namespace" .)) | nindent 8 }}
+        {{- end }}
       labels:
         app: keycloak
     spec:
@@ -48,6 +51,12 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.keycloak.db.secret.name }}
                   key: {{ .Values.keycloak.db.secret.key }}
+            {{- if include "fn.customCA.enabled" . }}
+            {{- /* A runtime option, read at start: Keycloak's truststore takes PEM files and
+                   keeps trusting the system CAs, so there is no bundle to build here. */}}
+            - name: KC_TRUSTSTORE_PATHS
+              value: /opt/keycloak/conf/custom-ca/ca.crt
+            {{- end }}
           envFrom:
           - secretRef:
               name: kc-secrets
@@ -59,6 +68,11 @@ spec:
             - name: quarkus
               mountPath: /opt/keycloak/conf/quarkus.properties
               subPath: quarkus.properties
+            {{- if include "fn.customCA.enabled" . }}
+            - name: custom-ca
+              mountPath: /opt/keycloak/conf/custom-ca
+              readOnly: true
+            {{- end }}
           {{- include "nonRootSC" . | nindent 10 }}
       volumes:
         - name: config
@@ -73,3 +87,6 @@ spec:
             items:
             - key: quarkus.properties
               path: quarkus.properties
+        {{- if include "fn.customCA.enabled" . }}
+        {{- include "fn.customCA.secretVolume" . | nindent 8 }}
+        {{- end }}

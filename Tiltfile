@@ -17,6 +17,10 @@ load('ext://dotenv', 'dotenv')
 dotenv('.dev.env')
 
 DOCKER_REGISTRY = 'localhost:5001'
+
+# CUSTOM_CA_FILE (optional): given to image builds as the BuildKit secret proxy_ca.
+CA_FILE = os.getenv('CUSTOM_CA_FILE', '')
+BUILD_SECRET = ['--secret', 'id=proxy_ca,src=' + os.path.abspath(CA_FILE)] if CA_FILE else []
 NAMESPACE = os.getenv('NAMESPACE', 'fn')
 RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
 # The code server is part of the Federated Node chart (templates/dagster-code-server.yaml),
@@ -51,6 +55,7 @@ k8s_yaml(local(
 docker_build_with_restart(
   '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
   'nexus/api',
+  extra_flags=BUILD_SECRET,
   entrypoint=[
     'uvicorn', '--factory', 'app:create_app', '--reload',
     '--host=0.0.0.0', '--port=5000',
@@ -96,6 +101,7 @@ DAGSTER_IMAGE_FILES = [
 docker_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
   'dagster',
+  extra_flags=BUILD_SECRET,
   entrypoint=[],
   only=DAGSTER_IMAGE_FILES,
   # Test edits and pytest runs don't rebuild or restart the code server
@@ -116,7 +122,8 @@ docker_build_with_restart(
 # Run pods always pull, so the next run picks it up.
 local_resource(
   'dagster-run-image',
-  cmd='docker build dagster -t {img} && docker push {img}'.format(
+  cmd='docker build dagster {secret} -t {img} && docker push {img}'.format(
+    secret=' '.join(BUILD_SECRET),
     img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
   ),
   # Only what the code server and run pods use. The docs, fncli, CI and lint files next to it don't.
