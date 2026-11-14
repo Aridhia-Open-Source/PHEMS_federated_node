@@ -44,3 +44,6 @@ experiments/results/
 # worktree include files
 .worktreeinclude
 mise.local.toml
+
+# the proxy CA for the dev container image, written by .devcontainer/host-ca.sh
+.devcontainer/proxy-ca.crt

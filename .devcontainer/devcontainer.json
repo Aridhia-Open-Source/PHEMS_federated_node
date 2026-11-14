@@ -3,10 +3,11 @@
   // Builds and `kind` use the host's Docker socket, kubectl and Tilt use the host's
   // kubeconfig, and host networking keeps the port-forwards on localhost.
   "name": "Federated Node",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  // The image (mise, build packages, the proxy CA) is the Dockerfile. The Docker feature stays
+  // a feature: it also gives the vscode user access to the host's Docker socket.
+  "build": { "dockerfile": "Dockerfile" },
   "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
-    "ghcr.io/devcontainers-extra/features/mise:1": {}
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
   },
   "runArgs": ["--network=host"],
   // The checkout's parent folder at its host path: the host's Docker resolves volume paths
@@ -14,8 +15,9 @@
   // by its host path, so the main repo and its sibling worktrees must be visible where they are
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=${localWorkspaceFolder}/..,type=bind",
   "workspaceFolder": "${localWorkspaceFolder}",
-  // Bind mounts fail when the source is missing: this creates ~/.fn/data and ~/.fn/proxy-ca.crt
-  // (the host's proxy CA, or an empty file when there is none)
+  // Before the build: creates ~/.fn/data (a bind mount fails when its source is missing) and
+  // .devcontainer/proxy-ca.crt for the Dockerfile (the host's proxy CA, see PROXY_CA_SETUP.md,
+  // or an empty file when there is none)
   "initializeCommand": "sh \"${localWorkspaceFolder}/.devcontainer/host-ca.sh\"",
   "mounts": [
     // Host kubeconfig, read-only and read live: a recreated cluster works without a restart
@@ -23,15 +25,13 @@
     // Installed tools survive rebuilds and are shared by every worktree's container
     "source=fn-mise-data,target=/home/vscode/.local/share/mise,type=volume",
     // Local PV data at its host path, for the same reason as the checkout
-    "source=${localEnv:HOME}/.fn,target=${localEnv:HOME}/.fn,type=bind",
-    // The proxy CA (see PROXY_CA_SETUP.md), read-only; postCreateCommand adds it to the system trust
-    "source=${localEnv:HOME}/.fn/proxy-ca.crt,target=/usr/local/share/fn-host-ca.crt,type=bind,readonly"
+    "source=${localEnv:HOME}/.fn,target=${localEnv:HOME}/.fn,type=bind"
   ],
   // Venvs go to the container's home (mise.devcontainer.toml), not the shared checkout
   "containerEnv": {
     "MISE_ENV": "devcontainer",
     "FN_DATA_DIR": "${localEnv:HOME}/.fn/data",
-    // The system bundle, which postCreateCommand adds the proxy CA to. Python (requests) and
+    // The system bundle, which the Dockerfile adds the proxy CA to. Python (requests) and
     // Node use their own bundles otherwise. Without a CA this is the stock system bundle.
     "SSL_CERT_FILE": "/etc/ssl/certs/ca-certificates.crt",
     "REQUESTS_CA_BUNDLE": "/etc/ssl/certs/ca-certificates.crt",
@@ -43,7 +43,7 @@
   // mise's tools on PATH for non-interactive shells too
   "remoteEnv": { "PATH": "/home/vscode/.local/share/mise/shims:${containerEnv:PATH}" },
   "remoteUser": "vscode",
-  "postCreateCommand": "if [ -s /usr/local/share/fn-host-ca.crt ]; then sudo install -m 0644 /usr/local/share/fn-host-ca.crt /usr/local/share/ca-certificates/fn-proxy-ca.crt && sudo update-ca-certificates; fi && mkdir -p ~/.kube && printf 'apiVersion: v1\\nkind: Config\\ncontexts:\\n- name: kind-fn\\n  context: {cluster: kind-fn, user: kind-fn, namespace: fn}\\n' > ~/.kube/overlay && sudo apt-get update -qq && sudo apt-get install -y -qq libpq-dev build-essential && sudo chown -R vscode:vscode /home/vscode/.local && mise trust --all && mise run setup",
+  "postCreateCommand": "mise trust --all && mise run setup",
   "customizations": {
     "vscode": {
       "extensions": ["ms-python.python", "ms-kubernetes-tools.vscode-kubernetes-tools"]
