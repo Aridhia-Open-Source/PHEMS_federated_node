@@ -34,10 +34,6 @@ The components and the network between them are drawn in [docs/architecture/flow
 
 The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image registry, the chart installed with development values, and [Tilt](https://tilt.dev/) for live reload.
 
-### Try it on a clean machine
-
-`./scripts/sandbox/sandbox.sh up` makes a throwaway Debian container with its own Docker and installs the tools the way a fresh clone does: it has mise, and runs `mise trust --all && mise run setup`. Then `sandbox.sh init-conf`, `sandbox.sh cluster-up` and `sandbox.sh deploy` run those mise tasks in it. `shell` opens a shell in there, `exec <command>` runs a command, any other word runs that mise task, and `down` removes it. Edits to `nexus/api/` and `dagster/` live-reload in the sandbox too. The options and details are at the top of `scripts/sandbox/sandbox.sh`.
-
 ### You need
 
 - Docker
@@ -178,9 +174,16 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `./scripts/setup-proxy-ca.sh --ca-file PATH --proxy URL` sets up the machine side. The two settings below are optional dev tooling and do nothing when unset.
 
 - `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env`, set before `mise run cluster-up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in a Secret and set `customCA.secretName`, so the pods trust it for outbound TLS.
-- `./scripts/sandbox/sandbox.sh --ca-file /path/ca.pem up`: the sandbox trusts the CA, so mise's and curl's downloads and its Docker's registry pulls verify against it. Set it when the sandbox is created: `down` first if it exists.
 
 Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `mise run cluster-up` starts.
+
+`scripts/proxy-sim.sh` tests this against mitmproxy, on a Docker network whose only way out is the proxy. Each test runs with no CA, a wrong CA and the proxy's CA, and checks that the first two fail with a certificate error and the last passes through the proxy. Nothing in it runs kind.
+
+- `mise run proxy-sim-setup`: builds the dev container image, then runs `mise run setup` in it on a copy of the working tree.
+- `mise run proxy-sim-build`: builds the nexus-api image (`--all` for every image) with the CA as the `proxy_ca` secret.
+- `mise run proxy-sim-pull`: `docker pull` in a stock `docker:dind`.
+
+`--mode none|wrong|right` runs one mode, and `mise run proxy-sim-down` removes it all.
 
 ### One owner at a time
 

@@ -157,38 +157,35 @@ run = "./scripts/teardown.sh"
 description = "Port-forward the node's services (when Tilt is not running)"
 run = "./scripts/portfwd.sh"
 
-# A fake hospital laptop behind a TLS-intercepting proxy, see scripts/proxy-sim.sh.
-# In order: proxy-sim-up, proxy-sim-pull (fails), proxy-sim-proxy, proxy-sim-pull (fails, x509),
-# proxy-sim-trust, proxy-sim-pull (works), proxy-sim-flow, proxy-sim-down.
-[tasks.proxy-sim-build]
-description = "Build the proxy simulation's laptop image"
-run = "./scripts/proxy-sim.sh build"
-
+# Tests behind a TLS-intercepting proxy (mitmproxy), see scripts/proxy-sim.sh. Each test runs
+# with no CA, a wrong CA and the proxy's CA (or one of them with --mode), and checks the results.
 [tasks.proxy-sim-up]
-description = "Start the proxy simulation: a laptop with no proxy configured"
-usage = 'flag "--direct" help="No proxy at all, a control run"'
-run = 'env ${usage_direct:+DIRECT=1} ./scripts/proxy-sim.sh up'
+description = "Start the proxy simulation: mitmproxy and a network with no route out"
+run = "./scripts/proxy-sim.sh up"
 
-[tasks.proxy-sim-proxy]
-description = "Proxy simulation: set the proxy variables machine-wide"
-run = "./scripts/proxy-sim.sh proxy"
+[tasks.proxy-sim-setup]
+description = "Proxy simulation: build the dev container image and run mise run setup in it"
+usage = 'flag "--mode <mode>" help="none, wrong or right (default: all three)"'
+run = './scripts/proxy-sim.sh setup ${usage_mode:+"$usage_mode"}'
 
-[tasks.proxy-sim-trust]
-description = "Proxy simulation: put the proxy's CA in the OS trust store"
-run = "./scripts/proxy-sim.sh trust"
+[tasks.proxy-sim-build]
+description = "Proxy simulation: build the nexus-api image through the proxy"
+usage = '''
+flag "--mode <mode>" help="none, wrong or right (default: all three)"
+flag "--all" help="Every image, not only nexus-api"
+'''
+run = 'env ${usage_all:+ALL=1} ./scripts/proxy-sim.sh build ${usage_mode:+"$usage_mode"}'
 
 [tasks.proxy-sim-pull]
-description = "Proxy simulation: docker pull inside the laptop"
-usage = 'flag "--image <image>" help="Image to pull (default ghcr.io/jqlang/jq:latest)"'
-run = './scripts/proxy-sim.sh pull ${usage_image:+"$usage_image"}'
-
-[tasks.proxy-sim-flow]
-description = "Proxy simulation: run the first-time setup in the laptop, stop at the first failure"
-usage = 'flag "--from <step>" help="Resume at this step"'
-run = './scripts/proxy-sim.sh flow ${usage_from:+--from "$usage_from"}'
+description = "Proxy simulation: docker pull in a stock docker:dind"
+usage = '''
+flag "--mode <mode>" help="none, wrong or right (default: all three)"
+flag "--image <image>" help="Image to pull (default ghcr.io/jqlang/jq:latest)"
+'''
+run = 'env ${usage_image:+IMAGE="$usage_image"} ./scripts/proxy-sim.sh pull ${usage_mode:+"$usage_mode"}'
 
 [tasks.proxy-sim-shell]
-description = "Proxy simulation: a shell in the laptop"
+description = "Proxy simulation: a shell in the last setup test's container"
 raw = true
 run = "./scripts/proxy-sim.sh shell"
 
