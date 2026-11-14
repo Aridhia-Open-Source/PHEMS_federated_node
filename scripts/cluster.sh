@@ -23,8 +23,7 @@ KIND_CONFIG_FILE=".kind/kind-config.yaml"
 # Under $HOME so nothing here needs sudo.
 FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
 
-# Where the pull-through mirrors fetch from. scripts/sandbox/sandbox.sh points them at the host's
-# mirrors, so a sandbox reuses the host's cache instead of downloading everything again.
+# Where the pull-through mirrors fetch from.
 DOCKERHUB_UPSTREAM="${DOCKERHUB_UPSTREAM:-https://registry-1.docker.io}"
 GHCR_UPSTREAM="${GHCR_UPSTREAM:-https://ghcr.io}"
 

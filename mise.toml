@@ -11,6 +11,8 @@ kind = "0.33.0"
 kubectl = "1.37.2"
 helm = "3.22.1"
 tilt = "0.37.8"
+# scripts/devcontainer_check.sh: builds and starts the dev container without VS Code
+"npm:@devcontainers/cli" = "0.90.0"
 
 [env]
 _.file = ".dev.env"
@@ -49,6 +51,10 @@ run = [
 [tasks.init-conf]
 description = "Create .dev.env and dev.values.yaml from the examples, ask for the first Keycloak user"
 run = "./scripts/init_conf.sh"
+
+[tasks.devcontainer-check]
+description = "Build and start the dev container without VS Code, check Docker works inside"
+run = "./scripts/devcontainer_check.sh"
 
 [tasks.hadolint]
 description = "Lint the Dockerfiles"
