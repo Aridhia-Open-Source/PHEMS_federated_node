@@ -70,7 +70,17 @@ If Docker is not a systemd service on your machine (Docker Desktop, rootless Doc
 
 On a production cluster you do not use the script. Put the CA in a Secret and name it in the Helm values (`customCA.secretName`). See "Custom CA" in [DEPLOYMENT.md](DEPLOYMENT.md#custom-ca).
 
+## Testing it
+
+`scripts/proxy-sim.sh` runs three quick tests behind mitmproxy, on a Docker network whose only way out is the proxy. Each runs with no CA, a wrong CA and mitmproxy's CA: the first two must fail with a certificate error, the last must pass with its requests in mitmproxy's log. The script checks this itself.
+
+- `mise run proxy-sim-setup`: builds the dev container image with the CA, then runs `mise run setup` in it on a copy of the working tree.
+- `mise run proxy-sim-build`: builds the nexus-api image (`--all` for every image) with the CA as the `proxy_ca` build secret. Nothing is pushed.
+- `mise run proxy-sim-pull`: `docker pull` in a stock `docker:dind` that trusts the CA.
+
+Add `--mode none|wrong|right` to run one mode. `mise run proxy-sim-down` removes it all. Your own images, cluster and registry are not touched.
+
 ## Known gaps
 
-- Image builds get the CA as a BuildKit secret (`proxy_ca`) in the pip steps, and use http repositories for `apk` (apk checks package signatures itself). This is not tested end to end yet.
+- Image builds get the CA as a BuildKit secret (`proxy_ca`) in the pip steps, and use http repositories for `apk` (apk checks package signatures itself). `mise run proxy-sim-build` tests the nexus-api image.
 - The local registry mirrors that `mise run cluster-up` starts get the proxy variables but not the CA yet.
