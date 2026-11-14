@@ -44,6 +44,7 @@ flowchart LR
       TaskPods("Task Pods")
     end
     Daemon --> Nexus
+    RunPods --> Nexus
     RunPods --> TaskPods
   end
 
@@ -135,7 +136,7 @@ A researcher never talks to the FN to start a task: they talk to git. The FN's o
 - **Dagster to git.** The sensors and run pods call your git host (`api.github.com` for GitHub) to read merged pull requests and to push and open results.
 - **Dagster to nexus-api.** Every decision goes through nexus-api. Dagster logs in as a system user.
 - **nexus-api to Keycloak.** nexus-api checks logins and tokens against Keycloak.
-- **Task pods to the dataset.** A task pod can reach DNS and the dataset database, and nothing else. It does not talk to nexus-api, Dagster, git or the Kubernetes API.
+- **Task pods to the dataset.** A task pod can reach DNS, the private address ranges, and the dataset databases you list. Nothing else. It does not talk to nexus-api, Dagster, git or the Kubernetes API.
 
 Admins and researchers who use the API reach it over HTTPS through Traefik. The Dagster UI is never exposed: reach it with a port-forward.
 
@@ -149,12 +150,12 @@ A task runs an image that you did not write, next to your data. Four limits keep
 | **Storage** | The pod mounts only its own run's folder on the shared volume, not the volume. Delivery skips symbolic links. |
 | **Secrets** | The pod gets one dataset's login in a Secret made for that task, and deleted when it ends. It has no Kubernetes token, and no git credentials. |
 | **Namespace** | All tasks run in the `tasks` namespace, apart from nexus-api, Dagster and Keycloak. |
-| **Network** | A NetworkPolicy denies all traffic in and out of the namespace, except DNS and the dataset databases you list in `taskNetworkPolicy.datasetEgress`. |
+| **Network** | A NetworkPolicy denies all traffic in and out of the namespace, except DNS, the private address ranges in `taskNetworkPolicy.privateEgress`, and the dataset databases you list in `taskNetworkPolicy.datasetEgress`. |
 
 Two things to know:
 
 - The network rule only works if your cluster's network plugin enforces NetworkPolicy (Calico, Cilium, or your cloud's add-on). On one that ignores it, the rule does nothing.
-- `datasetEgress` is empty by default. A task whose dataset database is not listed there will time out when it connects. [Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset) shows the value.
+- `datasetEgress` is empty by default. A dataset database on a private address (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) is reachable without it. One on any other address must be listed there, or the task times out when it connects. [Deploy: Core](./Deploy-Core#let-tasks-reach-their-dataset) shows the value.
 
 None of this limits what a task does with the dataset it was given. What leaves the node is the zip in the results pull request, and a person reads it first.
 

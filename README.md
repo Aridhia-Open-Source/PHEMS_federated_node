@@ -61,6 +61,7 @@ flowchart LR
       TaskPods("Task Pods")
     end
     Daemon --> Nexus
+    RunPods --> Nexus
     RunPods --> TaskPods
   end
 
