@@ -1,0 +1,18 @@
+# A second project on the dev project's resources (fn-dev.yaml, applied first), for the failure suites:
+#   kubectl apply -f config/e2e/qa-two.yaml; kubectl delete -f config/e2e/qa-two.yaml
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Project
+metadata:
+  name: qa-two
+  namespace: fn
+spec:
+  datasets: [dev-dataset]
+  repositories:
+    triggers:
+      - repository: http://gitea.fn.svc:4000/gitea_admin/fn-trigger-repo
+        watchDir: specs/
+        baseBranch: main
+    results:
+      repository: http://gitea.fn.svc:4000/gitea_admin/fn-results-repo
+      targetDir: results/
+      baseBranch: main
