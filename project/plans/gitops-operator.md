@@ -202,7 +202,8 @@ What and why: a CI that runs inside kind, so the release workflow can be proved 
 Files:
 - `templates/gitea-deployment.yaml`: `GITEA__actions__ENABLED` from `gitea.actions.enabled`.
 - `templates/gitea-runner-deployment.yaml` (new): `gitea/act_runner` with a Docker-in-Docker sidecar (privileged).
-- `templates/gitea-init-job.yaml`: make the runner registration token and store it in a Secret.
+- `templates/gitea-runner-secret.yaml`: a chart-generated runner registration token (kept across upgrades with
+  `lookup`), given to Gitea as `GITEA_RUNNER_REGISTRATION_TOKEN` and to the runner, so nothing waits on a hook.
 - `values.yaml`, `values.schema.json`: `gitea.actions.enabled`, `gitea.actions.runner.*`, default false;
   `dev.example.values.yml` turns them on.
 - `tests/gitea_actions_test.yaml`.

@@ -364,7 +364,7 @@
                                 },
                                 "secret": {
                                     "type": "object",
-                                    "description": "The secret gitea-admin-init writes the registration token to",
+                                    "description": "The secret the chart generates the registration token into",
                                     "properties": {
                                         "name": {
                                             "type": "string"

@@ -2,7 +2,7 @@ suite: gitea actions and runner (dev only)
 templates:
   - templates/gitea-deployment.yaml
   - templates/gitea-runner-deployment.yaml
-  - templates/gitea-init-job.yaml
+  - templates/gitea-runner-secret.yaml
 values:
   - values/values-local.yaml
 set:
@@ -64,13 +64,10 @@ tests:
             name: GITEA_RUNNER_REGISTRATION_TOKEN
             valueFrom:
               secretKeyRef:
-                name: gitea-runner-token
+                name: gitea-runner-registration
                 key: token
-  - it: has the init job write the registration token to that secret
-    template: templates/gitea-init-job.yaml
-    documentSelector:
-      path: kind
-      value: Job
+  - it: generates the registration token into that secret
+    template: templates/gitea-runner-secret.yaml
     set:
       gitea:
         actions:
@@ -78,15 +75,58 @@ tests:
           runner:
             enabled: true
     asserts:
+      - isKind:
+          of: Secret
       - equal:
-          path: spec.template.spec.serviceAccountName
-          value: gitea-admin-init
+          path: metadata.name
+          value: gitea-runner-registration
       - matchRegex:
-          path: spec.template.spec.containers[0].command[2]
-          pattern: "registration-token"
-      - matchRegex:
-          path: spec.template.spec.containers[0].command[2]
-          pattern: "secrets/gitea-runner-token"
+          path: data.token
+          pattern: "^[A-Za-z0-9+/]{64}$"
+  - it: keeps the existing registration token on upgrade
+    template: templates/gitea-runner-secret.yaml
+    set:
+      gitea:
+        actions:
+          enabled: true
+          runner:
+            enabled: true
+    kubernetesProvider:
+      scheme:
+        "v1/Secret":
+          gvr:
+            version: "v1"
+            resource: "secrets"
+          namespaced: true
+      objects:
+        - kind: Secret
+          apiVersion: v1
+          metadata:
+            name: gitea-runner-registration
+            namespace: NAMESPACE
+          data:
+            token: ZXhpc3Rpbmc=
+    asserts:
+      - equal:
+          path: data.token
+          value: ZXhpc3Rpbmc=
+  - it: starts gitea with the same token
+    template: templates/gitea-deployment.yaml
+    set:
+      gitea:
+        actions:
+          enabled: true
+          runner:
+            enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_RUNNER_REGISTRATION_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: gitea-runner-registration
+                key: token
   - it: refuses the runner without local_development
     template: templates/gitea-runner-deployment.yaml
     set:

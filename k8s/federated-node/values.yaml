@@ -577,7 +577,7 @@ gitea:
 
   # Gitea Actions, the CI the dev release workflow runs in. The runner is dev only: it runs a
   # privileged Docker-in-Docker sidecar, so the schema refuses it unless local_development is true.
-  # gitea-admin-init puts the runner registration token in the secret below.
+  # The chart generates the runner registration token into the secret below and keeps it across upgrades.
   actions:
     enabled: false
     runner:
@@ -593,5 +593,5 @@ gitea:
           pullPolicy: IfNotPresent
       labels: "ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"
       secret:
-        name: gitea-runner-token
+        name: gitea-runner-registration
         key: token
