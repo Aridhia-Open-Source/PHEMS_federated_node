@@ -101,6 +101,9 @@ echo
 echo "=== Creating Namespace ==================================================="
 kubectl create namespace "$NAMESPACE" \
   --dry-run=client -o yaml | kubectl apply -f -
+# The operator's Role in experiments (dev values operator.watchNamespaces) needs the namespace to exist
+kubectl create namespace experiments \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 # The keycloak namespace is created by a chart pre-install hook, not here.
 
