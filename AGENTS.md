@@ -109,7 +109,7 @@ The main session coordinates, commits and pushes.
 
 Fable is optional: use it for planning, really hard problems, or when stuck; skip it otherwise.
 
-Step down by usage (`~/.claude/usage.json`, the 5h figure; drop one more band if the 7-day figure is above 85%):
+Step down by usage (`$CLAUDE_CONFIG_DIR/usage.json`, or `~/.claude/usage.json`; the 5h figure; drop one more band if the 7-day figure is above 85%):
 
 - Below 70%: models as above; the best model is fine for cheap jobs.
 - 70-79%: Fable only for short reviews; Opus for development, Sonnet for mechanical work.

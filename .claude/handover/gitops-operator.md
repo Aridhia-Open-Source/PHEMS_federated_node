@@ -8,7 +8,7 @@ Resume: read this file, then `git log --oneline origin/dagster-develop..HEAD`. W
 - Commit and push after each step; update this file in the same commit.
 - Unit tests for changed files only. No e2e. No cluster teardown or takeover (`mise run deploy-owner` first).
 - No Co-Authored-By lines. Imports at module top. Copy existing patterns; no defensive code.
-- Stop at 95% of the 5h usage limit (`~/.claude/usage.json`), push, and update this file.
+- Stop at 95% of the 5h usage limit (`$CLAUDE_CONFIG_DIR/usage.json`), push, and update this file.
 
 ## Steps
 Part 1, operator (ADR 0032):
@@ -26,7 +26,13 @@ Part 2, Flux (ADR 0031), local with Gitea first:
 10. Later, separate PR: GitHub Actions port, release bundle, SOPS, OpenTofu.
 
 ## Refined plan
-(Filled in by the advisor review.)
+Detail per step (files, decisions, risks, done, tests): `project/plans/gitops-operator.md`. ADRs 0031 and 0032 are updated to match.
+
+- **Step 2.** Client is `nexus/client/nexus_client/`: `http.py` (was `app/utils.py`), `api.py` (`BackendAPI` + `FncliBackendAPI` merged), `models/`, `git_uri.py`. Tilt's Dagster build needs `custom_build` for the named context: do that first.
+- **Step 3.** Group `fn.aridhia.com/v1alpha1`. Kinds `GitProvider`, `NodeSecret` (not `Secret`), `Repository`, `Dataset`, `Project`; category `fn`. CRDs are templates with `resource-policy: keep`.
+- **Step 4.** One sync function per kind, also on a 60s timer. The operator reads the source Secret and sends values (nexus-api stores them). Finalizer `fn.aridhia.com/nexus-sync`; a pre-delete hook strips it on uninstall. Login is a Keycloak user `fn-operator` with Administrator, not `System`. nexus-api has no audit record: attribution is Events and git.
+- **Step 5.** `fncli apply` also did Gitea repos and OAuth apps: that becomes `fncli gitea setup`, which writes a Kubernetes Secret a `NodeSecret` names. Experiments ship their `Dataset` in `experiments/chart`.
+- **Steps 6-9.** Gitea is the chart's own templates. Actions via `GITEA__actions__ENABLED`, runner with a DinD sidecar (dev only). Release publishes to the kind registry. Flux adopts the release `mise run deploy` made; `mise run flux up|down`.
 
 ## Next step
 1. **Rerun the advisor (Fable, background).** It was cut off by an account switch before writing anything. Its job:
@@ -41,7 +47,10 @@ Part 2, Flux (ADR 0031), local with Gitea first:
 ## Team and permissions
 - Fable: advisor; it plans and reviews each step's diff before commit. Opus: dev work, operator then Flux. Sonnet: grunt work. Haiku: basic actions (see AGENTS.md "Agent team"). The main session coordinates, commits and pushes.
 - codepint has given this work full control of the dev cluster and permission to push branches. Commit and push after each chunk.
-- Run single test files, not full suites. Check `~/.claude/usage.json` before each step.
+- Run single test files, not full suites. Check `$CLAUDE_CONFIG_DIR/usage.json` before each step.
 
 ## Open questions
-- CRD API group name (ADR 0032 says `fn.aridhia.com`, to be decided).
+- CRD API group: `fn.aridhia.com`? (recommended: yes)
+- Operator login: Keycloak user with Administrator now, client credentials later? (recommended: yes)
+- A removal nexus-api refuses: hold the resource `Terminating`, or let it go? (recommended: hold)
+- Local OCI registry: the kind registry, or Gitea's package registry? (recommended: kind registry)
