@@ -5,10 +5,10 @@ authors = [{ name = "George Eddie", email = "george.eddie@aridhia.com" }]
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "dagster~=1.12",
-    "dagster-k8s~=0.28",
-    "dagster-postgres~=0.28",
-    "dagster-graphql~=1.12",
+    "dagster~=1.13.3",
+    "dagster-k8s~=0.29.3",
+    "dagster-postgres~=0.29.3",
+    "dagster-graphql~=1.13.3",
     "requests~=2.32",
     "pydantic~=2.0",
     "pydantic-settings~=2.0",
