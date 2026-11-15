@@ -1,0 +1,38 @@
+nodeConfig:
+  providers:
+    - name: github
+      type: github
+      uri: https://github.com
+  secrets:
+    analysis-repo-creds:
+      fromSecret: {name: analysis-github-app}
+    omop-db-creds:
+      values:
+        PGUSER: {secretKeyRef: {name: omop-db, key: username}}
+        PGPASSWORD: {secretKeyRef: {name: omop-db, key: password}}
+  repositories:
+    triggers:
+      - uri: https://github.com/example-org/analysis-requests
+        secret: analysis-repo-creds
+    results:
+      - name: results
+        uri: https://github.com/example-org/analysis-results
+        secret: analysis-repo-creds
+  datasets:
+    - name: omop-cdm
+      type: postgres
+      host: omop-db.example.org
+      port: 5432
+      secret: omop-db-creds
+  projects:
+    - name: cohort-study
+      datasets: [omop-cdm]
+      repositories:
+        triggers:
+          - repository: https://github.com/example-org/analysis-requests
+            watchDir: specs/
+            baseBranch: main
+        results:
+          repository: https://github.com/example-org/analysis-results
+          targetDir: results/
+          baseBranch: main
