@@ -2,48 +2,58 @@
 set -euo pipefail
 
 ###################################################################################
-# Federated Node - proxy CA setup
+# Federated Node - dev configuration
 #
-# For a machine behind a TLS-intercepting proxy, or one that must trust a private CA:
-# check that the proxy and the CA work, then point Docker and this repo's tooling at the
-# proxy. The same script serves the host and the dev container. Guide: PROXY_CA_SETUP.md
+# With no options: first-time dev setup. Copies the example config into place (never
+# overwriting a file that exists) and asks for the first Keycloak user if .dev.env has none.
 #
-#   ./scripts/setup-proxy-ca.sh [--proxy URL] [--ca-file PATH] [--yes] [--dry-run]
-#   ./scripts/setup-proxy-ca.sh --devcontainer [--dry-run]
-#   ./scripts/setup-proxy-ca.sh --undo [--yes] [--dry-run]
+# With --proxy or --ca-cert: for a machine behind a TLS-intercepting proxy, or one that must
+# trust a private CA. Checks that the proxy and the CA work, then points Docker and this
+# repo's tooling at them. The same script serves the host and the dev container.
+# Guide: PROXY_CA_SETUP.md
 #
-#   --proxy URL     for example http://proxy.example.org:8080; defaults to HTTPS_PROXY.
-#                   Optional with --ca-file (a private CA and no proxy).
-#   --ca-file PATH  the proxy's CA as a PEM file (one certificate or a bundle), installed
-#                   into the system trust store. Without it the system CA bundle is used
-#                   as it is: your OS store must already trust the proxy's CA.
-#   --devcontainer  what the dev container's initializeCommand runs on the host, without
-#                   sudo: reads CUSTOM_CA_FILE and the proxy from .dev.env, else
-#                   .generated.env, runs the checks, and copies the bundle to
-#                   .devcontainer/proxy-ca.crt (an empty file when neither names a
-#                   CUSTOM_CA_FILE: no CA). Writes nothing else.
-#   --yes           do not ask
-#   --dry-run       show every change and make none
-#   --undo          remove what a previous run added (runs no checks)
+#   ./scripts/configure.sh
+#   ./scripts/configure.sh [--proxy[=URL]] [--ca-cert[=FILE]] [--yes] [--dry-run]
+#   ./scripts/configure.sh --devcontainer [--dry-run]
+#   ./scripts/configure.sh --undo [--yes] [--dry-run]
 #
-# Every other run, --dry-run and --devcontainer included, first checks, before anything is
-# written, that the CA bundle is PEM and, when a proxy is set, that registry-1.docker.io,
-# pypi.org and github.com verify through the proxy against the bundle (with --ca-file: the
-# bundle plus that CA). With a CA and no proxy only the PEM is checked.
+#   --proxy[=URL]     the proxy, for example --proxy=http://proxy.example.org:8080. With no
+#                     value, HTTPS_PROXY from the environment. The CA is the system bundle
+#                     unless --ca-cert=FILE is given.
+#   --ca-cert[=FILE]  the CA to trust. With no value, the system CA bundle as it is: your OS
+#                     store must already trust the CA. FILE is a PEM file (one certificate or
+#                     a bundle), installed into the system trust store. Without --proxy: a
+#                     private CA (a private git host) and no proxy.
+#   --devcontainer    what the dev container's initializeCommand runs on the host, without
+#                     sudo: reads CUSTOM_CA_FILE and the proxy from .dev.env, else
+#                     .generated.env, runs the checks, and copies the bundle to
+#                     .devcontainer/proxy-ca.crt (an empty file when neither names a
+#                     CUSTOM_CA_FILE: no CA). Writes nothing else.
+#   --yes             do not ask
+#   --dry-run         show every change and make none (proxy and CA setup only)
+#   --undo            remove what a previous proxy or CA run added (runs no checks)
+#
+# Every proxy or CA run, --dry-run and --devcontainer included, first checks, before
+# anything is written, that the CA bundle is PEM and, when a proxy is set, that
+# registry-1.docker.io, pypi.org and github.com verify through the proxy against the bundle
+# (with --ca-cert=FILE: the bundle plus that CA). With a CA and no proxy only the CA is
+# checked.
 #
 # Each step is skipped if it is already done: the CA in the system trust store (only with
-# --ca-file), a Docker daemon proxy drop-in (systemd only; Docker restarts, which stops
+# --ca-cert=FILE), a Docker daemon proxy drop-in (systemd only; Docker restarts, which stops
 # running containers), the Docker client proxy in ~/.docker/config.json (image builds and
 # containers you start), and two files this script owns and rewrites whole, both gitignored:
 # .generated.env (CUSTOM_CA_FILE, the proxy and the CA-bundle variables) and
 # k8s/federated-node/generated.values.yaml (the chart's proxy and customCA values). Your own
-# .dev.env and dev.values.yaml are never edited, and win over them when loaded.
+# .dev.env and dev.values.yaml are never edited by these runs, and win over them when loaded.
 ####################################################################################
 
 cd "$(dirname "$0")/.."
 
 CA_FILE=""
-PROXY="${HTTPS_PROXY:-${https_proxy:-}}"
+PROXY=""
+WANT_PROXY=0
+WANT_CA=0
 YES=0
 DRY=0
 UNDO=0
@@ -51,12 +61,13 @@ DEVCONTAINER=0
 BUNDLE=""
 CHECK_BUNDLE=""
 
-# The block an older version of this script kept in .dev.env: --undo removes it.
+# The block an older version of this script (then setup-proxy-ca.sh) kept in .dev.env:
+# --undo removes it. The markers keep the old name because they match existing files.
 START="# >>> setup-proxy-ca >>>"
 END="# <<< setup-proxy-ca <<<"
 GENERATED_ENV=.generated.env
 GENERATED_VALUES=k8s/federated-node/generated.values.yaml
-GENERATED_HEADER="# Generated by scripts/setup-proxy-ca.sh. Do not edit; rerun the script."
+GENERATED_HEADER="# Generated by scripts/configure.sh. Do not edit; rerun the script."
 DOCKER_DROPIN=/etc/systemd/system/docker.service.d/http-proxy.conf
 DOCKER_CONFIG_FILE="${DOCKER_CONFIG:-$HOME/.docker}/config.json"
 DEVCONTAINER_CA=.devcontainer/proxy-ca.crt
@@ -73,12 +84,14 @@ ok()   { printf '  [%s]   %s\n' "$([ "$DRY" = 1 ] && echo dry || echo ok)" "$*";
 skip() { printf '  [skip] %s\n' "$*"; }
 warn() { printf '  [warn] %s\n' "$*" >&2; }
 die()  { printf '  [FAIL] %s\n' "$*" >&2; exit 1; }
-usage() { sed -n '5,40p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '5,48p' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --ca-file) CA_FILE="${2:?--ca-file needs a path}"; shift 2 ;;
-    --proxy) PROXY="${2:?--proxy needs a URL}"; shift 2 ;;
+    --ca-cert) WANT_CA=1; shift ;;
+    --ca-cert=*) WANT_CA=1; CA_FILE="${1#*=}"; [ -n "$CA_FILE" ] || die "--ca-cert= needs a file"; shift ;;
+    --proxy) WANT_PROXY=1; PROXY="${HTTPS_PROXY:-${https_proxy:-}}"; [ -n "$PROXY" ] || die "--proxy with no URL needs HTTPS_PROXY set"; shift ;;
+    --proxy=*) WANT_PROXY=1; PROXY="${1#*=}"; [ -n "$PROXY" ] || die "--proxy= needs a URL"; shift ;;
     --devcontainer) DEVCONTAINER=1; shift ;;
     --yes) YES=1; shift ;;
     --dry-run) DRY=1; shift ;;
@@ -87,6 +100,59 @@ while [ $# -gt 0 ]; do
     *) usage >&2; die "unknown option: $1" ;;
   esac
 done
+
+###############################################################################
+# FIRST-TIME SETUP (no options): the example config, and the first Keycloak user
+###############################################################################
+copy_if_missing() {
+  if [ -e "$2" ]; then
+    echo "$2 exists, left alone"
+  else
+    cp "$1" "$2"
+    echo "$2 created from $1"
+  fi
+}
+
+# Writes KEY='value' over an empty KEY= line in .dev.env. Single quotes keep any character
+# in the value safe when .dev.env is sourced.
+set_if_empty() {
+  local key="$1" value="$2"
+  if ! grep -qE "^${key}=(''|\"\")?$" .dev.env; then
+    echo "$key is already set in .dev.env, left alone"
+    return
+  fi
+  if [[ "$value" == *"'"* ]]; then
+    echo "$key must not contain a single quote" >&2
+    exit 1
+  fi
+  VALUE="$value" awk -v key="$key" 'index($0, key "=") == 1 { print key "=\x27" ENVIRON["VALUE"] "\x27"; next } { print }' \
+    .dev.env > .dev.env.tmp
+  mv .dev.env.tmp .dev.env
+  echo "$key written to .dev.env"
+}
+
+if [ "$WANT_PROXY" = 0 ] && [ "$WANT_CA" = 0 ] && [ "$UNDO" = 0 ] && [ "$DEVCONTAINER" = 0 ]; then
+  [ "$DRY" = 0 ] || die "--dry-run needs --proxy or --ca-cert"
+  [ "$YES" = 0 ] || die "--yes needs --proxy, --ca-cert or --undo"
+  copy_if_missing .dev.env.example .dev.env
+  copy_if_missing k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
+
+  if grep -qE "^KEYCLOAK_FIRST_USER_EMAIL=(''|\"\")?$" .dev.env; then
+    read -r -p "First Keycloak user email: " email
+    set_if_empty KEYCLOAK_FIRST_USER_EMAIL "$email"
+  fi
+
+  if grep -qE "^KEYCLOAK_FIRST_USER_PASSWORD=(''|\"\")?$" .dev.env; then
+    read -r -s -p "First Keycloak user password: " password
+    echo
+    set_if_empty KEYCLOAK_FIRST_USER_PASSWORD "$password"
+  fi
+
+  echo
+  echo "Done. Next: mise run cluster up, then mise run deploy"
+  echo "Behind a TLS-intercepting proxy, or with a private CA: see PROXY_CA_SETUP.md (mise run configure --proxy)"
+  exit 0
+fi
 
 SUDO=""
 [ "$(id -u)" -eq 0 ] || SUDO="sudo"
@@ -293,9 +359,8 @@ fi
 # CHECKS (before anything is written)
 ###############################################################################
 require_pem "$BUNDLE" "the system CA bundle"
-[ -n "$PROXY" ] || [ -n "$CA_FILE" ] || die "nothing to set up: give --proxy URL and/or --ca-file PATH, or set HTTPS_PROXY"
 if [ -n "$CA_FILE" ]; then
-  require_pem "$CA_FILE" "--ca-file"
+  require_pem "$CA_FILE" "--ca-cert"
   command -v openssl >/dev/null || die "openssl is needed to check the CA: install it first"
   CA_FILE="$(cd "$(dirname "$CA_FILE")" && pwd)/$(basename "$CA_FILE")"
   openssl x509 -in "$CA_FILE" -noout >/dev/null 2>&1 || die "openssl cannot read $CA_FILE"
@@ -322,7 +387,7 @@ DOCKER_PENDING=0
 ###############################################################################
 echo "1. System trust store"
 if [ -z "$CA_FILE" ]; then
-  skip "no --ca-file: the system bundle $BUNDLE is used as it is"
+  skip "no --ca-cert=FILE: the system bundle $BUNDLE is used as it is"
 elif [ -f "$TRUST_FILE" ] && cmp -s "$CA_FILE" "$TRUST_FILE"; then
   skip "CA already trusted"
 else

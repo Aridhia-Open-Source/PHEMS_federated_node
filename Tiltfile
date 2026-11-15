@@ -13,7 +13,7 @@
 load('ext://restart_process', 'docker_build_with_restart')
 load('ext://dotenv', 'dotenv')
 
-# Load environment config: .generated.env (scripts/setup-proxy-ca.sh) first, so .dev.env wins
+# Load environment config: .generated.env (scripts/configure.sh) first, so .dev.env wins
 if os.path.exists('.generated.env'):
   dotenv('.generated.env')
 dotenv('.dev.env')

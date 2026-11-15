@@ -15,7 +15,7 @@ tilt = "0.37.8"
 "npm:@devcontainers/cli" = "0.90.0"
 
 [env]
-# .generated.env (scripts/setup-proxy-ca.sh) first, so .dev.env wins
+# .generated.env (scripts/configure.sh --proxy / --ca-cert) first, so .dev.env wins
 _.file = [".generated.env", ".dev.env"]
 # fncli lives here (see `setup`), so it is on the PATH anywhere in the repo
 _.python.venv = { path = ".venv", create = true }
@@ -53,9 +53,9 @@ run = [
   ''',
 ]
 
-[tasks.init-conf]
-description = "Create .dev.env and dev.values.yaml from the examples, ask for the first Keycloak user"
-run = "./scripts/init_conf.sh"
+[tasks.configure]
+description = "Create .dev.env and dev.values.yaml, ask for the first Keycloak user; --proxy / --ca-cert set up a proxy or CA (PROXY_CA_SETUP.md)"
+run = "./scripts/configure.sh"
 
 [tasks.devcontainer-check]
 description = "Build and start the dev container without VS Code, check Docker works inside"

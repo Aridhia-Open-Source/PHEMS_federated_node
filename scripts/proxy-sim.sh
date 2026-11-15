@@ -28,7 +28,7 @@ set -euo pipefail
 #           trust store has that CA.
 #
 # Both builds use proxysim-builder, a buildx builder (docker-container driver) on the lan.
-# It stands for your own Docker after setup-proxy-ca.sh: it always trusts mitmproxy's CA,
+# It stands for your own Docker after configure.sh --proxy: it always trusts mitmproxy's CA,
 # so base images pull, and the mode only changes what the build itself is given.
 #
 #   ./scripts/proxy-sim.sh up                         # start mitm and the lan (the tests do it too)

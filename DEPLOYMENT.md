@@ -38,7 +38,7 @@ The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image re
 
 - Docker
 - `kind`, `kubectl`, `helm` (v3), `tilt`, `jq`
-- [mise](https://mise.jdx.dev/): install it and activate it in your shell (`mise run` works without activation; activating adds automatic tool and venv switching on `cd`), then run `mise run setup` (it also installs `fncli`, the ops tool, see [MANAGEMENT.md](MANAGEMENT.md)) and `mise run init-conf`.
+- [mise](https://mise.jdx.dev/): install it and activate it in your shell (`mise run` works without activation; activating adds automatic tool and venv switching on `cd`), then run `mise run setup` (it also installs `fncli`, the ops tool, see [MANAGEMENT.md](MANAGEMENT.md)) and `mise run configure`.
 - Personal overrides go in `mise.local.toml` (gitignored).
 - Or use the dev container instead (see [Dev container](#dev-container) below).
 
@@ -146,7 +146,7 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 |---|---|---|
 | List the tasks | `make help` | `mise tasks` |
 | Install the pinned tools and the virtualenvs (fncli, nexus-api, dagster) | (manual) | `mise run setup` |
-| Create `.dev.env` and `dev.values.yaml` | `make init-conf` | `mise run init-conf` |
+| Create `.dev.env` and `dev.values.yaml` | `make init-conf` | `mise run configure` |
 | Lint the Dockerfiles | `make hadolint` | `mise run hadolint` |
 | Lint nexus-api | `make pylint` | `mise run pylint` |
 | Lint Dagster | `make pylint_dagster` | `mise run pylint dagster` |
@@ -178,9 +178,9 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 ### Behind a TLS-intercepting proxy
 
-Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `./scripts/setup-proxy-ca.sh --proxy URL [--ca-file PATH]` checks the proxy and CA and sets up the machine side. It writes the gitignored `.generated.env` and `k8s/federated-node/generated.values.yaml` (never `.dev.env` or `dev.values.yaml`); the scripts and `mise run` load them before your own files, which win. The setting below is optional dev tooling and does nothing when unset.
+Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `mise run configure --proxy[=URL] [--ca-cert=FILE]` checks the proxy and CA and sets up the machine side (`--ca-cert[=FILE]` alone: a private CA, no proxy). It writes the gitignored `.generated.env` and `k8s/federated-node/generated.values.yaml` (never `.dev.env` or `dev.values.yaml`); the scripts and `mise run` load them before your own files, which win. The setting below is optional dev tooling and does nothing when unset.
 
-- `CUSTOM_CA_FILE=/path/ca.pem` in `.generated.env` (or `.dev.env`), set before `mise run cluster up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in the Secret `fn-custom-ca-dev`. The pods trust it for outbound TLS once `customCA.secretName` names that Secret: the setup script writes that in `generated.values.yaml`; if you set `CUSTOM_CA_FILE` yourself, set `customCA.secretName: fn-custom-ca-dev` in `dev.values.yaml`.
+- `CUSTOM_CA_FILE=/path/ca.pem` in `.generated.env` (or `.dev.env`), set before `mise run cluster up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in the Secret `fn-custom-ca-dev`. The pods trust it for outbound TLS once `customCA.secretName` names that Secret, which `mise run configure --ca-cert` or `--proxy` writes in `generated.values.yaml`. A `CUSTOM_CA_FILE` you set by hand in `.dev.env` no longer reaches the pods: use `mise run configure --ca-cert=FILE`.
 
 Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `mise run cluster up` starts.
 
@@ -222,7 +222,7 @@ An optional alternative to installing the tools on your machine. Open the repo i
 - Its venvs live in the container (`/home/vscode/venvs/`), not in the checkout, so they don't clash with yours.
 - Installed tools are kept in the `fn-mise-data` volume, so rebuilds and other worktrees' containers reuse them.
 - The cluster ownership rules apply inside it as well: it's the same cluster.
-- Behind a TLS-inspecting proxy it trusts the CA that `CUSTOM_CA_FILE` in `.dev.env` or `.generated.env` names (see [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md)): before the image is built, `scripts/setup-proxy-ca.sh --devcontainer` (the `initializeCommand`) checks the proxy and the CA and copies it to `.devcontainer/proxy-ca.crt`, and the image build adds it to the container's system trust. Rebuild the container after setting the CA up. With no CA nothing changes.
+- Behind a TLS-inspecting proxy it trusts the CA that `CUSTOM_CA_FILE` in `.dev.env` or `.generated.env` names (see [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md)): before the image is built, `scripts/configure.sh --devcontainer` (the `initializeCommand`) checks the proxy and the CA and copies it to `.devcontainer/proxy-ca.crt`, and the image build adds it to the container's system trust. Rebuild the container after setting the CA up. With no CA nothing changes.
 
 ## Deploy to production
 

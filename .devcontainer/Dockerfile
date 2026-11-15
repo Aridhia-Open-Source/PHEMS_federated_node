@@ -1,12 +1,12 @@
 # The dev container's image: devcontainer.json builds it, and a plain
-# `docker build .devcontainer` builds the same thing (`scripts/setup-proxy-ca.sh --devcontainer`
+# `docker build .devcontainer` builds the same thing (`scripts/configure.sh --devcontainer`
 # must have run first).
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # The proxy CA (PROXY_CA_SETUP.md), trusted by the steps below and by the container.
-# `setup-proxy-ca.sh --devcontainer` writes proxy-ca.crt before the build: the host's CA bundle
+# `configure.sh --devcontainer` writes proxy-ca.crt before the build: the host's CA bundle
 # (system roots plus the proxy CA), or an empty file when there is none. update-ca-certificates
 # puts every certificate of a file in the system bundle, but links only single-certificate files
 # for lookups by hash (openssl rehash skips the rest), so the bundle is split into one file per

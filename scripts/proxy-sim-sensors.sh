@@ -15,7 +15,7 @@ set -euo pipefail
 #             registered under this name; everything it does with Gitea has to cross the proxy.
 #
 # Three runs, each a deploy of the release with the proxy set (through a generated.values.yaml,
-# as scripts/setup-proxy-ca.sh writes it) and one cert mode:
+# as scripts/configure.sh writes it) and one cert mode:
 #   none    no customCA                  expected: the pipeline fails with a TLS/certificate error
 #   wrong   customCA = an unrelated CA   expected: the same
 #   right   customCA = mitmproxy's CA    expected: the merged PR is ingested, the task runs and the

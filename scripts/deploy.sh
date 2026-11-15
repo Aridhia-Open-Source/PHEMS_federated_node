@@ -10,7 +10,7 @@ set -euo pipefail
 source scripts/load_env.sh
 export CUSTOM_CA_FILE   # build_images.sh passes it to image builds
 
-# generated.values.yaml (scripts/setup-proxy-ca.sh: the chart's proxy and customCA) goes
+# generated.values.yaml (scripts/configure.sh: the chart's proxy and customCA) goes
 # first, so what you set in $VALUES_FILE wins.
 VALUES_ARGS=(-f "$VALUES_FILE")
 if [ -f k8s/federated-node/generated.values.yaml ]; then

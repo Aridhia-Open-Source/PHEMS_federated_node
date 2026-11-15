@@ -1,10 +1,10 @@
 # shellcheck shell=bash
-# Sourced by deploy.sh and setup-proxy-ca.sh. Dev tooling for the chart's customCA value.
+# Sourced by deploy.sh and configure.sh. Dev tooling for the chart's customCA value.
 #
 # CUSTOM_CA_FILE=/path/to/ca.pem (.generated.env or .dev.env) puts that PEM, a CA or a bundle
 # of them, in the Secret CUSTOM_CA_SECRET in $NAMESPACE. The release trusts it for outbound
-# TLS once customCA.secretName names that Secret, which setup-proxy-ca.sh does in
-# generated.values.yaml (otherwise set it in dev.values.yaml). Unset, nothing is created.
+# TLS once customCA.secretName names that Secret, which configure.sh --ca-cert or --proxy
+# writes in generated.values.yaml. Unset, nothing is created.
 CUSTOM_CA_SECRET=fn-custom-ca-dev
 
 custom_ca_prepare() {
