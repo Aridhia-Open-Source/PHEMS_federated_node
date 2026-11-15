@@ -50,6 +50,7 @@ Detail per step (files, decisions, risks, done, tests): `project/plans/gitops-op
 - Run single test files, not full suites. Check `$CLAUDE_CONFIG_DIR/usage.json` before each step.
 
 ## Open questions
+(Working on the recommended answers below until codepint says otherwise, 2026-11-15.)
 - CRD API group: `fn.aridhia.com`? (recommended: yes)
 - Operator login: Keycloak user with Administrator now, client credentials later? (recommended: yes)
 - A removal nexus-api refuses: hold the resource `Terminating`, or let it go? (recommended: hold)
