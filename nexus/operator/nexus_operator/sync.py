@@ -110,10 +110,12 @@ def has_secret(api: BackendAPI, label: str) -> bool:
 
 def sync_secret(
     api: BackendAPI, label: str, spec: Mapping, namespace: str, read_secret: SecretReader, seen: Mapping[str, str],
+    spec_changed: bool,
 ) -> Synced:
     """
-    Sends the values when the record is missing or a source Secret's resourceVersion is not the one in status
-    (`seen`). Status keeps the resourceVersions, never a value or a hash of one.
+    Sends the values when the record is missing, the spec changed since the last sync (`spec_changed`), or a source
+    Secret's resourceVersion is not the one in status (`seen`). Status keeps the resourceVersions, never a value or a
+    hash of one.
     """
     if "fromSecret" in spec:
         data, version = read_secret(namespace, spec["fromSecret"]["name"])
@@ -128,7 +130,8 @@ def sync_secret(
 
     status = {"sourceVersions": versions}
     # Only the current sources: a status merge-patch never drops the key of a source no longer named
-    if all(seen.get(name) == version for name, version in versions.items()) and has_secret(api, label):
+    unchanged = not spec_changed and all(seen.get(name) == version for name, version in versions.items())
+    if unchanged and has_secret(api, label):
         return Synced(None, False, status)
     api.upsert_secret(label, values)
     return Synced(None, True, status)
@@ -234,8 +237,10 @@ def resolve_project(api: BackendAPI, spec: Mapping) -> tuple[dict, dict, object]
 def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
     """
     Created disabled and enabled last. Datasets are assigned in the order given (the first becomes the default);
-    an assignment that exists is PATCHed with the fields that differ. A results repository is assigned only to a
-    disabled project, so a live project is disabled for it and enabled again by the last step.
+    an assignment that exists is PATCHed with the fields that differ, and a dataset or trigger repository the spec
+    no longer names is unassigned. A results repository is assigned only to a
+    disabled project that has none, so to change it a live project is disabled, the old one unassigned and the new one
+    assigned; the last step enables it again.
     """
     datasets, triggers, results = resolve_project(api, spec)
     project = api.find_project(name)
@@ -249,6 +254,9 @@ def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
         if dataset.id not in assigned:
             api.get_or_assign_dataset(project.id, dataset)
             changed = True
+    for dataset_id in assigned - {dataset.id for dataset in datasets.values()}:
+        api.delete_project_dataset(project.id, dataset_id)
+        changed = True
 
     assigned = {a.trigger_repository.id: a for a in api.get_project_trigger_repositories(project.id)}
     for trigger in spec["repositories"].get("triggers", []):
@@ -266,6 +274,9 @@ def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
         if data:
             api.patch_project_trigger_repository(project.id, repo.id, data)
             changed = True
+    for repo_id in assigned.keys() - {repo.id for repo in triggers.values()}:
+        api.delete_project_trigger_repository(project.id, repo_id)
+        changed = True
 
     spec_results = spec["repositories"]["results"]
     wanted = {
@@ -277,6 +288,8 @@ def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
         if enabled:
             api.patch_project(project.id, {"enabled": False})
             enabled = False
+        if current is not None:
+            api.delete_project_results_repository(project.id, current.results_repository.id)
         api.put_project_results_repository(project.id, results.id, **wanted)
         changed = True
     else:

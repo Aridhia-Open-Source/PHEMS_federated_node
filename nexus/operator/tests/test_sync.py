@@ -51,18 +51,25 @@ def test_secret_sent_only_when_a_source_changed(api):
     def read(namespace, name):
         return sources[name]
 
-    result = sync.sync_secret(api, "creds", spec, "fn", read, {"db": "5"})
+    result = sync.sync_secret(api, "creds", spec, "fn", read, {"db": "5"}, False)
     assert not result.changed
     api.upsert_secret.assert_not_called()
 
-    result = sync.sync_secret(api, "creds", spec, "fn", read, {"db": "4"})
+    result = sync.sync_secret(api, "creds", spec, "fn", read, {"db": "4"}, False)
     api.upsert_secret.assert_called_once_with("creds", {"USERNAME": "u", "PASSWORD": "p"})
     assert result.status == {"sourceVersions": {"db": "5"}}
 
 
+def test_secret_sent_when_the_spec_changed_with_the_same_source(api):
+    spec = {"values": {"TOKEN": {"secretKeyRef": {"name": "db", "key": "b"}}}}
+    result = sync.sync_secret(api, "creds", spec, "fn", lambda ns, n: ({"a": "1", "b": "2"}, "5"), {"db": "5"}, True)
+    api.upsert_secret.assert_called_once_with("creds", {"TOKEN": "2"})
+    assert result.changed
+
+
 def test_secret_sent_when_the_record_is_missing(api):
     api.get_secrets.return_value = []
-    sync.sync_secret(api, "creds", {"fromSecret": {"name": "app"}}, "fn", lambda ns, n: ({"APP_ID": "1"}, "3"), {"app": "3"})
+    sync.sync_secret(api, "creds", {"fromSecret": {"name": "app"}}, "fn", lambda ns, n: ({"APP_ID": "1"}, "3"), {"app": "3"}, False)
     api.upsert_secret.assert_called_once_with("creds", {"APP_ID": "1"})
 
 
@@ -162,8 +169,38 @@ def test_live_project_disabled_to_change_its_results_repository(api):
 
     sync.sync_project(api, "cohort", PROJECT)
 
-    api.put_project_results_repository.assert_called_once_with(9, 5, target_dir="results", base_branch="main", enabled=True)
-    assert api.patch_project.call_args_list == [call(9, {"enabled": False}), call(9, {"enabled": True})]
+    order = [c for c in api.mock_calls if c[0] in (
+        "patch_project", "delete_project_results_repository", "put_project_results_repository",
+    )]
+    assert order == [
+        call.patch_project(9, {"enabled": False}),
+        call.delete_project_results_repository(9, 3),
+        call.put_project_results_repository(9, 5, target_dir="results", base_branch="main", enabled=True),
+        call.patch_project(9, {"enabled": True}),
+    ]
+
+
+def test_live_project_unassigns_what_the_spec_dropped(api):
+    api.find_dataset.return_value = record(id=4)
+    api.find_trigger_repository.return_value = record(id=2)
+    api.find_results_repository.return_value = record(id=3)
+    api.find_project.return_value = record(id=9, enabled=True)
+    api.get_project_datasets.return_value = [record(dataset=record(id=4)), record(dataset=record(id=6))]
+    api.get_project_trigger_repositories.return_value = [
+        record(trigger_repository=record(id=2), watch_dir="specs", base_branch="main", enabled=True),
+        record(trigger_repository=record(id=8), watch_dir="specs", base_branch="main", enabled=True),
+    ]
+    api.get_project_results_repositories.return_value = [
+        record(results_repository=record(id=3), target_dir="results", base_branch="main", enabled=True),
+    ]
+
+    result = sync.sync_project(api, "cohort", PROJECT)
+
+    api.delete_project_dataset.assert_called_once_with(9, 6)
+    api.delete_project_trigger_repository.assert_called_once_with(9, 8)
+    api.get_or_assign_dataset.assert_not_called()
+    api.put_project_trigger_repository.assert_not_called()
+    assert result.changed
 
 
 def test_delete_never_forces(api):

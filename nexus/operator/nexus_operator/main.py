@@ -10,6 +10,7 @@ Run with `kopf run -m nexus_operator.main --standalone --namespace <ns> ...` (th
 
 import base64
 from functools import partial
+from pathlib import Path
 
 import kopf
 import requests
@@ -26,7 +27,20 @@ VERSION = "v1alpha1"
 FINALIZER = "fn.aridhia.com/nexus-sync"
 
 env = Settings()
-api = BackendAPI(BackendSession(BackendAdapter(base_url=env.nexus_api_url, username=env.user, password=env.password)))
+
+
+class RotatingPasswordAdapter(BackendAdapter):
+    """
+    Reads the password from the mounted Secret at every login, as build/kc-init/secrets_reader.py does for kc-secrets:
+    a credential rotation patches the Secret, and the next 401 logs in again with the new one, without a restart.
+    """
+
+    def login(self):
+        self.password = Path(env.password_file).read_text(encoding="utf-8").strip()
+        return super().login()
+
+
+api = BackendAPI(BackendSession(RotatingPasswordAdapter(base_url=env.nexus_api_url, username=env.user, password="")))
 
 
 def read_secret(namespace: str, name: str) -> tuple[dict[str, str], str]:
@@ -51,9 +65,12 @@ KINDS = {
 }
 
 
-def sync_one(plural, name, spec, namespace, status) -> sync.Synced:
+def sync_one(plural, name, spec, namespace, status, meta) -> sync.Synced:
     if plural == "nodesecrets":
-        return sync.sync_secret(api, name, spec, namespace, read_secret, status.get("sourceVersions") or {})
+        spec_changed = meta.get("generation") != status.get("observedGeneration")
+        return sync.sync_secret(
+            api, name, spec, namespace, read_secret, status.get("sourceVersions") or {}, spec_changed,
+        )
     return KINDS[plural][0](api, name, spec)
 
 
@@ -78,7 +95,7 @@ def flux_annotations(meta) -> dict:
 def reconcile(plural, body, name, namespace, spec, status, meta, patch, logger, **_):
     """Sync one resource and write its status; a wait or an API error is retried after retry_delay_seconds"""
     try:
-        result = sync_one(plural, name, spec, namespace, status)
+        result = sync_one(plural, name, spec, namespace, status, meta)
     except kopf.TemporaryError as error:
         patch.status.update(synced=False, message=str(error))
         raise kopf.TemporaryError(str(error), delay=env.retry_delay_seconds) from error

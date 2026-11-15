@@ -392,6 +392,11 @@ class BackendAPI:
         self.logger.info(f"Fetching datasets of project {project_id}")
         return [ProjectDataset(**a) for a in self.session.get(f"/projects/{project_id}/datasets").json()]
 
+    def delete_project_dataset(self, project_id: int, dataset_id: int) -> None:
+        """Unassign the dataset from the project (a soft delete), not the dataset itself"""
+        self.logger.info(f"Unassigning dataset {dataset_id} from project {project_id}")
+        self.session.delete(f"/projects/{project_id}/datasets/{dataset_id}")
+
     def find_project_dataset(self, name: str, project_id: int) -> ProjectDataset | None:
         """The project's dataset of that name, if any"""
         for assignment in self.get_project_datasets(project_id):
@@ -578,6 +583,11 @@ class BackendAPI:
         response = self.session.put(f"/projects/{project_id}/repositories/triggers/{repository_id}", json=data)
         return ProjectTriggerRepository(**response.json())
 
+    def delete_project_trigger_repository(self, project_id: int, repository_id: int) -> None:
+        """Unassign the trigger repository from the project (a soft delete), not the repository itself"""
+        self.logger.info(f"Unassigning repository {repository_id} from project {project_id}")
+        self.session.delete(f"/projects/{project_id}/repositories/triggers/{repository_id}")
+
     def get_results_repositories(self) -> list[ResultsRepository]:
         """The global results repositories"""
         response = self.session.get("/global/repositories/results")
@@ -639,6 +649,11 @@ class BackendAPI:
         self.logger.info(f"Updating results repository {repository_id} of project {project_id}")
         response = self.session.patch(f"/projects/{project_id}/repositories/results/{repository_id}", json=data)
         return ProjectResultsRepository(**response.json())
+
+    def delete_project_results_repository(self, project_id: int, repository_id: int) -> None:
+        """Unassign the project's results repository (a soft delete), not the repository itself"""
+        self.logger.info(f"Unassigning results repository {repository_id} from project {project_id}")
+        self.session.delete(f"/projects/{project_id}/repositories/results/{repository_id}")
 
     def get_or_assign_results_repository(
         self, project_id: int, repo: ResultsRepository, target_dir: str, base_branch: str,

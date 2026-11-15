@@ -32,11 +32,34 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].image
           pattern: ^ghcr.io/aridhia-open-source/nexus_operator:.+
-      - contains:
+      - notExists:
           path: spec.template.spec.containers[0].envFrom
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
           content:
-            secretRef:
-              name: operator-keycloak-creds
+            name: operator-keycloak-creds
+            mountPath: /etc/secrets/operator
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: operator-keycloak-creds
+            secret:
+              secretName: operator-keycloak-creds
+
+  - it: mounts fn-operator's password into realm-init beside kc-secrets
+    template: keycloak-realm-controller.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: kc-secrets
+            projected:
+              sources:
+                - secret:
+                    name: kc-secrets
+                - secret:
+                    name: operator-keycloak-creds
 
   - it: has a Role in each watched namespace
     template: nexus-operator-roles.yaml
