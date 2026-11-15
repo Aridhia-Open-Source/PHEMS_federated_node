@@ -276,6 +276,48 @@ host: &host
 # Required. Names this node (hospital) in the results it delivers: run.json's node.id. Set it once and
 # keep it, results already delivered carry the old one.
 nodeId: ""
+
+# The operator that syncs the node config custom resources into nexus-api (ADR 0032)
+operator:
+  enabled: false
+
+# The node's config, rendered as custom resources (GitProvider, NodeSecret, Repository, Dataset, Project) in the
+# release namespace for the operator to sync (ADR 0032). No secret values here: a secret names the Kubernetes
+# Secret, in the release namespace, its values are in. Example:
+#   providers:
+#     - name: github
+#       type: github
+#       uri: https://github.com
+#   secrets:
+#     analysis-repo-creds:
+#       fromSecret: {name: analysis-github-app}   # or values: {KEY: {secretKeyRef: {name, key}}}
+#   repositories:                                 # named by the slug of the uri unless given a name
+#     triggers:
+#       - uri: https://github.com/example-org/analysis-requests
+#         secret: analysis-repo-creds
+#     results:
+#       - uri: https://github.com/example-org/analysis-results
+#         secret: analysis-repo-creds
+#   datasets:
+#     - name: omop-cdm
+#       type: postgres
+#       host: omop-db.example.org
+#       port: 5432
+#       secret: omop-db-creds
+#   projects:
+#     - name: cohort-study
+#       datasets: [omop-cdm]
+#       repositories:
+#         triggers:
+#           - repository: https://github.com/example-org/analysis-requests
+#             watchDir: specs/
+#             baseBranch: main
+#         results:
+#           repository: https://github.com/example-org/analysis-results
+#           targetDir: results/
+#           baseBranch: main
+nodeConfig: {}
+
 tls:
   secretName: &tls tls
 
