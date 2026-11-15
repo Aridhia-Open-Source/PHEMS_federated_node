@@ -101,12 +101,22 @@ Tests and lint:
 
 When work is split across subagents, pick the model by the job:
 
-- Fable: advisor. Plans, and reviews each diff before commit.
+- Fable: advisor. Plans, reviews hard diffs, helps when stuck.
 - Opus: development work; leads implementation steps.
 - Sonnet: mechanical work (import moves, renames, running a single test file).
 - Haiku: basic actions (status checks, greps, PR text, log summaries).
 
 The main session coordinates, commits and pushes.
+
+Fable is optional: use it for planning, really hard problems, or when stuck; skip it otherwise.
+
+Step down by usage (`~/.claude/usage.json`, the 5h figure; drop one more band if the 7-day figure is above 85%):
+
+- Below 70%: models as above; the best model is fine for cheap jobs.
+- 70-79%: Fable only for short reviews; Opus for development, Sonnet for mechanical work.
+- 80-87%: no Fable; Opus for development, Sonnet for the rest.
+- 88-94%: Sonnet for development, Haiku for the rest; finish the current chunk only.
+- 95% and up: stop, commit, push, update the handover.
 
 ## Working tips for agents
 
