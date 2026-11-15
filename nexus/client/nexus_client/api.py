@@ -640,6 +640,11 @@ class BackendAPI:
         response = self.session.patch(f"/projects/{project_id}/repositories/results/{repository_id}", json=data)
         return ProjectResultsRepository(**response.json())
 
+    def delete_project_results_repository(self, project_id: int, repository_id: int) -> None:
+        """Unassign the project's results repository (a soft delete), not the repository itself"""
+        self.logger.info(f"Unassigning results repository {repository_id} from project {project_id}")
+        self.session.delete(f"/projects/{project_id}/repositories/results/{repository_id}")
+
     def get_or_assign_results_repository(
         self, project_id: int, repo: ResultsRepository, target_dir: str, base_branch: str,
         owned_by_federated_node: bool | None = None,

@@ -235,7 +235,8 @@ def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
     """
     Created disabled and enabled last. Datasets are assigned in the order given (the first becomes the default);
     an assignment that exists is PATCHed with the fields that differ. A results repository is assigned only to a
-    disabled project, so a live project is disabled for it and enabled again by the last step.
+    disabled project that has none, so to change it a live project is disabled, the old one unassigned and the new one
+    assigned; the last step enables it again.
     """
     datasets, triggers, results = resolve_project(api, spec)
     project = api.find_project(name)
@@ -277,6 +278,8 @@ def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
         if enabled:
             api.patch_project(project.id, {"enabled": False})
             enabled = False
+        if current is not None:
+            api.delete_project_results_repository(project.id, current.results_repository.id)
         api.put_project_results_repository(project.id, results.id, **wanted)
         changed = True
     else:

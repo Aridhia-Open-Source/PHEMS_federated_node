@@ -162,8 +162,15 @@ def test_live_project_disabled_to_change_its_results_repository(api):
 
     sync.sync_project(api, "cohort", PROJECT)
 
-    api.put_project_results_repository.assert_called_once_with(9, 5, target_dir="results", base_branch="main", enabled=True)
-    assert api.patch_project.call_args_list == [call(9, {"enabled": False}), call(9, {"enabled": True})]
+    order = [c for c in api.mock_calls if c[0] in (
+        "patch_project", "delete_project_results_repository", "put_project_results_repository",
+    )]
+    assert order == [
+        call.patch_project(9, {"enabled": False}),
+        call.delete_project_results_repository(9, 3),
+        call.put_project_results_repository(9, 5, target_dir="results", base_branch="main", enabled=True),
+        call.patch_project(9, {"enabled": True}),
+    ]
 
 
 def test_delete_never_forces(api):
