@@ -25,7 +25,7 @@ from fncli.cmds.common import (
     build_researcher_git_api,
     find_under,
 )
-from fncli.cmds.nodefile import context_option, step_project_option
+from fncli.cmds.target import context_option, step_project_option
 from fncli.cmds.project import find_project
 from fncli.cmds.repository import step_repo_config
 from fncli.cmds.sensor import SENSORS

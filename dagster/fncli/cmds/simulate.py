@@ -7,7 +7,7 @@ Both providers are the cluster's one Gitea, under two names: the second is a Kub
 this module creates, so the providers' uris stay unique.
 
 Every command takes --context (bootstrap/context.yaml): the node it works on. The node must already have its one Gitea
-provider (`fncli apply -f examples/globals-gitea.yaml`), whose address the simulation's providers are made from.
+provider (`kubectl apply -f config/gitea.yaml`), whose address the simulation's providers are made from.
 
     fncli simulate-setup        # the alias service, Gitea repos, tokens, providers, repositories and projects
     fncli simulate-run          # start the sensors, merge the pull requests, wait for the sensors, check
@@ -39,14 +39,14 @@ from fncli.cmds.common import (
     TriggerRepoConfig,
     build_gitea_api,
 )
-from fncli.cmds.nodefile import context_option, open_target
+from fncli.cmds.target import context_option, open_target
 from fncli.cmds.pr import DEFAULT_TRIGGER_FILE, file_for, load_trigger, new_branch_name
 from fncli.cmds.project import init_backend_project
 from fncli.cmds.repository import init_backend_results_repo, init_backend_trigger_repo, init_gitea_repo
 from fncli.cmds.secret import init_git_secret, verify_gitea_accepts_bearer_token
 from fncli.cmds.sensor import ALL_SENSORS
 from fncli.cmds.state import snapshot
-from fncli.nodefile.loader import Context
+from fncli.context import Context
 from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("simulate")
@@ -78,13 +78,13 @@ class Target:
 
 
 def open_simulation(context: Context) -> Target:
-    """Opens the node, and takes the Gitea from the node's one gitea provider, which `fncli apply` of a globals file made"""
+    """Opens the node, and takes the Gitea from the node's one gitea provider, which `kubectl apply -f config/gitea.yaml` made"""
     backend_api = open_target(context)
     providers = [provider for provider in backend_api.get_git_providers() if provider.type == "gitea"]
     if len(providers) != 1:
         raise click.ClickException(
             f"The simulation needs the node to have exactly one gitea provider, it has {len(providers)}: "
-            "fncli apply -f examples/globals-gitea.yaml"
+            "kubectl apply -f config/gitea.yaml"
         )
     return Target(context, backend_api, providers[0].uri, providers[0].api_uri)
 
