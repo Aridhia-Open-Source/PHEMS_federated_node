@@ -22,6 +22,7 @@ If the release job cannot resolve `kind-registry`, set `RELEASE_REGISTRY`, `INSE
 
 - A dev node from a fresh `mise run deploy`, owned by your worktree (`mise run deploy-owner`). Its values must have `gitea.actions.enabled` and `gitea.actions.runner.enabled` true, as `dev.example.values.yml` does.
 - `mise run setup` has installed the pinned `flux` CLI.
+- The port-forwards, in another shell: `mise run portfwd`. Not `tilt up`, which redeploys the dev images over Flux's release. The URLs below use them (Gitea on `localhost:4000`).
 
 ## 1. Publish two releases
 
