@@ -13,6 +13,7 @@ What rotates, and what deliberately does not:
   KEYCLOAK_SERVICE_PASSWORD  yes -- reset via the admin API. Keycloak has no dual-password concept,
                              so this one has a brief cutover; consumers retry on auth failure.
   DAGSTER_KC_PASSWORD        yes -- same mechanism.
+  OPERATOR_KC_PASSWORD       yes -- same mechanism (the nexus operator's fn-operator user).
   KEYCLOAK_ADMIN_PASSWORD    NO -- that is the operator's console account. The platform sets it once,
                              marked temporary, and never touches it again. Rotating it would
                              overwrite whatever password the operator chose.
@@ -53,6 +54,7 @@ logger = logging.getLogger('credential_rotation')
 
 KC_SECRETS_NAME = "kc-secrets"
 DAGSTER_SECRET_NAME = "dagster-keycloak-creds"
+OPERATOR_SECRET_NAME = "operator-keycloak-creds"
 
 
 def generate_password(length: int = 24) -> str:
@@ -74,6 +76,11 @@ def target_namespaces() -> list:
 
 def dagster_namespaces() -> list:
     raw = os.getenv("DAGSTER_SECRET_NAMESPACES", "")
+    return [ns.strip() for ns in raw.split(",") if ns.strip()]
+
+
+def operator_namespaces() -> list:
+    raw = os.getenv("OPERATOR_SECRET_NAMESPACES", "")
     return [ns.strip() for ns in raw.split(",") if ns.strip()]
 
 
@@ -155,6 +162,18 @@ def main() -> int:
         for namespace in dagster_ns:
             if not patch_secret(v1, namespace, DAGSTER_SECRET_NAME, {
                 "DAGSTER_KC_PASSWORD": new_dagster_password,
+                "LAST_ROTATED": stamp,
+            }):
+                failed = True
+
+    # 4. The nexus operator's user, same mechanism.
+    operator_ns = operator_namespaces()
+    if operator_ns and os.getenv("ROTATE_OPERATOR_PASSWORD", "true").lower() in ("1", "true", "yes", "on"):
+        new_operator_password = generate_password()
+        reset_user_password(settings.operator_kc_user or "fn-operator", new_operator_password, admin_token)
+        for namespace in operator_ns:
+            if not patch_secret(v1, namespace, OPERATOR_SECRET_NAME, {
+                "OPERATOR_KC_PASSWORD": new_operator_password,
                 "LAST_ROTATED": stamp,
             }):
                 failed = True

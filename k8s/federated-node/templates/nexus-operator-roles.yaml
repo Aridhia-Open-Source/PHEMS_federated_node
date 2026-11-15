@@ -1,0 +1,42 @@
+{{- if (.Values.operator).enabled }}
+{{- /*
+  What the operator may do in each namespace it watches: the five fn.aridhia.com kinds (patch for
+  its finalizer and Kopf's annotations) and their status, get a NodeSecret's source Secret, and
+  create Events. Nothing cluster-wide: Kopf runs namespaced with --namespace per namespace.
+*/}}
+{{- range (include "operatorNamespaces" . | fromJsonArray) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $.Release.Name }}-nexus-operator
+  namespace: {{ . }}
+rules:
+- apiGroups: ["fn.aridhia.com"]
+  resources: ["gitproviders", "nodesecrets", "repositories", "datasets", "projects"]
+  verbs: ["get", "list", "watch", "patch"]
+- apiGroups: ["fn.aridhia.com"]
+  resources: ["gitproviders/status", "nodesecrets/status", "repositories/status", "datasets/status", "projects/status"]
+  verbs: ["get", "patch"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get"]
+- apiGroups: ["", "events.k8s.io"]
+  resources: ["events"]
+  verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Release.Name }}-nexus-operator
+  namespace: {{ . }}
+subjects:
+  - kind: ServiceAccount
+    name: nexus-operator
+    namespace: {{ $.Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ $.Release.Name }}-nexus-operator
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+{{- end }}

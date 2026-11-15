@@ -1,0 +1,73 @@
+suite: nexus operator
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+set:
+  operator:
+    enabled: true
+    watchNamespaces: [experiments]
+tests:
+  - it: renders nothing when the operator is off
+    template: nexus-operator-deployment.yaml
+    set:
+      operator.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: runs one replica with Recreate, watching the release namespace and watchNamespaces
+    template: nexus-operator-deployment.yaml
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value: [--namespace=federatednode, --namespace=experiments]
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^ghcr.io/aridhia-open-source/nexus_operator:.+
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: operator-keycloak-creds
+
+  - it: has a Role in each watched namespace
+    template: nexus-operator-roles.yaml
+    asserts:
+      - hasDocuments:
+          count: 4
+      - equal:
+          path: metadata.namespace
+          value: experiments
+        documentIndex: 2
+
+  - it: strips the finalizers in a pre-delete hook
+    template: nexus-operator-uninstall-hook.yaml
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'for ns in federatednode experiments'
+
+  - it: makes the fn-operator login
+    template: keycloak-secrets.yaml
+    documentSelector:
+      path: metadata.name
+      value: operator-keycloak-creds
+      matchMany: true
+    asserts:
+      - equal:
+          path: data.OPERATOR_KC_USER
+          value: Zm4tb3BlcmF0b3I=

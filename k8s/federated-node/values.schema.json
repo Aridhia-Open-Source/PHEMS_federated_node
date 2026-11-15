@@ -225,6 +225,10 @@
                                 "dagsterPassword": {
                                     "type": "boolean",
                                     "default": true
+                                },
+                                "operatorPassword": {
+                                    "type": "boolean",
+                                    "default": true
                                 }
                             }
                         }
@@ -1032,11 +1036,32 @@
         },
         "operator": {
             "type": "object",
-            "description": "The operator that syncs the node config custom resources into nexus-api (ADR 0032)",
+            "description": "The Kopf operator that applies the fn.aridhia.com custom resources to nexus-api (ADR 0032).",
             "properties": {
                 "enabled": {
                     "type": "boolean",
                     "default": false
+                },
+                "image": {
+                    "type": "string"
+                },
+                "tag": {
+                    "$ref": "#/definitions/tag"
+                },
+                "watchNamespaces": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Namespaces watched besides the release namespace."
+                },
+                "syncIntervalSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 60
+                },
+                "resources": {
+                    "type": "object"
                 }
             }
         },

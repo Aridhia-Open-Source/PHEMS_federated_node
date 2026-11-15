@@ -278,3 +278,12 @@ could point out of its folder.
 {{- define "kcSecretsMountPath" -}}
 /etc/secrets/kc
 {{- end -}}
+
+{{- define "nexus-operator-image" -}}
+{{ printf "%s:%s" (.Values.operator.image) ((.Values.operator.tag) | default (include "image-tag" . | trim)) }}
+{{- end }}
+
+{{/* The namespaces the operator watches: the release namespace plus operator.watchNamespaces, as JSON */}}
+{{- define "operatorNamespaces" -}}
+{{ prepend (.Values.operator.watchNamespaces | default list) .Release.Namespace | uniq | toJson }}
+{{- end }}

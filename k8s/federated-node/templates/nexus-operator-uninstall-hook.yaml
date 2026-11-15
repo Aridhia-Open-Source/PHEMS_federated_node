@@ -1,0 +1,87 @@
+{{- if (.Values.operator).enabled }}
+{{- /*
+  Uninstall is not a delete (ADR 0032). Before `helm uninstall` removes anything, this Job stops the
+  operator and strips the finalizers from every fn.aridhia.com resource it watches, so the resources
+  go without the operator soft-deleting their nexus-api records and the uninstall does not hang.
+  The CRDs carry helm.sh/resource-policy: keep.
+*/}}
+{{- $hook := dict "helm.sh/hook" "pre-delete" "helm.sh/hook-weight" "-10" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nexus-operator-uninstall
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+{{- range (include "operatorNamespaces" . | fromJsonArray) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $.Release.Name }}-nexus-operator-uninstall
+  namespace: {{ . }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+rules:
+- apiGroups: ["fn.aridhia.com"]
+  resources: ["gitproviders", "nodesecrets", "repositories", "datasets", "projects"]
+  verbs: ["get", "list", "patch"]
+{{- if eq . $.Release.Namespace }}
+- apiGroups: ["apps"]
+  resources: ["deployments", "deployments/scale"]
+  resourceNames: ["nexus-operator"]
+  verbs: ["get", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Release.Name }}-nexus-operator-uninstall
+  namespace: {{ . }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: nexus-operator-uninstall
+    namespace: {{ $.Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ $.Release.Name }}-nexus-operator-uninstall
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nexus-operator-uninstall
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: nexus-operator-uninstall
+      containers:
+        - name: strip-finalizers
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              kubectl scale deployment nexus-operator -n {{ .Release.Namespace }} --replicas=0
+              kubectl wait pod -l app=nexus-operator -n {{ .Release.Namespace }} --for=delete --timeout=120s || true  # no pod left is the goal
+              for ns in {{ include "operatorNamespaces" . | fromJsonArray | join " " }}; do
+                for kind in gitproviders nodesecrets repositories datasets projects; do
+                  for name in $(kubectl get "$kind.fn.aridhia.com" -n "$ns" -o name); do
+                    kubectl patch "$name" -n "$ns" --type=merge -p '{"metadata":{"finalizers":null}}'
+                  done
+                done
+              done
+{{- end }}
