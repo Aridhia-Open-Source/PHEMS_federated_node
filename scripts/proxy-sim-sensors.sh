@@ -14,7 +14,8 @@ set -euo pipefail
 #             node's in-cluster addresses skip the proxy (NO_PROXY), so the test project is
 #             registered under this name; everything it does with Gitea has to cross the proxy.
 #
-# Three runs, each a deploy of the release with the proxy set and one cert mode:
+# Three runs, each a deploy of the release with the proxy set (through a generated.values.yaml,
+# as scripts/setup-proxy-ca.sh writes it) and one cert mode:
 #   none    no customCA                  expected: the pipeline fails with a TLS/certificate error
 #   wrong   customCA = an unrelated CA   expected: the same
 #   right   customCA = mitmproxy's CA    expected: the merged PR is ingested, the task runs and the
@@ -23,16 +24,22 @@ set -euo pipefail
 #   ./scripts/proxy-sim-sensors.sh up                   # mitmproxy in the proxysim namespace (keeps its CA)
 #   ./scripts/proxy-sim-sensors.sh probe                # curl through the proxy: fails without the CA, works with it
 #   ./scripts/proxy-sim-sensors.sh deploy <none|wrong|right>
-#                                                       # scripts/deploy.sh with DEV_PROXY_URL and that CA
-#   ./scripts/proxy-sim-sensors.sh setup                # the proxysim project, its Gitea repos and secrets (fncli)
-#   ./scripts/proxy-sim-sensors.sh pr                   # open and merge one watched PR in the trigger repo
+#                                                       # scripts/deploy.sh with the proxy and that CA
+#   ./scripts/proxy-sim-sensors.sh setup                # the proxysim project, its Gitea repos and secrets (fncli apply)
+#   ./scripts/proxy-sim-sensors.sh pr                   # start the sensors, open and merge one watched PR (fncli open-pr)
 #   ./scripts/proxy-sim-sensors.sh status               # the project, TLS errors in the logs, what crossed the proxy
-#   ./scripts/proxy-sim-sensors.sh down                 # remove the project, its repos, proxysim and the CA secret
+#   ./scripts/proxy-sim-sensors.sh down                 # remove the project, proxysim and the CA secret, and put back
+#                                                       # your own generated files (its Gitea repos stay)
 #
-# Needs the port-forwards (mise run portfwd; not Tilt, which deploys without the proxy) and
-# dagster/.venv (mise run setup), or FNCLI_PYTHON set to a python that runs fncli. The CAs and
-# fncli's env file are kept in $PROXYSIM_DIR (default ~/.fn/proxysim-sensors). After `down`,
-# `mise run deploy` puts the release back without the proxy.
+# Run it as `mise x -- ./scripts/proxy-sim-sensors.sh ...` (deploy.sh needs fncli on the PATH). It needs
+# the port-forwards (mise run portfwd; not Tilt, which deploys without the proxy) and dagster/.venv
+# (mise run setup), or FNCLI_PYTHON set to a python that runs fncli. fncli calls Gitea under its outside
+# name, so setup, pr and status reach it as the node does: through proxysim (port-forwarded to the
+# host for the call), trusting its CA. Setup also has the node call Gitea, so run it after `deploy right`.
+# The node files are bootstrap/examples/globals-proxysim.yaml and projects/proxysim.yaml. Generated, and gitignored with the rest of bootstrap/: the
+# context bootstrap/proxysim-context.yaml (a copy of the example one) and, in bootstrap/proxysim/, mitmproxy's
+# CA, the wrong one, and your own .generated.env and generated.values.yaml while `deploy` has set them aside.
+# After `down`, `mise run deploy` puts the release back without the proxy.
 ####################################################################################
 
 cd "$(dirname "$0")/.."
@@ -41,23 +48,64 @@ ROOT="$PWD"
 COMMAND="${1:-}"
 MODE="${2:-}"
 
-source .dev.env
+source scripts/load_env.sh
+source scripts/custom_ca.sh
 NS_PROXY="proxysim"
-DIR="${PROXYSIM_DIR:-$HOME/.fn/proxysim-sensors}"
+DIR="${ROOT}/bootstrap/proxysim"
+SAVED="${DIR}/saved"
+GENERATED_ENV=.generated.env
+GENERATED_VALUES=k8s/federated-node/generated.values.yaml
 IMAGE="${PROXYSIM_IMAGE:-mitmproxy/mitmproxy:latest}"
 CLUSTER="${CLUSTER_NAME:-fn}"
 PROXY_URL="http://proxysim.${NS_PROXY}.svc:8080"
 HOST="gitea.proxysim.test"
 GITEA_SVC="http://gitea.${NAMESPACE}.svc:4000"
 FNCLI_PYTHON="${FNCLI_PYTHON:-$ROOT/dagster/.venv/bin/python}"
-ENV_FILE="${DIR}/fncli.env"
+# The node files are committed (their host is HOST); the context is the example one, copied like any fncli context.
+GLOBALS_FILE="${ROOT}/bootstrap/examples/globals-proxysim.yaml"
+PROJECT_FILE="${ROOT}/bootstrap/examples/projects/proxysim.yaml"
+CONTEXT_FILE="${ROOT}/bootstrap/proxysim-context.yaml"
+PROJECT=proxysim
+PROXY_LOCAL_PORT="${PROXYSIM_LOCAL_PORT:-18080}"
 # What a client prints when it does not trust the certificate it was shown.
 TLS_ERRORS='x509:|certificate verify failed|CERTIFICATE_VERIFY_FAILED|SSL certificate problem|unknown authority|SSLError'
 
 mkdir -p "$DIR"
+cp "${ROOT}/bootstrap/examples/context.yaml" "$CONTEXT_FILE"
 
 # Without .dev.env's PYTHONPATH=./app, whose secrets.py hides the standard library's.
-fncli() { (cd "$ROOT/dagster" && env -u PYTHONPATH "$FNCLI_PYTHON" -m fncli --env-file "$ENV_FILE" "$@"); }
+fncli() {
+  (cd "$ROOT/dagster" && env -u PYTHONPATH FNCLI_CONTEXT="$CONTEXT_FILE" NAMESPACE="$NAMESPACE" \
+    "$FNCLI_PYTHON" -m fncli "$@")
+}
+
+# Runs the rest of the line (a command or a function) with its HTTPS calls going through proxysim and
+# trusting its CA, as the node's pods do. The proxy is port-forwarded to the host for the call. ALL_PROXY,
+# not HTTPS_PROXY: requests and curl honour it, and the Kubernetes client (which fncli reads secrets with,
+# and which ignores NO_PROXY) does not, so it still reaches the cluster directly.
+via_proxy() {
+  local forward rc=0 i
+  kubectl port-forward -n "$NS_PROXY" svc/proxysim "${PROXY_LOCAL_PORT}:8080" >/dev/null &
+  forward=$!
+  for i in $(seq 40); do
+    curl -s -o /dev/null "http://localhost:${PROXY_LOCAL_PORT}/" && break
+    [ "$i" -lt 40 ] || { kill "$forward"; echo "proxysim is not reachable on localhost:${PROXY_LOCAL_PORT}: run up first" >&2; return 1; }
+    sleep 0.5
+  done
+  # Not in a `||` list: that would switch off set -e for the commands inside
+  set +e
+  (
+    set -e
+    export ALL_PROXY="http://localhost:${PROXY_LOCAL_PORT}" all_proxy="http://localhost:${PROXY_LOCAL_PORT}"
+    export NO_PROXY=localhost,127.0.0.1 no_proxy=localhost,127.0.0.1
+    export REQUESTS_CA_BUNDLE="${DIR}/mitmproxy-ca-cert.pem" CURL_CA_BUNDLE="${DIR}/mitmproxy-ca-cert.pem"
+    "$@"
+  )
+  rc=$?
+  set -e
+  kill "$forward" 2>/dev/null || true
+  return "$rc"
+}
 
 # mitmproxy's CA, made once by mitmproxy itself so it is a CA it accepts.
 make_ca() {
@@ -146,6 +194,17 @@ probe() {
   kubectl logs deployment/proxysim -n "$NS_PROXY" --tail=10
 }
 
+# Sets your own generated files aside, once, so deploy.sh loads neither: .generated.env would
+# override the CA this run passes, and its proxy is not this one. `down` puts them back.
+set_aside() {
+  [ ! -d "$SAVED" ] || return 0
+  mkdir -p "$SAVED"
+  local f
+  for f in "$GENERATED_ENV" "$GENERATED_VALUES"; do
+    if [ -f "$f" ]; then mv "$f" "${SAVED}/$(basename "$f")"; fi
+  done
+}
+
 # The release with the proxy set and the mode's CA as customCA. FORCE_OWNER=1 passes through.
 deploy() {
   local ca=""
@@ -159,60 +218,46 @@ deploy() {
     right) ca="${DIR}/mitmproxy-ca-cert.pem" ;;
     *) echo "Mode is none, wrong or right" >&2; exit 1 ;;
   esac
-  DEV_PROXY_URL="$PROXY_URL" CUSTOM_CA_FILE="$ca" ./scripts/deploy.sh
+  set_aside
+  {
+    echo "# Generated by scripts/proxy-sim-sensors.sh for its test run; its down puts yours back."
+    echo "proxy:"
+    echo "  httpProxy: \"$PROXY_URL\""
+    echo "  httpsProxy: \"$PROXY_URL\""
+    if [ -n "$ca" ]; then
+      echo "customCA:"
+      echo "  secretName: $CUSTOM_CA_SECRET"
+      echo "  key: ca.crt"
+    fi
+  } > "$GENERATED_VALUES"
+  CUSTOM_CA_FILE="$ca" ./scripts/deploy.sh
 }
 
-# fncli's settings for the test project: its own names, so it never touches the dev project,
-# and the repositories under the outside name, so the node reaches them through the proxy.
-write_env() {
-  cat > "$ENV_FILE" <<EOF
-KEYCLOAK_NAMESPACE=keycloak
-NEXUS_API_URL=http://localhost:5000
-GITEA_URL=http://localhost:4000
-GITEA_API_URI=https://${HOST}/api/v1
-TEST_PROJECT_NAME=proxysim
-TEST_TRIGGER_REPO=proxysim-trigger
-TEST_TRIGGER_REPO_URI=https://${HOST}/gitea_admin/proxysim-trigger
-TEST_TRIGGER_REPO_WATCH_DIR=specs/
-TEST_TRIGGER_REPO_BASE_BRANCH=main
-TEST_RESULTS_REPO=proxysim-results
-TEST_RESULTS_REPO_URI=https://${HOST}/gitea_admin/proxysim-results
-TEST_RESULTS_TARGET_DIR=results/
-TEST_RESULTS_REPO_BASE_BRANCH=main
-DEFAULT_PROJECT_DATASET=proxysim-dataset
-GITEA_TOKEN_NAME=proxysim-trigger
-GITEA_RESULTS_TOKEN_NAME=proxysim-results
-TEST_PR_IMAGE=localhost:5001/pypipes-fn:latest
-EOF
-}
-
-# setup-project minus verify-git-secret, which calls the provider from this host: it cannot
-# resolve the outside name.
+# The project, its repositories and secrets, and the Gitea repos and OAuth apps behind them. The demo's
+# dataset (fncli experiment setup demo) is already on the node.
 setup() {
-  write_env
-  fncli init-backend-project
-  fncli init-gitea-repo --entity trigger
-  fncli init-gitea-repo --entity results
-  fncli init-git-secret --entity trigger
-  fncli init-git-secret --entity results
-  fncli init-dataset-secret
-  fncli init-backend-trigger-repo
-  fncli init-backend-results-repo
-  fncli init-backend-dataset
-  fncli project-set --enabled true
+  fncli apply -f "$GLOBALS_FILE" -y
+  fncli apply -f "$PROJECT_FILE" -y
+  fncli start-sensor --group all
+}
+
+# Starts the sensors (a no-op when running), then opens and merges one watched pull request.
+pr() {
+  fncli start-sensor --group all
+  fncli open-pr --merge --project "$PROJECT"
 }
 
 gitea_get() {
   local password
   password="$(kubectl get secret gitea-admin -n "$NAMESPACE" -o jsonpath='{.data.password}' | base64 -d)"
-  curl -sS --fail -u "gitea_admin:${password}" "http://localhost:4000/api/v1/$1"
+  curl -sS --fail -u "gitea_admin:${password}" "https://${HOST}/api/v1/$1"
 }
 
 status() {
   echo "--- the project's pull requests, tasks and results"
-  fncli project-show | jq '{pull_requests: [.pull_requests[]? | {number, status, task_id}],
+  fncli project-show --project "$PROJECT" | jq '{pull_requests: [.pull_requests[]? | {number, status, task_id}],
     tasks: [.tasks[]? | {id, status}], results: [.results[]? | {task_id, step, status, number}]}' 2>/dev/null \
-    || fncli project-show
+    || fncli project-show --project "$PROJECT"
   echo "--- results repo: branches and pull requests"
   gitea_get "repos/gitea_admin/proxysim-results/branches" | jq -r '.[].name'
   gitea_get "repos/gitea_admin/proxysim-results/pulls?state=all" | jq -r '.[] | "#\(.number) \(.state) \(.head.ref) \(.title)"'
@@ -225,20 +270,30 @@ status() {
 }
 
 down() {
-  [ -f "$ENV_FILE" ] && fncli teardown-project -y || true
+  fncli delete -f "$PROJECT_FILE" -y || true
+  fncli delete -f "$GLOBALS_FILE" --all -y || true
   kubectl delete pod proxysim-probe -n "$NAMESPACE" --ignore-not-found
-  kubectl delete secret fn-custom-ca-dev -n "$NAMESPACE" --ignore-not-found
+  kubectl delete secret "$CUSTOM_CA_SECRET" -n "$NAMESPACE" --ignore-not-found
   kubectl delete namespace "$NS_PROXY" --ignore-not-found
-  echo "Removed. The release still has the proxy until \`mise run deploy\` without DEV_PROXY_URL."
+  # deploy ran: the generated.values.yaml here is this test's. Yours, if any, comes back.
+  if [ -d "$SAVED" ]; then
+    rm -f "$GENERATED_ENV" "$GENERATED_VALUES"
+    local f
+    for f in "$GENERATED_ENV" "$GENERATED_VALUES"; do
+      if [ -f "${SAVED}/$(basename "$f")" ]; then mv "${SAVED}/$(basename "$f")" "$f"; fi
+    done
+    rmdir "$SAVED"
+  fi
+  echo "Removed. The release still has the proxy until \`mise run deploy\`."
 }
 
 case "$COMMAND" in
   up) up; echo "Up: ${PROXY_URL}, ${HOST} -> ${GITEA_SVC}" ;;
   probe) probe ;;
   deploy) deploy ;;
-  setup) setup ;;
-  pr) write_env; fncli open-pr --merge ;;
-  status) status ;;
+  setup) via_proxy setup ;;
+  pr) via_proxy pr ;;
+  status) via_proxy status ;;
   down) down ;;
   *)
     echo "Usage: $0 <up|probe|deploy none|wrong|right|setup|pr|status|down>"
