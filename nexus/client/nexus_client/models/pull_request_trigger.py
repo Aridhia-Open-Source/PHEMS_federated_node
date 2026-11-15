@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.trigger_state import TriggerState
+from nexus_client.models.trigger_state import TriggerState
 
 
 class PullRequestTrigger(BaseModel):

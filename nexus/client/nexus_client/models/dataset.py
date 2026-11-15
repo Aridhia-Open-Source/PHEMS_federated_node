@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.secret import Secret
+from nexus_client.models.secret import Secret
 
 
 class Dataset(BaseModel):

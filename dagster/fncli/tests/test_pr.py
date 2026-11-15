@@ -12,7 +12,7 @@ import requests
 from fncli.cmds import pr
 from fncli.cmds.pr import KINDS, file_for, load_trigger, new_branch_name
 from fncli.tests.conftest import NODE, results_config, trigger_config
-from app.models import TriggerState
+from nexus_client.models import TriggerState
 
 TRIGGER = {"spec": {"image": "busybox:1"}}
 

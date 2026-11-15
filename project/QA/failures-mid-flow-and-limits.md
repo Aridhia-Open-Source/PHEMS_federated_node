@@ -107,7 +107,7 @@ Check: the sources do not say what a killed delivery leaves behind.
 2. Wait ten intervals. Log in as the administrator and run `fncli project-show`.
 
 - **Expected:** while it is down, logins and the sensors' backend calls fail; no state is created; the sensors do not stay broken. After it returns, ticks succeed again with no restart, and new logins work.
-- **Rule:** the Dagster client logs in and refreshes its token on a 401, 403 or 429 (the code is in `dagster/app/utils.py`; no decision record describes it, check).
+- **Rule:** the Dagster client logs in and refreshes its token on a 401, 403 or 429 (the code is in `nexus/client/nexus_client/http.py`; no decision record describes it, check).
 - **Automated by:** Partly automated: `dagster/app/tests/test_utils.py` (auth failures refresh the token and retry; a still-failing retry is returned, not looped). A real Keycloak outage is not tested.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -121,7 +121,7 @@ Needs a short token life: the chart value `token.life` (seconds). Lower it on th
 3. Start a task that outlives one token life and let it deliver.
 
 - **Expected:** after each expiry the Dagster client refreshes its token (on a 401, 403 or 429, with a back-off) and ticks go on succeeding; each pull request is processed once; a long task and its delivery complete. Record any tick that fails with an authentication error before recovering.
-- **Rule:** the Dagster backend client authenticates as a Keycloak System user ([Authorization detached from DAR, Keycloak and whitelisted images]) and refreshes its token on a 401, 403 or 429 (the code is in `dagster/app/utils.py`; check).
+- **Rule:** the Dagster backend client authenticates as a Keycloak System user ([Authorization detached from DAR, Keycloak and whitelisted images]) and refreshes its token on a 401, 403 or 429 (the code is in `nexus/client/nexus_client/http.py`; check).
 - **Automated by:** Partly automated: `dagster/app/tests/test_utils.py`, `dagster/app/tests/test_backend.py` (refresh on 401/403/429, a refresh token is preferred). The tests use a fake session; real expiry timing is not tested.
 - [ ] Pass
 - [ ] Fail — notes:

@@ -164,7 +164,7 @@ fncli experiment down            # teardown every experiment, then uninstall the
 After changing dependencies in `dagster/pyproject.toml`, or when a new command is missing or you get `No module named 'fncli'`, run `mise run setup` again from the checkout you want.
 
 fncli's dependencies are the `cli` extra in `dagster/pyproject.toml`; its Dagster code is
-`dagster/app`, shared with the code location.
+`dagster/app`, shared with the code location, and its nexus-api client is `nexus/client`.
 
 ## Uninstall
 
@@ -190,15 +190,15 @@ dagster/fncli/
     pr.py           the individual PR steps
     sensor.py       start/stop/status of the Dagster sensors
     hello_world.py  install check
-  backend.py        FncliBackendAPI: app.backend.BackendAPI plus the create, update and delete calls apply and delete make
+  backend.py        FncliBackendAPI: nexus_client.api.BackendAPI with forced deletes
   nodefile/         the node file and the context file: schema, loader, diff, backend state, apply and delete executors
   gitea.py          Gitea admin client on top of app.gitea
   k8s.py            host-side kubeconfig loading
   sensors.py        the Dagster GraphQL client
 ```
 
-fncli imports the shared client code and models from `app` (`app.backend`, `app.gitea`,
-`app.models`, ...). Anything only the CLI needs lives here, never in `dagster/app`.
+fncli imports the nexus-api client and models from `nexus_client` (`nexus/client/`) and the git
+clients from `app` (`app.gitea`). Anything only the CLI needs lives here, never in `dagster/app`.
 
 ## Simulation (several providers, repositories and projects)
 

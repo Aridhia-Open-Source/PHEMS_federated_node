@@ -11,9 +11,9 @@ import click
 from fncli.cmds.common import ENTITY_CONFIGS, RepoConfig, ResultsRepoConfig, TriggerRepoConfig
 from fncli.backend import FncliBackendAPI
 from fncli.cmds.nodefile import step_target
-from app.git_uri import normalise_repo_uri
+from nexus_client.git_uri import normalise_repo_uri
 from fncli.gitea import GiteaAdminAPI
-from app.models import GitProvider, Project, ProjectResultsRepository, ProjectTriggerRepository
+from nexus_client.models import GitProvider, Project, ProjectResultsRepository, ProjectTriggerRepository
 from fncli.nodefile.loader import Context
 
 logger = logging.getLogger("repository")

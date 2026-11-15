@@ -1,6 +1,6 @@
 """Dagster GraphQL calls to start, stop and inspect sensors. The webserver needs no auth."""
 
-from app.utils import BaseHttpAdapter, BaseSession
+from nexus_client.http import BaseHttpAdapter, BaseSession
 
 LOCATION = "dagster-fn"
 REPOSITORY = "__repository__"

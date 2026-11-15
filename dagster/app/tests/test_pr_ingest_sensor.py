@@ -6,7 +6,7 @@ import pytest
 
 from app.definitions.sensors.base import IN_FLIGHT
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
-from app.models import TriggerRepository
+from nexus_client.models import TriggerRepository
 from app.tests.conftest import SAMPLE_TRIGGER_REPOSITORY
 
 
