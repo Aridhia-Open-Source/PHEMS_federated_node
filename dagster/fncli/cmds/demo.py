@@ -161,7 +161,7 @@ class Wait(NamedTuple):
 
 class Step(NamedTuple):
     title: str
-    # What the step does. {project}, {trigger_repo}, ... are filled from the node file when the step is shown.
+    # What the step does. {project}, {trigger_repo}, ... are filled from the Project resource when the step is shown.
     text: str
     # The fncli command line that does the same, for the user to see and reuse. Filled like the text.
     line: str
@@ -361,9 +361,9 @@ def demo_command(ctx, trigger_file, context, project, yes_to_all, from_step):
     """
     if project is None:
         project = context.defaults.project
+        if project is None:
+            raise click.UsageError(f"Give --project, or set defaults.project in {context.path}")
         announce_defaults(context, [f"project {project}"])
-    if project is None:
-        raise click.UsageError(f"Give --project, or set defaults.project in {context.path}")
     api = open_target(context)
     namespace = NamespaceConfig().namespace
     resource = get_node_config("projects", namespace, project)
