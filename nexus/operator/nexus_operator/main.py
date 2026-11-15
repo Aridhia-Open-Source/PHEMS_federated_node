@@ -98,10 +98,10 @@ def remove(plural, name, spec, patch, logger, **_):
     logger.info(f"Deleted {plural}/{name} in nexus-api")
 
 
-for plural in KINDS:
-    handler = partial(reconcile, plural)
-    kopf.on.create(GROUP, VERSION, plural, id="sync")(handler)
-    kopf.on.update(GROUP, VERSION, plural, id="sync")(handler)
-    kopf.on.resume(GROUP, VERSION, plural, id="sync")(handler)
-    kopf.timer(GROUP, VERSION, plural, id="resync", interval=env.sync_interval_seconds)(handler)
-    kopf.on.delete(GROUP, VERSION, plural, id="delete")(partial(remove, plural))
+for kind in KINDS:
+    handler = partial(reconcile, kind)
+    kopf.on.create(GROUP, VERSION, kind, id="sync")(handler)
+    kopf.on.update(GROUP, VERSION, kind, id="sync")(handler)
+    kopf.on.resume(GROUP, VERSION, kind, id="sync")(handler)
+    kopf.timer(GROUP, VERSION, kind, id="resync", interval=env.sync_interval_seconds)(handler)
+    kopf.on.delete(GROUP, VERSION, kind, id="delete")(partial(remove, kind))
