@@ -1412,7 +1412,7 @@
 
 <h1 id="experiments">Experiments<a class="headerlink" href="#experiments" title="Permanent link">&para;</a></h1>
 <p>An <strong>experiment</strong> is a real task image run against a real Postgres database with dummy data, on the development node. Its dataset's credentials go through nexus-api's secret, and its results are delivered to Gitea, so it exercises the whole path. This page is for people developing analytics images or the node itself. For a real node, see <a href="../Set-Up-A-Project/">Set up a project</a>.</p>
-<p>The experiments' databases are their own Helm release in the <code>experiments</code> namespace, apart from the FN chart. The node only sees the dataset that <code>fncli</code> registers, at <code>db-datasets.experiments.svc</code>. You need the development cluster running (<a href="../Run-Locally/">Run locally</a>).</p>
+<p>The experiments' databases are their own Helm release in the <code>experiments</code> namespace, apart from the FN chart. The node only sees the dataset that the chart registers (as a Dataset and a NodeSecret resource that the nexus operator syncs to nexus-api), at <code>db-datasets.experiments.svc</code>. You need the development cluster running (<a href="../Run-Locally/">Run locally</a>).</p>
 <h2 id="what-is-in-an-experiment">What is in an experiment<a class="headerlink" href="#what-is-in-an-experiment" title="Permanent link">&para;</a></h2>
 <p>Everything an experiment needs lives in one folder, <code>experiments/&lt;name&gt;/</code>:</p>
 <table>
@@ -1425,11 +1425,7 @@
 <tbody>
 <tr>
 <td><code>values.yaml</code></td>
-<td>The experiment's entry for the databases chart: it makes the database, the role and a generated password secret (<code>db-datasets-&lt;name&gt;</code>, with <code>username</code> and <code>password</code>)</td>
-</tr>
-<tr>
-<td><code>dataset.yaml</code></td>
-<td>A node file with only the dataset and its secret, read from the chart's secret. No project, no repositories</td>
+<td>The experiment's entry for the databases chart: it makes the database, the role and a generated password secret (<code>db-datasets-&lt;name&gt;</code>, with <code>username</code> and <code>password</code>), and the node's dataset and its secret for it (<code>name</code>, <code>readSchema</code>, <code>writeSchema</code>). No project, no repositories</td>
 </tr>
 <tr>
 <td><code>seed.sh</code>, <code>seed/</code></td>
@@ -1449,18 +1445,18 @@
 </tr>
 </tbody>
 </table>
-<p>The project and its repositories stay in node files under <code>bootstrap/examples/</code> (<code>globals-&lt;name&gt;.yaml</code> and <code>projects/&lt;name&gt;.yaml</code>), which assign the dataset by name.</p>
-<p><code>demo</code> is the smallest experiment: a database <code>demo-db</code> with a role <code>demo_user</code>, a tiny <code>cdm.person</code> table and an empty <code>results</code> schema, and a task image <code>demo-fn</code> that writes mock results. It has no project of its own: the demo node files hold the repositories and the project.</p>
+<p>The project and its repositories are node resources in <code>config/experiments/&lt;name&gt;.yaml</code>, which assign the dataset by name.</p>
+<p><code>demo</code> is the smallest experiment: a database <code>demo-db</code> with a role <code>demo_user</code>, a tiny <code>cdm.person</code> table and an empty <code>results</code> schema, and a task image <code>demo-fn</code> that writes mock results. It has no project of its own: the demo resources (<code>config/demo.yaml</code>, or <code>config/github/demo-github.yaml</code>) hold the repositories and the project.</p>
 <h2 id="run-an-experiment">Run an experiment<a class="headerlink" href="#run-an-experiment" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>fncli<span class="w"> </span>experiment<span class="w"> </span>deploy<span class="w">                    </span><span class="c1"># install the databases release (safe to rerun)</span>
 fncli<span class="w"> </span>experiment<span class="w"> </span>build<span class="w"> </span>NAME<span class="w">            </span><span class="c1"># build and push the task image</span>
 fncli<span class="w"> </span>experiment<span class="w"> </span>seed<span class="w"> </span>NAME<span class="w">             </span><span class="c1"># load the dummy data</span>
-fncli<span class="w"> </span>experiment<span class="w"> </span>setup<span class="w"> </span>NAME<span class="w">            </span><span class="c1"># check the names, register the dataset, then the repositories and project</span>
+fncli<span class="w"> </span>experiment<span class="w"> </span>setup<span class="w"> </span>NAME<span class="w">            </span><span class="c1"># wait for the dataset to sync, then the repositories and project</span>
 fncli<span class="w"> </span>experiment<span class="w"> </span>run<span class="w"> </span>NAME<span class="w">              </span><span class="c1"># trigger a pull request, follow the task to the results pull request</span>
 </code></pre></div>
 <p>They are safe to rerun after a failure. <code>setup</code>, <code>run</code>, <code>teardown</code> and <code>down</code> talk to the node, so they need your context file (<a href="../Using-fncli/#the-context-file">Using fncli</a>). If <code>fncli experiment</code> says "No such command", run <code>mise run setup</code> in this checkout.</p>
-<p><code>setup</code> first checks that <code>dataset.yaml</code> names what the chart makes: its dataset is <code>dbs.&lt;name&gt;.name</code> of <code>values.yaml</code>, and its secret reads the Kubernetes secret <code>dbs.&lt;name&gt;.secret.name</code> in <code>experiments</code>. A name that does not match fails here, before the node gets a dataset it cannot use. Then it applies <code>dataset.yaml</code>, and the experiment's globals and project files if it has them.</p>
-<p><code>run</code> takes its pull request's project and repositories from the project file and the node, and the task's image from <code>trigger.json</code>. It adds <code>DEV_ENV</code> from your shell (JSON) to the task's <code>env</code>, which is how a quick run is asked for (<code>DEV_ENV='{"SOME_FLAG": "1"}' fncli experiment run NAME</code>). <code>FULL=1</code> leaves it out.</p>
+<p><code>deploy</code> makes the dataset: it is <code>dbs.&lt;name&gt;.name</code> of <code>values.yaml</code>, and its secret reads the Kubernetes secret <code>dbs.&lt;name&gt;.secret.name</code> in <code>experiments</code>. <code>setup</code> waits for it to sync to the node. If <code>config/experiments/&lt;name&gt;.yaml</code> exists, it then runs <code>fncli gitea setup</code> on it (the Gitea repositories, and a Secret with an OAuth app for each NodeSecret), applies it with <code>config/gitea.yaml</code> using <code>kubectl apply</code>, and waits for every resource to sync. <code>kubectl get fn -n fn</code> shows each resource's Synced and Message.</p>
+<p><code>run</code> takes its pull request's project and repositories from the node, and the task's image from <code>trigger.json</code>. It adds <code>DEV_ENV</code> from your shell (JSON) to the task's <code>env</code>, which is how a quick run is asked for (<code>DEV_ENV='{"SOME_FLAG": "1"}' fncli experiment run NAME</code>). <code>FULL=1</code> leaves it out.</p>
 <p>To run just the image, against the database and with no node:</p>
 <div class="highlight"><pre><span></span><code>fncli<span class="w"> </span>experiment<span class="w"> </span>run<span class="w"> </span>NAME<span class="w"> </span>--local
 </code></pre></div>
@@ -1468,10 +1464,10 @@ fncli<span class="w"> </span>experiment<span class="w"> </span>run<span class="w
 <h2 id="add-an-experiment">Add an experiment<a class="headerlink" href="#add-an-experiment" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Put the image's source in <code>experiments/sources/NAME</code> (or in <code>experiments/NAME/image/</code>). The image reads the task contract (<a href="../Analytics-Container-Development/">Analytics container development</a>): <code>CONNECTION_STRING</code>, <code>CDM_SCHEMA</code>, <code>WRITE_SCHEMA</code>, and it writes to <code>ARTIFACT_PATH</code>.</li>
-<li>Copy an existing experiment folder to <code>NAME</code>, and change the names and the seed: <code>values.yaml</code> (<code>dbs.NAME</code>), <code>dataset.yaml</code> (the dataset and secret must match it), <code>trigger.json</code> (the image), <code>project.env</code>, and copies of the globals and project node files for the repositories and the project.</li>
+<li>Copy an existing experiment folder to <code>NAME</code>, and change the names and the seed: <code>values.yaml</code> (<code>dbs.NAME</code>, with its <code>readSchema</code> and <code>writeSchema</code>), <code>trigger.json</code> (the image), <code>project.env</code>, and a copy of a <code>config/experiments/&lt;name&gt;.yaml</code> for the repositories and the project.</li>
 <li>Run <code>fncli experiment deploy</code>. It upgrades the release with the new database, so it works on a running cluster. Then <code>build</code>, <code>seed</code>, <code>setup</code> and <code>run</code>.</li>
 </ol>
-<p>A dataset name is unique across the node, so two experiments cannot share one. A node file whose project names a dataset that is not on the node is blocked, so <code>setup</code> the experiment before applying its project.</p>
+<p>A dataset name is unique across the node, so two experiments cannot share one. A project that names a dataset that is not on the node does not sync, so <code>deploy</code> and <code>setup</code> the experiment before applying its project.</p>
 <h2 id="building-images">Building images<a class="headerlink" href="#building-images" title="Permanent link">&para;</a></h2>
 <p>Images are built with <code>docker buildx bake</code>. The repo's root <code>docker-bake.hcl</code> holds the node's own images, and each experiment brings its own <code>docker-bake.hcl</code> with one target, <code>&lt;name&gt;-fn</code>, found automatically. An experiment whose source is not there (cloned separately) is skipped.</p>
 <table>
@@ -1510,8 +1506,8 @@ fncli<span class="w"> </span>experiment<span class="w"> </span>run<span class="w
 <p>Run it like any experiment (<code>up</code>, <code>build attacker</code>, <code>seed attacker</code>, <code>setup attacker</code>, <code>run attacker</code>), then read <code>attack-report.txt</code> in the delivered <code>results.zip</code>, and check the zip holds no symbolic link or file from outside the run's folder. See <a href="../Architecture/#task-isolation">Architecture</a> for what is being tested.</p>
 <h2 id="clean-up">Clean up<a class="headerlink" href="#clean-up" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>fncli experiment teardown NAME</code> removes what <code>setup</code> registered in the node for NAME: its project and repositories (if it has node files), then its dataset and secret. The release and its database stay. The backend refuses to delete a dataset that another project still uses.</li>
-<li><code>fncli experiment down</code> does that for every experiment, then uninstalls the release. The secrets and database files stay, so a later <code>setup</code> gets the same data back. If a demo project still uses <code>demo-db</code>, it stops: delete the demo project first.</li>
+<li><code>fncli experiment teardown NAME</code> removes what <code>setup</code> applied for NAME: <code>kubectl delete</code> of <code>config/experiments/&lt;name&gt;.yaml</code>, its project, repositories and NodeSecrets. The dataset is the chart's, so it stays until <code>down</code>, as do the release and its database. A repository that another project still uses stays <code>Terminating</code>, with the reason in <code>kubectl get fn -n fn</code>.</li>
+<li><code>fncli experiment down</code> does that for every experiment, then uninstalls the release, which removes the datasets' resources. The secrets and database files stay, so a later <code>setup</code> gets the same data back. If a demo project still uses <code>demo-db</code>, the dataset stays <code>Terminating</code>: delete the demo project first.</li>
 <li>To start from empty: <code>kubectl delete ns experiments</code>, then delete <code>~/.fn/data/experiments</code>. Postgres owns it, so that needs root or the kind node.</li>
 </ul>
 <p>The repo's <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/experiments/README.md">experiments/README.md</a> is the source for this page.</p>
