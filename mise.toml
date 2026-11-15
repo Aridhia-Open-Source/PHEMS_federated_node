@@ -135,6 +135,16 @@ description = "Build the release images into the local docker"
 usage = 'flag "--tag <tag>" default="1.0" help="Image tag, e.g. 1.2.3"'
 run = 'TAG="$usage_tag" docker buildx bake -f docker-bake.hcl release --load'
 
+# mise run mirror-to-gitea [--tag v0.0.1-dev] [--repo federated-node]
+# A v* tag runs .gitea/workflows/release.yml in the dev Gitea, which publishes to the kind registry
+[tasks.mirror-to-gitea]
+description = "Push this working tree to the dev Gitea; --tag v* starts the release workflow"
+usage = '''
+flag "--tag <tag>" help="Tag to push, e.g. v0.0.1-dev (starts a release)"
+flag "--repo <repo>" default="federated-node" help="Gitea repository under the admin user"
+'''
+run = './scripts/mirror_to_gitea.sh --repo "$usage_repo" ${usage_tag:+--tag "$usage_tag"}'
+
 [tasks.reload-app]
 description = "Rebuild the Dagster and nexus-api images and restart their pods"
 run = "./scripts/reload_app.sh"

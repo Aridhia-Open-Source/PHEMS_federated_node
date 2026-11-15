@@ -1,0 +1,61 @@
+# Release: a tag v<version> builds the images and the chart and publishes both as OCI artifacts (ADR 0031).
+# Plain run: steps around `docker buildx bake` and `helm push`, no actions, so the GitHub Actions port is a copy
+# with the env below changed (and a registry login added).
+#
+# Dev: the Gitea in the kind cluster runs it (gitea.actions.*), on source pushed by `mise run mirror-to-gitea`.
+# It publishes to the kind registry, which has three names:
+#   kind-registry:5000   from this job and from Flux's source-controller (pods, through the cluster DNS)
+#   localhost:5001       from the host, and in the chart's image values (the kind nodes' containerd mirror)
+# If kind-registry does not resolve in the job, set RELEASE_REGISTRY, INSECURE_REGISTRY and CHART_REPO to
+# the registry's IP on the kind network: docker inspect -f '{{.NetworkSettings.Networks.kind.IPAddress}}' kind-registry
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  RELEASE_REGISTRY: kind-registry:5000
+  CHART_REPO: oci://kind-registry:5000/charts
+  # A registry that takes plain HTTP pushes; empty on GitHub
+  INSECURE_REGISTRY: kind-registry:5000
+  # The helm mise.toml pins
+  HELM_VERSION: v3.22.1
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tag
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          scheme="${GITHUB_SERVER_URL%%://*}"
+          host="${GITHUB_SERVER_URL#*://}"
+          host="${host%/}"
+          git clone --depth 1 --branch "$GITHUB_REF_NAME" \
+            "$scheme://x-access-token:$TOKEN@$host/$GITHUB_REPOSITORY.git" .
+          git log -1 --oneline
+
+      - name: Install helm
+        run: |
+          curl -fsSL "https://get.helm.sh/helm-$HELM_VERSION-linux-amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin --strip-components=1 linux-amd64/helm
+          helm version --short
+
+      - name: Build and push the images
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # A builder of its own, so pushes to an insecure registry can go over plain HTTP
+          if [ -n "$INSECURE_REGISTRY" ]; then
+            printf '[registry."%s"]\n  http = true\n  insecure = true\n' "$INSECURE_REGISTRY" > /tmp/buildkitd.toml
+            docker buildx create --name fn-release --driver docker-container --config /tmp/buildkitd.toml --use
+          fi
+          TAG="$version" docker buildx bake -f docker-bake.hcl release --push
+
+      - name: Package and push the chart
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          (cd k8s/federated-node && { helm dependency build || helm dependency update; })
+          helm package k8s/federated-node --version "$version" --app-version "$version" -d dist
+          helm push "dist/federated-node-$version.tgz" "$CHART_REPO" ${INSECURE_REGISTRY:+--plain-http}

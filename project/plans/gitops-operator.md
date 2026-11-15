@@ -231,6 +231,8 @@ Design decisions:
 
 Risks: the runner must reach `kind-registry` (join the `kind` Docker network) and push over plain HTTP.
 
+TODO: add `release-nexus-operator` (inherits `nexus-operator-fn`) to the `release` group once PR #656 brings that target.
+
 Done: pushing tag `v0.0.1-dev` to Gitea leaves `charts/federated-node:0.0.1-dev` and the images in the registry.
 
 Test: none in unit tests; `helm show chart oci://localhost:5001/charts/federated-node --version 0.0.1-dev`.
