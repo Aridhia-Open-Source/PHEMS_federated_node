@@ -171,3 +171,8 @@ gitea:
     secret:
       name: gitea-admin
       key: password
+  # Gitea Actions and a runner (privileged Docker-in-Docker, so dev only) for the release workflow.
+  actions:
+    enabled: true
+    runner:
+      enabled: true

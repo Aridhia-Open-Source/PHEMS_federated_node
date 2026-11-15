@@ -110,6 +110,8 @@ spec:
           value: {{ .Values.gitea.oauth2.accessTokenExpirationTime | quote }}
         - name: GITEA__oauth2__INVALIDATE_REFRESH_TOKENS
           value: {{ .Values.gitea.oauth2.invalidateRefreshTokens | quote }}
+        - name: GITEA__actions__ENABLED
+          value: {{ .Values.gitea.actions.enabled | quote }}
         volumeMounts:
         - name: gitea-data
           mountPath: /data
