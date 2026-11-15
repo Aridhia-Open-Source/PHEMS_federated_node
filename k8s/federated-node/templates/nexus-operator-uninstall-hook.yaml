@@ -5,7 +5,9 @@
   go without the operator soft-deleting their nexus-api records and the uninstall does not hang.
   The CRDs carry helm.sh/resource-policy: keep.
 */}}
-{{- $hook := dict "helm.sh/hook" "pre-delete" "helm.sh/hook-weight" "-10" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
+{{- /* The RBAC goes before the Job: Helm breaks a weight tie by name, which depends on the release name. */}}
+{{- $hook := dict "helm.sh/hook" "pre-delete" "helm.sh/hook-weight" "-20" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
+{{- $jobHook := merge (dict "helm.sh/hook-weight" "-10") $hook }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -59,7 +61,7 @@ metadata:
   name: nexus-operator-uninstall
   namespace: {{ .Release.Namespace }}
   annotations:
-    {{- toYaml $hook | nindent 4 }}
+    {{- toYaml $jobHook | nindent 4 }}
 spec:
   backoffLimit: 2
   activeDeadlineSeconds: 300
