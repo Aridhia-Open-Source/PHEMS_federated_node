@@ -39,7 +39,7 @@ Part 2, Flux (ADR 0031), local with Gitea first:
 3. Step 2 (move the client to `nexus/client/`): Opus lead, with Sonnet doing the import moves.
 
 ## Team and permissions
-- Fable: advisor; it plans and reviews each step's diff before commit. Opus: leads, operator then Flux. Sonnet: mechanical work. The main session coordinates, commits and pushes.
+- Fable: advisor; it plans and reviews each step's diff before commit. Opus: dev work, operator then Flux. Sonnet: grunt work. Haiku: basic actions (see AGENTS.md "Agent team"). The main session coordinates, commits and pushes.
 - codepint has given this work full control of the dev cluster and permission to push branches. Commit and push after each chunk.
 - Run single test files, not full suites. Check `~/.claude/usage.json` before each step.
 
