@@ -17,8 +17,10 @@ Status: Proposed, 2026-11-11.
 ### Config
 
 - **Node config is described in declarative YAML**, kept in git: providers, secrets, repositories, datasets and projects. A secret entry names where its value comes from, never the value.
-- **The config is custom resources.** CRDs: `GitProvider`, `Secret` (a reference only), `Repository`, `Dataset`, `Project`. In dev they are YAML files in `config/`. On a deployed node the site's Helm values hold the same fields, and the chart templates them into custom resources.
-- **CRDs ship as chart templates** (or a small separate chart), because Helm installs files in `crds/` but never upgrades them.
+- **The config is custom resources.** CRDs in the API group `fn.aridhia.com`, version `v1alpha1`, namespaced: `GitProvider`, `NodeSecret` (a reference only), `Repository`, `Dataset`, `Project`. The secret kind is not called `Secret`, because `kubectl get secrets` always means the core kind. All five share the category `fn`, so `kubectl get fn` lists them. In dev they are YAML files in `config/`. On a deployed node the site's Helm values hold the same fields, and the chart templates them into custom resources.
+- **CRDs ship as chart templates,** because Helm installs files in `crds/` but never upgrades them. They carry `helm.sh/resource-policy: keep`, so an uninstall never deletes the kinds and, by cascade, the config.
+- **Names are the nexus-api keys.** `metadata.name` is the project, dataset or provider name, or the secret's label. A `Repository` is keyed by `spec.uri`, and a `Project` names its repositories by uri and its datasets by name.
+- **A `NodeSecret` names a Kubernetes Secret in its own namespace:** `fromSecret: {name}` takes every key as it is, and `values: {KEY: {secretKeyRef: {name, key}}}` maps keys one by one.
 - **Dev applies them with kubectl:** `kubectl apply -f`, `kubectl diff -f` and `kubectl delete -f` on the files in `config/`. A deployed node uses `helm upgrade` with the values. The operator and the custom resources are the same in both, so dev runs the production path.
 - **fncli steps back from node config.** It no longer applies or diffs it. The env-driven `setup-*` and `teardown-*` commands, their step commands and the `TEST_*` variables go.
 - **fncli keeps only the work outside nexus-api config:** raising and merging pull requests, Gitea setup (repositories, OAuth apps, tokens), `demo`, `trigger`, and the QA breakage commands.
@@ -27,13 +29,22 @@ Status: Proposed, 2026-11-11.
 
 - **An operator applies the resources.** It is written in Python with Kopf. For each resource it creates, updates, and on removal soft-deletes the record in nexus-api ([0008](0008-enabled-revoked-and-soft-delete.md)).
 - **It lives in `nexus/operator/`,** with its own image and a Deployment of one replica (Kopf leader election covers a restart or a rolling update). It is not a Service, because nothing calls it. It belongs to nexus, not Dagster.
-- **Removal is safe on a shared node.** The operator never deletes with `?force=true`. A global resource another project still uses is refused by nexus-api with a 409; the operator reports it in the resource's status and keeps the record.
+- **It finds a record by its key and adopts it.** A record that already exists with the same name or uri (made in the UI, say) is taken over and updated. The id in the resource's status is a cache.
+- **It sends secret values, because nexus-api stores them.** `POST /global/secrets` takes the values and writes them to its own store; it cannot adopt an existing Kubernetes Secret. The operator reads the source Secret and sends its values, and sends them again when the source changes. It keeps the source's `resourceVersion` in status, never a value or a hash of one.
+- **One sync function per kind,** run on create, on update, and on a timer. The timer is how UI edits are put back and a rotated source Secret is seen.
+- **Order comes from retries.** A resource whose dependency is not there yet (a project's dataset, a repository's secret) is retried, with what it waits for in its status. Helm and kubectl apply in any order.
+- **A finalizer, `fn.aridhia.com/nexus-sync`, holds a removed resource until nexus-api has soft-deleted the record.**
+- **Uninstall is not a delete.** A pre-delete hook stops the operator and strips the finalizers, so removing the release does not hang and does not soft-delete the node's records.
+- **It watches the release namespace and any listed in `operator.watchNamespaces`,** and reads a source Secret only in the resource's own namespace. Its Role there: the five kinds and their status, `get` on Secrets, `create` on Events.
+- **Removal is safe on a shared node.** The operator never deletes with `?force=true`. A global resource another project still uses is refused by nexus-api with a 409; the operator reports it in the resource's status, keeps the record, and retries; the resource stays `Terminating` until the delete goes through.
 - **Removal and drift.** Removing an entry from the values and upgrading deletes it (in dev, `kubectl delete -f`), so a revert works for config as it does for the chart. Edits made in the UI that differ from the config are put back.
 - **The operator's scope is nexus-api only.** It never touches the git server: no repository creation, no Gitea OAuth apps. Those stay dev-only fncli steps, or a one-time job run by the site.
 
 ### The shared client package
 
-- **`nexus/client/` is a package of its own** (`nexus-client`, with its own `pyproject.toml`). The HTTP session and adapters (BaseHttpAdapter, OAuthAdapter, BackendAdapter: retry and token refresh), the client models and the API calls move out of `dagster/app` into it. Dagster, fncli and the operator use it.
+- **`nexus/client/` is a package of its own** (`nexus-client`, with its own `pyproject.toml`). It is imported as `nexus_client`. Dagster, fncli and the operator use it.
+- **What moves in:** `dagster/app/utils.py` (HttpClient, BaseHttpAdapter, BaseSession, OAuthAdapter, BackendAdapter, BackendSession: retry and token refresh), `dagster/app/models/`, `dagster/app/git_uri.py`, and the API calls. The API calls come from two places and become one class: `BackendAPI` in `dagster/app/backend.py` (what Dagster uses) and `FncliBackendAPI` in `dagster/fncli/backend.py` (providers, secrets, repositories, projects and assignments, which the operator needs).
+- **What stays out:** Dagster's settings (`app/config.py`, which imports dagster), its Kubernetes secret reader (`app/secrets.py`), and the git server clients (`app/github.py`, `app/gitea.py`). The client has no Dagster or Kubernetes dependency, and never deletes with `force`; fncli keeps its forced deletes in a subclass.
 - **It is a path dependency, compiled with each consumer.** `scripts/pip_compile.sh` compiles the consumer's `pyproject.toml` together with `../nexus/client/pyproject.toml` (pip-compile takes several sources). That gives one hashed `requirements.txt` per image, and clashing pins fail at compile time. The consumer's `pyproject.toml` does not list nexus-client.
 - **The image installs in four steps:** the hashed requirements, then the client copied in from a bake named context (`contexts = { nexus-client = "nexus/client" }`) and installed with `pip install --no-deps`, then the app with `--no-deps`, then `pip check`.
 - **Local dev installs it editable:** `pip install --no-deps -e ./nexus/client`.
@@ -42,9 +53,9 @@ Status: Proposed, 2026-11-11.
 
 ### Auth and trust
 
-- **The operator has its own identity.** It logs in to nexus-api as a Keycloak service client (client credentials) with a role limited to node config. It never uses a person's login.
+- **The operator has its own identity.** It logs in to nexus-api as its own Keycloak user, `fn-operator`, made by kc-init with a generated password that is rotated like Dagster's. It holds the Administrator role, not `System`: it may change node config, and may not call the system-only routes (git tokens, task state). It never uses a person's login. nexus-api's `/login` is a password grant today; a Keycloak service client (client credentials) and a role narrower than Administrator come later.
 - **Whoever can change the custom resources changes node config.** Two controls: review on the site repository (with Flux, a merge is the approval), and Kubernetes RBAC, where only Flux's ServiceAccount (and admins, for emergencies) may edit these kinds.
-- **Changes are attributed.** nexus-api records them as the operator. The operator copies the commit and author from Flux's annotations into nexus-api's audit record.
+- **Changes are attributed in git and in Kubernetes, not yet in nexus-api.** nexus-api keeps no audit record today. Each sync writes a Kubernetes Event and a log line with the commit Flux annotated on the resource; the site repository's history is the record of who approved it. An audit record in nexus-api is a later change.
 - **Calls go through the API,** so its auth and rules apply to every change.
 
 ## Examples
@@ -78,7 +89,7 @@ Shared pieces, used by any number of projects:
 
 ```yaml
 # config/globals.yaml
-apiVersion: fn.aridhia.com/v1alpha1     # group name to be decided
+apiVersion: fn.aridhia.com/v1alpha1
 kind: GitProvider
 metadata:
   name: github
@@ -87,7 +98,7 @@ spec:
   uri: https://github.com
 ---
 apiVersion: fn.aridhia.com/v1alpha1
-kind: Secret                            # a reference only; a GitHub App shared by both repositories
+kind: NodeSecret                        # a reference only; a GitHub App shared by both repositories
 metadata:
   name: analysis-repo-creds
 spec:
@@ -144,7 +155,7 @@ kubectl diff   -f config/globals.yaml                 # preview the change to th
 kubectl apply  -f config/globals.yaml                 # provider, repositories, credentials
 kubectl apply  -f config/projects/cohort-study.yaml   # the project and its assignments
 kubectl delete -f config/projects/cohort-study.yaml   # soft delete; the operator keeps what another project still uses
-kubectl get projects,repositories -n fn               # synced or not, with the operator's message
+kubectl get fn -n fn                                  # every kind: synced or not, with the operator's message
 ```
 
 ### Proposed: the same config on a deployed node
@@ -184,7 +195,7 @@ nodeConfig:
 The chart turns each entry into a custom resource, the same as the dev file plus the status the operator fills in:
 
 ```yaml
-apiVersion: fn.aridhia.com/v1alpha1     # group name to be decided
+apiVersion: fn.aridhia.com/v1alpha1
 kind: Project
 metadata:
   name: cohort-study
@@ -209,8 +220,8 @@ Usage:
 
 - **Add or change:** edit the values, open a pull request, merge. Flux runs `helm upgrade`; the operator creates or updates the record in nexus-api.
 - **Remove:** delete the entry, or `git revert` the commit that added it. Helm deletes the `Project`; the operator soft-deletes it in nexus-api.
-- **Who changed it:** nexus-api's audit record shows the operator as the actor, with the commit and author Flux annotated on the resource.
-- **See the state:** `kubectl get projects,repositories,datasets -n fn` shows each resource and whether it is synced, with the operator's message when it is not.
+- **Who changed it:** the site repository's history, and the operator's Event on the resource with the commit Flux applied.
+- **See the state:** `kubectl get fn -n fn` shows each resource and whether it is synced, with the operator's message when it is not.
 - **Without Flux:** `helm upgrade --install` with the same values has the same effect. Dev uses `kubectl apply -f` on the files instead.
 
 ### The shared client package in a build
@@ -272,7 +283,7 @@ What it gives:
 - **Status on each resource:** `kubectl get` shows what is synced and why something is not.
 - **Secrets stay out** of the config and the custom resources: a `Secret` names where the value lives.
 - **One API client** for Dagster, fncli and the operator: retry, token refresh and the API calls in one place, tested together.
-- **Attributed changes:** nexus-api's audit record shows the operator, with the commit and author behind each change.
+- **Attributed changes:** every change is a commit, and the operator's Events tie each sync to one.
 
 What it does not need:
 
@@ -284,6 +295,10 @@ What it costs:
 - **The operator is a new component** to build, test and run in every node. It is small: the client code already exists, and Kopf handles the watch loop, retries and status.
 - **Moving the client is a one-time change** to the imports in Dagster and fncli.
 - **Every consumer build needs the client's source:** the bake named context for images, and the second `pyproject.toml` in the compile step.
+- **The operator reads Secrets** in the namespaces it watches, and holds an Administrator login to nexus-api. Both are wider than node config strictly needs.
+- **A removal that nexus-api refuses leaves a `Terminating` resource.** The same entry cannot be added back until the delete goes through or the finalizer is removed by hand.
+- **Delete then re-add makes a new record.** nexus-api frees a deleted name, so the re-added project gets a new id and the old one keeps its history.
+- **nexus-api has no audit record yet,** so its own data does not show which commit made a change.
 - **RBAC on the custom resource kinds is part of the node's security setup.** It has to stay limited to Flux's ServiceAccount and admins, because whoever can edit these kinds changes node config.
 
 ## Alternatives considered
@@ -297,5 +312,11 @@ What it costs:
 - **A client generated from `openapi.json`:** the models alone could be generated, but the `requests` adapters (retry, token refresh) do not fit generated httpx clients.
 - **A uv workspace:** one lockfile for everything, but it replaces the pip-compile setup.
 - **The operator inside the nexus-api image, using nexus-api's own DTOs:** no separate image, but the operator then ships with the API, and Dagster and fncli keep a client of their own, so there are two.
+
+## Open questions
+
+- **The API group.** `fn.aridhia.com` is used throughout. It is fixed once a node has resources in it.
+- **Blocked removals.** Whether a removal nexus-api refuses should hold the resource (`Terminating`, as decided here) or let it go and leave the record.
+- **A narrower role and client-credentials login** for the operator, and an audit record in nexus-api.
 
 Delivery of the chart and the operator itself is covered in [0031](0031-gitops-delivery-with-helm-and-flux.md).
