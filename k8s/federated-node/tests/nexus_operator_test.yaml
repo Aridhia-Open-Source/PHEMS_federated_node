@@ -57,9 +57,23 @@ tests:
       - equal:
           path: metadata.annotations["helm.sh/hook"]
           value: pre-delete
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
           pattern: 'for ns in federatednode experiments'
+
+  - it: creates the hook's RBAC before its Job
+    template: nexus-operator-uninstall-hook.yaml
+    documentSelector:
+      path: kind
+      value: RoleBinding
+      matchMany: true
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-20"
 
   - it: makes the fn-operator login
     template: keycloak-secrets.yaml
