@@ -6,6 +6,7 @@ Resume: read this file, then `git log --oneline origin/dagster-develop..HEAD`. W
 
 ## Rules
 - Commit and push after each step; update this file in the same commit.
+- After each step's push: a background review agent (Fable, or Opus by usage band) posts inline PR comments (**Claude:** prefix) on that step's diff.
 - Unit tests for changed files only. No e2e. No cluster teardown or takeover (`mise run deploy-owner` first).
 - No Co-Authored-By lines. Imports at module top. Copy existing patterns; no defensive code.
 - Stop at 95% of the 5h usage limit (`$CLAUDE_CONFIG_DIR/usage.json`), push, and update this file.
