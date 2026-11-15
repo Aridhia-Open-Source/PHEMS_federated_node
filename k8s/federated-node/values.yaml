@@ -261,6 +261,44 @@ host: &host
 # Required. Names this node (hospital) in the results it delivers: run.json's node.id. Set it once and
 # keep it, results already delivered carry the old one.
 nodeId: ""
+
+# The node's config, rendered as custom resources (GitProvider, NodeSecret, Repository, Dataset, Project) in the
+# release namespace for the operator to sync (ADR 0032). No secret values here: a secret names the Kubernetes
+# Secret, in the release namespace, its values are in. Example:
+#   providers:
+#     - name: github
+#       type: github
+#       uri: https://github.com
+#   secrets:
+#     analysis-repo-creds:
+#       fromSecret: {name: analysis-github-app}   # or values: {KEY: {secretKeyRef: {name, key}}}
+#   repositories:                                 # named by the slug of the uri unless given a name
+#     triggers:
+#       - uri: https://github.com/example-org/analysis-requests
+#         secret: analysis-repo-creds
+#     results:
+#       - uri: https://github.com/example-org/analysis-results
+#         secret: analysis-repo-creds
+#   datasets:
+#     - name: omop-cdm
+#       type: postgres
+#       host: omop-db.example.org
+#       port: 5432
+#       secret: omop-db-creds
+#   projects:
+#     - name: cohort-study
+#       datasets: [omop-cdm]
+#       repositories:
+#         triggers:
+#           - repository: https://github.com/example-org/analysis-requests
+#             watchDir: specs/
+#             baseBranch: main
+#         results:
+#           repository: https://github.com/example-org/analysis-results
+#           targetDir: results/
+#           baseBranch: main
+nodeConfig: {}
+
 tls:
   secretName: &tls tls
 
@@ -483,6 +521,7 @@ dagster:
 # The Kopf operator (nexus/operator): applies the fn.aridhia.com custom resources to nexus-api (ADR 0032).
 # operator.enabled turns it on (off by default).
 operator:
+  enabled: false
   image: ghcr.io/aridhia-open-source/nexus_operator
   tag:
   # Namespaces watched besides the release namespace (dev adds experiments). The operator reads a
@@ -535,3 +574,24 @@ gitea:
     enabled: true
     accessTokenExpirationTime: 3600
     invalidateRefreshTokens: false
+
+  # Gitea Actions, the CI the dev release workflow runs in. The runner is dev only: it runs a
+  # privileged Docker-in-Docker sidecar, so the schema refuses it unless local_development is true.
+  # gitea-admin-init puts the runner registration token in the secret below.
+  actions:
+    enabled: false
+    runner:
+      enabled: false
+      image:
+        repository: gitea/act_runner
+        tag: 0.6.1
+        pullPolicy: IfNotPresent
+      dind:
+        image:
+          repository: docker
+          tag: 29.9.3-dind
+          pullPolicy: IfNotPresent
+      labels: "ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"
+      secret:
+        name: gitea-runner-token
+        key: token

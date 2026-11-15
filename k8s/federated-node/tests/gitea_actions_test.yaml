@@ -1,0 +1,100 @@
+suite: gitea actions and runner (dev only)
+templates:
+  - templates/gitea-deployment.yaml
+  - templates/gitea-runner-deployment.yaml
+  - templates/gitea-init-job.yaml
+values:
+  - values/values-local.yaml
+set:
+  gitea:
+    enabled: true
+    admin:
+      user: gitea_admin
+      email: admin@example.com
+      secret:
+        name: gitea-admin
+        key: password
+tests:
+  - it: leaves actions and the runner off by default
+    template: templates/gitea-deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__actions__ENABLED
+            value: "false"
+  - it: renders no runner by default
+    template: templates/gitea-runner-deployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: turns actions on in gitea
+    template: templates/gitea-deployment.yaml
+    set:
+      gitea:
+        actions:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA__actions__ENABLED
+            value: "true"
+  - it: runs the runner with a pinned privileged dind sidecar and the registration token secret
+    template: templates/gitea-runner-deployment.yaml
+    set:
+      gitea:
+        actions:
+          enabled: true
+          runner:
+            enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: gitea/act_runner:0.6.1
+      - equal:
+          path: spec.template.spec.containers[1].image
+          value: docker:29.9.3-dind
+      - equal:
+          path: spec.template.spec.containers[1].securityContext.privileged
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GITEA_RUNNER_REGISTRATION_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: gitea-runner-token
+                key: token
+  - it: has the init job write the registration token to that secret
+    template: templates/gitea-init-job.yaml
+    documentSelector:
+      path: kind
+      value: Job
+    set:
+      gitea:
+        actions:
+          enabled: true
+          runner:
+            enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: gitea-admin-init
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "registration-token"
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "secrets/gitea-runner-token"
+  - it: refuses the runner without local_development
+    template: templates/gitea-runner-deployment.yaml
+    set:
+      local_development: false
+      gitea:
+        actions:
+          enabled: true
+          runner:
+            enabled: true
+    asserts:
+      - failedTemplate: {}

@@ -4,6 +4,48 @@
     "required": [
         "db"
     ],
+    "if": {
+        "required": [
+            "gitea"
+        ],
+        "properties": {
+            "gitea": {
+                "required": [
+                    "actions"
+                ],
+                "properties": {
+                    "actions": {
+                        "required": [
+                            "runner"
+                        ],
+                        "properties": {
+                            "runner": {
+                                "required": [
+                                    "enabled"
+                                ],
+                                "properties": {
+                                    "enabled": {
+                                        "const": true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "then": {
+        "required": [
+            "local_development"
+        ],
+        "properties": {
+            "local_development": {
+                "const": true,
+                "description": "gitea.actions.runner runs a privileged Docker-in-Docker sidecar: dev only"
+            }
+        }
+    },
     "definitions": {
         "tag": {
             "type": [
@@ -262,6 +304,79 @@
                     "type": "integer",
                     "default": 2592000,
                     "description": "Duration in seconds for tokens"
+                }
+            }
+        },
+        "gitea": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "runner": {
+                            "type": "object",
+                            "description": "Dev only (needs local_development): the runner pod has a privileged Docker-in-Docker sidecar",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "default": false
+                                },
+                                "image": {
+                                    "type": "object",
+                                    "properties": {
+                                        "repository": {
+                                            "type": "string"
+                                        },
+                                        "tag": {
+                                            "type": "string"
+                                        },
+                                        "pullPolicy": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "dind": {
+                                    "type": "object",
+                                    "properties": {
+                                        "image": {
+                                            "type": "object",
+                                            "properties": {
+                                                "repository": {
+                                                    "type": "string"
+                                                },
+                                                "tag": {
+                                                    "type": "string"
+                                                },
+                                                "pullPolicy": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "labels": {
+                                    "type": "string",
+                                    "description": "Runner labels, comma separated, e.g. ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"
+                                },
+                                "secret": {
+                                    "type": "object",
+                                    "description": "The secret gitea-admin-init writes the registration token to",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "key": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -923,6 +1038,10 @@
             "type": "object",
             "description": "The Kopf operator that applies the fn.aridhia.com custom resources to nexus-api (ADR 0032).",
             "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
                 "image": {
                     "type": "string"
                 },
@@ -943,6 +1062,259 @@
                 },
                 "resources": {
                     "type": "object"
+                }
+            }
+        },
+        "nodeConfig": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The node's config, rendered as fn.aridhia.com custom resources in the release namespace for the operator (ADR 0032). No secret values: secrets name the Kubernetes Secret that holds them",
+            "properties": {
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "type",
+                            "uri"
+                        ],
+                        "additionalProperties": false,
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "type": {
+                                "enum": [
+                                    "gitea",
+                                    "github"
+                                ]
+                            },
+                            "uri": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "apiUri": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        }
+                    }
+                },
+                "secrets": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "oneOf": [
+                            {
+                                "required": [
+                                    "fromSecret"
+                                ]
+                            },
+                            {
+                                "required": [
+                                    "values"
+                                ]
+                            }
+                        ],
+                        "properties": {
+                            "fromSecret": {
+                                "type": "object",
+                                "required": [
+                                    "name"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    }
+                                }
+                            },
+                            "values": {
+                                "type": "object",
+                                "minProperties": 1,
+                                "additionalProperties": {
+                                    "type": "object",
+                                    "required": [
+                                        "secretKeyRef"
+                                    ],
+                                    "properties": {
+                                        "secretKeyRef": {
+                                            "type": "object",
+                                            "required": [
+                                                "name",
+                                                "key"
+                                            ],
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string",
+                                                    "minLength": 1
+                                                },
+                                                "key": {
+                                                    "type": "string",
+                                                    "minLength": 1
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "repositories": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "triggers": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": [
+                                    "uri",
+                                    "secret"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "The resource's name; defaults to the slug of the uri"
+                                    },
+                                    "uri": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "secret": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    }
+                                }
+                            }
+                        },
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": [
+                                    "uri",
+                                    "secret"
+                                ],
+                                "additionalProperties": false,
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "description": "The resource's name; defaults to the slug of the uri"
+                                    },
+                                    "uri": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "secret": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "datasets": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "type",
+                            "host",
+                            "port",
+                            "secret"
+                        ],
+                        "additionalProperties": false,
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "type": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "host": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "port": {
+                                "type": "integer"
+                            },
+                            "readSchema": {
+                                "type": "string"
+                            },
+                            "writeSchema": {
+                                "type": "string"
+                            },
+                            "secret": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        }
+                    }
+                },
+                "projects": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": [
+                            "name",
+                            "repositories"
+                        ],
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "datasets": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "minLength": 1
+                                }
+                            },
+                            "repositories": {
+                                "type": "object",
+                                "required": [
+                                    "results"
+                                ],
+                                "properties": {
+                                    "triggers": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "required": [
+                                                "repository",
+                                                "watchDir",
+                                                "baseBranch"
+                                            ]
+                                        }
+                                    },
+                                    "results": {
+                                        "type": "object",
+                                        "required": [
+                                            "repository",
+                                            "targetDir",
+                                            "baseBranch"
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

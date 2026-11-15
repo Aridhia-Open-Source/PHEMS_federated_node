@@ -3,10 +3,10 @@ The real clients against the real nexus app over HTTP, no Kubernetes.
 
 The app of the `client` fixture is served by uvicorn on 127.0.0.1 in a thread, with the same
 process-wide Keycloak/k8s mocks, and the fncli backend client (dagster/fncli/backend.py) and the
-Dagster code location's BackendAPI (dagster/app/backend.py) are pointed at it with the Dagster system user's token
+shared BackendAPI (nexus/client/nexus_client/api.py) are pointed at it with the Dagster system user's token
 (the identity they log in as), and `admin_api` with the admin token, which revoking needs.
 
-Skipped when ../dagster is not there (the CI container mounts only tests and app).
+Skipped when ../dagster or ../nexus/client is not there (the CI container mounts only tests and app).
 """
 import importlib
 import sys
@@ -21,31 +21,32 @@ from tests.conftest import SYSTEM_TOKEN
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DAGSTER_DIR = REPO_ROOT / "dagster"
+CLIENT_DIR = REPO_ROOT / "nexus" / "client"
 
-if not (DAGSTER_DIR / "fncli" / "backend.py").is_file():
-    pytest.skip("dagster/fncli is not available", allow_module_level=True)
+if not (DAGSTER_DIR / "fncli" / "backend.py").is_file() or not (CLIENT_DIR / "nexus_client").is_dir():
+    pytest.skip("dagster/fncli or nexus/client is not available", allow_module_level=True)
+
+sys.path.insert(0, str(CLIENT_DIR))
 
 import uvicorn  # noqa: E402
+from nexus_client import http as _utils  # noqa: E402
+from nexus_client import models as fn_models  # noqa: E402
+from nexus_client.api import BackendAPI as DagsterBackendAPI  # noqa: E402
 
 
-def _load_dagster_client():
+def _load_fncli():
     """
-    dagster/app is a package called `app` too, like nexus-api's. Import it with nexus-api's
-    `app` modules set aside, then put them back. Needs no `dagster` package. None if unavailable.
+    fncli imports dagster/app, a package called `app` too, like nexus-api's. Import it with nexus-api's
+    `app` modules set aside, then put them back. None if unavailable.
     """
-    if not (DAGSTER_DIR / "app" / "backend.py").is_file():
-        return None
     saved = {k: v for k, v in sys.modules.items() if k == "app" or k.startswith("app.")}
     for k in saved:
         del sys.modules[k]
     sys.path.insert(0, str(DAGSTER_DIR))
     try:
-        backend = importlib.import_module("app.backend")
-        utils = importlib.import_module("app.utils")
-        models = importlib.import_module("app.models")
         fncli_backend = importlib.import_module("fncli.backend")
         fncli_state = importlib.import_module("fncli.cmds.state")
-        return backend.BackendAPI, utils, models, fncli_backend.FncliBackendAPI, fncli_state
+        return fncli_backend.FncliBackendAPI, fncli_state
     except Exception:  # pragma: no cover
         return None
     finally:
@@ -55,10 +56,10 @@ def _load_dagster_client():
         sys.modules.update(saved)
 
 
-_dagster = _load_dagster_client()
-if _dagster is None:
-    pytest.skip("dagster/app and dagster/fncli are not importable", allow_module_level=True)
-DagsterBackendAPI, _utils, fn_models, FnBackendAPI, state = _dagster
+_fncli = _load_fncli()
+if _fncli is None:
+    pytest.skip("dagster/fncli is not importable", allow_module_level=True)
+FnBackendAPI, state = _fncli
 
 
 @pytest.fixture

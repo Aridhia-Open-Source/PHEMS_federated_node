@@ -15,7 +15,7 @@ Resume: read this file, then `git log --oneline origin/dagster-develop..HEAD`. W
 Part 1, operator (ADR 0032):
 1. [x] Delete ADR 0033 and its index row.
 2. [x] Move the shared API client from `dagster/app` to `nexus/client/` (own pyproject; path dep compiled with each consumer; bake named context). Dagster and fncli tests pass.
-3. [ ] CRDs + `nodeConfig` chart templates, schema, helm-unittest.
+3. [~] CRDs + `nodeConfig` chart templates, schema, helm-unittest.
 4. [ ] Kopf operator in `nexus/operator/`: sync to nexus-api, soft delete, status, Keycloak service client, RBAC, image, Tilt.
 5. [ ] Move experiment setup / e2e / demo onto `kubectl apply`; drop fncli `diff/apply/delete`; docs.
 
@@ -56,3 +56,11 @@ Detail per step (files, decisions, risks, done, tests): `project/plans/gitops-op
 - Operator login: Keycloak user with Administrator now, client credentials later? (recommended: yes)
 - A removal nexus-api refuses: hold the resource `Terminating`, or let it go? (recommended: hold)
 - Local OCI registry: the kind registry, or Gitea's package registry? (recommended: kind registry)
+
+## State 2026-11-15 (late afternoon)
+- Stacked draft PRs into `feat/gitops-operator`, each in its own sibling worktree: #654 CRDs (`gitops-crds`, done, tests pass, review owed), #655 Gitea Actions (`gitops-gitea-actions`, Sonnet working), #656 operator (`gitops-nexus-operator`, Opus working, based on the client move).
+- Step 2 reviewed (Fable, comment on #653); its one finding is fixed in 7ee6ca0f0.
+- Next: review #654 (Opus), merge #654 into feat/gitops-operator, rebase #656 on it; then #655 and #656 when their agents finish. At the end only `feat/gitops-operator` (#653) remains; delete merged branches and worktrees.
+- Update: #656 operator done (6 commits pushed, package `nexus/operator/nexus_operator/`, tests pass). Check its assumed CRD spec/status fields against #654 before merging (status needs `sourceVersions`). Left: operator CI + pylint task, image build, cluster check.
+- #655 Gitea Actions done but commit e0edcdd3c is NOT pushed: the agent's push was refused; waiting on codepint's OK to push it.
+- Stopped at 95% of the 5h limit.
