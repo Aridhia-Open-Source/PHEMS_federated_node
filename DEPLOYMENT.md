@@ -173,6 +173,8 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 | Port-forward the node's services (without Tilt) | `make portfwd` | `mise run portfwd` |
 | Show which worktree owns the cluster | `make deploy-owner` | `mise run deploy-owner` |
 | New sibling worktree | `make worktree NAME=wt-foo BRANCH=feature/foo BASE=main` | `mise run worktree --name wt-foo --branch feature/foo --base main` |
+| Push the working tree to the dev Gitea, tag it to start a release | (none) | `mise run mirror-to-gitea --tag v0.0.1-dev` |
+| Flux delivers the node from a test site repository | (none) | `mise run flux up` / `status` / `down` |
 
 `--force-owner` also works on `cluster down`, and `--base` is optional (it defaults to `HEAD`).
 
@@ -193,6 +195,10 @@ kubectl get secret fn-nexus-db -n fn -o jsonpath='{.data.password}' | base64 -d
 ### Loading real sample data
 
 Experiments, each with its own seeded database, run from their own release in the `experiments` namespace. See [experiments/README.md](experiments/README.md).
+
+### GitOps delivery with Flux
+
+The release workflow, Flux and a test site repository, all in the dev cluster: `mise run mirror-to-gitea --tag v0.0.1-dev`, then `mise run flux up`. The whole loop (bump, revert, config edit) is in [GitOps-Delivery.md](docs/versions/2.x/docs/GitOps-Delivery.md).
 
 ### Dev container
 
