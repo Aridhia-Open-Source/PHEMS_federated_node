@@ -51,9 +51,12 @@ KINDS = {
 }
 
 
-def sync_one(plural, name, spec, namespace, status) -> sync.Synced:
+def sync_one(plural, name, spec, namespace, status, meta) -> sync.Synced:
     if plural == "nodesecrets":
-        return sync.sync_secret(api, name, spec, namespace, read_secret, status.get("sourceVersions") or {})
+        spec_changed = meta.get("generation") != status.get("observedGeneration")
+        return sync.sync_secret(
+            api, name, spec, namespace, read_secret, status.get("sourceVersions") or {}, spec_changed,
+        )
     return KINDS[plural][0](api, name, spec)
 
 
@@ -78,7 +81,7 @@ def flux_annotations(meta) -> dict:
 def reconcile(plural, body, name, namespace, spec, status, meta, patch, logger, **_):
     """Sync one resource and write its status; a wait or an API error is retried after retry_delay_seconds"""
     try:
-        result = sync_one(plural, name, spec, namespace, status)
+        result = sync_one(plural, name, spec, namespace, status, meta)
     except kopf.TemporaryError as error:
         patch.status.update(synced=False, message=str(error))
         raise kopf.TemporaryError(str(error), delay=env.retry_delay_seconds) from error

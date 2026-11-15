@@ -110,10 +110,12 @@ def has_secret(api: BackendAPI, label: str) -> bool:
 
 def sync_secret(
     api: BackendAPI, label: str, spec: Mapping, namespace: str, read_secret: SecretReader, seen: Mapping[str, str],
+    spec_changed: bool,
 ) -> Synced:
     """
-    Sends the values when the record is missing or a source Secret's resourceVersion is not the one in status
-    (`seen`). Status keeps the resourceVersions, never a value or a hash of one.
+    Sends the values when the record is missing, the spec changed since the last sync (`spec_changed`), or a source
+    Secret's resourceVersion is not the one in status (`seen`). Status keeps the resourceVersions, never a value or a
+    hash of one.
     """
     if "fromSecret" in spec:
         data, version = read_secret(namespace, spec["fromSecret"]["name"])
@@ -128,7 +130,8 @@ def sync_secret(
 
     status = {"sourceVersions": versions}
     # Only the current sources: a status merge-patch never drops the key of a source no longer named
-    if all(seen.get(name) == version for name, version in versions.items()) and has_secret(api, label):
+    unchanged = not spec_changed and all(seen.get(name) == version for name, version in versions.items())
+    if unchanged and has_secret(api, label):
         return Synced(None, False, status)
     api.upsert_secret(label, values)
     return Synced(None, True, status)
