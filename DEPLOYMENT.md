@@ -180,9 +180,9 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `./scripts/setup-proxy-ca.sh --ca-file PATH --proxy URL` sets up the machine side. The two settings below are optional dev tooling and do nothing when unset.
 
-- `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env`, set before `mise run cluster-up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in a Secret and set `customCA.secretName`, so the pods trust it for outbound TLS.
+- `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env`, set before `mise run cluster up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in a Secret and set `customCA.secretName`, so the pods trust it for outbound TLS.
 
-Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `mise run cluster-up` starts.
+Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `mise run cluster up` starts.
 
 `scripts/proxy-sim.sh` tests this against mitmproxy, on a Docker network whose only way out is the proxy. Each test runs with no CA, a wrong CA and the proxy's CA, and checks that the first two fail with a certificate error and the last passes through the proxy. Nothing in it runs kind.
 

@@ -35,7 +35,7 @@ It shows the CA's name and fingerprint and asks you to confirm. Check the finger
 
 Docker has to restart for the proxy setting to apply. **That stops every running container, including a kind cluster.** The script asks first.
 
-Then open a new shell so the new variables load (`mise run` loads `.dev.env` itself). Continue with `mise run setup` (install [mise](https://mise.jdx.dev/) first on a fresh machine; run this script before that, so its download verifies), then `mise run cluster-up`.
+Then open a new shell so the new variables load (`mise run` loads `.dev.env` itself). Continue with `mise run setup` (install [mise](https://mise.jdx.dev/) first on a fresh machine; run this script before that, so its download verifies), then `mise run cluster up`.
 
 In the dev container (see [DEPLOYMENT.md](DEPLOYMENT.md#dev-container)) there is nothing more to run: its image build copies the CA from `CUSTOM_CA_FILE` in `.dev.env` and trusts it, so rebuild the container after this script has run.
 
@@ -85,4 +85,4 @@ Add `--mode none|wrong|right` to run one mode. `mise run proxy-sim-down` removes
 ## Known gaps
 
 - Image builds get the CA as a BuildKit secret (`proxy_ca`) in the pip steps, and use http repositories for `apk` (apk checks package signatures itself). `mise run proxy-sim-build` tests the nexus-api image.
-- The local registry mirrors that `mise run cluster-up` starts get the proxy variables but not the CA yet.
+- The local registry mirrors that `mise run cluster up` starts get the proxy variables but not the CA yet.
