@@ -15,7 +15,8 @@ tilt = "0.37.8"
 "npm:@devcontainers/cli" = "0.90.0"
 
 [env]
-_.file = ".dev.env"
+# .generated.env (scripts/setup-proxy-ca.sh) first, so .dev.env wins
+_.file = [".generated.env", ".dev.env"]
 # fncli lives here (see `setup`), so it is on the PATH anywhere in the repo
 _.python.venv = { path = ".venv", create = true }
 

@@ -93,6 +93,7 @@ Tests and lint:
 - pylint config: `nexus/api/pylintrc`, `dagster/pylintrc`; `max-line-length=120`.
 - Python dependencies are pinned with hashes in `requirements.txt`; use `~=` specifiers in `pyproject.toml`.
 - Secrets are Kubernetes Secrets referenced by name from values (e.g. `firstUserSecret`); secret values never go in values files, examples or committed `.env` files. `.dev.env` and `dev.values.yaml` are gitignored.
+- Generated, machine-local files (env, values, fncli contexts, test CAs) live in the repo and are gitignored, in the standard place for their kind (`.generated.env`, `k8s/federated-node/generated.values.yaml`, `bootstrap/`), never under `~/`. The one exception is `~/.fn/data`, the cluster's volume data shared by every worktree.
 - API responses are built through DTOs; state changes go through the transition tables in `nexus/api/app/helpers/state_rules.py` (ADR 0005, a refused move is a 409).
 - nexus-api decides, Dagster carries out decisions (ADR 0021); Dagster and fncli parse API responses into their own models.
 - CI (`.github/workflows/build.yml`) runs pylint, hadolint, helm lint/template/unittest, nexus-api tests, Dagster tests and Keycloak integration tests.

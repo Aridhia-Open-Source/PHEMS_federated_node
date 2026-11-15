@@ -13,7 +13,7 @@ Yes, if you see errors like these:
 
 ## What you need first
 
-1. **The proxy address**, for example `http://proxy.example.org:8080`. Your browser's proxy settings or `echo $HTTPS_PROXY` show it. The script uses `HTTPS_PROXY` when you do not give `--proxy`, and stops if there is none.
+1. **The proxy address**, for example `http://proxy.example.org:8080`. Your browser's proxy settings or `echo $HTTPS_PROXY` show it. The script uses `HTTPS_PROXY` when you do not give `--proxy`. With a CA file and no proxy (a private git host) it checks the CA only; with neither it stops.
 2. **The proxy's CA, in your system trust store.** The script uses the system CA bundle (`/etc/ssl/certs/ca-certificates.crt`, or `/etc/pki/tls/certs/ca-bundle.crt` on Red Hat family systems), so sites the proxy does not intercept still verify. If your machine already trusts the proxy's CA (on WSL, for example, you may have added it to the Linux store yourself), you need nothing else. If not, ask your IT team for the CA file, in PEM format (the root or issuing CA of the proxy; it starts with `-----BEGIN CERTIFICATE-----`) and pass it with `--ca-file`. A `.cer` or `.der` file converts with `openssl x509 -inform der -in file.cer -out ca.pem`.
 3. **Docker working** without sudo (`docker info`), and `sudo` rights on this machine.
 
@@ -35,21 +35,20 @@ If the proxy's CA is not in your system store yet, add `--ca-file /path/to/ca.pe
 
 Docker has to restart for the proxy setting to apply. **That stops every running container, including a kind cluster.** The script asks first.
 
-Then open a new shell so the new variables load (`mise run` loads `.dev.env` itself). Continue with `mise run setup` (install [mise](https://mise.jdx.dev/) first on a fresh machine; run this script before that, so its download verifies), then `mise run cluster up`.
+Then open a new shell so the new variables load (`mise run` loads `.generated.env` itself). Continue with `mise run setup` (install [mise](https://mise.jdx.dev/) first on a fresh machine; run this script before that, so its download verifies), then `mise run cluster up`.
 
 ## The checks
 
 Every run does these first, before anything is written, whatever the options (`--dry-run` included):
 
 1. The CA bundle is a PEM file with at least one certificate.
-2. A proxy is set.
-3. `registry-1.docker.io`, `pypi.org` and `github.com` verify through the proxy, using the bundle (with `--ca-file`, the system bundle plus that CA, since it is not installed yet). Any HTTP status passes: the TLS handshake is what matters, and Docker Hub answers `401` here.
+2. With a proxy: `registry-1.docker.io`, `pypi.org` and `github.com` verify through the proxy, using the bundle (with `--ca-file`, the system bundle plus that CA, since it is not installed yet). Any HTTP status passes: the TLS handshake is what matters, and Docker Hub answers `401` here. With a CA and no proxy this check is skipped.
 
 A failing check names the host and says whether it is a certificate problem (the bundle does not match what the proxy presents) or a proxy or connection problem (the address, or no route to it). The script then exits with an error and has changed nothing. `--undo` runs no checks.
 
 ## In the dev container
 
-The dev container calls the same script. Its `initializeCommand` runs `scripts/setup-proxy-ca.sh --devcontainer` on your machine before the image is built (see [DEPLOYMENT.md](DEPLOYMENT.md#dev-container)). It reads `CUSTOM_CA_FILE` and the proxy from `.dev.env`, runs the checks above, and copies the bundle to `.devcontainer/proxy-ca.crt` (not committed). The image build splits it into one file per certificate and adds them to the container's system trust. It needs no sudo and writes nothing else. With no `CUSTOM_CA_FILE` in `.dev.env` (not behind a proxy) it skips the checks and the container gets no CA.
+The dev container calls the same script. Its `initializeCommand` runs `scripts/setup-proxy-ca.sh --devcontainer` on your machine before the image is built (see [DEPLOYMENT.md](DEPLOYMENT.md#dev-container)). It reads `CUSTOM_CA_FILE` and the proxy from `.dev.env`, else from `.generated.env`, runs the checks above, and copies the bundle to `.devcontainer/proxy-ca.crt` (not committed). The image build splits it into one file per certificate and adds them to the container's system trust. It needs no sudo and writes nothing else. With no `CUSTOM_CA_FILE` in either file it skips the checks and the container gets no CA.
 
 So run the script on the machine first, then rebuild the container (**Dev Containers: Rebuild Container**) after any change.
 
@@ -60,10 +59,12 @@ So run the script on the machine first, then rebuild the container (**Dev Contai
 | The CA, trusted by the whole machine (only with `--ca-file`) | `/usr/local/share/ca-certificates/fn-proxy-ca.crt` |
 | The proxy for the Docker daemon | `/etc/systemd/system/docker.service.d/http-proxy.conf` |
 | The proxy for `docker build`, and for containers you start | `proxies.default` in `~/.docker/config.json` |
-| `CUSTOM_CA_FILE` (the system bundle, with the proxy's CA in it), the proxy and the CA-bundle variables | a block marked `setup-proxy-ca` in `.dev.env` |
-| `DEV_PROXY_URL`, the proxy the deployed pods use (`mise run deploy` turns it into the chart's `proxy.httpProxy` and `proxy.httpsProxy`) | in the same block, unless `.dev.env` already sets it outside the block. If that value is different, the script leaves it and warns, showing both |
+| `CUSTOM_CA_FILE` (the system bundle, with the proxy's CA in it), the proxy and the CA-bundle variables | `.generated.env` in the repo root |
+| The chart's `proxy.httpProxy`, `proxy.httpsProxy` and `customCA.secretName` | `k8s/federated-node/generated.values.yaml` |
 
-Containers you start with `docker run` get the proxy variables too. To remove all of it: `./scripts/setup-proxy-ca.sh --undo`.
+The script owns the last two files and rewrites them whole each run; both are gitignored, and neither is edited by hand. It never edits your `.dev.env` or `dev.values.yaml`. Everything that loads settings (`mise run`, the scripts, Tilt) reads `.generated.env` first and `.dev.env` after it, and `mise run deploy` passes `generated.values.yaml` before `dev.values.yaml`, so what you wrote yourself wins. If `.dev.env` sets a variable the script generates, the script warns once and names it.
+
+Containers you start with `docker run` get the proxy variables too. To remove all of it: `./scripts/setup-proxy-ca.sh --undo`. It also deletes the two generated files, and the block that an older version of the script kept in `.dev.env`.
 
 At the end a small `docker pull` must work. Run the script again at any time. It skips what is already done.
 
@@ -78,8 +79,8 @@ If Docker is not a systemd service on your machine (Docker Desktop, rootless Doc
 | `502 Bad Gateway` from `kind-registry` or `proxy-*-registry` | Requests for local names went through the proxy | `NO_PROXY` must list `kind-registry,proxy-docker-hub-registry,proxy-ghcr-registry`. The script sets it; check your own shell for an override |
 | `could not resolve host`, `connection refused` | Wrong proxy address, or the proxy is not reachable | Check the address with `curl -x $HTTPS_PROXY -I https://example.com` |
 | `TLS handshake timeout`, only for some pulls | The network path has a smaller packet size (a VPN, WSL2) | Lower Docker's MTU to match: `ip link` shows the value, set it as `"mtu"` in `/etc/docker/daemon.json`, restart Docker |
-| `pip` says `SSL: CERTIFICATE_VERIFY_FAILED` | pip uses its own bundle | The script sets `PIP_CERT`. Make sure `.dev.env` is loaded in this shell |
-| `mise run deploy` fails in `apt-get`, `apk` or `pip` while building an image | The build has no proxy or no CA | Run the script (it sets the Docker client proxy), make sure `CUSTOM_CA_FILE` is set in `.dev.env`, and use Docker 23 or later (BuildKit) |
+| `pip` says `SSL: CERTIFICATE_VERIFY_FAILED` | pip uses its own bundle | The script sets `PIP_CERT`. Make sure `.generated.env` is loaded in this shell |
+| `mise run deploy` fails in `apt-get`, `apk` or `pip` while building an image | The build has no proxy or no CA | Run the script (it sets the Docker client proxy), make sure `CUSTOM_CA_FILE` is set in `.generated.env`, and use Docker 23 or later (BuildKit) |
 
 ## On a real cluster
 

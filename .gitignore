@@ -57,3 +57,6 @@ docs/versions/*/.mkdocs.local.yml
 
 # the proxy CA for the dev container image, written by scripts/setup-proxy-ca.sh --devcontainer
 .devcontainer/proxy-ca.crt
+# written by scripts/setup-proxy-ca.sh: env vars for the tooling, and the chart's proxy and customCA values
+.generated.env
+k8s/federated-node/generated.values.yaml

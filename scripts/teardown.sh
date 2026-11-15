@@ -5,7 +5,7 @@ set -euo pipefail
 # Teardown - Completely removes deployment and persistent data
 ###############################################################################
 
-source .dev.env
+source scripts/load_env.sh
 
 FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
 

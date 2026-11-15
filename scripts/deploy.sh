@@ -7,8 +7,15 @@ set -euo pipefail
 # (tagged latest) are picked up. There is no separate upgrade script.
 ###############################################################################
 
-source .dev.env
+source scripts/load_env.sh
 export CUSTOM_CA_FILE   # build_images.sh passes it to image builds
+
+# generated.values.yaml (scripts/setup-proxy-ca.sh: the chart's proxy and customCA) goes
+# first, so what you set in $VALUES_FILE wins.
+VALUES_ARGS=(-f "$VALUES_FILE")
+if [ -f k8s/federated-node/generated.values.yaml ]; then
+  VALUES_ARGS=(-f generated.values.yaml "${VALUES_ARGS[@]}")
+fi
 
 ./scripts/deploy_owner.sh claim
 
@@ -17,7 +24,7 @@ echo "=== Validating Helm templates ==========================================="
 
 # charts/ is gitignored: build the subcharts so a fresh checkout deploys with no extra step
 mise run helm deps
-(cd k8s/federated-node && helm template "$RELEASE_NAME" . -f "$VALUES_FILE" --namespace "$NAMESPACE" > /dev/null)
+(cd k8s/federated-node && helm template "$RELEASE_NAME" . "${VALUES_ARGS[@]}" --namespace "$NAMESPACE" > /dev/null)
 
 # Host directory backing the cluster's local PVs. cluster.sh bind-mounts it to /data
 # in the kind node, which is what the chart's storage.local.* values point at. Under
@@ -117,15 +124,6 @@ fi
 source ./scripts/custom_ca.sh
 custom_ca_prepare
 
-# DEV_PROXY_URL (optional): the proxy the release's pods send outbound calls through, e.g.
-# http://proxy.example:3128 (the chart's proxy value). Not HTTPS_PROXY: this script's own
-# docker, helm and kubectl calls must not use it.
-PROXY_HELM_ARGS=()
-if [ -n "${DEV_PROXY_URL:-}" ]; then
-  echo "Proxy: $DEV_PROXY_URL"
-  PROXY_HELM_ARGS=(--set "proxy.httpProxy=$DEV_PROXY_URL" --set "proxy.httpsProxy=$DEV_PROXY_URL")
-fi
-
 echo
 echo "=== Deploying Helm Release =============================================="
 
@@ -138,15 +136,13 @@ fi
 cd k8s/federated-node
 
 echo "Helm command:"
-echo "  helm upgrade --install $RELEASE_NAME . -f $VALUES_FILE --timeout 30m --namespace $NAMESPACE --debug"
+echo "  helm upgrade --install $RELEASE_NAME . ${VALUES_ARGS[*]} --timeout 30m --namespace $NAMESPACE --debug"
 echo
 
 helm upgrade --install "$RELEASE_NAME" . \
-  -f "$VALUES_FILE" \
+  "${VALUES_ARGS[@]}" \
   --timeout 30m \
   --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
-  ${CUSTOM_CA_HELM_ARGS[@]+"${CUSTOM_CA_HELM_ARGS[@]}"} \
-  ${PROXY_HELM_ARGS[@]+"${PROXY_HELM_ARGS[@]}"} \
   --namespace "$NAMESPACE" \
   --debug
 

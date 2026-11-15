@@ -13,7 +13,9 @@
 load('ext://restart_process', 'docker_build_with_restart')
 load('ext://dotenv', 'dotenv')
 
-# Load environment config from .dev.env
+# Load environment config: .generated.env (scripts/setup-proxy-ca.sh) first, so .dev.env wins
+if os.path.exists('.generated.env'):
+  dotenv('.generated.env')
 dotenv('.dev.env')
 
 DOCKER_REGISTRY = 'localhost:5001'

@@ -14,7 +14,7 @@ COMMAND="${1:-}"
 REMOVE_REGISTRIES="${2:-false}"
 
 # Load env
-source .dev.env
+source scripts/load_env.sh
 
 # The cluster is the one bootstrap/context.yaml points fncli at (node.kube_context is
 # kind-<name>), so the cluster tasks and fncli always agree. The example's until it is copied.
