@@ -42,6 +42,9 @@ tests:
             value: "true"
   - it: runs the runner with a pinned privileged dind sidecar and the registration token secret
     template: templates/gitea-runner-deployment.yaml
+    documentSelector:
+      path: kind
+      value: Deployment
     set:
       gitea:
         actions:
@@ -66,6 +69,29 @@ tests:
               secretKeyRef:
                 name: gitea-runner-registration
                 key: token
+  - it: keeps the runner's registration on a PVC across restarts
+    template: templates/gitea-runner-deployment.yaml
+    set:
+      gitea:
+        actions:
+          enabled: true
+          runner:
+            enabled: true
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+        documentIndex: 0
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+        documentIndex: 1
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: runner-data
+            persistentVolumeClaim:
+              claimName: gitea-runner-data
+        documentIndex: 1
   - it: generates the registration token into that secret
     template: templates/gitea-runner-secret.yaml
     set:
