@@ -1,0 +1,30 @@
+[project]
+name = "nexus-operator"
+description = "Kopf operator: the fn.aridhia.com custom resources -> nexus-api records (ADR 0032)"
+version = "0.1.0"
+requires-python = ">=3.12"
+# nexus-client is not listed: scripts/pip_compile.sh compiles its pyproject.toml in as a second source
+dependencies = [
+    "kopf~=1.37",
+    "kubernetes~=35.0",
+    "requests~=2.32",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.3",
+    "pytest-mock~=3.14",
+    "pylint~=4.0.5",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["nexus_operator*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

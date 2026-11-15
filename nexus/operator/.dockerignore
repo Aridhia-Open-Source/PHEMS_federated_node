@@ -1,0 +1,7 @@
+*
+
+!nexus_operator/**
+!requirements.txt
+!pyproject.toml
+
+!.dockerignore
