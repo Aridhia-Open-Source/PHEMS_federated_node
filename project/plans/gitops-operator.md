@@ -276,4 +276,4 @@ Done: the doc's commands, run in order on a fresh `mise run deploy`, give the th
 
 ### Step 10. Later, separate PR
 
-GitHub Actions port of the release workflow, the release bundle with `upgrade.sh`, SOPS, OpenTofu.
+GitHub Actions port of the release workflow, the release bundle with `upgrade.sh`, SOPS, Pulumi (not started yet).

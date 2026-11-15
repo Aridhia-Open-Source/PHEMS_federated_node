@@ -24,7 +24,7 @@ Part 2, Flux (ADR 0031), local with Gitea first:
 7. [ ] Release workflow in Gitea Actions publishes chart + images as OCI.
 8. [ ] Flux in kind + test site repo in Gitea (HelmRelease, values, `nodeConfig`); scripted.
 9. [ ] Prove the loop: bump, revert, config edit. Doc it.
-10. Later, separate PR: GitHub Actions port, release bundle, SOPS, OpenTofu.
+10. Later, separate PR: GitHub Actions port, release bundle, SOPS, Pulumi (not started yet).
 
 ## Refined plan
 Detail per step (files, decisions, risks, done, tests): `project/plans/gitops-operator.md`. ADRs 0031 and 0032 are updated to match.
