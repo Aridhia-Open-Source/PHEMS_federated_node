@@ -117,6 +117,8 @@ Step down by usage (`$CLAUDE_CONFIG_DIR/usage.json`, or `~/.claude/usage.json`; 
 - 88-94%: Sonnet for development, Haiku for the rest; finish the current chunk only.
 - 95% and up: stop, commit, push, update the handover.
 
+At the end of each section or PR, a review agent (Fable, or Opus when the usage band rules Fable out) reviews that diff and posts inline PR comments prefixed **Claude:**, plus a short summary review.
+
 ## Working tips for agents
 
 - Find code with `git grep -n <symbol>` and read the lines around the hits; avoid reading whole modules.
