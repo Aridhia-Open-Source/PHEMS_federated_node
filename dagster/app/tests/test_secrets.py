@@ -14,7 +14,7 @@ def encoded(value):
 
 @pytest.fixture
 def core_api():
-    with patch("app.secrets.load_incluster_config"), patch("app.secrets.client.CoreV1Api") as api:
+    with patch("app.secrets.load_kubernetes_config"), patch("app.secrets.client.CoreV1Api") as api:
         yield api.return_value
 
 
