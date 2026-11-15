@@ -67,6 +67,7 @@ Operations:
 
 - [DEPLOYMENT.md](../DEPLOYMENT.md), [k8s/federated-node/README.md](../k8s/federated-node/README.md): install and chart values.
 - [dagster/fncli/README.md](../dagster/fncli/README.md): the Dagster code location and the fncli tool.
+- [GitOps-Delivery.md](versions/2.x/docs/GitOps-Delivery.md): release, upgrade, revert and config through Flux, run on the dev cluster (ADR 0031).
 
 ## Suggested reading order
 

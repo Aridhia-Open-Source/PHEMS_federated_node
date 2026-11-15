@@ -28,3 +28,4 @@
 **Development**
 - [Using fncli](./Using-fncli)
 - [Experiments](./Experiments)
+- [GitOps delivery (UNTESTED)](./GitOps-Delivery)

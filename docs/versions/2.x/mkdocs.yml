@@ -79,4 +79,5 @@ nav:
   - Development:
       - Using fncli: Using-fncli.md
       - Experiments: Experiments.md
+      - GitOps delivery (UNTESTED): GitOps-Delivery.md
   - API reference: api/index.md
