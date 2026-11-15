@@ -80,12 +80,12 @@ Test: `cd dagster && ./run_tests.sh local ../nexus/client/tests`, then `app/test
 What and why: the kinds the operator watches, and the values-to-resources templates a deployed node uses.
 
 Files:
-- `k8s/federated-node/templates/crds/`: one file per kind. Group `fn.aridhia.com`, version `v1alpha1`, namespaced.
+- `k8s/federated-node/crds/`: one static file per kind (Helm installs them before the templates). Group `fn.aridhia.com`, version `v1alpha1`, namespaced.
   Kinds: `GitProvider`, `NodeSecret`, `Repository`, `Dataset`, `Project`. Each has the `status` subresource,
   printer columns `Synced`, `Message`, and category `fn` (`kubectl get fn` lists all five).
 - `k8s/federated-node/templates/node-config.yaml`: loops over `.Values.nodeConfig`.
 - `values.yaml`, `values.schema.json`: `nodeConfig` (empty by default) and `operator.enabled` (false by default).
-- `k8s/federated-node/tests/node_config_test.yaml`, `tests/crds_test.yaml`.
+- `k8s/federated-node/tests/node_config_test.yaml`.
 
 Design decisions:
 - **`NodeSecret`, not `Secret`.** `kubectl get secrets` would always show core Secrets.
@@ -100,8 +100,8 @@ Design decisions:
   (required fields, enums, patterns). The rest is the operator's job and nexus-api's.
 
 Risks:
-- CRDs and the resources that use them are in one release. Helm orders CRDs first, but a first install can race.
-  If it does, move the CRDs to `crds/` plus an upgrade hook; decide only if seen.
+- CRDs and the resources that use them in one release failed a first install (kinds not yet known), so the CRDs
+  moved to `crds/`. Helm never upgrades those: Flux does (step 8), `scripts/deploy.sh` applies them with kubectl.
 - OpenShift already has a `Project` kind in another group. The group-qualified name works; the category `fn` is the
   short way round it.
 
@@ -252,6 +252,8 @@ Design decisions:
 - `flux.sh up` claims the cluster (`scripts/deploy_owner.sh`); `mise run deploy` refuses while Flux owns the
   release, so the two do not fight.
 - Site values hold no secret values; the dev Secrets already exist in the cluster.
+- **The HelmRelease sets `install.crds: CreateReplace` and `upgrade.crds: CreateReplace`.** The node config CRDs are
+  in the chart's `crds/`, which Helm installs once and never upgrades; Flux applies them on every upgrade.
 
 Risks: an upgrade restarts Gitea, the source Flux reads from. Flux retries on its interval; expect one failed
 reconcile per upgrade in this local setup only.
