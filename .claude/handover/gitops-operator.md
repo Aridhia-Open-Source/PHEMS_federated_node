@@ -61,3 +61,6 @@ Detail per step (files, decisions, risks, done, tests): `project/plans/gitops-op
 - Stacked draft PRs into `feat/gitops-operator`, each in its own sibling worktree: #654 CRDs (`gitops-crds`, done, tests pass, review owed), #655 Gitea Actions (`gitops-gitea-actions`, Sonnet working), #656 operator (`gitops-nexus-operator`, Opus working, based on the client move).
 - Step 2 reviewed (Fable, comment on #653); its one finding is fixed in 7ee6ca0f0.
 - Next: review #654 (Opus), merge #654 into feat/gitops-operator, rebase #656 on it; then #655 and #656 when their agents finish. At the end only `feat/gitops-operator` (#653) remains; delete merged branches and worktrees.
+- Update: #656 operator done (6 commits pushed, package `nexus/operator/nexus_operator/`, tests pass). Check its assumed CRD spec/status fields against #654 before merging (status needs `sourceVersions`). Left: operator CI + pylint task, image build, cluster check.
+- #655 Gitea Actions done but commit e0edcdd3c is NOT pushed: the agent's push was refused; waiting on codepint's OK to push it.
+- Stopped at 95% of the 5h limit.
