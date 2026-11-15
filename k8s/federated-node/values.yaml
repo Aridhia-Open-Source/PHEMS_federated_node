@@ -85,6 +85,7 @@ keycloak:
       # by retrying. Set false to limit rotation to the client secret alone.
       servicePassword: true
       dagsterPassword: true
+      operatorPassword: true
 
 alpine:
   image: ghcr.io/aridhia-open-source/alpine
@@ -478,6 +479,24 @@ dagster:
     # this chart provides the code server. `deployments` is not read in this mode.
     enabled: true
     enableSubchart: false
+
+# The Kopf operator (nexus/operator): applies the fn.aridhia.com custom resources to nexus-api (ADR 0032).
+# operator.enabled turns it on (off by default).
+operator:
+  image: ghcr.io/aridhia-open-source/nexus_operator
+  tag:
+  # Namespaces watched besides the release namespace (dev adds experiments). The operator reads a
+  # NodeSecret's source Secret only in the NodeSecret's own namespace.
+  watchNamespaces: []
+  # How often every resource is synced again: puts back UI edits and sees a rotated source Secret
+  syncIntervalSeconds: 60
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
 
 ### Gitea Git Server (Custom, uses shared Postgres)
 gitea:

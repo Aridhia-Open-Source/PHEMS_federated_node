@@ -66,6 +66,10 @@ spec:
           - secretRef:
               name: dagster-keycloak-creds
           {{- end }}
+          {{- if (.Values.operator).enabled }}
+          - secretRef:
+              name: operator-keycloak-creds
+          {{- end }}
           volumeMounts:
             - name: realm-config
               mountPath: /realm-config
