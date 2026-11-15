@@ -392,6 +392,11 @@ class BackendAPI:
         self.logger.info(f"Fetching datasets of project {project_id}")
         return [ProjectDataset(**a) for a in self.session.get(f"/projects/{project_id}/datasets").json()]
 
+    def delete_project_dataset(self, project_id: int, dataset_id: int) -> None:
+        """Unassign the dataset from the project (a soft delete), not the dataset itself"""
+        self.logger.info(f"Unassigning dataset {dataset_id} from project {project_id}")
+        self.session.delete(f"/projects/{project_id}/datasets/{dataset_id}")
+
     def find_project_dataset(self, name: str, project_id: int) -> ProjectDataset | None:
         """The project's dataset of that name, if any"""
         for assignment in self.get_project_datasets(project_id):
@@ -577,6 +582,11 @@ class BackendAPI:
         data = {"watch_dir": watch_dir, "base_branch": base_branch, "enabled": enabled}
         response = self.session.put(f"/projects/{project_id}/repositories/triggers/{repository_id}", json=data)
         return ProjectTriggerRepository(**response.json())
+
+    def delete_project_trigger_repository(self, project_id: int, repository_id: int) -> None:
+        """Unassign the trigger repository from the project (a soft delete), not the repository itself"""
+        self.logger.info(f"Unassigning repository {repository_id} from project {project_id}")
+        self.session.delete(f"/projects/{project_id}/repositories/triggers/{repository_id}")
 
     def get_results_repositories(self) -> list[ResultsRepository]:
         """The global results repositories"""

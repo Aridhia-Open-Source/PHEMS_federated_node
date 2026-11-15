@@ -237,7 +237,8 @@ def resolve_project(api: BackendAPI, spec: Mapping) -> tuple[dict, dict, object]
 def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
     """
     Created disabled and enabled last. Datasets are assigned in the order given (the first becomes the default);
-    an assignment that exists is PATCHed with the fields that differ. A results repository is assigned only to a
+    an assignment that exists is PATCHed with the fields that differ, and a dataset or trigger repository the spec
+    no longer names is unassigned. A results repository is assigned only to a
     disabled project that has none, so to change it a live project is disabled, the old one unassigned and the new one
     assigned; the last step enables it again.
     """
@@ -253,6 +254,9 @@ def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
         if dataset.id not in assigned:
             api.get_or_assign_dataset(project.id, dataset)
             changed = True
+    for dataset_id in assigned - {dataset.id for dataset in datasets.values()}:
+        api.delete_project_dataset(project.id, dataset_id)
+        changed = True
 
     assigned = {a.trigger_repository.id: a for a in api.get_project_trigger_repositories(project.id)}
     for trigger in spec["repositories"].get("triggers", []):
@@ -270,6 +274,9 @@ def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
         if data:
             api.patch_project_trigger_repository(project.id, repo.id, data)
             changed = True
+    for repo_id in assigned.keys() - {repo.id for repo in triggers.values()}:
+        api.delete_project_trigger_repository(project.id, repo_id)
+        changed = True
 
     spec_results = spec["repositories"]["results"]
     wanted = {

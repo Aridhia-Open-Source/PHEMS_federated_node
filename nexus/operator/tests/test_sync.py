@@ -180,6 +180,29 @@ def test_live_project_disabled_to_change_its_results_repository(api):
     ]
 
 
+def test_live_project_unassigns_what_the_spec_dropped(api):
+    api.find_dataset.return_value = record(id=4)
+    api.find_trigger_repository.return_value = record(id=2)
+    api.find_results_repository.return_value = record(id=3)
+    api.find_project.return_value = record(id=9, enabled=True)
+    api.get_project_datasets.return_value = [record(dataset=record(id=4)), record(dataset=record(id=6))]
+    api.get_project_trigger_repositories.return_value = [
+        record(trigger_repository=record(id=2), watch_dir="specs", base_branch="main", enabled=True),
+        record(trigger_repository=record(id=8), watch_dir="specs", base_branch="main", enabled=True),
+    ]
+    api.get_project_results_repositories.return_value = [
+        record(results_repository=record(id=3), target_dir="results", base_branch="main", enabled=True),
+    ]
+
+    result = sync.sync_project(api, "cohort", PROJECT)
+
+    api.delete_project_dataset.assert_called_once_with(9, 6)
+    api.delete_project_trigger_repository.assert_called_once_with(9, 8)
+    api.get_or_assign_dataset.assert_not_called()
+    api.put_project_trigger_repository.assert_not_called()
+    assert result.changed
+
+
 def test_delete_never_forces(api):
     api.find_project.return_value = record(id=9)
     sync.delete_project(api, "cohort", PROJECT)
