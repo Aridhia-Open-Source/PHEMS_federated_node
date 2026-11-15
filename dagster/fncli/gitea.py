@@ -5,7 +5,7 @@ from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlparse
 
 from app.gitea import GITEA_API_BASE_URL
-from app.utils import HttpClient
+from nexus_client.http import HttpClient
 
 default_logger = logging.getLogger(__name__)
 

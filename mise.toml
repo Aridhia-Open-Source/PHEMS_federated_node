@@ -24,12 +24,15 @@ run = [
   "mise install",
   # fncli, editable, into the root .venv (mise creates it)
   "mise exec -- python -m pip install -e './dagster[cli]'",
+  # The shared nexus-api client, editable; its dependencies come with Dagster's (ADR 0032)
+  "mise exec -- python -m pip install --no-deps -e ./nexus/client",
   "mise -C nexus/api install",
   "mise -C dagster install",
   # requirements-dev.txt is a superset of requirements.txt (adds pytest, pylint)
   "mise -C nexus/api exec -- python -m pip install -r requirements-dev.txt",
   "mise -C dagster exec -- python -m pip install -r requirements.txt",
   "mise -C dagster exec -- python -m pip install --no-deps -e '.[cli]'",
+  "mise -C dagster exec -- python -m pip install --no-deps -e ../nexus/client",
   # pip-compile resolves for the Python it runs on, so each component's own interpreter gets it
   "mise -C nexus/api exec -- python -m pip install pip-tools",
   "mise -C dagster exec -- python -m pip install pip-tools",

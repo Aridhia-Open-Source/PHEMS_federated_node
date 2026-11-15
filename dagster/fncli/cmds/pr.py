@@ -30,7 +30,7 @@ from fncli.cmds.project import find_project
 from fncli.cmds.repository import step_repo_config
 from fncli.cmds.sensor import SENSORS
 from fncli.cmds.verify import RUN_TO_TASK_STATUS, Links, Report, delivered, is_push_only, verify_task
-from app.models import TriggerState
+from nexus_client.models import TriggerState
 from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("pr")

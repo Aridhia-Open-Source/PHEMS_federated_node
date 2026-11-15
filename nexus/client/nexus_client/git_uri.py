@@ -27,6 +27,11 @@ def normalise_repo_uri(uri: str) -> str:
     return (_netloc_without_default_port(parsed) + path).lower()
 
 
+
+def repo_path_of(uri: str) -> str:
+    """Where the repository is on its provider (owner/name): the last two segments of its uri"""
+    return "/".join(normalise_repo_uri(uri).split("/")[-2:])
+
 def normalise_provider_uri(uri: str) -> str:
     """
     The one form a git provider's web address is kept in: scheme://host[:port][/path],

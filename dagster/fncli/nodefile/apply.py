@@ -16,8 +16,9 @@ import string
 import click
 import requests
 
-from app.models import Project
-from fncli.backend import FncliBackendAPI, repo_path_of
+from nexus_client.models import Project
+from fncli.backend import FncliBackendAPI
+from nexus_client.git_uri import repo_path_of
 from fncli.gitea import GiteaAdminAPI
 from fncli.k8s import get_k8s_secret
 from fncli.nodefile import lookup

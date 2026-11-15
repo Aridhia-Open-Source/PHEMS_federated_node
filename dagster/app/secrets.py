@@ -5,7 +5,7 @@ from kubernetes import client
 from kubernetes.client import V1Secret
 from kubernetes.config import load_incluster_config
 
-from app.models import Secret, SecretProviderType
+from nexus_client.models import Secret, SecretProviderType
 
 
 class K8sSecretProvider:

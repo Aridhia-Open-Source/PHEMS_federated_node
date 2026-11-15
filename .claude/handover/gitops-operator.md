@@ -14,7 +14,7 @@ Resume: read this file, then `git log --oneline origin/dagster-develop..HEAD`. W
 ## Steps
 Part 1, operator (ADR 0032):
 1. [x] Delete ADR 0033 and its index row.
-2. [ ] Move the shared API client from `dagster/app` to `nexus/client/` (own pyproject; path dep compiled with each consumer; bake named context). Dagster and fncli tests pass.
+2. [x] Move the shared API client from `dagster/app` to `nexus/client/` (own pyproject; path dep compiled with each consumer; bake named context). Dagster and fncli tests pass.
 3. [ ] CRDs + `nodeConfig` chart templates, schema, helm-unittest.
 4. [ ] Kopf operator in `nexus/operator/`: sync to nexus-api, soft delete, status, Keycloak service client, RBAC, image, Tilt.
 5. [ ] Move experiment setup / e2e / demo onto `kubectl apply`; drop fncli `diff/apply/delete`; docs.

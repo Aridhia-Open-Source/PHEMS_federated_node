@@ -8,7 +8,7 @@ from dagster import RunRequest, SkipReason
 from app.definitions.run_config import build_run_config
 from app.definitions.sensors.base import artifacts_volume_tags
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
-from app.models import Dataset, LaunchDecision, Project, Task
+from nexus_client.models import Dataset, LaunchDecision, Project, Task
 
 pytestmark = pytest.mark.usefixtures("artifacts_env")
 

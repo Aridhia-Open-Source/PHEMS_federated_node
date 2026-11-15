@@ -42,8 +42,9 @@ group "release" {
 }
 
 target "dagster-fn" {
-  context = "dagster"
-  tags    = tags("dagster-fn")
+  context  = "dagster"
+  contexts = { nexus-client = "nexus/client" }
+  tags     = tags("dagster-fn")
 }
 
 target "alpine-fn" {

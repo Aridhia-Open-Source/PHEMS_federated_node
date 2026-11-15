@@ -23,7 +23,7 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
   - `definitions/sensors/task/` - launcher, run status, reconcile, delivery, results PR sync.
   - `definitions/` - `jobs.py`, `ops.py`, `pipes.py`, `resources.py`, `run_config.py`.
   - `delivery/` - results packaging and git push; `github.py`, `gitea.py` - git clients.
-  - `backend.py` - the nexus-api client; `models/` - Dagster-side models of API responses.
+- `nexus/client/` - `nexus_client`, the nexus-api client Dagster, fncli and the operator share (ADR 0032): `http.py` (retry, token refresh), `api.py`, `models/` of API responses, `git_uri.py`.
 - `dagster/fncli/` - `fncli`, the dev/ops CLI (ADR 0018); commands in `cmds/`, e2e suites in `tests/e2e/`.
 - `k8s/federated-node/` - the Helm chart: `templates/`, `values.yaml`, `values.schema.json`, `dev.example.values.yml`, helm-unittest suites in `tests/`.
 - `build/` - images for Keycloak, `kc-init`, an Alpine helper, and the helm-unittest runner.

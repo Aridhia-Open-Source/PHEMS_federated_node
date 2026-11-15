@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.pull_request_result_step import PullRequestResultStep
-from app.models.result_state import ResultState
+from nexus_client.models.pull_request_result_step import PullRequestResultStep
+from nexus_client.models.result_state import ResultState
 
 
 class PullRequestResult(BaseModel):

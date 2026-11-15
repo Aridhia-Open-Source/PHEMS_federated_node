@@ -1,7 +1,7 @@
 import dagster as dg
 
-from app.backend import BackendAPI
-from app.utils import BackendAdapter, BackendSession
+from nexus_client.api import BackendAPI
+from nexus_client.http import BackendAdapter, BackendSession
 from app.config import BackendConfig
 from app.definitions.sensors.git.base import GitAPIFactory
 

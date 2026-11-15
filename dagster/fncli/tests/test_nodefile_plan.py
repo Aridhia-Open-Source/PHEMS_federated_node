@@ -240,7 +240,7 @@ def test_a_gitea_repository_of_another_owner_than_the_contexts_admin_user_is_ref
 
 def test_the_backend_clients_info_logs_stay_out_of_the_plan_and_the_level_is_restored_after(tmp_path, monkeypatch, caplog):
     def noisy_read_state(api):
-        logging.getLogger("app.backend").info("Fetching projects")
+        logging.getLogger("nexus_client.api").info("Fetching projects")
         return EMPTY
 
     path = tmp_path / "plan.yaml"
@@ -254,7 +254,7 @@ def test_the_backend_clients_info_logs_stay_out_of_the_plan_and_the_level_is_res
         result = CliRunner().invoke(cli, ["plan", "-f", str(path)])
         assert result.exit_code == 0, result.output
         assert "Fetching projects" not in caplog.text
-        logging.getLogger("app.backend").info("after the plan")
+        logging.getLogger("nexus_client.api").info("after the plan")
         assert "after the plan" in caplog.text
 
     assert logging.getLogger("app").level == before

@@ -1,9 +1,9 @@
 import dagster as dg
 
-from app.backend import BackendAPI
+from nexus_client.api import BackendAPI
 from app.definitions.run_config import build_run_config
 from app.definitions.sensors.base import BaseSensor, artifacts_volume_tags
-from app.models import Task, TaskStatus
+from nexus_client.models import Task, TaskStatus
 
 
 class TaskLauncherSensor(BaseSensor):

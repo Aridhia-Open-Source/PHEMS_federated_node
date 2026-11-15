@@ -11,7 +11,7 @@ from click.testing import CliRunner
 import pytest
 import yaml
 
-from app.utils import BackendSession, BaseSession
+from nexus_client.http import BackendSession, BaseSession
 from fncli.cmds import demo
 from fncli.cmds.demo import Demo, Step, demo_command, step_names
 from fncli.nodefile.loader import limit_to_project, load_node_file

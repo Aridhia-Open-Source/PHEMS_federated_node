@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.git_provider import GitProvider
-from app.models.secret import Secret
+from nexus_client.models.git_provider import GitProvider
+from nexus_client.models.secret import Secret
 
 
 class ResultsRepository(BaseModel):

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import dagster as dg
 import pytest
 
-from app.backend import BackendAPI
+from nexus_client.api import BackendAPI
 from app.config import BackendConfig
 from app.definitions.resources import (
     RESOURCES,

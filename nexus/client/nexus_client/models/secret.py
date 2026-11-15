@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.secret_provider_type import SecretProviderType
+from nexus_client.models.secret_provider_type import SecretProviderType
 
 
 class Secret(BaseModel):
