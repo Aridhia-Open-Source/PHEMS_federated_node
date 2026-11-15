@@ -1,0 +1,25 @@
+# The stand-in dataset of the dev project (fn-dev.yaml). It is in namespace experiments, so its NodeSecret can read the
+# demo database's login, which the experiments chart makes (`fncli experiment deploy` first). Its database is a dummy:
+# the e2e tasks never read it.
+apiVersion: fn.aridhia.com/v1alpha1
+kind: NodeSecret
+metadata:
+  name: dev-dataset-dataset-creds
+  namespace: experiments
+spec:
+  values:
+    USERNAME: {secretKeyRef: {name: db-datasets-demo, key: username}}
+    PASSWORD: {secretKeyRef: {name: db-datasets-demo, key: password}}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Dataset
+metadata:
+  name: dev-dataset
+  namespace: experiments
+spec:
+  type: postgres
+  host: db-datasets.experiments.svc
+  port: 5432
+  readSchema: cdm
+  writeSchema: results
+  secret: dev-dataset-dataset-creds

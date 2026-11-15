@@ -1,11 +1,12 @@
 """
 `fncli experiment` runs real experiments against the dev node, see experiments/README.md. Each experiment is a folder
-experiments/NAME/ that holds its database for the chart (values.yaml), its seed, its image and docker-bake.hcl, its
-dataset as a node file (dataset.yaml, which `setup` applies after checking it against values.yaml and `teardown`
-deletes), its trigger file (trigger.json, the image and anything else the task is asked for), and project.env with the
-settings of `run` only (no secrets; it wins over .dev.env and the shell). Its node project and repositories are in the
-node files bootstrap/examples/globals-NAME.yaml and projects/NAME.yaml, if it has them: `setup` applies them after the
-dataset and `teardown` deletes them first. `up`, `seed`, `setup`, `run` and `teardown` can be repeated after a failure.
+experiments/NAME/ that holds its database for the chart (values.yaml: the database, its login's Secret and the
+dataset's schemas), its seed, its image and docker-bake.hcl, its trigger file (trigger.json, the image and anything
+else the task is asked for), and project.env with the settings of `run` only (no secrets; it wins over .dev.env and the
+shell). The chart makes each database's Dataset and NodeSecret resources (ADR 0032), which the nexus operator syncs.
+Its project and repositories are the resources of config/experiments/NAME.yaml, if it has one: `setup` makes its Gitea
+repositories and Secrets (`fncli gitea setup`) and kubectl applies it, `teardown` deletes it. `deploy`, `seed`,
+`setup`, `run` and `teardown` can be repeated after a failure.
 """
 
 import json
@@ -23,12 +24,13 @@ from dotenv import find_dotenv, load_dotenv
 from pydantic import Field
 
 from app.config import EnvConfig
-from fncli.cmds.nodefile import apply_node_file, context_option, delete_node_file, open_target
+from fncli.cmds.gitea import gitea_setup
 from fncli.cmds.sensor import start_sensor_command
+from fncli.cmds.target import check_kube_context, context_option, open_target
 from fncli.cmds.trigger import trigger_pr
+from fncli.context import Context
+from fncli import node_config
 from fncli.k8s import get_k8s_secret
-from fncli.nodefile.loader import Context, load_node_file
-from fncli.nodefile.schema import K8sSecretRef, NodeFile
 
 logger = logging.getLogger("experiment")
 
@@ -70,14 +72,6 @@ def experiment_dir(name: str) -> Path:
     return path
 
 
-def dataset_file(name: str) -> Path:
-    """The node file of the experiment's dataset, in its own folder"""
-    path = experiment_dir(name) / "dataset.yaml"
-    if not path.is_file():
-        raise click.ClickException(f"No dataset.yaml for {name}: {path}")
-    return path
-
-
 def trigger_file(name: str) -> Path:
     """The trigger file `run` asks the node for: the experiment's image, in its own folder"""
     path = experiment_dir(name) / "trigger.json"
@@ -86,20 +80,22 @@ def trigger_file(name: str) -> Path:
     return path
 
 
-def examples_dir() -> Path:
-    return experiments_dir().parent / "bootstrap" / "examples"
+def config_dir() -> Path:
+    return experiments_dir().parent / "config"
 
 
-def project_node_file(name: str) -> Path | None:
-    """The experiment's node file with its project, next to the other examples, if it has one"""
-    path = examples_dir() / "projects" / f"{name}.yaml"
+def config_file(name: str) -> Path | None:
+    """The experiment's node config, its project and repositories, if it has one"""
+    path = config_dir() / "experiments" / f"{name}.yaml"
     return path if path.is_file() else None
 
 
-def node_files(name: str) -> list[Path]:
-    """The experiment's node files after its dataset, in the order `setup` applies them: its global resources, then its project"""
-    path = examples_dir() / f"globals-{name}.yaml"
-    return [*([path] if path.is_file() else []), *([project] if (project := project_node_file(name)) else [])]
+def project_name(name: str) -> str:
+    """The name of the Project resource in the experiment's node config"""
+    path = config_file(name)
+    if path is None:
+        raise click.ClickException(f"{name} has no node project: config/experiments/{name}.yaml")
+    return node_config.of_kind(node_config.load_resources([path]), "Project")[0]["metadata"]["name"]
 
 
 @dataclass(frozen=True)
@@ -113,38 +109,10 @@ class Database:
     write_schema: str
 
 
-def check_dataset(name: str, entry: dict, node: NodeFile):
-    """dataset.yaml must name what the chart makes: the dataset by the database's name, the secret by the chart's"""
-    problems = []
-    dataset_names = [dataset.name for dataset in node.datasets]
-    if dataset_names != [entry["name"]]:
-        problems.append(f"its datasets are {dataset_names}, but dbs.{name}.name in values.yaml is {entry['name']}")
-    secret = node.secrets.get(node.datasets[0].secret) if node.datasets else None
-    read_from = {
-        (ref.k8s_secret.namespace, ref.k8s_secret.name)
-        for ref in (secret.values or {}).values() if isinstance(ref, K8sSecretRef)
-    } if secret else set()
-    if read_from != {(NAMESPACE, entry["secret"]["name"])}:
-        problems.append(
-            f"its dataset's secret reads {sorted(read_from)}, but dbs.{name}.secret.name in values.yaml is "
-            f"{entry['secret']['name']} in namespace {NAMESPACE}"
-        )
-    if problems:
-        listing = "\n".join(f"  - {problem}" for problem in problems)
-        raise click.ClickException(f"experiments/{name}/dataset.yaml does not match values.yaml:\n{listing}")
-
-
 def load_database(name: str) -> Database:
-    """
-    The database of experiment NAME from values.yaml (its `dbs.NAME` entry) and dataset.yaml (the schemas), after
-    checking that dataset.yaml names the same database and secret as values.yaml.
-    """
-    values = experiment_dir(name) / "values.yaml"
-    entry = yaml.safe_load(values.read_text())["dbs"][name]
-    node = load_node_file(dataset_file(name))
-    check_dataset(name, entry, node)
-    dataset = node.datasets[0]
-    return Database(entry["name"], entry["user"], entry["secret"]["name"], dataset.read_schema, dataset.write_schema)
+    """The database of experiment NAME: its `dbs.NAME` entry in values.yaml"""
+    entry = yaml.safe_load((experiment_dir(name) / "values.yaml").read_text())["dbs"][name]
+    return Database(entry["name"], entry["user"], entry["secret"]["name"], entry["readSchema"], entry["writeSchema"])
 
 
 def load_project(name: str) -> ExperimentConfig:
@@ -242,18 +210,26 @@ def seed_command(name):
 @context_option
 def setup_command(name, context):
     """
-    Register NAME in the node, against its database on the experiments release (`up`): check that its
-    dataset.yaml names the database and secret of its values.yaml, then `fncli apply` it (the dataset and its
-    secret), then the node files with its global resources and its project if it has them. Safe to rerun.
+    Register NAME in the node, against its database on the experiments release (`deploy`): wait for the chart's
+    Dataset and NodeSecret of its database to sync, then, if it has config/experiments/NAME.yaml, make its Gitea
+    repositories and Secrets (`fncli gitea setup`), kubectl apply it with config/gitea.yaml and wait for it to sync.
+    Safe to rerun.
     """
     database = load_database(name)
     require_release()
-    logger.info(f"=== Setting up dataset {database.name} ===")
-    # Its login is generated by the chart: dataset.yaml reads it back from the chart's secret
-    apply_node_file(context, dataset_file(name), None, yes=True)
-    for path in node_files(name):
-        logger.info(f"=== Setting up node resources from {path.name} ===")
-        apply_node_file(context, path, None, yes=True)
+    check_kube_context(context)
+    logger.info(f"=== Waiting for dataset {database.name} to sync ===")
+    node_config.wait_synced(
+        "-n", NAMESPACE, f"datasets.fn.aridhia.com/{database.name}", f"nodesecrets.fn.aridhia.com/{database.name}-dataset-creds",
+    )
+    path = config_file(name)
+    if path is None:
+        return
+    logger.info(f"=== Setting up node config {path.name} ===")
+    gitea_setup(context, [path], ())
+    files = [config_dir() / "gitea.yaml", path]
+    node_config.apply(files)
+    node_config.wait_synced(*node_config.file_args(files))
 
 
 @experiment_group.command("build")
@@ -287,13 +263,10 @@ def run_command(ctx, name, context, local):
     if local:
         run_local(name, config, trigger["spec"]["image"])
         return
-    project_file = project_node_file(name)
-    if project_file is None:
-        raise click.ClickException(f"{name} has no node project: bootstrap/examples/projects/{name}.yaml")
-    spec = load_node_file(project_file).projects[0]
+    project = project_name(name)
     api = open_target(context)
-    if api.find_project(spec.name) is None:
-        raise click.ClickException(f"Project {spec.name} is not on the node: run `fncli experiment setup {name}` first")
+    if api.find_project(project) is None:
+        raise click.ClickException(f"Project {project} is not on the node: run `fncli experiment setup {name}` first")
     ctx.invoke(start_sensor_command, group="all", name=None)
     env = task_env(config)
     logger.info(f"Task env: {json.dumps(env)}")
@@ -301,7 +274,7 @@ def run_command(ctx, name, context, local):
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "trigger.json"
         path.write_text(json.dumps(trigger))
-        trigger_pr(context, api, spec.name, path, merge=True, watch=True, timeout=config.run_timeout)
+        trigger_pr(context, api, project, path, merge=True, watch=True, timeout=config.run_timeout)
 
 
 def run_local(name: str, config: ExperimentConfig, image: str):
@@ -345,31 +318,31 @@ def run_local(name: str, config: ExperimentConfig, image: str):
 
 
 def experiment_names() -> list[str]:
-    """Every experiment: the folders under experiments/ with a dataset.yaml."""
-    return sorted(path.parent.name for path in experiments_dir().glob("*/dataset.yaml"))
+    """Every experiment: the folders under experiments/ with a values.yaml, but the chart's."""
+    return sorted(path.parent.name for path in experiments_dir().glob("*/values.yaml") if path.parent.name != "chart")
 
 
 def teardown_experiment(context: Context, name: str):
     """
-    Remove what `setup` registered for NAME, in reverse: the node project, then its global resources, then the dataset
-    with its secret (`fncli delete --all` of each file). The dataset is refused, and the command exits 1, while a project
-    outside these files (a demo project, say) is still assigned it. Gitea is left alone.
+    Remove what `setup` applied for NAME: `kubectl delete` of config/experiments/NAME.yaml, its project, repositories
+    and their NodeSecrets. The dataset is the chart's and stays until `down`. Gitea and the Secrets are left alone.
     """
-    for path in reversed(node_files(name)):
-        logger.info(f"=== Tearing down node resources from {path.name} ===")
-        delete_node_file(context, path, with_globals=True, yes=True)
-    logger.info(f"=== Tearing down dataset of {name} ===")
-    delete_node_file(context, dataset_file(name), with_globals=True, yes=True)
+    path = config_file(name)
+    if path is None:
+        return
+    check_kube_context(context)
+    logger.info(f"=== Tearing down node config {path.name} ===")
+    node_config.delete([path])
 
 
 @experiment_group.command("teardown")
 @name_argument
 @context_option
-@click.confirmation_option("-y", "--yes", prompt="Delete the experiment's node project (if any), its dataset and their secrets from the node?")
+@click.confirmation_option("-y", "--yes", prompt="Delete the experiment's node project and repositories (if any) from the node?")
 def teardown_command(name, context):
     """
-    Remove what `setup` registered in the node for NAME: its project, global resources and dataset. The Gitea repos
-    and OAuth apps, the experiments release and NAME's database stay. Safe to rerun.
+    Remove what `setup` applied for NAME: its project and repositories (config/experiments/NAME.yaml). The dataset,
+    the Gitea repos and OAuth apps, the experiments release and NAME's database stay. Safe to rerun.
     """
     teardown_experiment(context, name)
 
@@ -381,9 +354,10 @@ def teardown_command(name, context):
 )
 def down_command(context):
     """
-    Tear down every experiment's node project and dataset, then uninstall the experiments release. The
-    secrets and database files stay, so a later `setup` gets the same data back. It stops, and leaves the release,
-    if a dataset is still assigned to a project it does not tear down (delete the demo projects first).
+    Tear down every experiment's node project, then uninstall the experiments release, which deletes the datasets'
+    resources (the operator soft-deletes them in nexus-api). The secrets and database files stay, so a later `setup`
+    gets the same data back. A dataset still assigned to a project outside the experiments (a demo project, say) stays
+    Terminating until that project is deleted.
     """
     for name in experiment_names():
         teardown_experiment(context, name)

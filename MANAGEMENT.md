@@ -277,34 +277,37 @@ fncli hello-world        # prints "Hello, world!"
 
 - The dev cluster running with Tilt up (`mise run deploy`, then `tilt up`: [DEPLOYMENT.md](DEPLOYMENT.md#run-it-locally)). That gives the port-forwards: nexus-api `localhost:5000`, Dagster `localhost:3000`, Gitea `localhost:4000`.
 - `kubectl` pointing at the cluster. fncli reads secrets (the Dagster system login, the Gitea admin password, the first user) from the **current context**, so check `kubectl config current-context` is the cluster you mean.
-- A `.dev.env`, which fncli finds by searching up from your current directory. It holds only the deploy settings (`NAMESPACE` among them), the first Keycloak user and the optional GitHub ids: `.dev.env.example` documents them. The node itself is described by node files in `bootstrap/examples`, which `fncli apply` makes real, and which node that is (and the defaults of `fncli trigger`) is in `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
+- A `.dev.env`, which fncli finds by searching up from your current directory. It holds only the deploy settings (`NAMESPACE` among them), the first Keycloak user and the optional GitHub ids: `.dev.env.example` documents them. On the dev cluster the node itself is described by Kubernetes resources in `config/`, which `kubectl apply` makes real (the nexus operator syncs them to nexus-api, ADR 0032). Which node fncli talks to (and the defaults of `fncli trigger`) is in `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
 
 ### The short way
 
 ```bash
-fncli diff  -f examples/globals-e2e.yaml      # what applying the node file would change; reads only
-fncli apply -f examples/globals-e2e.yaml      # the global resources of the dev project (shows the same, asks, then does it)
-fncli apply -f examples/projects/e2e.yaml     # the dev project
+fncli experiment deploy                       # the experiments release; the dev project's stand-in dataset reads the demo database's login
+fncli gitea setup -f config/e2e/fn-dev.yaml   # the Gitea repos of the dev project, and the Secrets with their OAuth apps
+kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml   # provider, dataset, secrets, repos, project
+kubectl get fn -n fn                          # each resource's Synced and Message; wait for every row to be synced
 fncli start-sensor --group all                # start the twelve sensors
 fncli trigger triggers/examples/demo.json --project fn-dev --pr --merge   # open and merge a pull request with a trigger file
 fncli project-show --project fn-dev | jq                       # watch it: project resources, pull requests, tasks, results
-fncli delete -f examples/projects/e2e.yaml; fncli delete -f examples/globals-e2e.yaml --all   # delete it all again (dev only; Gitea repos stay)
+kubectl delete -f config/e2e/fn-dev.yaml -f config/e2e/dev-dataset.yaml   # delete it all again (dev only; Gitea repos stay)
 ```
 
-`examples/globals-e2e.yaml` is found under the nearest `bootstrap/` directory. A node file lists any of the providers, secrets (each value says where it is read from, never the value), repositories, datasets and projects of a node; what it names but does not hold (a project's repository or dataset) must be on the node already. Which node it is applied to is in `bootstrap/context.yaml` (or `--context FILE`, `FNCLI_CONTEXT`): `fncli` refuses to run when `kubectl` points at another cluster. `apply` creates what is missing, changes what differs (only the differing fields), never rewrites a secret that exists unless `--rotate LABEL`, and never deletes. `delete -f FILE` deletes only the file's projects; `--all` also deletes the global repositories, datasets, secrets and providers, and skips, with the backend's reason, whatever a project outside the file still uses. Both can be repeated after a failure.
+The files in `config/` are Kubernetes custom resources (group `fn.aridhia.com/v1alpha1`: GitProvider, NodeSecret, Repository, Dataset, Project), described with examples in [ADR 0032](project/decisions/0032-declarative-node-config-through-an-operator.md). A NodeSecret says where a secret's values are read from (a Kubernetes Secret, never the value in the file); a Repository or Project names what it uses, and the operator reports in its status why it cannot sync yet (a secret or dataset that is not there). `kubectl get fn -n fn` lists each resource's Synced and Message; `kubectl diff -f FILE` shows what an apply would change. The operator creates what is missing, changes what differs and, on `kubectl delete`, soft-deletes the record in nexus-api: a global resource another project still uses stays `Terminating`, with the reason in its Message, until the project is deleted. The dev flows have one file per use: `config/gitea.yaml` (the provider), `config/demo.yaml`, `config/github/demo-github.yaml`, `config/experiments/*.yaml` and `config/e2e/*.yaml`.
 
-`fncli demo -f examples/projects/demo-gitea.yaml` (or `demo-github.yaml`) walks the pull request part one step at a time, on a node that `fncli apply` has set up with `examples/globals-gitea.yaml` and then that file (it stops unless `fncli diff` shows nothing to change). Before each step it says what the step does and shows the command, then asks: Enter runs it, `s` skips it, `q` quits. It adds the trigger file `triggers/examples/demo.json` in a pull request, or the one you name after the command. It creates and deletes nothing: `fncli delete` of the two files cleans up. It uses its own project and repository names, so it never touches your test project.
+`fncli gitea setup -f FILE [--rotate NODESECRET]` is the one step kubectl cannot do. It creates the Gitea repositories of the file's Repository resources and, for each NodeSecret they name, a Gitea OAuth app named after the NodeSecret, and writes `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN` into the Kubernetes Secret the NodeSecret's `fromSecret` names. A Secret that exists is kept unless you pass `--rotate`. Run it before `kubectl apply` of the same file. Secrets from other sources are made with `kubectl create secret` (the GitHub App's, in [SETUP_GIT_APPS.md](SETUP_GIT_APPS.md)). Which node fncli talks to is in `bootstrap/context.yaml` (or `--context FILE`, `FNCLI_CONTEXT`): `fncli` refuses to run when `kubectl` points at another cluster.
+
+`fncli demo --project demo-gitea` (or `demo-github`) walks the pull request part one step at a time, on a node where `kubectl apply` has set up `config/demo.yaml` (after `fncli gitea setup -f config/demo.yaml`) or `config/github/demo-github.yaml`. It reads the Project resource and stops, showing the operator's message, unless it is synced. Before each step it says what the step does and shows the command, then asks: Enter runs it, `s` skips it, `q` quits. It adds the trigger file `triggers/examples/demo.json` in a pull request, or the one you name after the command. It creates and deletes nothing: `kubectl delete -f config/demo.yaml` cleans up. It uses its own project and repository names, so it never touches your test project.
 
 ### API step to fncli
 
-| API step | In the node file | Run with |
+| API step | In the node config (`config/`) | Run with |
 |---|---|---|
-| Secrets (git tokens) | `secrets:` with `gitea_oauth` (mints a Gitea OAuth app) or `values` read from env, a file or a cluster secret | `apply` |
-| Secret (dataset login) | `secrets:` with `values` | `apply` |
-| Git provider, trigger repository, results repository | `providers:`, `repositories:` | `apply` |
-| Dataset | `datasets:` | `apply` |
-| Project and its resources | `projects:` (created disabled, enabled last) | `apply` |
-| Enable | `enabled:` of the project | `apply`, or `project-set --enabled true` |
+| Secrets (git tokens) | a NodeSecret with `fromSecret`; the Secret is made by `fncli gitea setup` (a Gitea OAuth app) or `kubectl create secret` | `fncli gitea setup`, `kubectl apply` |
+| Secret (dataset login) | a NodeSecret with `values` (each one a `secretKeyRef`) | `kubectl apply` |
+| Git provider, trigger repository, results repository | a GitProvider and Repositories | `kubectl apply` |
+| Dataset | a Dataset | `kubectl apply` |
+| Project and its resources | a Project (the operator creates it disabled, enables it last) | `kubectl apply` |
+| Enable | the Project's `enabled` | `kubectl apply`, or `project-set --enabled true` |
 | Check | | `project-healthcheck`, `verify-project` |
 | Start sensors | | `start-sensor --group all` |
 | Open and merge a spec pull request | a trigger file (`triggers/`) | `trigger FILE --pr --merge` |
@@ -327,9 +330,9 @@ These act on the project named by `--project NAME`, or the context's `defaults.p
 
 ### What not to do with it
 
-- **On a real node, set up the git provider, repositories and secrets with the API.** `apply` and `delete` are written for the dev and demo clusters, with the confirmation they ask for: using them on a node you care about needs a decision of its own (ADR 0018).
-- **Never run `delete --all` against a node you care about.** It deletes the project, its global dataset, repositories and secrets (their stored values too).
-- A node file's dataset is whatever its `datasets:` entry says, and a project may be assigned a dataset by name that another file made. `fncli experiment setup uc1` applies the UC1 dataset (`experiments/uc1/dataset.yaml`), its global resources (`bootstrap/examples/globals-uc1.yaml`) and then its project (`bootstrap/examples/projects/uc1.yaml`).
+- **On a real node, set up the git provider, repositories and secrets with the API.** `kubectl apply` of `config/` and `fncli gitea setup` are written for the dev and demo clusters: a node you care about gets its configuration through the chart values (ADR 0032).
+- **Never `kubectl delete` `config/` files against a node you care about.** It deletes the project, its dataset, repositories and secrets (their stored values too).
+- A project's dataset is whatever its `datasets:` entry names, and may be one that another file made. `fncli experiment deploy` renders each experiment database's Dataset and NodeSecret (namespace `experiments`); `fncli experiment setup uc1` waits for the UC1 dataset to sync, then runs `fncli gitea setup` and `kubectl apply` of `config/experiments/uc1.yaml` (its repositories and project).
 
 ## Switch things on and off
 
@@ -359,7 +362,7 @@ curl -sS -X PUT "$FN/projects/$PROJECT2_ID/repositories/results/$RESULTS_ID" "${
 curl -sS -X PATCH "$FN/projects/$PROJECT2_ID" "${AUTH[@]}" -d '{"enabled": true}'
 ```
 
-A merged pull request is stored once, whatever the number of projects watching the repository, and each project whose `watch_dir` and `base_branch` match gets its own trigger and task. The project's own dataset resource decides which dataset its tasks use. `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo` does this on the dev cluster.
+A merged pull request is stored once, whatever the number of projects watching the repository, and each project whose `watch_dir` and `base_branch` match gets its own trigger and task. The project's own dataset resource decides which dataset its tasks use. `kubectl apply -f config/e2e/qa-two.yaml` does this on the dev cluster (the project `qa-two`, on the dev project's repositories and dataset).
 
 ## Checking on it
 

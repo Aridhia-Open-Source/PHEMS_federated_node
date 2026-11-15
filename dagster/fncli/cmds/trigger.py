@@ -3,14 +3,14 @@
 By pull request (--pr) it opens a PR that adds the file under the project's trigger repository, which is how the
 sensor finds it; the repository, watch directory and base branch are the project's own backend record, not the env.
 By API (--api, not built yet) the same file would be sent to the task API. Chained from the step commands in cmds/pr.py.
-The project's setup and teardown are `fncli apply` and `fncli delete` (cmds/nodefile.py).
+The project's setup and teardown are `kubectl apply` and `kubectl delete` of its resources in config/ (ADR 0032).
 """
 
 from pathlib import Path
 
 import click
 
-from fncli.cmds.nodefile import announce_defaults, context_option, open_target
+from fncli.cmds.target import announce_defaults, context_option, open_target
 from fncli.cmds.pr import (
     commit_file,
     create_branch,
@@ -24,7 +24,7 @@ from fncli.cmds.pr import (
 )
 from fncli.cmds.repository import load_repo_config
 from fncli.backend import FncliBackendAPI
-from fncli.nodefile.loader import Context
+from fncli.context import Context
 
 
 def trigger_pr(
@@ -58,7 +58,7 @@ def trigger_command(trigger_file, context, project, pr, api, merge, watch, timeo
     Trigger a task in a project with a trigger file: a path, or one relative to triggers/ (found from here up), such
     as examples/demo.json. With --pr: a branch, the file under the watch directory of the project's trigger
     repository, a PR, and with --merge the merge, which is what makes the sensor pick it up. The repository comes from
-    the project's record in the node (fncli apply made it). The project and the way (--pr or --api) default to the
+    the project's record in the node (kubectl apply -f config/ made it). The project and the way (--pr or --api) default to the
     context's defaults (bootstrap/context.yaml; FNCLI_DEFAULT_PROJECT and FNCLI_DEFAULT_TRIGGER_TYPE win over them),
     and the first line says when a default is used.
     """

@@ -17,4 +17,6 @@ postgres:
 #     secret:
 #       name: db-datasets-study
 #       key: password
+#     readSchema: cdm           the dataset's schemas
+#     writeSchema: results
 dbs: {}

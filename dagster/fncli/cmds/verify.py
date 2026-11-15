@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import click
 
 from fncli.cmds.common import DagsterConfig, build_backend_api, to_host_url
-from fncli.cmds.nodefile import context_option, step_project_option, step_target
+from fncli.cmds.target import context_option, step_project_option, step_target
 from fncli.cmds.project import find_project
 from fncli.cmds.repository import step_repo_config
 from fncli.cmds.sensor import RESULTS_PR_SYNC_SENSOR
@@ -129,7 +129,7 @@ def verify_project(report: Report, project_name: str, backend_api):
         lambda p: f"id {p.id}",
     )
     if project is None:
-        report.skip("everything else", "no project, run fncli apply first")
+        report.skip("everything else", "no project, kubectl apply -f config/ first")
         return
 
     health = report.check(

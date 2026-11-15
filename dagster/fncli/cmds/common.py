@@ -20,7 +20,7 @@ from app.github import GH_API_BASE_URL, GithubAPI, GithubClient
 from nexus_client.models import ResultsRepository, TriggerRepository
 from fncli.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaWebClient
 from fncli.k8s import get_k8s_secret
-from fncli.nodefile.schema import NodeSpec
+from fncli.context import NodeSpec
 from nexus_client.http import BackendAdapter, BackendSession
 
 IN_CLUSTER_SUFFIX = "fn.svc"
@@ -201,7 +201,7 @@ def get_repository(config: RepoConfig, backend_api: FncliBackendAPI) -> TriggerR
     if repository is None:
         raise click.ClickException(
             f"Backend {config.entity} repository {config.repo_uri} does not exist "
-            f"(run fncli apply first)"
+            f"(kubectl apply -f config/ first)"
         )
     return repository
 

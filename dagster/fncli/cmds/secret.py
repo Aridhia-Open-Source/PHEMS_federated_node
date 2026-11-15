@@ -1,7 +1,7 @@
 """
 The secrets that hold a repo's credentials, which the backend mints git tokens from (ADR 0023): `init_git_secret` writes
 them for the simulation (cmds/simulate.py), and `verify-git-secret` checks that the backend can mint a token and the
-provider accepts it. The node's own secrets are written by `fncli apply`.
+provider accepts it. The node's own secrets come from the NodeSecret resources (config/, ADR 0032).
 """
 
 import logging
@@ -9,7 +9,7 @@ import logging
 import click
 
 from fncli.cmds.common import RepoConfig, build_git_api, build_gitea_api, entity_option
-from fncli.cmds.nodefile import context_option, step_project_option
+from fncli.cmds.target import context_option, step_project_option
 from fncli.cmds.repository import step_repo_config
 from fncli.backend import FncliBackendAPI
 from app.gitea import GiteaAPI, GiteaClient
@@ -99,7 +99,7 @@ def verify_git_secret_command(entity, context, project):
 def delete_gitea_token_command(entity, context, project):
     """
     Delete the Gitea token and OAuth2 application (with the tokens it issued) of a repo's secret. For QA: it breaks
-    the repo's credentials on purpose; `fncli apply --rotate <label>` makes new ones.
+    the repo's credentials on purpose; `fncli gitea setup -f FILE --rotate <label>` makes new ones.
     """
     config = step_repo_config(entity, context, project)
     if config.is_github:
