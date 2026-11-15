@@ -1,0 +1,60 @@
+{{- /*
+nodeConfig as custom resources (ADR 0032), for the operator to sync into nexus-api. Each entry's fields are its spec,
+as in the dev files; the name moves to metadata.name. A repository with no name is named by the slug of its uri.
+*/}}
+{{- $cfg := .Values.nodeConfig }}
+{{- range $cfg.providers }}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: GitProvider
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  {{- omit . "name" | toYaml | nindent 2 }}
+{{- end }}
+{{- range $name, $secret := $cfg.secrets }}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: NodeSecret
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  {{- toYaml $secret | nindent 2 }}
+{{- end }}
+{{- range $type, $repos := dict "trigger" ($cfg.repositories).triggers "results" ($cfg.repositories).results }}
+{{- range $repos }}
+{{- $path := regexReplaceAll "^https?://" (lower .uri) "" | trimSuffix "/" | trimSuffix ".git" }}
+{{- $slug := regexReplaceAll "[^a-z0-9]+" $path "-" | trunc 63 | trimAll "-" }}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Repository
+metadata:
+  name: {{ .name | default $slug }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  type: {{ $type }}
+  {{- omit . "name" | toYaml | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- range $cfg.datasets }}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Dataset
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  {{- omit . "name" | toYaml | nindent 2 }}
+{{- end }}
+{{- range $cfg.projects }}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Project
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  {{- omit . "name" | toYaml | nindent 2 }}
+{{- end }}

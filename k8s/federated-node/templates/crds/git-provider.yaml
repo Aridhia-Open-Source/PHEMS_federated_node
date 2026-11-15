@@ -1,0 +1,19 @@
+{{- /* A git provider (GitHub or Gitea). metadata.name is its nexus-api name. A gitea provider also needs apiUri;
+the operator checks that, and that apiUri is on the provider's host. */}}
+{{- $spec := `
+type: object
+required: [type, uri]
+properties:
+  type:
+    type: string
+    enum: [gitea, github]
+  uri:
+    type: string
+    description: The provider's web address, scheme://host[:port]
+    pattern: '^https?://[^/@\s]+(/\S*)?$'
+  apiUri:
+    type: string
+    description: The provider's API base URL. Defaults to https://api.github.com for github
+    pattern: '^https?://[^/@\s]+(/\S*)?$'
+` }}
+{{ include "fn.crd" (dict "kind" "GitProvider" "plural" "gitproviders" "spec" (trim $spec)) }}
