@@ -112,6 +112,13 @@ spec:
           value: {{ .Values.gitea.oauth2.invalidateRefreshTokens | quote }}
         - name: GITEA__actions__ENABLED
           value: {{ .Values.gitea.actions.enabled | quote }}
+        {{- if .Values.gitea.actions.runner.enabled }}
+        - name: GITEA_RUNNER_REGISTRATION_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.gitea.actions.runner.secret.name }}
+              key: {{ .Values.gitea.actions.runner.secret.key }}
+        {{- end }}
         volumeMounts:
         - name: gitea-data
           mountPath: /data

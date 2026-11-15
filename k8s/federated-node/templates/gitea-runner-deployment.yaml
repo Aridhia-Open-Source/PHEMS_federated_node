@@ -2,8 +2,8 @@
 {{- /*
 Dev only (values.schema.json refuses it without local_development): the dind sidecar is privileged.
 The runner talks to the Docker daemon in the sidecar over a unix socket on a shared emptyDir, so
-the daemon listens on no port. The registration token is in the secret gitea-admin-init writes;
-until that job has run, the pod waits on the missing secret.
+the daemon listens on no port. The registration token is the chart's (gitea-runner-secret.yaml), the one Gitea
+is started with.
 */ -}}
 apiVersion: apps/v1
 kind: Deployment
