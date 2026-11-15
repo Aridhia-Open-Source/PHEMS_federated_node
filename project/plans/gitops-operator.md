@@ -93,7 +93,7 @@ Design decisions:
   `values: {KEY: {secretKeyRef: {name, key}}}`. The source Secret is in the resource's own namespace.
 - **Names.** `metadata.name` is the nexus-api name (project, dataset, provider) or label (secret). A `Repository` is
   keyed by `spec.uri`; a `Project` refers to repositories by uri and datasets by name, as in the ADR examples.
-- **Templated resource names** for values entries with no name (repositories): slug of the uri.
+- **Templated resource names** for values entries with no name (repositories): `trigger-` or `results-` plus the slug of the uri, so one uri can be both.
 - **CRDs carry `helm.sh/resource-policy: keep`.** Uninstall never deletes the CRDs, so it cannot wipe config by
   cascade.
 - The CRD schema carries the same checks as `dagster/fncli/nodefile/schema.py` where OpenAPI can express them
