@@ -171,6 +171,10 @@ if [ "$RELEASE_EXISTS" = "true" ]; then
     "deployment/${RELEASE_NAME}-${DAGSTER_USER_DEPLOYMENT:-dagster-fn}" \
     "deployment/${RELEASE_NAME}-dagster-daemon" \
     "deployment/${RELEASE_NAME}-dagster-webserver"
+  # Only with operator.enabled
+  if kubectl get deployment nexus-operator -n "$NAMESPACE" > /dev/null 2>&1; then
+    kubectl rollout restart -n "$NAMESPACE" deployment/nexus-operator
+  fi
 fi
 
 kubectl config set-context \
