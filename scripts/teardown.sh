@@ -9,6 +9,9 @@ source .dev.env
 
 FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
 
+# Flux would install the node again behind the teardown
+./scripts/flux.sh check
+
 echo "=== Terminating tilt sessions =================================================="
 
 if command -v tilt &> /dev/null; then

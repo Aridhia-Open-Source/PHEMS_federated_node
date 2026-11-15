@@ -9,6 +9,8 @@ set -euo pipefail
 
 source .dev.env
 
+# Flux would put its own version back: the release is either Flux's or deploy's
+./scripts/flux.sh check
 ./scripts/deploy_owner.sh claim
 
 echo
