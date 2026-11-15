@@ -1,6 +1,7 @@
 {{- /*
 nodeConfig as custom resources (ADR 0032), for the operator to sync into nexus-api. Each entry's fields are its spec,
-as in the dev files; the name moves to metadata.name. A repository with no name is named by the slug of its uri.
+as in the dev files; the name moves to metadata.name. A repository with no name is named by its type and the slug
+of its uri (trigger-..., results-...), so one uri can be both; spec.uri stays the nexus-api key.
 */}}
 {{- $cfg := .Values.nodeConfig }}
 {{- range $cfg.providers }}
@@ -26,7 +27,7 @@ spec:
 {{- range $type, $repos := dict "trigger" ($cfg.repositories).triggers "results" ($cfg.repositories).results }}
 {{- range $repos }}
 {{- $path := regexReplaceAll "^https?://" (lower .uri) "" | trimSuffix "/" | trimSuffix ".git" }}
-{{- $slug := regexReplaceAll "[^a-z0-9]+" $path "-" | trunc 63 | trimAll "-" }}
+{{- $slug := regexReplaceAll "[^a-z0-9]+" (printf "%s-%s" $type $path) "-" | trunc 63 | trimAll "-" }}
 ---
 apiVersion: fn.aridhia.com/v1alpha1
 kind: Repository

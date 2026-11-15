@@ -66,7 +66,7 @@ tests:
           path: metadata.name
           value: cohort-study
 
-  - it: types a repository by its list and names it by the uri's slug unless named
+  - it: types a repository by its list and names it by its type and the uri's slug unless named
     values:
       - values/values-local.yaml
       - values/values-node-config.yaml
@@ -85,10 +85,10 @@ tests:
           value: results
       - equal:
           path: metadata.name
-          value: github-com-example-org-analysis-requests
+          value: trigger-github-com-example-org-analysis-requests
         documentSelector:
           path: metadata.name
-          value: github-com-example-org-analysis-requests
+          value: trigger-github-com-example-org-analysis-requests
       - equal:
           path: spec
           value:
@@ -97,4 +97,30 @@ tests:
             secret: analysis-repo-creds
         documentSelector:
           path: metadata.name
-          value: github-com-example-org-analysis-requests
+          value: trigger-github-com-example-org-analysis-requests
+
+  - it: names one uri listed as both trigger and results apart
+    set:
+      nodeConfig:
+        repositories:
+          triggers:
+            - uri: https://github.com/example-org/both
+              secret: creds
+          results:
+            - uri: https://github.com/example-org/both
+              secret: creds
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.type
+          value: trigger
+        documentSelector:
+          path: metadata.name
+          value: trigger-github-com-example-org-both
+      - equal:
+          path: spec.type
+          value: results
+        documentSelector:
+          path: metadata.name
+          value: results-github-com-example-org-both
