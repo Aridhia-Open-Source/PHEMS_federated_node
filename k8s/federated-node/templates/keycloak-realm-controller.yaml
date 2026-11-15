@@ -96,6 +96,17 @@ spec:
             items:
               - key: realms.json
                 path: realms.json
+        {{- /* operator-keycloak-creds joins kc-secrets in the one directory secrets_reader reads, so
+               ensure_realm_accounts resets fn-operator to the rotated password, never the one in env. */}}
         - name: kc-secrets
+          {{- if (.Values.operator).enabled }}
+          projected:
+            sources:
+              - secret:
+                  name: kc-secrets
+              - secret:
+                  name: operator-keycloak-creds
+          {{- else }}
           secret:
             secretName: kc-secrets
+          {{- end }}

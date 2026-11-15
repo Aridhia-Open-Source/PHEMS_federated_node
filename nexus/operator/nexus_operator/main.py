@@ -10,6 +10,7 @@ Run with `kopf run -m nexus_operator.main --standalone --namespace <ns> ...` (th
 
 import base64
 from functools import partial
+from pathlib import Path
 
 import kopf
 import requests
@@ -26,7 +27,20 @@ VERSION = "v1alpha1"
 FINALIZER = "fn.aridhia.com/nexus-sync"
 
 env = Settings()
-api = BackendAPI(BackendSession(BackendAdapter(base_url=env.nexus_api_url, username=env.user, password=env.password)))
+
+
+class RotatingPasswordAdapter(BackendAdapter):
+    """
+    Reads the password from the mounted Secret at every login, as build/kc-init/secrets_reader.py does for kc-secrets:
+    a credential rotation patches the Secret, and the next 401 logs in again with the new one, without a restart.
+    """
+
+    def login(self):
+        self.password = Path(env.password_file).read_text(encoding="utf-8").strip()
+        return super().login()
+
+
+api = BackendAPI(BackendSession(RotatingPasswordAdapter(base_url=env.nexus_api_url, username=env.user, password="")))
 
 
 def read_secret(namespace: str, name: str) -> tuple[dict[str, str], str]:

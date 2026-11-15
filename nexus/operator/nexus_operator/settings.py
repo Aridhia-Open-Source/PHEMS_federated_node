@@ -9,7 +9,8 @@ class Settings(BaseSettings):
 
     nexus_api_url: str = Field(alias="NEXUS_API_URL")
     user: str = Field(alias="OPERATOR_KC_USER")
-    password: str = Field(alias="OPERATOR_KC_PASSWORD")
+    # The mounted operator-keycloak-creds key, read at every login so a credential rotation needs no restart
+    password_file: str = Field(alias="OPERATOR_KC_PASSWORD_FILE")
     # How often every resource is synced again: puts back UI edits and sees a rotated source Secret
     sync_interval_seconds: float = Field(default=60, alias="OPERATOR_SYNC_INTERVAL_SECONDS")
     # How long a resource waits before a retry: a missing dependency, a refused delete, an API error
