@@ -17,13 +17,13 @@ Part 1, operator (ADR 0032):
 2. [x] Move the shared API client from `dagster/app` to `nexus/client/` (own pyproject; path dep compiled with each consumer; bake named context). Dagster and fncli tests pass.
 3. [x] CRDs + `nodeConfig` chart templates, schema, helm-unittest.
 4. [x] Kopf operator in `nexus/operator/`: sync to nexus-api, soft delete, status, Keycloak service client, RBAC, image, Tilt.
-5. [ ] Move experiment setup / e2e / demo onto `kubectl apply`; drop fncli `diff/apply/delete`; docs.
+5. [~] Move experiment setup / e2e / demo onto `kubectl apply`; drop fncli `diff/apply/delete`; docs.
 
 Part 2, Flux (ADR 0031), local with Gitea first:
 6. [x] Gitea Actions + `act_runner` in the bundled Gitea (dev only).
-7. [ ] Release workflow in Gitea Actions publishes chart + images as OCI.
-8. [ ] Flux in kind + test site repo in Gitea (HelmRelease, values, `nodeConfig`); scripted.
-9. [ ] Prove the loop: bump, revert, config edit. Doc it.
+7. [~] Release workflow in Gitea Actions publishes chart + images as OCI.
+8. [~] Flux in kind + test site repo in Gitea (HelmRelease, values, `nodeConfig`); scripted.
+9. [~] Prove the loop: bump, revert, config edit. Doc it.
 10. Later, separate PR: GitHub Actions port, release bundle, SOPS, Pulumi (not started yet).
 
 ## Refined plan
@@ -64,3 +64,10 @@ Detail per step (files, decisions, risks, done, tests): `project/plans/gitops-op
 - Update: #656 operator done (6 commits pushed, package `nexus/operator/nexus_operator/`, tests pass). Check its assumed CRD spec/status fields against #654 before merging (status needs `sourceVersions`). Left: operator CI + pylint task, image build, cluster check.
 - #655 Gitea Actions done but commit e0edcdd3c is NOT pushed: the agent's push was refused; waiting on codepint's OK to push it.
 - Stopped at 95% of the 5h limit.
+
+## State 2026-11-15 (evening)
+- Merged into feat/gitops-operator: #654 CRDs, #655 Gitea Actions, #656 operator, #657 release + Flux; all review findings fixed (threads replied). Chart tests 213/213.
+- Running at stop: step 5 on #658 (`gitops-dev-apply` worktree, Opus). Merge it when done, then review it.
+- Steps 7-9 are written but never run: the dev cluster is owned by `feat/proxy-ca` (claimed 16:10). Next: get the cluster, `mise run deploy` from this worktree, check the operator syncs, a hello-world Gitea workflow, then `mise run flux up` and the loop in `docs/versions/2.x/docs/GitOps-Delivery.md`.
+- Known gap outside this work: Dagster's Keycloak password is env, so rotation needs a restart.
+- Stopped at 93% of the 5h limit.
