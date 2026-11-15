@@ -2,11 +2,11 @@
 
 A trigger repository is polled once and each pull request is stored once, however many projects assign it. Each project keeps its own project resource, flags, cursor, triggers, tasks and results. The GlobalResources (Secret, dataset, repositories) are shared, so an edit to one reaches both projects. These cases check that the two projects stay independent where they should and move together where they must.
 
-Needs: the dev project (called here "the first project") and a second project from `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y` (it has the same Secrets, dataset, trigger repository and results repository assigned, with the same settings, and is enabled). Look at either with `fncli project-show` and `fncli project-show --project QaTwo`. `fncli delete -f examples/projects/e2e-second-projects.yaml -y` removes the second project and leaves the GlobalResources. For a third project use the name `QaThree`.
+Needs: the dev project (called here "the first project") and a second project from `kubectl apply -f config/e2e/qa-two.yaml` (it has the same Secrets, dataset, trigger repository and results repository assigned, with the same settings, and is enabled). Look at either with `fncli project-show` and `fncli project-show --project qa-two`. `kubectl delete -f config/e2e/qa-two.yaml` removes the second project and leaves the GlobalResources. For a third project use the name `qa-three`.
 
 ## One pull request gives each project its own trigger and task
 
-1. `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y`.
+1. `kubectl apply -f config/e2e/qa-two.yaml`.
 2. `fncli open-pr --kind watched --merge`.
 3. Look at both projects until both tasks finish.
 
@@ -18,11 +18,11 @@ Needs: the dev project (called here "the first project") and a second project fr
 
 ## Revoking one project's resource leaves the other project working
 
-1. With both projects set up: `fncli resource-set trigger --revoked true --project QaTwo`.
+1. With both projects set up: `fncli resource-set trigger --revoked true --project qa-two`.
 2. Let tasks finish, note both projects' counts, merge a watched pull request.
-3. `fncli resource-set trigger --revoked false --project QaTwo` when done.
+3. `fncli resource-set trigger --revoked false --project qa-two` when done.
 
-- **Expected:** the first project gets the pull request, a trigger and a task. `QaTwo` gets nothing (its project resource is inactive). The pull request is stored once.
+- **Expected:** the first project gets the pull request, a trigger and a task. `qa-two` gets nothing (its project resource is inactive). The pull request is stored once.
 - **Rule:** the project resource is the permission boundary; revoking it stops only that connection ([Global resources and project resources]).
 - **Automated by:** Partly automated: the same end-to-end group (revokes the second project's resource); `nexus/api/tests/test_trigger_repositories_and_resources.py` (`test_two_projects_assign_one_repo_independently`). It does not un-revoke and check the gap on the second project.
 - [ ] Pass
@@ -30,8 +30,8 @@ Needs: the dev project (called here "the first project") and a second project fr
 
 ## Switching a GlobalResource off stops both; switching a project resource off stops one
 
-1. `fncli resource-set trigger --enabled false --project QaTwo`. Merge a watched pull request. Compare the two projects.
-2. `fncli resource-set trigger --enabled true --project QaTwo`.
+1. `fncli resource-set trigger --enabled false --project qa-two`. Merge a watched pull request. Compare the two projects.
+2. `fncli resource-set trigger --enabled true --project qa-two`.
 3. `fncli global-set trigger --enabled false`. Merge a watched pull request. Compare.
 4. `fncli global-set trigger --enabled true`. Compare after five intervals.
 
@@ -43,7 +43,7 @@ Needs: the dev project (called here "the first project") and a second project fr
 
 ## A project with a different `watch_dir` matches different pull requests
 
-1. `PATCH /projects/<pid>/repositories/triggers/<id>` on `QaTwo` with a different `watch_dir` (for example `triggers2`).
+1. `PATCH /projects/<pid>/repositories/triggers/<id>` on `qa-two` with a different `watch_dir` (for example `triggers2`).
 2. Merge a watched pull request that adds a file under the first project's `watch_dir` only, then one under `triggers2` only (commit the file by hand in Gitea).
 
 - **Expected:** each pull request gets a trigger and a task only in the project whose `watch_dir` holds the file. Both are stored once.
@@ -80,7 +80,7 @@ Do this with the launcher stopped (see "Make a change while a task is still PEND
 
 ## Deleting one project leaves the other and the GlobalResources
 
-1. With both projects set up and a finished task in each, `fncli delete -f examples/projects/e2e-second-projects.yaml -y`.
+1. With both projects set up and a finished task in each, `kubectl delete -f config/e2e/qa-two.yaml`.
 2. `fncli project-show`, `GET /global/repositories/triggers`, `GET /global/datasets`.
 3. Merge another watched pull request.
 
@@ -92,7 +92,7 @@ Do this with the launcher stopped (see "Make a change while a task is still PEND
 
 ## Three projects on one repository
 
-1. `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y` and `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaThree -y`.
+1. `kubectl apply -f config/e2e/qa-two.yaml -f config/e2e/qa-three.yaml`.
 2. Merge three watched pull requests, one after the other, without waiting.
 3. When everything has settled, count tasks and results per project.
 

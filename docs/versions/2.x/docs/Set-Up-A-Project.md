@@ -67,7 +67,7 @@ GitHub OAuth Apps (user tokens) are not supported. To withdraw the node's access
 
 ### Gitea
 
-Gitea is the development host. The chart can run one for you (`gitea.enabled`), and `fncli apply` creates and authorises the OAuth2 application for you: see [Using fncli](./Using-fncli). The chart pins Gitea's `INVALIDATE_REFRESH_TOKENS=false`, which makes concurrent refreshes safe. A Gitea repository that goes unused for 30 days loses its refresh token and needs authorising again.
+Gitea is the development host. The chart can run one for you (`gitea.enabled`), and `fncli gitea setup` creates and authorises the OAuth2 application for you: see [Using fncli](./Using-fncli). The chart pins Gitea's `INVALIDATE_REFRESH_TOKENS=false`, which makes concurrent refreshes safe. A Gitea repository that goes unused for 30 days loses its refresh token and needs authorising again.
 
 
 ## 1. Secrets
