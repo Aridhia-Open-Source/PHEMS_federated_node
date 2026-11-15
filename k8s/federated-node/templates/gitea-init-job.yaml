@@ -1,4 +1,43 @@
 {{- if .Values.gitea.enabled }}
+{{- if .Values.gitea.actions.runner.enabled }}
+{{- /* The job writes the runner registration token to a secret. Create cannot be limited by name. */}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gitea-admin-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{ include "defaultLabels" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}-gitea-admin-init
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: [{{ .Values.gitea.actions.runner.secret.name | quote }}]
+  verbs: ["patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}-gitea-admin-init
+  namespace: {{ .Release.Namespace }}
+subjects:
+- kind: ServiceAccount
+  name: gitea-admin-init
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}-gitea-admin-init
+  apiGroup: rbac.authorization.k8s.io
+---
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -16,6 +55,9 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      {{- if .Values.gitea.actions.runner.enabled }}
+      serviceAccountName: gitea-admin-init
+      {{- end }}
       initContainers:
       - name: wait-for-gitea
         image: "{{ .Values.gitea.image.repository }}:{{ .Values.gitea.image.tag | default .Chart.AppVersion }}"
@@ -55,13 +97,30 @@ spec:
           users=$(gitea -C /data/gitea admin user list)
           if echo "$users" | awk -v u="$GITEA_ADMIN_USER" '$2 == u { found = 1 } END { exit !found }'; then
             echo "Admin user $GITEA_ADMIN_USER already exists"
-            exit 0
+          else
+            gitea -C /data/gitea admin user create \
+              --username "$GITEA_ADMIN_USER" \
+              --password "$GITEA_ADMIN_PASS" \
+              --email "$GITEA_ADMIN_EMAIL" \
+              --admin
           fi
-          gitea -C /data/gitea admin user create \
-            --username "$GITEA_ADMIN_USER" \
-            --password "$GITEA_ADMIN_PASS" \
-            --email "$GITEA_ADMIN_EMAIL" \
-            --admin
+          {{- if .Values.gitea.actions.runner.enabled }}
+          # The same token comes back until a new one is asked for, so a rerun is harmless.
+          # `gitea actions generate-runner-token` needs the server on localhost, which this pod has not.
+          response=$(curl -fsS -X POST -u "$GITEA_ADMIN_USER:$GITEA_ADMIN_PASS" \
+            http://gitea.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.gitea.service.http.port | default 4000 }}/api/v1/admin/actions/runners/registration-token)
+          token=$(echo "$response" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+          test -n "$token"
+          sa=/var/run/secrets/kubernetes.io/serviceaccount
+          # Server-side apply creates the secret or replaces its token
+          curl -fsS -X PATCH \
+            --cacert $sa/ca.crt \
+            -H "Authorization: Bearer $(cat $sa/token)" \
+            -H "Content-Type: application/apply-patch+yaml" \
+            "https://kubernetes.default.svc/api/v1/namespaces/{{ .Release.Namespace }}/secrets/{{ .Values.gitea.actions.runner.secret.name }}?fieldManager=gitea-admin-init&force=true" \
+            -d "{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"name\":\"{{ .Values.gitea.actions.runner.secret.name }}\"},\"data\":{\"{{ .Values.gitea.actions.runner.secret.key }}\":\"$(printf %s "$token" | base64 -w0)\"}}"
+          echo "Runner registration token stored in secret {{ .Values.gitea.actions.runner.secret.name }}"
+          {{- end }}
         env:
         - name: GITEA_ADMIN_USER
           value: {{ .Values.gitea.admin.user | default "gitea_admin" | quote }}

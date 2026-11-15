@@ -1,0 +1,69 @@
+{{- if and .Values.gitea.enabled .Values.gitea.actions.runner.enabled }}
+{{- /*
+Dev only (values.schema.json refuses it without local_development): the dind sidecar is privileged.
+The runner talks to the Docker daemon in the sidecar over a unix socket on a shared emptyDir, so
+the daemon listens on no port. The registration token is in the secret gitea-admin-init writes;
+until that job has run, the pod waits on the missing secret.
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea-runner
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-runner
+    release: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitea-runner
+  template:
+    metadata:
+      labels:
+        app: gitea-runner
+    spec:
+      containers:
+      - name: runner
+        image: "{{ .Values.gitea.actions.runner.image.repository }}:{{ .Values.gitea.actions.runner.image.tag }}"
+        imagePullPolicy: {{ .Values.gitea.actions.runner.image.pullPolicy }}
+        command:
+        - sh
+        - -c
+        - |
+          while [ ! -S /var/run/docker.sock ]; do
+            echo "waiting for the docker daemon..."
+            sleep 2
+          done
+          exec /sbin/tini -- run.sh
+        env:
+        - name: GITEA_INSTANCE_URL
+          value: "http://gitea.{{ .Release.Namespace }}.svc:{{ .Values.gitea.service.http.port | default 4000 }}"
+        - name: GITEA_RUNNER_REGISTRATION_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.gitea.actions.runner.secret.name }}
+              key: {{ .Values.gitea.actions.runner.secret.key }}
+        - name: GITEA_RUNNER_LABELS
+          value: {{ .Values.gitea.actions.runner.labels | quote }}
+        - name: DOCKER_HOST
+          value: unix:///var/run/docker.sock
+        volumeMounts:
+        - name: docker-socket
+          mountPath: /var/run
+      - name: dind
+        image: "{{ .Values.gitea.actions.runner.dind.image.repository }}:{{ .Values.gitea.actions.runner.dind.image.tag }}"
+        imagePullPolicy: {{ .Values.gitea.actions.runner.dind.image.pullPolicy }}
+        # Not the image's default arguments: they add a plain-text tcp listener on 2375.
+        args:
+        - dockerd
+        - --host=unix:///var/run/docker.sock
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: docker-socket
+          mountPath: /var/run
+      volumes:
+      - name: docker-socket
+        emptyDir: {}
+{{- end }}

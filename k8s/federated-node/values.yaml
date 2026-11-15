@@ -516,3 +516,24 @@ gitea:
     enabled: true
     accessTokenExpirationTime: 3600
     invalidateRefreshTokens: false
+
+  # Gitea Actions, the CI the dev release workflow runs in. The runner is dev only: it runs a
+  # privileged Docker-in-Docker sidecar, so the schema refuses it unless local_development is true.
+  # gitea-admin-init puts the runner registration token in the secret below.
+  actions:
+    enabled: false
+    runner:
+      enabled: false
+      image:
+        repository: gitea/act_runner
+        tag: 0.6.1
+        pullPolicy: IfNotPresent
+      dind:
+        image:
+          repository: docker
+          tag: 29.9.3-dind
+          pullPolicy: IfNotPresent
+      labels: "ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"
+      secret:
+        name: gitea-runner-token
+        key: token
