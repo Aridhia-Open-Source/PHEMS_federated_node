@@ -9,9 +9,9 @@ import requests
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from .dtos.healthcheck import NodeHealthDTO
-from .helpers.exceptions import AuthenticationError, InvalidRequest
-from .helpers.keycloak import URLS, Keycloak
+from app.dtos.healthcheck import NodeHealthDTO
+from app.helpers.exceptions import AuthenticationError, InvalidRequest
+from app.helpers.keycloak import URLS, Keycloak
 
 router = APIRouter(tags=["main"])
 
