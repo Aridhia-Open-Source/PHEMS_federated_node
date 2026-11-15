@@ -120,12 +120,11 @@ firstUserSecret:
   lastName: User
   email: dev.user+admin@example.org
 
-# The break-glass superuser, which alone may release a record from its owner group. deploy.sh writes
-# KEYCLOAK_SUPERUSER_USERNAME and KEYCLOAK_SUPERUSER_PASSWORD from .dev.env into this secret.
-superuserSecret:
-  name: keycloak-superuser
-  userKey: USERNAME
-  passKey: PASSWORD
+# The nexus operator (ADR 0032). Turned on with operator.enabled; watchNamespaces (experiments) comes with step 5,
+# once that namespace exists before the deploy.
+operator:
+  image: localhost:5001/nexus-operator-fn
+  tag: *devTag
 
 ## Subcharts
 

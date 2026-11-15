@@ -14,6 +14,7 @@ from functools import partial
 import kopf
 import requests
 from kubernetes import client, config
+from kubernetes.client.exceptions import ApiException
 
 from nexus_client.api import BackendAPI
 from nexus_client.http import BackendAdapter, BackendSession
@@ -30,7 +31,12 @@ api = BackendAPI(BackendSession(BackendAdapter(base_url=env.nexus_api_url, usern
 
 def read_secret(namespace: str, name: str) -> tuple[dict[str, str], str]:
     """A source Secret in the resource's own namespace: its decoded data and resourceVersion"""
-    secret = client.CoreV1Api().read_namespaced_secret(name, namespace)
+    try:
+        secret = client.CoreV1Api().read_namespaced_secret(name, namespace)
+    except ApiException as error:
+        if error.status == 404:
+            raise kopf.TemporaryError(f"waiting for Secret {name}") from error
+        raise
     data = {key: base64.b64decode(value).decode() for key, value in (secret.data or {}).items()}
     return data, secret.metadata.resource_version
 
