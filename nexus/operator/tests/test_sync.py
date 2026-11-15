@@ -51,18 +51,25 @@ def test_secret_sent_only_when_a_source_changed(api):
     def read(namespace, name):
         return sources[name]
 
-    result = sync.sync_secret(api, "creds", spec, "fn", read, {"db": "5"})
+    result = sync.sync_secret(api, "creds", spec, "fn", read, {"db": "5"}, False)
     assert not result.changed
     api.upsert_secret.assert_not_called()
 
-    result = sync.sync_secret(api, "creds", spec, "fn", read, {"db": "4"})
+    result = sync.sync_secret(api, "creds", spec, "fn", read, {"db": "4"}, False)
     api.upsert_secret.assert_called_once_with("creds", {"USERNAME": "u", "PASSWORD": "p"})
     assert result.status == {"sourceVersions": {"db": "5"}}
 
 
+def test_secret_sent_when_the_spec_changed_with_the_same_source(api):
+    spec = {"values": {"TOKEN": {"secretKeyRef": {"name": "db", "key": "b"}}}}
+    result = sync.sync_secret(api, "creds", spec, "fn", lambda ns, n: ({"a": "1", "b": "2"}, "5"), {"db": "5"}, True)
+    api.upsert_secret.assert_called_once_with("creds", {"TOKEN": "2"})
+    assert result.changed
+
+
 def test_secret_sent_when_the_record_is_missing(api):
     api.get_secrets.return_value = []
-    sync.sync_secret(api, "creds", {"fromSecret": {"name": "app"}}, "fn", lambda ns, n: ({"APP_ID": "1"}, "3"), {"app": "3"})
+    sync.sync_secret(api, "creds", {"fromSecret": {"name": "app"}}, "fn", lambda ns, n: ({"APP_ID": "1"}, "3"), {"app": "3"}, False)
     api.upsert_secret.assert_called_once_with("creds", {"APP_ID": "1"})
 
 
