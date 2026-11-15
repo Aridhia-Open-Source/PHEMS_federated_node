@@ -263,7 +263,7 @@ reconcile per upgrade in this local setup only.
 
 Done: `mise run flux up` on a deployed dev cluster ends with `flux get hr` Ready at the pinned version.
 
-Test: `mise run helm template -f site-example/values.yaml`; shellcheck on `scripts/flux.sh`.
+Test: `mise run helm template --values site-example/values.yaml`; shellcheck on `scripts/flux.sh`.
 
 ### Step 9. Prove the loop and write it down
 
