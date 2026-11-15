@@ -1,0 +1,12 @@
+# The dev cluster's Gitea as a git provider (ADR 0032). Every Gitea repository in config/ is on it, so it is kept in
+# its own file: `kubectl delete -f` of a project's file never takes it with it.
+#   kubectl apply -f config/gitea.yaml
+apiVersion: fn.aridhia.com/v1alpha1
+kind: GitProvider
+metadata:
+  name: gitea-local
+  namespace: fn
+spec:
+  type: gitea
+  uri: http://gitea.fn.svc:4000                    # as the node sees it, not the port-forward
+  apiUri: http://gitea.fn.svc:4000/api/v1
