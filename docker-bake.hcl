@@ -28,6 +28,7 @@ group "default" {
     "nexus-api-fn",
     "nexus-ui-fn",
     "nexus-ui-dev-fn",
+    "nexus-operator-fn",
   ]
 }
 
@@ -45,6 +46,13 @@ target "dagster-fn" {
   context  = "dagster"
   contexts = { nexus-client = "nexus/client" }
   tags     = tags("dagster-fn")
+}
+
+# The Kopf operator (nexus/operator), with the shared nexus-api client like Dagster
+target "nexus-operator-fn" {
+  context  = "nexus/operator"
+  contexts = { nexus-client = "nexus/client" }
+  tags     = tags("nexus-operator-fn")
 }
 
 target "alpine-fn" {
@@ -97,4 +105,10 @@ target "release-kc-init" {
 target "release-dagster" {
   inherits = ["dagster-fn"]
   tags     = ["ghcr.io/aridhia-open-source/dagster_fn:${TAG}"]
+}
+
+# Not in the release group yet: the release workflow adds the nexus images (gitops plan, step 7)
+target "release-nexus-operator" {
+  inherits = ["nexus-operator-fn"]
+  tags     = ["ghcr.io/aridhia-open-source/nexus_operator:${TAG}"]
 }
