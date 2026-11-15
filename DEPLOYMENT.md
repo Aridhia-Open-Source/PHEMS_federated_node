@@ -178,7 +178,7 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 ### Behind a TLS-intercepting proxy
 
-Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `./scripts/setup-proxy-ca.sh --ca-file PATH --proxy URL` sets up the machine side. The two settings below are optional dev tooling and do nothing when unset.
+Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `./scripts/setup-proxy-ca.sh --proxy URL [--ca-file PATH]` checks the proxy and CA and sets up the machine side. The two settings below are optional dev tooling and do nothing when unset.
 
 - `CUSTOM_CA_FILE=/path/ca.pem` in `.dev.env`, set before `mise run cluster up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in a Secret and set `customCA.secretName`, so the pods trust it for outbound TLS.
 
@@ -222,7 +222,7 @@ An optional alternative to installing the tools on your machine. Open the repo i
 - Its venvs live in the container (`/home/vscode/venvs/`), not in the checkout, so they don't clash with yours.
 - Installed tools are kept in the `fn-mise-data` volume, so rebuilds and other worktrees' containers reuse them.
 - The cluster ownership rules apply inside it as well: it's the same cluster.
-- Behind a TLS-inspecting proxy it trusts the CA that `CUSTOM_CA_FILE` in `.dev.env` names (see [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md)): it is copied in read-only and added to the container's system trust on create, so rebuild the container after setting the CA up. With no CA nothing changes.
+- Behind a TLS-inspecting proxy it trusts the CA that `CUSTOM_CA_FILE` in `.dev.env` names (see [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md)): before the image is built, `scripts/setup-proxy-ca.sh --devcontainer` (the `initializeCommand`) checks the proxy and the CA and copies it to `.devcontainer/proxy-ca.crt`, and the image build adds it to the container's system trust. Rebuild the container after setting the CA up. With no CA nothing changes.
 
 ## Deploy to production
 

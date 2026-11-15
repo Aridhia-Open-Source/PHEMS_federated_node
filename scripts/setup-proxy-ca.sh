@@ -5,49 +5,66 @@ set -euo pipefail
 # Federated Node - proxy CA setup
 #
 # For a machine behind a TLS-intercepting proxy, or one that must trust a private CA:
-# trust the CA, point Docker and this repo's tooling at the proxy, then check it works.
-# Guide: PROXY_CA_SETUP.md
+# check that the proxy and the CA work, then point Docker and this repo's tooling at the
+# proxy. The same script serves the host and the dev container. Guide: PROXY_CA_SETUP.md
 #
-#   ./scripts/setup-proxy-ca.sh --ca-file PATH [--proxy URL] [--yes] [--dry-run]
+#   ./scripts/setup-proxy-ca.sh [--proxy URL] [--ca-file PATH] [--yes] [--dry-run]
+#   ./scripts/setup-proxy-ca.sh --devcontainer [--dry-run]
 #   ./scripts/setup-proxy-ca.sh --undo [--yes] [--dry-run]
 #
-#   --ca-file PATH  the CA as a PEM file (one certificate or a bundle); or set CUSTOM_CA_FILE
 #   --proxy URL     for example http://proxy.example.org:8080; defaults to HTTPS_PROXY
-#                   if set. Without one, only the CA is set up.
+#   --ca-file PATH  the proxy's CA as a PEM file (one certificate or a bundle), installed
+#                   into the system trust store. Without it the system CA bundle is used
+#                   as it is: your OS store must already trust the proxy's CA.
+#   --devcontainer  what the dev container's initializeCommand runs on the host, without
+#                   sudo: reads CUSTOM_CA_FILE and the proxy from .dev.env, runs the
+#                   checks, and copies the bundle to .devcontainer/proxy-ca.crt (an empty
+#                   file when .dev.env has no CUSTOM_CA_FILE: no proxy). Writes nothing else.
 #   --yes           do not ask
 #   --dry-run       show every change and make none
-#   --undo          remove what a previous run added
+#   --undo          remove what a previous run added (runs no checks)
 #
-# Each step is skipped if it is already done: the CA in the system trust store, a Docker
-# daemon proxy drop-in (systemd only; Docker restarts, which stops running containers), the
-# Docker client proxy in ~/.docker/config.json (image builds and containers you start), and
-# a managed block in .dev.env with CUSTOM_CA_FILE and the proxy and CA-bundle variables.
+# Every other run, --dry-run and --devcontainer included, first checks, before anything is
+# written, that the CA bundle is PEM, that a proxy is set, and that registry-1.docker.io,
+# pypi.org and github.com verify through the proxy against the bundle (with --ca-file: the
+# bundle plus that CA). CUSTOM_CA_FILE in .dev.env names the system bundle.
+#
+# Each step is skipped if it is already done: the CA in the system trust store (only with
+# --ca-file), a Docker daemon proxy drop-in (systemd only; Docker restarts, which stops
+# running containers), the Docker client proxy in ~/.docker/config.json (image builds and
+# containers you start), and a managed block in .dev.env with CUSTOM_CA_FILE, the proxy and
+# the CA-bundle variables.
 ####################################################################################
 
 cd "$(dirname "$0")/.."
 
-CA_FILE="${CUSTOM_CA_FILE:-}"
+CA_FILE=""
 PROXY="${HTTPS_PROXY:-${https_proxy:-}}"
 YES=0
 DRY=0
 UNDO=0
+DEVCONTAINER=0
+BUNDLE=""
+CHECK_BUNDLE=""
 
 START="# >>> setup-proxy-ca >>>"
 END="# <<< setup-proxy-ca <<<"
 DOCKER_DROPIN=/etc/systemd/system/docker.service.d/http-proxy.conf
 DOCKER_CONFIG_FILE="${DOCKER_CONFIG:-$HOME/.docker}/config.json"
+DEVCONTAINER_CA=.devcontainer/proxy-ca.crt
 LOCAL_NO_PROXY="localhost,127.0.0.1,kind-registry,proxy-docker-hub-registry,proxy-ghcr-registry"
 
 ok()   { printf '  [%s]   %s\n' "$([ "$DRY" = 1 ] && echo dry || echo ok)" "$*"; }
 skip() { printf '  [skip] %s\n' "$*"; }
 warn() { printf '  [warn] %s\n' "$*" >&2; }
 die()  { printf '  [FAIL] %s\n' "$*" >&2; exit 1; }
-usage() { sed -n '5,22p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '5,36p' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --ca-file) CA_FILE="${2:?--ca-file needs a path}"; shift 2 ;;
     --proxy) PROXY="${2:?--proxy needs a URL}"; shift 2 ;;
+    --devcontainer) DEVCONTAINER=1; shift ;;
     --yes) YES=1; shift ;;
     --dry-run) DRY=1; shift ;;
     --undo) UNDO=1; shift ;;
@@ -71,6 +88,65 @@ confirm() {
   read -r -p "  $1 [y/N] " answer
   [[ "$answer" =~ ^[Yy]$ ]]
 }
+
+# The last value of a variable in .dev.env, whatever else is in the file; empty if none.
+dev_env() {
+  [ -f .dev.env ] || return 0
+  sed -n "s/^\(export \)\{0,1\}$1=//p" .dev.env | tail -n 1 | tr -d "\"'"
+}
+
+# $1 must be a PEM file with at least one certificate; $2 says what it is.
+require_pem() {
+  [ -s "$1" ] || die "$2: $1 is missing or empty"
+  grep -q -e '-----BEGIN CERTIFICATE-----' "$1" \
+    || die "$2: $1 is not a PEM certificate: it should contain -----BEGIN CERTIFICATE-----. For a .cer or .der file: openssl x509 -inform der -in file.cer -out ca.pem"
+}
+
+# The proxy is set, and three hosts verify through it against the bundle (any HTTP status
+# is a pass: the TLS handshake is what matters, Docker Hub answers 401 here).
+check_proxy() {
+  [ -n "$PROXY" ] || die "no proxy: give --proxy URL, or set HTTPS_PROXY"
+  command -v curl >/dev/null || die "curl is needed for the checks: install it first"
+  echo "Checks: the proxy $PROXY and the CA bundle ${CHECK_BUNDLE:-$BUNDLE}"
+  local url host rc err why failed=0
+  for url in https://registry-1.docker.io/v2/ https://pypi.org/simple/ https://github.com; do
+    host="${url#https://}"
+    host="${host%%/*}"
+    rc=0
+    err="$(curl -sS -o /dev/null --proxy "$PROXY" --cacert "${CHECK_BUNDLE:-$BUNDLE}" --connect-timeout 10 "$url" 2>&1)" || rc=$?
+    if [ "$rc" = 0 ]; then
+      printf '  [ok]   %s verifies through the proxy\n' "$host"
+      continue
+    fi
+    failed=1
+    case "$rc" in
+      35|51|58|60|77) why="certificate problem: the CA bundle does not match the proxy's certificates (a wrong CA, or an intermediate is missing). Ask IT for the full chain." ;;
+      *) why="proxy or connection problem: check the proxy address, and that this machine can reach it." ;;
+    esac
+    printf '  [FAIL] %s (curl exit %s): %s\n         %s\n' "$host" "$rc" "$err" "$why" >&2
+  done
+  [ "$failed" = 0 ] || die "a check failed, nothing was changed: see PROXY_CA_SETUP.md, 'If something fails'"
+}
+
+###############################################################################
+# DEV CONTAINER (runs on the host before the image build)
+###############################################################################
+if [ "$DEVCONTAINER" = 1 ]; then
+  BUNDLE="$(dev_env CUSTOM_CA_FILE)"
+  if [ -z "$BUNDLE" ]; then
+    echo "No CUSTOM_CA_FILE in .dev.env: not behind a proxy, the dev container gets no CA"
+    run cp /dev/null "$DEVCONTAINER_CA"
+    exit 0
+  fi
+  require_pem "$BUNDLE" "CUSTOM_CA_FILE in .dev.env"
+  dev_proxy="$(dev_env HTTPS_PROXY)"
+  [ -n "$dev_proxy" ] || dev_proxy="$(dev_env https_proxy)"
+  PROXY="${dev_proxy:-$PROXY}"
+  check_proxy
+  run cp -f "$BUNDLE" "$DEVCONTAINER_CA"
+  ok "$BUNDLE copied to $DEVCONTAINER_CA"
+  exit 0
+fi
 
 if command -v update-ca-certificates >/dev/null; then
   TRUST_DIR=/usr/local/share/ca-certificates
@@ -102,16 +178,22 @@ has_docker_service() {
   [ -d /run/systemd/system ] && systemctl cat docker.service >/dev/null 2>&1
 }
 
+# DEV_PROXY_URL set in .dev.env outside the managed block (deploy.sh turns it into the
+# chart's proxy values); empty if none.
+dev_proxy_outside() {
+  [ -f .dev.env ] || return 0
+  drop_block | sed -n 's/^\(export \)\{0,1\}DEV_PROXY_URL=//p' | tail -n 1 | tr -d "\"'"
+}
+
 env_block() {
   echo "$START managed by scripts/setup-proxy-ca.sh, remove with --undo"
-  echo "export CUSTOM_CA_FILE=$TRUST_FILE"
+  echo "export CUSTOM_CA_FILE=$BUNDLE"
   for v in SSL_CERT_FILE REQUESTS_CA_BUNDLE CURL_CA_BUNDLE GIT_SSL_CAINFO PIP_CERT; do
     echo "export $v=$BUNDLE"
   done
-  if [ -n "$PROXY" ]; then
-    for v in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy; do echo "export $v=$PROXY"; done
-    for v in NO_PROXY no_proxy; do echo "export $v=$NO_PROXY_ALL"; done
-  fi
+  for v in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy; do echo "export $v=$PROXY"; done
+  for v in NO_PROXY no_proxy; do echo "export $v=$NO_PROXY_ALL"; done
+  [ -n "$OUTSIDE_PROXY" ] || echo "export DEV_PROXY_URL=$PROXY"
   echo "$END"
 }
 
@@ -158,25 +240,29 @@ if [ "$UNDO" = 1 ]; then
 fi
 
 ###############################################################################
-# CHECK THE CA
+# CHECKS (before anything is written)
 ###############################################################################
-[ -n "$CA_FILE" ] || { usage >&2; die "give the CA with --ca-file PATH (a PEM file from your IT team)"; }
-[ -s "$CA_FILE" ] || die "$CA_FILE is missing or empty"
-grep -q -e '-----BEGIN CERTIFICATE-----' "$CA_FILE" \
-  || die "$CA_FILE is not a PEM certificate: it should start with -----BEGIN CERTIFICATE-----. For a .cer or .der file: openssl x509 -inform der -in file.cer -out ca.pem"
-command -v openssl >/dev/null || die "openssl is needed to check the CA: install it first"
-CA_FILE="$(cd "$(dirname "$CA_FILE")" && pwd)/$(basename "$CA_FILE")"
-openssl x509 -in "$CA_FILE" -noout >/dev/null 2>&1 || die "openssl cannot read $CA_FILE"
-openssl x509 -in "$CA_FILE" -noout -checkend 0 >/dev/null || die "this CA has expired: ask IT for the current one"
-
-echo "The CA to trust (the first certificate in $CA_FILE):"
-openssl x509 -in "$CA_FILE" -noout -subject -issuer -enddate -fingerprint -sha256 | sed 's/^/  /'
-if ! openssl x509 -in "$CA_FILE" -noout -text | grep -q "CA:TRUE"; then
-  warn "this does not look like a CA certificate (no CA:TRUE). A server certificate will not make the proxy's connections verify: ask IT for the root or issuing CA."
+require_pem "$BUNDLE" "the system CA bundle"
+if [ -n "$CA_FILE" ]; then
+  require_pem "$CA_FILE" "--ca-file"
+  command -v openssl >/dev/null || die "openssl is needed to check the CA: install it first"
+  CA_FILE="$(cd "$(dirname "$CA_FILE")" && pwd)/$(basename "$CA_FILE")"
+  openssl x509 -in "$CA_FILE" -noout >/dev/null 2>&1 || die "openssl cannot read $CA_FILE"
+  openssl x509 -in "$CA_FILE" -noout -checkend 0 >/dev/null || die "this CA has expired: ask IT for the current one"
+  echo "The CA to trust (the first certificate in $CA_FILE):"
+  openssl x509 -in "$CA_FILE" -noout -subject -issuer -enddate -fingerprint -sha256 | sed 's/^/  /'
+  if ! openssl x509 -in "$CA_FILE" -noout -text | grep -q "CA:TRUE"; then
+    warn "this does not look like a CA certificate (no CA:TRUE). A server certificate will not make the proxy's connections verify: ask IT for the root or issuing CA."
+  fi
+  echo
+  # The trust store does not have the CA yet, so check against what it will hold
+  CHECK_BUNDLE="$(mktemp)"
+  trap 'rm -f "$CHECK_BUNDLE"' EXIT
+  cat "$BUNDLE" "$CA_FILE" > "$CHECK_BUNDLE"
 fi
+check_proxy
 echo
-[ -z "$PROXY" ] && warn "no proxy given: only the CA is set up. Add --proxy URL if you are behind one."
-confirm "Trust this CA on this machine?" || die "stopped, nothing changed"
+[ -z "$CA_FILE" ] || confirm "Trust this CA on this machine?" || die "stopped, nothing changed"
 
 DOCKER_PENDING=0
 
@@ -184,7 +270,9 @@ DOCKER_PENDING=0
 # 1. System trust store
 ###############################################################################
 echo "1. System trust store"
-if [ -f "$TRUST_FILE" ] && cmp -s "$CA_FILE" "$TRUST_FILE"; then
+if [ -z "$CA_FILE" ]; then
+  skip "no --ca-file: the system bundle $BUNDLE is used as it is"
+elif [ -f "$TRUST_FILE" ] && cmp -s "$CA_FILE" "$TRUST_FILE"; then
   skip "CA already trusted"
 else
   run $SUDO install -m 0644 "$CA_FILE" "$TRUST_FILE"
@@ -196,9 +284,7 @@ fi
 # 2. Docker daemon proxy
 ###############################################################################
 echo "2. Docker daemon proxy"
-if [ -z "$PROXY" ]; then
-  skip "no proxy given"
-elif ! has_docker_service; then
+if ! has_docker_service; then
   warn "Docker is not a systemd service here (Docker Desktop, rootless or a container). Set the proxy in Docker yourself: HTTPS_PROXY=$PROXY NO_PROXY=$NO_PROXY_ALL, then restart Docker."
 else
   want="$(printf '[Service]\nEnvironment="HTTP_PROXY=%s"\nEnvironment="HTTPS_PROXY=%s"\nEnvironment="NO_PROXY=%s"' "$PROXY" "$PROXY" "$NO_PROXY_ALL")"
@@ -219,9 +305,7 @@ fi
 # 3. Docker client proxy: gives every docker build and docker run the proxy variables
 ###############################################################################
 echo "3. Docker client proxy (image builds, and containers you start)"
-if [ -z "$PROXY" ]; then
-  skip "no proxy given"
-elif ! command -v jq >/dev/null; then
+if ! command -v jq >/dev/null; then
   warn "jq is not installed. Add this to $DOCKER_CONFIG_FILE yourself: {\"proxies\": {\"default\": {\"httpProxy\": \"$PROXY\", \"httpsProxy\": \"$PROXY\", \"noProxy\": \"$NO_PROXY_ALL\"}}}"
 else
   want="$(jq -nc --arg p "$PROXY" --arg n "$NO_PROXY_ALL" '{httpProxy: $p, httpsProxy: $p, noProxy: $n}')"
@@ -249,6 +333,11 @@ if [ ! -f .dev.env ]; then
   run cp .dev.env.example .dev.env
   ok ".dev.env created from .dev.env.example (set KEYCLOAK_FIRST_USER_EMAIL and KEYCLOAK_FIRST_USER_PASSWORD in it)"
 fi
+# A DEV_PROXY_URL the developer set themselves stays as it is; the block adds one otherwise
+OUTSIDE_PROXY="$(dev_proxy_outside)"
+if [ -n "$OUTSIDE_PROXY" ] && [ "$OUTSIDE_PROXY" != "$PROXY" ]; then
+  warn "DEV_PROXY_URL in .dev.env is $OUTSIDE_PROXY, not the proxy checked here ($PROXY): left as it is"
+fi
 if [ -f .dev.env ] && [ "$(sed -n "\|^$START|,\|^$END|p" .dev.env)" = "$(env_block)" ]; then
   skip "block already there"
 elif [ "$DRY" = 1 ]; then
@@ -263,43 +352,25 @@ else
 fi
 
 ###############################################################################
-# 5. Check it works
+# 5. Docker
 ###############################################################################
-echo "5. Check"
+echo "5. Docker pull"
 if [ "$DRY" = 1 ]; then
-  echo "  would check https://ghcr.io with the new trust, and a docker pull"
+  echo "  would run a docker pull of ghcr.io/jqlang/jq:latest"
   exit 0
-fi
-failed=0
-check_env=(env)
-[ -z "$PROXY" ] || check_env+=("HTTPS_PROXY=$PROXY" "NO_PROXY=$NO_PROXY_ALL")
-if err="$("${check_env[@]}" curl -sS -o /dev/null -I -m 20 https://ghcr.io 2>&1)"; then
-  ok "https://ghcr.io verifies${PROXY:+ through the proxy}"
-else
-  failed=1
-  echo "  [FAIL] https://ghcr.io: $err" >&2
-  case "$err" in
-    *"unable to get local issuer"*|*"self-signed"*|*"certificate"*) echo "         The CA does not match the proxy's certificates, or an intermediate is missing. Ask IT for the full chain." >&2 ;;
-    *"Could not resolve"*|*"proxy"*|*"Connection refused"*|*"timed out"*) echo "         Check the proxy address, and that this machine can reach it." >&2 ;;
-  esac
-fi
-if [ "$DOCKER_PENDING" = 1 ]; then
+elif [ "$DOCKER_PENDING" = 1 ]; then
   skip "docker pull: restart Docker first, then run this script again"
 elif docker info >/dev/null 2>&1; then
   if docker pull -q ghcr.io/jqlang/jq:latest >/dev/null 2>&1; then
     ok "docker pull works"
   else
-    failed=1
-    echo "  [FAIL] docker pull ghcr.io/jqlang/jq:latest. Try it yourself for the error; then see PROXY_CA_SETUP.md" >&2
+    die "docker pull ghcr.io/jqlang/jq:latest failed. Try it yourself for the error; then see PROXY_CA_SETUP.md"
   fi
 else
   skip "docker pull: Docker is not running or not usable without sudo"
 fi
 echo
-if [ "$failed" = 1 ]; then
-  die "setup finished but a check failed: see PROXY_CA_SETUP.md, 'If something fails'"
-fi
 echo "Done. Open a new shell so the variables in .dev.env load (mise run loads them itself)."
-echo "Next: mise run setup, or mise run cluster up."
+echo "Next: mise run setup, or mise run cluster up. In the dev container, rebuild it so the CA is picked up."
 echo "Image builds get the CA as a build secret (needs BuildKit, Docker 23 or later)."
 echo "Known gap: the registry mirrors that mise run cluster up starts do not get the CA yet."

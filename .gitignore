@@ -55,5 +55,5 @@ docs/versions/*/.mkdocs.local.yml
 /triggers/*
 !/triggers/examples/
 
-# the proxy CA for the dev container image, written by .devcontainer/host-ca.sh
+# the proxy CA for the dev container image, written by scripts/setup-proxy-ca.sh --devcontainer
 .devcontainer/proxy-ca.crt

@@ -15,10 +15,12 @@
   // by its host path, so the main repo and its sibling worktrees must be visible where they are
   "workspaceMount": "source=${localWorkspaceFolder}/..,target=${localWorkspaceFolder}/..,type=bind",
   "workspaceFolder": "${localWorkspaceFolder}",
-  // Before the build: creates ~/.fn/data (a bind mount fails when its source is missing) and
-  // .devcontainer/proxy-ca.crt for the Dockerfile (the host's proxy CA, see PROXY_CA_SETUP.md,
-  // or an empty file when there is none)
-  "initializeCommand": "sh \"${localWorkspaceFolder}/.devcontainer/host-ca.sh\"",
+  // Runs on the host before the build: creates ~/.fn/data (a bind mount fails when its source is
+  // missing), then scripts/setup-proxy-ca.sh --devcontainer checks the proxy and the CA bundle
+  // that CUSTOM_CA_FILE in .dev.env names and copies it to .devcontainer/proxy-ca.crt for the
+  // Dockerfile, which trusts it when the image is built (an empty file when there is no CA).
+  // See PROXY_CA_SETUP.md
+  "initializeCommand": "mkdir -p \"$HOME/.fn/data\" && bash \"${localWorkspaceFolder}/scripts/setup-proxy-ca.sh\" --devcontainer",
   "mounts": [
     // Host kubeconfig, read-only and read live: a recreated cluster works without a restart
     "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube-host,type=bind,readonly",

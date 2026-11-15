@@ -1,6 +1,6 @@
 # Setting up behind a TLS-inspecting proxy
 
-Use this when your network sits behind a proxy that re-signs HTTPS traffic with its own certificate authority (CA), or when something the node talks to uses a private CA. One script does the machine side.
+Use this when your network sits behind a proxy that re-signs HTTPS traffic with its own certificate authority (CA), or when something the node talks to uses a private CA. One script does the machine side, and the same script serves the dev container.
 
 ## Do you need this?
 
@@ -13,8 +13,8 @@ Yes, if you see errors like these:
 
 ## What you need first
 
-1. **The CA file**, in PEM format. Ask your IT team for the root or issuing CA of the proxy. It starts with `-----BEGIN CERTIFICATE-----`. A `.cer` or `.der` file converts with `openssl x509 -inform der -in file.cer -out ca.pem`.
-2. **The proxy address**, for example `http://proxy.example.org:8080`. Your browser's proxy settings or `echo $HTTPS_PROXY` show it.
+1. **The proxy address**, for example `http://proxy.example.org:8080`. Your browser's proxy settings or `echo $HTTPS_PROXY` show it. The script uses `HTTPS_PROXY` when you do not give `--proxy`, and stops if there is none.
+2. **The proxy's CA, in your system trust store.** The script uses the system CA bundle (`/etc/ssl/certs/ca-certificates.crt`, or `/etc/pki/tls/certs/ca-bundle.crt` on Red Hat family systems), so sites the proxy does not intercept still verify. If your machine already trusts the proxy's CA (on WSL, for example, you may have added it to the Linux store yourself), you need nothing else. If not, ask your IT team for the CA file, in PEM format (the root or issuing CA of the proxy; it starts with `-----BEGIN CERTIFICATE-----`) and pass it with `--ca-file`. A `.cer` or `.der` file converts with `openssl x509 -inform der -in file.cer -out ca.pem`.
 3. **Docker working** without sudo (`docker info`), and `sudo` rights on this machine.
 
 ## Run it
@@ -22,35 +22,50 @@ Yes, if you see errors like these:
 Preview first. It changes nothing:
 
 ```bash
-./scripts/setup-proxy-ca.sh --ca-file /path/to/ca.pem --proxy http://proxy.example.org:8080 --dry-run
+./scripts/setup-proxy-ca.sh --proxy http://proxy.example.org:8080 --dry-run
 ```
 
 Then for real:
 
 ```bash
-./scripts/setup-proxy-ca.sh --ca-file /path/to/ca.pem --proxy http://proxy.example.org:8080
+./scripts/setup-proxy-ca.sh --proxy http://proxy.example.org:8080
 ```
 
-It shows the CA's name and fingerprint and asks you to confirm. Check the fingerprint with your IT team if you are unsure. Add `--yes` to skip the questions.
+If the proxy's CA is not in your system store yet, add `--ca-file /path/to/ca.pem`: the script then shows the CA's name and fingerprint, asks you to confirm (check the fingerprint with your IT team if you are unsure), and installs it into the system store. Add `--yes` to skip the questions.
 
 Docker has to restart for the proxy setting to apply. **That stops every running container, including a kind cluster.** The script asks first.
 
 Then open a new shell so the new variables load (`mise run` loads `.dev.env` itself). Continue with `mise run setup` (install [mise](https://mise.jdx.dev/) first on a fresh machine; run this script before that, so its download verifies), then `mise run cluster up`.
 
-In the dev container (see [DEPLOYMENT.md](DEPLOYMENT.md#dev-container)) there is nothing more to run: its image build copies the CA from `CUSTOM_CA_FILE` in `.dev.env` and trusts it, so rebuild the container after this script has run.
+## The checks
+
+Every run does these first, before anything is written, whatever the options (`--dry-run` included):
+
+1. The CA bundle is a PEM file with at least one certificate.
+2. A proxy is set.
+3. `registry-1.docker.io`, `pypi.org` and `github.com` verify through the proxy, using the bundle (with `--ca-file`, the system bundle plus that CA, since it is not installed yet). Any HTTP status passes: the TLS handshake is what matters, and Docker Hub answers `401` here.
+
+A failing check names the host and says whether it is a certificate problem (the bundle does not match what the proxy presents) or a proxy or connection problem (the address, or no route to it). The script then exits with an error and has changed nothing. `--undo` runs no checks.
+
+## In the dev container
+
+The dev container calls the same script. Its `initializeCommand` runs `scripts/setup-proxy-ca.sh --devcontainer` on your machine before the image is built (see [DEPLOYMENT.md](DEPLOYMENT.md#dev-container)). It reads `CUSTOM_CA_FILE` and the proxy from `.dev.env`, runs the checks above, and copies the bundle to `.devcontainer/proxy-ca.crt` (not committed). The image build splits it into one file per certificate and adds them to the container's system trust. It needs no sudo and writes nothing else. With no `CUSTOM_CA_FILE` in `.dev.env` (not behind a proxy) it skips the checks and the container gets no CA.
+
+So run the script on the machine first, then rebuild the container (**Dev Containers: Rebuild Container**) after any change.
 
 ## What it changes
 
 | What | Where |
 |---|---|
-| The CA, trusted by the whole machine | `/usr/local/share/ca-certificates/fn-proxy-ca.crt` |
+| The CA, trusted by the whole machine (only with `--ca-file`) | `/usr/local/share/ca-certificates/fn-proxy-ca.crt` |
 | The proxy for the Docker daemon | `/etc/systemd/system/docker.service.d/http-proxy.conf` |
 | The proxy for `docker build`, and for containers you start | `proxies.default` in `~/.docker/config.json` |
-| `CUSTOM_CA_FILE`, the proxy and the CA-bundle variables | a block marked `setup-proxy-ca` in `.dev.env` |
+| `CUSTOM_CA_FILE` (the system bundle, with the proxy's CA in it), the proxy and the CA-bundle variables | a block marked `setup-proxy-ca` in `.dev.env` |
+| `DEV_PROXY_URL`, the proxy the deployed pods use (`mise run deploy` turns it into the chart's `proxy.httpProxy` and `proxy.httpsProxy`) | in the same block, unless `.dev.env` already sets it outside the block. If that value is different, the script leaves it and warns, showing both |
 
 Containers you start with `docker run` get the proxy variables too. To remove all of it: `./scripts/setup-proxy-ca.sh --undo`.
 
-The script runs a check at the end: `https://ghcr.io` must verify through the proxy, and a small `docker pull` must work. Run it again at any time. It skips what is already done.
+At the end a small `docker pull` must work. Run the script again at any time. It skips what is already done.
 
 If Docker is not a systemd service on your machine (Docker Desktop, rootless Docker), the script tells you the settings to put in Docker yourself.
 
@@ -59,7 +74,7 @@ If Docker is not a systemd service on your machine (Docker Desktop, rootless Doc
 | You see | It means | Do this |
 |---|---|---|
 | `x509: certificate signed by unknown authority` | Docker or the tool does not trust the CA yet | Restart Docker. Run the script again |
-| The same error after the script passed | The file is not the proxy's CA, or an intermediate is missing | Ask IT for the full chain and use `--ca-file` with the bundle |
+| The same error after the script passed | The file is not the proxy's CA, or an intermediate is missing | Ask IT for the full chain and pass it with `--ca-file` |
 | `502 Bad Gateway` from `kind-registry` or `proxy-*-registry` | Requests for local names went through the proxy | `NO_PROXY` must list `kind-registry,proxy-docker-hub-registry,proxy-ghcr-registry`. The script sets it; check your own shell for an override |
 | `could not resolve host`, `connection refused` | Wrong proxy address, or the proxy is not reachable | Check the address with `curl -x $HTTPS_PROXY -I https://example.com` |
 | `TLS handshake timeout`, only for some pulls | The network path has a smaller packet size (a VPN, WSL2) | Lower Docker's MTU to match: `ip link` shows the value, set it as `"mtu"` in `/etc/docker/daemon.json`, restart Docker |
