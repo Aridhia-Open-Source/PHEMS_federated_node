@@ -74,13 +74,23 @@ description = "Lint the Dockerfiles"
 run = "./scripts/run_hadolint.sh"
 
 [tasks.pylint]
-description = "Lint nexus-api, or Dagster with `mise run pylint dagster`"
+description = "Lint nexus-api, or Dagster / the operator with `mise run pylint dagster|operator`"
 usage = '''
-arg "[project]" default="nexus-api" help="nexus-api or dagster" {
-  choices "nexus-api" "dagster"
+arg "[project]" default="nexus-api" help="nexus-api, dagster or operator" {
+  choices "nexus-api" "dagster" "operator"
 }
 '''
-run = 'if [ "$usage_project" = dagster ]; then PROJECT=dagster ./scripts/pylint.sh; else ./scripts/pylint.sh; fi'
+run = '''
+case "$usage_project" in
+  dagster) PROJECT=dagster ./scripts/pylint.sh ;;
+  operator) PROJECT=nexus/operator ./scripts/pylint.sh ;;
+  *) ./scripts/pylint.sh ;;
+esac
+'''
+
+[tasks.tests-operator]
+description = "Run the operator tests the way CI does"
+run = "./nexus/operator/run_tests.sh"
 
 [tasks.tests-dagster]
 description = "Run the Dagster tests the way CI does"

@@ -39,6 +39,7 @@ group "release" {
     "release-alpine",
     "release-kc-init",
     "release-dagster",
+    "release-nexus-operator",
   ]
 }
 
@@ -107,7 +108,6 @@ target "release-dagster" {
   tags     = ["ghcr.io/aridhia-open-source/dagster_fn:${TAG}"]
 }
 
-# Not in the release group yet: the release workflow adds the nexus images (gitops plan, step 7)
 target "release-nexus-operator" {
   inherits = ["nexus-operator-fn"]
   tags     = ["ghcr.io/aridhia-open-source/nexus_operator:${TAG}"]

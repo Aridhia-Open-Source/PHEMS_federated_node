@@ -138,6 +138,11 @@ jobs:
         run: |
           mise run pylint dagster
 
+      - name: Run pylint (operator)
+        if: ${{ !cancelled() }}
+        run: |
+          mise run pylint operator
+
       - name: Run hadolint
         run: |
           mise run hadolint
@@ -149,6 +154,7 @@ jobs:
           path: |
             artifacts/pylint.txt
             artifacts/pylint-dagster.txt
+            artifacts/pylint-nexus-operator.txt
             artifacts/hadolint.xml
           if-no-files-found: ignore
   tests:
@@ -192,6 +198,10 @@ jobs:
       - name: Run Dagster Tests
         run: |
           mise run tests-dagster
+
+      - name: Run Operator Tests
+        run: |
+          mise run tests-operator
 
       - name: Run Keycloak Integration Tests
         working-directory: nexus/api
@@ -292,6 +302,37 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  # Inline like the Dagster image, for the same nexus-client build context
+  build-nexus-operator-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.DOCKER_CR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set lower case owner name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> "${GITHUB_ENV}"
+        env:
+          OWNER: '${{ github.repository_owner }}'
+      - name: Build and push nexus_operator image
+        uses: docker/build-push-action@v5
+        with:
+          context: nexus/operator
+          file: nexus/operator/Dockerfile
+          build-contexts: nexus-client=nexus/client
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/nexus_operator:${{ needs.init.outputs.tag }}
+          push: true
+          cache-from: type=gha,scope=nexus-operator
+          cache-to: type=gha,mode=max,scope=nexus-operator
   promote:
     needs: init
     if: needs.init.outputs.is_tag == 'true'
@@ -309,7 +350,7 @@ jobs:
           RC_TAG: ${{ needs.init.outputs.rc_tag }}
           TAG: ${{ needs.init.outputs.tag }}
         run: |
-          for image in nexus_api federated_keycloak alpine keycloak_initializer dagster_fn; do
+          for image in nexus_api federated_keycloak alpine keycloak_initializer dagster_fn nexus_operator; do
             repo="${REGISTRY}/${OWNER,,}/${image}"
             docker buildx imagetools create -t "${repo}:${TAG}" "${repo}:${RC_TAG}"
           done
@@ -323,6 +364,7 @@ jobs:
       - build-alpine-image
       - build-kc-init-image
       - build-dagster-image
+      - build-nexus-operator-image
     runs-on: ubuntu-latest
     permissions:
       contents: read
