@@ -1,11 +1,9 @@
 """
-`fncli demo` walks the pull request process on a node that `fncli apply -f FILE` has already set up
-(bootstrap/examples/projects/demo-*.yaml), one confirmed step at a time, then proves it works. It creates and deletes
-nothing itself: it first builds the plan `fncli diff` shows and stops unless the node already matches the file. The
-file holds only the project: the global resources it names (repositories, ...) and the dataset are already on the
-node, made by `fncli apply -f examples/globals-*.yaml` and `fncli experiment setup demo`. The steps (checks, pull
-request, task, results) are the step commands, run in this process with the demo's context and project; they read the
-project's repositories and dataset from the node, not from the env.
+`fncli demo` walks the pull request process of a project that kubectl has applied (config/demo.yaml, or
+config/github/demo-github.yaml), one confirmed step at a time, then proves it works. It creates and deletes nothing
+itself: it reads the project's Project resource (ADR 0032) and stops unless the nexus operator has synced it, with the
+operator's message. The steps (checks, pull request, task, results) are the step commands, run in this process with
+the demo's context and project; they read the project's repositories and dataset from the node, not from the env.
 """
 
 import json
@@ -22,10 +20,8 @@ import requests
 from nexus_client.http import BackendSession
 from fncli.backend import FncliBackendAPI
 from nexus_client.git_uri import repo_path_of
-from fncli.cmds.common import DagsterConfig, RepoConfig, to_host_url
-from fncli.cmds.nodefile import (
-    announce_defaults, context_option, node_file_option, open_node, quiet_backend_logs, render_change,
-)
+from fncli.cmds.common import DagsterConfig, NamespaceConfig, RepoConfig, to_host_url
+from fncli.cmds.target import announce_defaults, context_option, open_target
 from fncli.cmds.pr import DEFAULT_TRIGGER_FILE, merge_results_pr_command, resolve_trigger
 from fncli.cmds.project import project_healthcheck_command
 from fncli.cmds.repository import load_repo_config
@@ -33,11 +29,8 @@ from fncli.cmds.secret import verify_git_secret_command
 from fncli.cmds.state import get, snapshot
 from fncli.cmds.trigger import trigger_pr
 from fncli.cmds.verify import Links, verify_project_command, verify_repo_command
-from fncli.nodefile import lookup
-from fncli.nodefile.diff import ENSURE, UNCHANGED, BackendState, diff
-from fncli.nodefile.loader import Context, limit_to_project, load_node_file
-from fncli.nodefile.schema import NodeFile, ProjectSpec
-from fncli.nodefile.state import read_state
+from fncli.context import Context
+from fncli.k8s import get_node_config
 from fncli.sensors import DagsterAPI
 
 
@@ -85,32 +78,26 @@ def as_json(name: str, value) -> str:
 
 @dataclass
 class Demo:
-    """What the steps work on: the node file's one project, with the global resources it references"""
+    """What the steps work on: the project, by its Project resource's name and spec"""
 
     context: Context
-    node_file: Path
     trigger_file: Path
-    node: NodeFile
     api: FncliBackendAPI
-    project: ProjectSpec
-
-    def read_state(self) -> BackendState:
-        with quiet_backend_logs():
-            return read_state(self.api)
+    project: str
+    spec: dict
 
 
 def step_names(demo: Demo) -> dict[str, str]:
     """What a step's text and command line are filled from"""
-    project = demo.project
+    repositories = demo.spec["repositories"]
     return {
-        "file": str(demo.node_file),
         "trigger": str(demo.trigger_file),
-        "project": project.name,
-        "trigger_repo": repo_path_of(project.repositories.triggers[0].repository),
-        "watch_dir": project.repositories.triggers[0].watch_dir,
-        "results_repo": repo_path_of(project.repositories.results.repository),
-        "target_dir": project.repositories.results.target_dir,
-        "dataset": project.datasets[0],
+        "project": demo.project,
+        "trigger_repo": repo_path_of(repositories["triggers"][0]["repository"]),
+        "watch_dir": repositories["triggers"][0]["watchDir"],
+        "results_repo": repo_path_of(repositories["results"]["repository"]),
+        "target_dir": repositories["results"]["targetDir"],
+        "dataset": demo.spec["datasets"][0],
     }
 
 
@@ -119,13 +106,12 @@ def gitea_repo_url(config: RepoConfig, page: str = "") -> str:
 
 
 def show_dataset(demo, state):
-    dataset = lookup.present(demo.api.find_dataset(demo.project.datasets[0]), f"dataset {demo.project.datasets[0]}")
-    return as_json("dataset", dataset.model_dump(mode="json"))
+    return as_json("dataset", demo.api.find_dataset(demo.spec["datasets"][0]).model_dump(mode="json"))
 
 
 def repo_config(demo: Demo, entity: str) -> RepoConfig:
     """The config of the project's trigger or results repository, as the node has it"""
-    return load_repo_config(entity, demo.context, demo.project.name, demo.api)
+    return load_repo_config(entity, demo.context, demo.project, demo.api)
 
 
 def result_lines(demo: Demo, result: dict) -> list[str]:
@@ -190,13 +176,13 @@ class Step(NamedTuple):
 
 def command_step(command: click.Command, **options) -> Callable[[click.Context, Demo], None]:
     """A step that is one of the step commands, which take the context and the project and read the rest from the node"""
-    return lambda ctx, demo: ctx.invoke(command, context=demo.context, project=demo.project.name, **options)
+    return lambda ctx, demo: ctx.invoke(command, context=demo.context, project=demo.project, **options)
 
 
 def check_dataset(ctx, demo):
     """The backend's dataset healthcheck: can the node log in to the database with the dataset's secret"""
-    name = demo.project.datasets[0]
-    health = demo.api.get_dataset_healthcheck(lookup.dataset_id(demo.api, name))
+    name = demo.spec["datasets"][0]
+    health = demo.api.get_dataset_healthcheck(demo.api.find_dataset(name).id)
     check = health["health_check"]
     detail = f"{check['message']}, {check['latency_ms']} ms"
     if health["status"] != "ok":
@@ -208,30 +194,27 @@ def check_dataset(ctx, demo):
     click.echo(f"[  ok] dataset {name} at {health['host']}:{health['port']}: the node can log in ({detail})")
 
 
-def require_applied(demo: Demo, state: BackendState):
-    """
-    Stop unless the node already matches the file, by the plan `fncli diff` prints. A Gitea repository to ensure is
-    not a difference: apply makes it in Gitea, never in the backend, and the plan lists it every time.
-    """
-    pending = [change for change in diff(demo.node, state) if change.action not in (UNCHANGED, ENSURE)]
-    if pending:
-        rows = "\n".join(line for change in pending for line in render_change(change, {}))
-        raise click.ClickException(
-            f"The node does not match {demo.node_file} yet:\n{rows}\n"
-            f"Run `fncli apply -f {demo.node_file}` first, after the global files it refers to if they are not applied."
-        )
+def require_synced(resource: dict, namespace: str):
+    """Stop unless the nexus operator has synced the Project resource as it is now, with the operator's message"""
+    status = resource.get("status", {})
+    if status.get("synced") and status.get("observedGeneration") == resource["metadata"]["generation"]:
+        return
+    raise click.ClickException(
+        f"Project {resource['metadata']['name']} is not synced to the node yet: {status.get('message') or 'no status'}\n"
+        f"See `kubectl get fn -n {namespace}`, and apply what it needs first (kubectl apply -f config/)."
+    )
 
 
 def trigger_by_pr(ctx, demo):
     """The trigger file in a pull request into the project's trigger repository, merged, and watched through to the results"""
-    trigger_pr(demo.context, demo.api, demo.project.name, demo.trigger_file, merge=True, watch=True, timeout=300)
+    trigger_pr(demo.context, demo.api, demo.project, demo.trigger_file, merge=True, watch=True, timeout=300)
 
 
 def merge_results_pr(ctx, demo):
     """The latest results pull request, looked up when the step runs"""
     ctx.invoke(
-        merge_results_pr_command, number=snapshot(demo.api, demo.project.name)["results"][-1]["number"],
-        context=demo.context, project=demo.project.name,
+        merge_results_pr_command, number=snapshot(demo.api, demo.project)["results"][-1]["number"],
+        context=demo.context, project=demo.project,
     )
 
 
@@ -310,7 +293,7 @@ def wait_for_state(demo: Demo, step: Step):
     deadline = time.monotonic() + wait.timeout
     shown = None
     while True:
-        state = snapshot(demo.api, demo.project.name)
+        state = snapshot(demo.api, demo.project)
         text = step.show(demo, state)
         changed = text != shown
         if changed:
@@ -348,61 +331,57 @@ def run_step(ctx: click.Context, demo: Demo, step: Step):
     "trigger_file", metavar="[TRIGGER]", required=False, default=DEFAULT_TRIGGER_FILE,
     type=click.Path(dir_okay=False, path_type=Path), callback=resolve_trigger,
 )
-@node_file_option
 @context_option
-@click.option(
-    "--project", default=None,
-    help="The project to demo, when the node file has more than one. Default: the context's defaults.project.",
-)
+@click.option("--project", default=None, help="The project to demo. Default: the context's defaults.project.")
 @click.option("-y", "--yes", "yes_to_all", is_flag=True, help="Run every step without asking.")
 @click.option(
     "--from", "from_step", type=click.IntRange(min=1), default=1, show_default=True,
     help="Start at this step.",
 )
 @click.pass_context
-def demo_command(ctx, trigger_file, node_file, context, project, yes_to_all, from_step):
+def demo_command(ctx, trigger_file, context, project, yes_to_all, from_step):
     """
-    Walk the pull request process of a node file's project, one step at a time: checks that the node can reach the
-    dataset's database and the git host, then a pull request into the trigger repository that is merged, becomes a
-    task and delivers its results in a results pull request, which is merged, then checks of the whole project. It
-    creates and deletes nothing: set the node up first with `fncli apply -f FILE`, and remove it afterwards with
-    `fncli delete -f FILE [--all]`. It stops unless `fncli diff -f FILE` shows nothing to change.
+    Walk the pull request process of a project, one step at a time: checks that the node can reach the dataset's
+    database and the git host, then a pull request into the trigger repository that is merged, becomes a task and
+    delivers its results in a results pull request, which is merged, then checks of the whole project. It creates and
+    deletes nothing: set the node up first with kubectl apply of the project's node config (config/demo.yaml, after
+    `fncli gitea setup -f config/demo.yaml`), and remove it afterwards with kubectl delete. It stops unless the
+    project's Project resource is synced (`kubectl get fn -n NAMESPACE`).
 
     TRIGGER is the trigger file the pull request adds: a path, or one relative to triggers/, default
     examples/demo.json (examples/demo-failing.json makes a task that fails).
 
     Before each step it says what the step does, shows the command and asks: Enter runs it, s skips it, q quits.
-    A failing step stops it: rerun with --from N. The names it uses are the node file's: its one project, with that
-    project's first trigger repository, results repository and dataset (bootstrap/examples/projects/demo-gitea.yaml
-    or demo-github.yaml). Those, and the dataset, must be on the node already (examples/globals-gitea.yaml or
-    globals-github.yaml, and `fncli experiment setup demo`). After each step it shows what the step made (links to
-    open in the browser, and the backend objects as JSON). After a step that changes the project it waits for the
-    change to show, polling every second. A file with several projects needs --project, or the context's default.
+    A failing step stops it: rerun with --from N. The names it uses are the Project resource's: its first trigger
+    repository, results repository and dataset. The dataset must be on the node already (`fncli experiment setup
+    demo`). After each step it shows what the step made (links to open in the browser, and the backend objects as
+    JSON). After a step that changes the project it waits for the change to show, polling every second.
 
     Needs the dev cluster with Tilt running and the Dagster sensors already running.
     """
-    in_file = [p.name for p in load_node_file(node_file).projects]
-    used = []
-    if project is None and len(in_file) == 1:
-        project = in_file[0]
-    elif project is None:
-        project = context.defaults.project
-        used.append(f"project {project}")
-    announce_defaults(context, used)
     if project is None:
-        raise click.ClickException(f"{node_file} has {len(in_file)} projects: pick one with --project ({', '.join(in_file)})")
-    node, api = open_node(context, node_file, project)
-    spec = node.projects[0]
-    if not spec.repositories.triggers or not spec.datasets:
-        raise click.ClickException(f"Project {spec.name} needs a trigger repository and a dataset to demo")
-    absent = [name for name in spec.datasets if api.find_dataset(name) is None]
+        project = context.defaults.project
+        announce_defaults(context, [f"project {project}"])
+    if project is None:
+        raise click.UsageError(f"Give --project, or set defaults.project in {context.path}")
+    api = open_target(context)
+    namespace = NamespaceConfig().namespace
+    resource = get_node_config("projects", namespace, project)
+    if resource is None:
+        raise click.ClickException(
+            f"No Project resource {project} in namespace {namespace}: kubectl apply its node config first (config/)"
+        )
+    require_synced(resource, namespace)
+    spec = resource["spec"]
+    if not spec["repositories"].get("triggers") or not spec.get("datasets"):
+        raise click.ClickException(f"Project {project} needs a trigger repository and a dataset to demo")
+    absent = [name for name in spec["datasets"] if api.find_dataset(name) is None]
     if absent:
         raise click.ClickException(
             f"Dataset {', '.join(absent)} is not on the node. Make it first: fncli experiment deploy, fncli experiment "
             "seed demo, fncli experiment setup demo"
         )
-    demo = Demo(context, node_file, trigger_file, node, api, spec)
-    require_applied(demo, demo.read_state())
+    demo = Demo(context, trigger_file, api, project, spec)
     names = step_names(demo)
     click.echo(
         "Demo project: {project}. Trigger repo: {trigger_repo}. Results repo: {results_repo}. "
