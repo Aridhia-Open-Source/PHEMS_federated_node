@@ -35,5 +35,5 @@ dependencies:
     condition: traefik.enabled
   - name: dagster
     repository: https://dagster-io.github.io/helm
-    version: ">=1.12.0 < 1.13.0"
+    version: ">=1.13.0 <1.14.0"
     condition: dagster.enabled
