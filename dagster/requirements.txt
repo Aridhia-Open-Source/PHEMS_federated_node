@@ -286,33 +286,33 @@ cryptography==46.0.4 \
     --hash=sha256:fa0900b9ef9c49728887d1576fd8d9e7e3ea872fa9b25ef9b64888adc434e976 \
     --hash=sha256:fdc3daab53b212472f1524d070735b2f0c214239df131903bae1d598016fa822
     # via google-auth
-dagster==1.12.14 \
-    --hash=sha256:2dd19a54149ff31846d331dfc4ea4d4eb19bec4c7b7d28295c22d47cced05941 \
-    --hash=sha256:acd57cd78854a3213f3850456b546d89ce993b35b1f497e5873162ae02015dff
+dagster==1.13.30 \
+    --hash=sha256:6faedfaaf8dd577227ae44bbe39db6a96e5e6f7862e7cbab64d97bac6dfbbb40 \
+    --hash=sha256:ef1967edc6acd7b5fcc1c121a51826d08365104209f03b8cd4a0b54b97d16edd
     # via
     #   dagster-graphql
     #   dagster-k8s
     #   dagster-postgres
     #   phems (pyproject.toml)
-dagster-graphql==1.12.14 \
-    --hash=sha256:787ef4a28578bde368afa296b36bc876a99b708eca43ce226fbe3d742f3687e2 \
-    --hash=sha256:fc1a534f027722678aa10b5e5945ceeaf80409310137a4c5d8f5901561a43b8c
+dagster-graphql==1.13.30 \
+    --hash=sha256:5cc711a4286eed5c711025f1b54a7f3ee0cd5ae574541b6e998a338a48dffee4 \
+    --hash=sha256:af841ca412e12492e0aa1ffdcd4607b6006f116dd9981ea7a998c69d4208a60f
     # via phems (pyproject.toml)
-dagster-k8s==0.28.14 \
-    --hash=sha256:521bc3970be0f0a7fc6fd5d4f976c6b881ed0592a43f6a62561b72862a69923e \
-    --hash=sha256:b095ead45afcbf86f18044711f174ca8dbae06ff95c5f14dcbb9c1c8d245342d
+dagster-k8s==0.29.30 \
+    --hash=sha256:4a494ee35730f0ada3d6a2e9a437f6d36c1127306a7d648bacceca5d567e781d \
+    --hash=sha256:8ed6859e2fded73b76c33decd9168a879ce36eb6793c04611ab032975f4b1b6f
     # via phems (pyproject.toml)
-dagster-pipes==1.12.14 \
-    --hash=sha256:88cb6280596241f3515c27eaae124498a017d390e4ab45f2cfbbef45cc30e3ad \
-    --hash=sha256:9e94dd53a0138ab6ae95aa19288999411f0d18241be9af1be42869470e8cfbb0
+dagster-pipes==1.13.30 \
+    --hash=sha256:276c3e53c244d3f3ff8e1a76aaf4d2d9c3e1855d1753ea7dff501af68df1bf0e \
+    --hash=sha256:c8dbab206c5d8c7a46fa54fa2741d111982face2fd5cff05ded47ee927d52073
     # via dagster
-dagster-postgres==0.28.14 \
-    --hash=sha256:070f869f60982871b6650931e66dadcc269ea8e10afa6ffcf2f126db0bf271cd \
-    --hash=sha256:09376429594865964274bbacc6848b44678837bbe2a8b5c653792d6695680dd2
+dagster-postgres==0.29.30 \
+    --hash=sha256:2e92777c43928f3262f343ec1663e736e5a1cedb7bc15eb071c94108f9c98606 \
+    --hash=sha256:c4e53f078f1ec405e8cfb0c2f047ced7857fcccd39d539e28cdadc3f235109bc
     # via phems (pyproject.toml)
-dagster-shared==1.12.14 \
-    --hash=sha256:954f3065d8e477880176573d6aaf034fc099cbe2679472717cdbe29071b902ce \
-    --hash=sha256:c6784ac03f80db252a40929c5f061138446cf4ef76884697c07160ad0184626a
+dagster-shared==1.13.30 \
+    --hash=sha256:3caf379ac679a5a377475cce2973556cb8918ce1d3e02cff1686abec29224110 \
+    --hash=sha256:9dbd5fed8bb2287d8a007140738fa54a6008f0ebb258ca65f4f3a801c8316353
     # via dagster
 docstring-parser==0.17.0 \
     --hash=sha256:583de4a309722b3315439bb31d64ba3eebada841f2e2cee23b99df001434c912 \
@@ -1591,9 +1591,3 @@ yarl==1.22.0 \
     --hash=sha256:f87ac53513d22240c7d59203f25cc3beac1e574c6cd681bbfd321987b69f95fd \
     --hash=sha256:ff86011bd159a9d2dfc89c34cfd8aff12875980e3bd6a39ff097887520e60249
     # via gql
-
-# The following packages are considered to be unsafe in a requirements file:
-setuptools==82.0.0 \
-    --hash=sha256:22e0a2d69474c6ae4feb01951cb69d515ed23728cf96d05513d36e42b62b37cb \
-    --hash=sha256:70b18734b607bd1da571d097d236cfcfacaf01de45717d59e6e04b96877532e0
-    # via dagster
