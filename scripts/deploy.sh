@@ -133,6 +133,11 @@ source ./scripts/custom_ca.sh
 custom_ca_prepare
 
 echo
+echo "=== Applying CRDs ======================================================="
+# Helm installs the chart's crds/ on a first install but never upgrades them (ADR 0032)
+kubectl apply -f k8s/federated-node/crds/
+
+echo
 echo "=== Deploying Helm Release =============================================="
 
 # A first deploy has no pods running old images, so only a rerun needs the restart below.
