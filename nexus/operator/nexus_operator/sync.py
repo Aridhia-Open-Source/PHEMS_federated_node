@@ -127,7 +127,8 @@ def sync_secret(
         values = {key: read[name][0][source_key] for key, (name, source_key) in secret_sources(spec).items()}
 
     status = {"sourceVersions": versions}
-    if versions == dict(seen) and has_secret(api, label):
+    # Only the current sources: a status merge-patch never drops the key of a source no longer named
+    if all(seen.get(name) == version for name, version in versions.items()) and has_secret(api, label):
         return Synced(None, False, status)
     api.upsert_secret(label, values)
     return Synced(None, True, status)
