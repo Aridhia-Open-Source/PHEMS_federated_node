@@ -53,7 +53,7 @@ Run these from the repo root.
    cp k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
    ```
 
-2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`). The file explains every other variable.
+2. Check `.dev.env`. `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD` are your admin login for the API, `admin@fn.local` / `admin` unless you change them. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`). The file explains every other variable.
 
 3. Check fncli. `mise run setup` installed it, editable, into `.venv` at the repo root, and `mise run deploy` runs `fncli experiment deploy` from there. To run `fncli` yourself, activate mise in your shell. A new worktree needs its own `mise run setup`. If you installed fncli with pipx before, remove that copy: `pipx uninstall phems`.
 

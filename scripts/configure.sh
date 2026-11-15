@@ -4,18 +4,19 @@ set -euo pipefail
 ###################################################################################
 # Federated Node - dev configuration
 #
-# With no options: first-time dev setup. Copies the example config into place (never
-# overwriting a file that exists) and asks for the first Keycloak user if .dev.env has none.
+# Every run first copies the example config into place (.dev.env, dev.values.yaml), never
+# overwriting a file that exists. .dev.env.example sets the first Keycloak user to
+# admin@fn.local / admin: change both in .dev.env if you like. With no options that is all.
 #
 # With --proxy or --ca-cert: for a machine behind a TLS-intercepting proxy, or one that must
 # trust a private CA. Checks that the proxy and the CA work, then points Docker and this
-# repo's tooling at them. The same script serves the host and the dev container.
-# Guide: PROXY_CA_SETUP.md
+# repo's tooling at them. --no-proxy and --no-ca take that out again. The same script serves
+# the host and the dev container. Guide: PROXY_CA_SETUP.md
 #
 #   ./scripts/configure.sh
 #   ./scripts/configure.sh [--proxy[=URL]] [--ca-cert[=FILE]] [--yes] [--dry-run]
+#   ./scripts/configure.sh [--no-proxy] [--no-ca] [--yes] [--dry-run]
 #   ./scripts/configure.sh --devcontainer [--dry-run]
-#   ./scripts/configure.sh --undo [--yes] [--dry-run]
 #
 #   --proxy[=URL]     the proxy, for example --proxy=http://proxy.example.org:8080. With no
 #                     value, HTTPS_PROXY from the environment. The CA is the system bundle
@@ -24,16 +25,20 @@ set -euo pipefail
 #                     store must already trust the CA. FILE is a PEM file (one certificate or
 #                     a bundle), installed into the system trust store. Without --proxy: a
 #                     private CA (a private git host) and no proxy.
+#   --no-proxy        remove the proxy: the Docker daemon drop-in, the Docker client proxy,
+#                     the proxy in the generated files, and the block an older version of
+#                     this script kept in .dev.env. A CA stays. Runs no checks.
+#   --no-ca           remove the CA: the one this script put in the system trust store, and
+#                     the CA in the generated files. Runs no checks.
 #   --devcontainer    what the dev container's initializeCommand runs on the host, without
 #                     sudo: reads CUSTOM_CA_FILE and the proxy from .dev.env, else
 #                     .generated.env, runs the checks, and copies the bundle to
 #                     .devcontainer/proxy-ca.crt (an empty file when neither names a
-#                     CUSTOM_CA_FILE: no CA). Writes nothing else.
+#                     CUSTOM_CA_FILE: no CA). Writes nothing else beyond the example copies.
 #   --yes             do not ask
-#   --dry-run         show every change and make none (proxy and CA setup only)
-#   --undo            remove what a previous proxy or CA run added (runs no checks)
+#   --dry-run         show every change and make none
 #
-# Every proxy or CA run, --dry-run and --devcontainer included, first checks, before
+# Every --proxy or --ca-cert run, --dry-run and --devcontainer included, first checks, before
 # anything is written, that the CA bundle is PEM and, when a proxy is set, that
 # registry-1.docker.io, pypi.org and github.com verify through the proxy against the bundle
 # (with --ca-cert=FILE: the bundle plus that CA). With a CA and no proxy only the CA is
@@ -44,8 +49,10 @@ set -euo pipefail
 # running containers), the Docker client proxy in ~/.docker/config.json (image builds and
 # containers you start), and two files this script owns and rewrites whole, both gitignored:
 # .generated.env (CUSTOM_CA_FILE, the proxy and the CA-bundle variables) and
-# k8s/federated-node/generated.values.yaml (the chart's proxy and customCA values). Your own
-# .dev.env and dev.values.yaml are never edited by these runs, and win over them when loaded.
+# k8s/federated-node/generated.values.yaml (the chart's proxy and customCA values). A run
+# that changes only one of the proxy and the CA keeps the other as .generated.env has it;
+# with neither left, both files are removed. Your own .dev.env and dev.values.yaml are never
+# edited by these runs, and win over them when loaded.
 ####################################################################################
 
 cd "$(dirname "$0")/.."
@@ -54,15 +61,16 @@ CA_FILE=""
 PROXY=""
 WANT_PROXY=0
 WANT_CA=0
+NO_PROXY_FLAG=0
+NO_CA=0
 YES=0
 DRY=0
-UNDO=0
 DEVCONTAINER=0
 BUNDLE=""
 CHECK_BUNDLE=""
 
 # The block an older version of this script (then setup-proxy-ca.sh) kept in .dev.env:
-# --undo removes it. The markers keep the old name because they match existing files.
+# --no-proxy removes it. The markers keep the old name because they match existing files.
 START="# >>> setup-proxy-ca >>>"
 END="# <<< setup-proxy-ca <<<"
 GENERATED_ENV=.generated.env
@@ -84,7 +92,7 @@ ok()   { printf '  [%s]   %s\n' "$([ "$DRY" = 1 ] && echo dry || echo ok)" "$*";
 skip() { printf '  [skip] %s\n' "$*"; }
 warn() { printf '  [warn] %s\n' "$*" >&2; }
 die()  { printf '  [FAIL] %s\n' "$*" >&2; exit 1; }
-usage() { sed -n '5,48p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { awk 'NR >= 5 { if (/^####/) exit; print }' "$0" | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -92,62 +100,37 @@ while [ $# -gt 0 ]; do
     --ca-cert=*) WANT_CA=1; CA_FILE="${1#*=}"; [ -n "$CA_FILE" ] || die "--ca-cert= needs a file"; shift ;;
     --proxy) WANT_PROXY=1; PROXY="${HTTPS_PROXY:-${https_proxy:-}}"; [ -n "$PROXY" ] || die "--proxy with no URL needs HTTPS_PROXY set"; shift ;;
     --proxy=*) WANT_PROXY=1; PROXY="${1#*=}"; [ -n "$PROXY" ] || die "--proxy= needs a URL"; shift ;;
+    --no-proxy) NO_PROXY_FLAG=1; shift ;;
+    --no-ca) NO_CA=1; shift ;;
     --devcontainer) DEVCONTAINER=1; shift ;;
     --yes) YES=1; shift ;;
     --dry-run) DRY=1; shift ;;
-    --undo) UNDO=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; die "unknown option: $1" ;;
   esac
 done
+[ "$WANT_PROXY" = 0 ] || [ "$NO_PROXY_FLAG" = 0 ] || die "--proxy and --no-proxy contradict each other"
+[ "$WANT_CA" = 0 ] || [ "$NO_CA" = 0 ] || die "--ca-cert and --no-ca contradict each other"
 
 ###############################################################################
-# FIRST-TIME SETUP (no options): the example config, and the first Keycloak user
+# EVERY RUN: the example config
 ###############################################################################
 copy_if_missing() {
   if [ -e "$2" ]; then
     echo "$2 exists, left alone"
+  elif [ "$DRY" = 1 ]; then
+    echo "would create $2 from $1"
   else
     cp "$1" "$2"
     echo "$2 created from $1"
   fi
 }
 
-# Writes KEY='value' over an empty KEY= line in .dev.env. Single quotes keep any character
-# in the value safe when .dev.env is sourced.
-set_if_empty() {
-  local key="$1" value="$2"
-  if ! grep -qE "^${key}=(''|\"\")?$" .dev.env; then
-    echo "$key is already set in .dev.env, left alone"
-    return
-  fi
-  if [[ "$value" == *"'"* ]]; then
-    echo "$key must not contain a single quote" >&2
-    exit 1
-  fi
-  VALUE="$value" awk -v key="$key" 'index($0, key "=") == 1 { print key "=\x27" ENVIRON["VALUE"] "\x27"; next } { print }' \
-    .dev.env > .dev.env.tmp
-  mv .dev.env.tmp .dev.env
-  echo "$key written to .dev.env"
-}
+copy_if_missing .dev.env.example .dev.env
+copy_if_missing k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
 
-if [ "$WANT_PROXY" = 0 ] && [ "$WANT_CA" = 0 ] && [ "$UNDO" = 0 ] && [ "$DEVCONTAINER" = 0 ]; then
-  [ "$DRY" = 0 ] || die "--dry-run needs --proxy or --ca-cert"
-  [ "$YES" = 0 ] || die "--yes needs --proxy, --ca-cert or --undo"
-  copy_if_missing .dev.env.example .dev.env
-  copy_if_missing k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
-
-  if grep -qE "^KEYCLOAK_FIRST_USER_EMAIL=(''|\"\")?$" .dev.env; then
-    read -r -p "First Keycloak user email: " email
-    set_if_empty KEYCLOAK_FIRST_USER_EMAIL "$email"
-  fi
-
-  if grep -qE "^KEYCLOAK_FIRST_USER_PASSWORD=(''|\"\")?$" .dev.env; then
-    read -r -s -p "First Keycloak user password: " password
-    echo
-    set_if_empty KEYCLOAK_FIRST_USER_PASSWORD "$password"
-  fi
-
+if [ "$WANT_PROXY" = 0 ] && [ "$WANT_CA" = 0 ] && [ "$NO_PROXY_FLAG" = 0 ] && [ "$NO_CA" = 0 ] \
+  && [ "$DEVCONTAINER" = 0 ]; then
   echo
   echo "Done. Next: mise run cluster up, then mise run deploy"
   echo "Behind a TLS-intercepting proxy, or with a private CA: see PROXY_CA_SETUP.md (mise run configure --proxy)"
@@ -170,15 +153,18 @@ confirm() {
   [[ "$answer" =~ ^[Yy]$ ]]
 }
 
-# The last value of a variable in .dev.env (yours, wins), else in .generated.env; empty if none.
+# The last value of variable $2 in file $1; empty if none.
+file_value() {
+  [ -f "$1" ] || return 0
+  sed -n "s/^\(export \)\{0,1\}$2=//p" "$1" | tail -n 1 | tr -d "\"'"
+}
+
+# The value of a variable in .dev.env (yours, wins), else in .generated.env; empty if none.
 env_value() {
-  local f v
-  for f in .dev.env "$GENERATED_ENV"; do
-    [ -f "$f" ] || continue
-    v="$(sed -n "s/^\(export \)\{0,1\}$1=//p" "$f" | tail -n 1 | tr -d "\"'")"
-    if [ -n "$v" ]; then printf '%s' "$v"; return 0; fi
-  done
-  return 0
+  local v
+  v="$(file_value .dev.env "$1")"
+  [ -n "$v" ] || v="$(file_value "$GENERATED_ENV" "$1")"
+  printf '%s' "$v"
 }
 
 # $1 must be a PEM file with at least one certificate; $2 says what it is.
@@ -238,20 +224,31 @@ if [ "$DEVCONTAINER" = 1 ]; then
   exit 0
 fi
 
-if command -v update-ca-certificates >/dev/null; then
-  TRUST_DIR=/usr/local/share/ca-certificates
-  TRUST_CMD=update-ca-certificates
-  BUNDLE=/etc/ssl/certs/ca-certificates.crt
-elif command -v update-ca-trust >/dev/null; then
-  TRUST_DIR=/etc/pki/ca-trust/source/anchors
-  TRUST_CMD=update-ca-trust
-  BUNDLE=/etc/pki/tls/certs/ca-bundle.crt
-else
-  die "found neither update-ca-certificates nor update-ca-trust: install the ca-certificates package"
+# The trust store, and the system CA bundle that the generated files name
+if [ "$WANT_PROXY" = 1 ] || [ "$WANT_CA" = 1 ] || [ "$NO_CA" = 1 ]; then
+  if command -v update-ca-certificates >/dev/null; then
+    TRUST_DIR=/usr/local/share/ca-certificates
+    TRUST_CMD=update-ca-certificates
+    BUNDLE=/etc/ssl/certs/ca-certificates.crt
+  elif command -v update-ca-trust >/dev/null; then
+    TRUST_DIR=/etc/pki/ca-trust/source/anchors
+    TRUST_CMD=update-ca-trust
+    BUNDLE=/etc/pki/tls/certs/ca-bundle.crt
+  else
+    die "found neither update-ca-certificates nor update-ca-trust: install the ca-certificates package"
+  fi
+  TRUST_FILE="$TRUST_DIR/fn-proxy-ca.crt"
 fi
-TRUST_FILE="$TRUST_DIR/fn-proxy-ca.crt"
 
-NO_PROXY_ALL="$(printf '%s' "$LOCAL_NO_PROXY${NO_PROXY:+,$NO_PROXY}" | tr ',' '\n' | awk 'NF && !seen[$0]++' | paste -sd,)"
+# The state: the proxy and the CA bundle as .generated.env has them, changed by the flags.
+GEN_CA="$(file_value "$GENERATED_ENV" CUSTOM_CA_FILE)"
+[ "$WANT_PROXY" = 1 ] || PROXY="$(file_value "$GENERATED_ENV" HTTPS_PROXY)"
+[ "$NO_PROXY_FLAG" = 0 ] || PROXY=""
+if [ "$WANT_PROXY" = 1 ] || [ "$WANT_CA" = 1 ]; then GEN_CA="$BUNDLE"; fi
+[ "$NO_CA" = 0 ] || GEN_CA=""
+
+NO_PROXY_ALL="$(printf '%s' "$LOCAL_NO_PROXY${NO_PROXY:+,$NO_PROXY},$(file_value "$GENERATED_ENV" NO_PROXY)" \
+  | tr ',' '\n' | awk 'NF && !seen[$0]++' | paste -sd,)"
 
 restart_docker() {
   echo "  Docker has to restart to use this, and that stops every running container, including a kind cluster."
@@ -272,7 +269,7 @@ has_docker_service() {
 env_content() {
   local v
   echo "$GENERATED_HEADER"
-  for v in "${CA_VARS[@]}"; do echo "export $v=$BUNDLE"; done
+  [ -z "$GEN_CA" ] || for v in "${CA_VARS[@]}"; do echo "export $v=$GEN_CA"; done
   if [ -n "$PROXY" ]; then
     for v in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy; do echo "export $v=$PROXY"; done
     for v in NO_PROXY no_proxy; do echo "export $v=$NO_PROXY_ALL"; done
@@ -287,6 +284,7 @@ values_content() {
     echo "  httpProxy: \"$PROXY\""
     echo "  httpsProxy: \"$PROXY\""
   fi
+  [ -n "$GEN_CA" ] || return 0
   echo "customCA:"
   echo "  secretName: $CUSTOM_CA_SECRET"
   echo "  key: ca.crt"
@@ -315,23 +313,54 @@ drop_old_block() {
   fi
 }
 
+# 4. Writes the generated files from the state, or removes them with neither a proxy nor a CA.
+# (Yours, .dev.env and dev.values.yaml, are never edited.)
+write_generated() {
+  local v f overridden=()
+  echo "4. $GENERATED_ENV and $GENERATED_VALUES"
+  if [ -z "$GEN_CA" ] && [ -z "$PROXY" ]; then
+    for f in "$GENERATED_ENV" "$GENERATED_VALUES"; do
+      if [ -f "$f" ]; then
+        run rm -f "$f"
+        ok "$f removed"
+      else
+        skip "no $f"
+      fi
+    done
+    return 0
+  fi
+  if [ -f .dev.env ] && grep -q "^$START" .dev.env; then
+    warn "an older version of this script left a block in .dev.env, and it wins over $GENERATED_ENV: delete it, from '$START' to '$END'"
+  fi
+  for v in "${GENERATED_VARS[@]}"; do
+    if [ -f .dev.env ] && sed "\|^$START|,\|^$END|d" .dev.env | grep -q -E "^(export )?$v="; then overridden+=("$v"); fi
+  done
+  [ "${#overridden[@]}" = 0 ] || warn "${overridden[*]} set in .dev.env: your value wins over $GENERATED_ENV"
+  write_owned "$GENERATED_ENV" "$(env_content)"
+  write_owned "$GENERATED_VALUES" "$(values_content)"
+}
+
+DOCKER_PENDING=0
+
 ###############################################################################
-# UNDO
+# --no-ca and --no-proxy (no checks)
 ###############################################################################
-if [ "$UNDO" = 1 ]; then
-  echo "Undoing the proxy CA setup"
+if [ "$NO_CA" = 1 ]; then
+  echo "Removing the CA"
   if [ -f "$TRUST_FILE" ]; then
     run $SUDO rm -f "$TRUST_FILE"
-    run $SUDO $TRUST_CMD --fresh >/dev/null 2>&1 || run $SUDO $TRUST_CMD >/dev/null
+    run $SUDO "$TRUST_CMD" --fresh >/dev/null 2>&1 || run $SUDO "$TRUST_CMD" >/dev/null
     ok "CA removed from the system trust store"
   else
     skip "no CA from this script in the system trust store"
   fi
+fi
+if [ "$NO_PROXY_FLAG" = 1 ]; then
+  echo "Removing the proxy"
   if [ -f "$DOCKER_DROPIN" ]; then
     run $SUDO rm -f "$DOCKER_DROPIN"
     run $SUDO systemctl daemon-reload
     ok "Docker proxy drop-in removed"
-    DOCKER_PENDING=0
     restart_docker
   else
     skip "no Docker proxy drop-in"
@@ -343,15 +372,10 @@ if [ "$UNDO" = 1 ]; then
   else
     skip "no Docker client proxy in $DOCKER_CONFIG_FILE"
   fi
-  for f in "$GENERATED_ENV" "$GENERATED_VALUES"; do
-    if [ -f "$f" ]; then
-      run rm -f "$f"
-      ok "$f removed"
-    else
-      skip "no $f"
-    fi
-  done
   drop_old_block
+fi
+if [ "$WANT_PROXY" = 0 ] && [ "$WANT_CA" = 0 ]; then
+  write_generated
   exit 0
 fi
 
@@ -380,8 +404,6 @@ check_proxy
 echo
 [ -z "$CA_FILE" ] || confirm "Trust this CA on this machine?" || die "stopped, nothing changed"
 
-DOCKER_PENDING=0
-
 ###############################################################################
 # 1. System trust store
 ###############################################################################
@@ -392,7 +414,7 @@ elif [ -f "$TRUST_FILE" ] && cmp -s "$CA_FILE" "$TRUST_FILE"; then
   skip "CA already trusted"
 else
   run $SUDO install -m 0644 "$CA_FILE" "$TRUST_FILE"
-  if [ "$DRY" = 1 ]; then echo "  would run: $SUDO $TRUST_CMD"; else $SUDO $TRUST_CMD >/dev/null; fi
+  if [ "$DRY" = 1 ]; then echo "  would run: $SUDO $TRUST_CMD"; else $SUDO "$TRUST_CMD" >/dev/null; fi
   ok "CA added ($TRUST_FILE)"
 fi
 
@@ -444,20 +466,7 @@ else
   fi
 fi
 
-###############################################################################
-# 4. The generated files (yours, .dev.env and dev.values.yaml, are never edited)
-###############################################################################
-echo "4. $GENERATED_ENV and $GENERATED_VALUES"
-if [ -f .dev.env ] && grep -q "^$START" .dev.env; then
-  warn "an older version of this script left a block in .dev.env, and it wins over $GENERATED_ENV: delete it, from '$START' to '$END'"
-fi
-overridden=()
-for v in "${GENERATED_VARS[@]}"; do
-  if [ -f .dev.env ] && sed "\|^$START|,\|^$END|d" .dev.env | grep -q -E "^(export )?$v="; then overridden+=("$v"); fi
-done
-[ "${#overridden[@]}" = 0 ] || warn "${overridden[*]} set in .dev.env: your value wins over $GENERATED_ENV"
-write_owned "$GENERATED_ENV" "$(env_content)"
-write_owned "$GENERATED_VALUES" "$(values_content)"
+write_generated
 
 ###############################################################################
 # 5. Docker

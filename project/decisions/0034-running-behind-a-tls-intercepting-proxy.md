@@ -15,8 +15,8 @@ Status: Accepted, 2026-11-15.
 One script sets up the machine side, and everything it writes is generated.
 
 - **The CA is the system trust bundle by default.** Developers add the proxy's CA to their OS store themselves (on WSL, in the Linux store). `--ca-cert=FILE` installs a CA there first.
-- **One command, `mise run configure` (`scripts/configure.sh`), serves the host and the dev container.** With no options it does the first-time dev setup (`.dev.env`, `dev.values.yaml`, the first Keycloak user); `--proxy[=URL]` (no value: `HTTPS_PROXY`) sets up a proxy with the system bundle as the CA, `--ca-cert[=FILE]` (no value: the system bundle) a CA, alone for a private git host with no proxy; `--undo` removes it. Values take the `=` form. The dev container's `initializeCommand` runs it with `--devcontainer`, on the host and without sudo, and it copies the bundle to `.devcontainer/proxy-ca.crt` for the image build.
-- **It checks on every run, before it writes anything:** the bundle is PEM, a proxy is set, and `registry-1.docker.io`, `pypi.org` and `github.com` verify through the proxy against the bundle. With a CA and no proxy (a private git host) it checks the PEM only.
+- **One command, `mise run configure` (`scripts/configure.sh`), serves the host and the dev container.** Every run creates `.dev.env` and `dev.values.yaml` from the examples if missing, and with no options that is all; `--proxy[=URL]` (no value: `HTTPS_PROXY`) sets up a proxy with the system bundle as the CA, `--ca-cert[=FILE]` (no value: the system bundle) a CA, alone for a private git host with no proxy; `--no-proxy` and `--no-ca` remove them. Values take the `=` form. The dev container's `initializeCommand` runs it with `--devcontainer`, on the host and without sudo, and it copies the bundle to `.devcontainer/proxy-ca.crt` for the image build.
+- **It checks on every `--proxy` or `--ca-cert` run, before it writes anything:** the bundle is PEM, a proxy is set, and `registry-1.docker.io`, `pypi.org` and `github.com` verify through the proxy against the bundle. With a CA and no proxy (a private git host) it checks the PEM only.
 - **It writes only generated, gitignored files:** `.generated.env` (`CUSTOM_CA_FILE`, the proxy and CA-bundle variables) and `k8s/federated-node/generated.values.yaml` (the chart's `proxy.*` and `customCA.secretName`). It never edits `.dev.env` or `dev.values.yaml`.
 - **Generated files load first, so hand-edited ones win:** `scripts/load_env.sh` (sourced by the cluster scripts), `mise.toml` and the Tiltfile read `.generated.env` before `.dev.env`, and `mise run deploy` passes `generated.values.yaml` before `dev.values.yaml`. A variable set in both is named in one warning.
 - **Image builds get the CA as the BuildKit secret `proxy_ca`,** mounted on each download step (pip, and the others) and never kept in an image. `apk` uses http repositories, which it verifies by package signature.
@@ -27,7 +27,7 @@ One script sets up the machine side, and everything it writes is generated.
 ## Consequences
 
 - A new download step in a Dockerfile needs the `proxy_ca` mount, or it fails behind a proxy.
-- `--undo` removes what the script added: the CA, the Docker proxy settings and the two generated files.
+- `--no-proxy` removes the Docker proxy settings and the proxy in the generated files; `--no-ca` removes the CA, and refuses while a proxy is set. A run keeps whichever of the proxy and CA it does not change, read back from `.generated.env`, which is therefore the state.
 - The kind node's own image pulls through the proxy are untested.
 - The local registry mirrors that `mise run cluster up` starts get the proxy variables but not the CA.
 - A `CUSTOM_CA_FILE` set by hand in `.dev.env` creates the Secret on deploy, but no longer reaches the pods: `customCA` comes only from the values files. Developers use `mise run configure --ca-cert`.

@@ -1,6 +1,6 @@
 # Setting up behind a TLS-inspecting proxy
 
-Use this when your network sits behind a proxy that re-signs HTTPS traffic with its own certificate authority (CA), or when something the node talks to uses a private CA. One command, `mise run configure` (`scripts/configure.sh`), does the machine side, and the same script serves the dev container. With no options it does the first-time dev setup instead (`.dev.env`, `dev.values.yaml`, the first Keycloak user).
+Use this when your network sits behind a proxy that re-signs HTTPS traffic with its own certificate authority (CA), or when something the node talks to uses a private CA. One command, `mise run configure` (`scripts/configure.sh`), does the machine side, and the same script serves the dev container. Every run first creates `.dev.env` and `dev.values.yaml` from the examples if they are missing; with no options that is all it does.
 
 ## Do you need this?
 
@@ -43,16 +43,16 @@ Then open a new shell so the new variables load (`mise run` loads `.generated.en
 
 ## The checks
 
-Every run does these first, before anything is written, whatever the options (`--dry-run` included):
+Every `--proxy` or `--ca-cert` run does these first, before anything is written (`--dry-run` included):
 
 1. The CA bundle is a PEM file with at least one certificate.
 2. With a proxy: `registry-1.docker.io`, `pypi.org` and `github.com` verify through the proxy, using the bundle (with `--ca-cert=FILE`, the system bundle plus that CA, since it is not installed yet). Any HTTP status passes: the TLS handshake is what matters, and Docker Hub answers `401` here. With a CA and no proxy this check is skipped.
 
-A failing check names the host and says whether it is a certificate problem (the bundle does not match what the proxy presents) or a proxy or connection problem (the address, or no route to it). The script then exits with an error and has changed nothing. `--undo` runs no checks.
+A failing check names the host and says whether it is a certificate problem (the bundle does not match what the proxy presents) or a proxy or connection problem (the address, or no route to it). The script then exits with an error and has changed nothing. `--no-proxy` and `--no-ca` run no checks.
 
 ## In the dev container
 
-The dev container calls the same script. Its `initializeCommand` runs `scripts/configure.sh --devcontainer` on your machine before the image is built (see [DEPLOYMENT.md](DEPLOYMENT.md#dev-container)). It reads `CUSTOM_CA_FILE` and the proxy from `.dev.env`, else from `.generated.env`, runs the checks above, and copies the bundle to `.devcontainer/proxy-ca.crt` (not committed). The image build splits it into one file per certificate and adds them to the container's system trust. It needs no sudo and writes nothing else. With no `CUSTOM_CA_FILE` in either file it skips the checks and the container gets no CA.
+The dev container calls the same script. Its `initializeCommand` runs `scripts/configure.sh --devcontainer` on your machine before the image is built (see [DEPLOYMENT.md](DEPLOYMENT.md#dev-container)). It reads `CUSTOM_CA_FILE` and the proxy from `.dev.env`, else from `.generated.env`, runs the checks above, and copies the bundle to `.devcontainer/proxy-ca.crt` (not committed). The image build splits it into one file per certificate and adds them to the container's system trust. It needs no sudo and writes nothing else, apart from creating `.dev.env` and `dev.values.yaml` if they are missing. With no `CUSTOM_CA_FILE` in either file it skips the checks and the container gets no CA.
 
 So run the script on the machine first, then rebuild the container (**Dev Containers: Rebuild Container**) after any change.
 
@@ -68,7 +68,7 @@ So run the script on the machine first, then rebuild the container (**Dev Contai
 
 The script owns the last two files and rewrites them whole each run; both are gitignored, and neither is edited by hand. It never edits your `.dev.env` or `dev.values.yaml`. Everything that loads settings (`mise run`, the scripts, Tilt) reads `.generated.env` first and `.dev.env` after it, and `mise run deploy` passes `generated.values.yaml` before `dev.values.yaml`, so what you wrote yourself wins. If `.dev.env` sets a variable the script generates, the script warns once and names it.
 
-Containers you start with `docker run` get the proxy variables too. To remove all of it: `mise run configure --undo`. It also deletes the two generated files, and the block that an older version of the script kept in `.dev.env`.
+Containers you start with `docker run` get the proxy variables too. To remove the proxy: `mise run configure --no-proxy` (the Docker settings, the proxy in the generated files, and the block that an older version of the script kept in `.dev.env`). To remove the CA too: `mise run configure --no-proxy --no-ca` (the CA in the trust store; `--no-ca` alone refuses while a proxy is set, since the proxy needs it). A run that changes only the proxy or only the CA keeps the other as `.generated.env` has it; with neither left, the two generated files are deleted.
 
 At the end a small `docker pull` must work. Run the script again at any time. It skips what is already done.
 

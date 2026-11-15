@@ -111,7 +111,8 @@ gitea:
       key: password
 
 # First admin user. Its email and password come from KEYCLOAK_FIRST_USER_EMAIL and
-# KEYCLOAK_FIRST_USER_PASSWORD in .dev.env (deploy.sh overrides the email below).
+# KEYCLOAK_FIRST_USER_PASSWORD in .dev.env, admin@fn.local / admin by default (deploy.sh
+# overrides the email below).
 firstUserSecret:
   name: keycloak-first-user
   passKey: PASSWORD
