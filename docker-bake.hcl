@@ -12,6 +12,12 @@ variable "TAG" {
   default = "latest"
 }
 
+# Where the release targets push: ghcr.io, or the kind registry when the Gitea release workflow runs
+# (RELEASE_REGISTRY=kind-registry:5000, see .gitea/workflows/release.yml).
+variable "RELEASE_REGISTRY" {
+  default = "ghcr.io/aridhia-open-source"
+}
+
 # <registry>/<name>:latest and :TAG, once if TAG is latest
 function "tags" {
   params = [name]
@@ -32,14 +38,15 @@ group "default" {
   ]
 }
 
-# What the release publishes to ghcr.io, built without REGISTRY
+# What the release publishes to RELEASE_REGISTRY, built without REGISTRY
 group "release" {
   targets = [
     "release-keycloak",
     "release-alpine",
     "release-kc-init",
     "release-dagster",
-    "release-nexus-operator",
+    "release-nexus-api",
+    "release-nexus-ui",
   ]
 }
 
@@ -90,22 +97,32 @@ target "nexus-ui-dev-fn" {
 
 target "release-keycloak" {
   inherits = ["keycloak-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/federated_keycloak:${TAG}"]
+  tags     = ["${RELEASE_REGISTRY}/federated_keycloak:${TAG}"]
 }
 
 target "release-alpine" {
   inherits = ["alpine-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/alpine:${TAG}"]
+  tags     = ["${RELEASE_REGISTRY}/alpine:${TAG}"]
 }
 
 target "release-kc-init" {
   inherits = ["kc-init-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/keycloak_initializer:${TAG}"]
+  tags     = ["${RELEASE_REGISTRY}/keycloak_initializer:${TAG}"]
 }
 
 target "release-dagster" {
   inherits = ["dagster-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/dagster_fn:${TAG}"]
+  tags     = ["${RELEASE_REGISTRY}/dagster_fn:${TAG}"]
+}
+
+target "release-nexus-api" {
+  inherits = ["nexus-api-fn"]
+  tags     = ["${RELEASE_REGISTRY}/nexus_api:${TAG}"]
+}
+
+target "release-nexus-ui" {
+  inherits = ["nexus-ui-fn"]
+  tags     = ["${RELEASE_REGISTRY}/federated_node_nexus_ui:${TAG}"]
 }
 
 target "release-nexus-operator" {
