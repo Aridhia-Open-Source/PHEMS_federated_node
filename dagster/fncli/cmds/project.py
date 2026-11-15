@@ -1,6 +1,6 @@
 """
 The nexus-api Project and its healthcheck. Its datasets and repositories are global, the project only holds
-assignments of them. It is made and deleted by `fncli apply` and `fncli delete`.
+assignments of them. It is made and deleted by `kubectl apply` and `kubectl delete` of its Project resource (config/).
 """
 
 import json
@@ -9,7 +9,7 @@ import logging
 import click
 
 from fncli.cmds.common import ProjectConfig
-from fncli.cmds.nodefile import context_option, step_project_option, step_target
+from fncli.cmds.target import context_option, step_project_option, step_target
 from fncli.backend import FncliBackendAPI
 from nexus_client.models import Project
 
@@ -41,7 +41,7 @@ def get_project_healthcheck(project_name: str, backend_api: FncliBackendAPI) -> 
     project = backend_api.find_project(project_name)
     if project is None:
         raise click.ClickException(
-            f"Project {project_name} not found, run fncli apply first"
+            f"Project {project_name} not found, kubectl apply -f config/ first"
         )
     return backend_api.get_project_healthcheck(project.id)
 

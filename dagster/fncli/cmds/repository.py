@@ -1,7 +1,7 @@
 """
 The two Gitea repos (the trigger repo the sensor watches and the results repo tasks write to) and their records in the
 backend, as the simulation (cmds/simulate.py) sets them up, and what the commands that read them from the backend use.
-The node's own are made by `fncli apply`.
+The node's own are the Repository resources in config/ (ADR 0032).
 """
 
 import logging
@@ -10,11 +10,11 @@ import click
 
 from fncli.cmds.common import ENTITY_CONFIGS, RepoConfig, ResultsRepoConfig, TriggerRepoConfig
 from fncli.backend import FncliBackendAPI
-from fncli.cmds.nodefile import step_target
+from fncli.cmds.target import step_target
 from nexus_client.git_uri import normalise_repo_uri
 from fncli.gitea import GiteaAdminAPI
 from nexus_client.models import GitProvider, Project, ProjectResultsRepository, ProjectTriggerRepository
-from fncli.nodefile.loader import Context
+from fncli.context import Context
 
 logger = logging.getLogger("repository")
 
@@ -84,7 +84,7 @@ def get_backend_repo_record(entity: str, backend_api: FncliBackendAPI, project: 
     if len(records) != 1:
         raise click.ClickException(
             f"Project {project.name} has {len(records)} backend {entity} repositories, "
-            f"expected 1 (run fncli apply first)"
+            f"expected 1 (kubectl apply -f config/ first)"
         )
     return records[0]
 
@@ -96,7 +96,7 @@ def load_repo_config(entity: str, context: Context, project: str, backend_api: F
     """
     backend_project = backend_api.find_project(project)
     if backend_project is None:
-        raise click.ClickException(f"Project {project} not found in the backend (run fncli apply first)")
+        raise click.ClickException(f"Project {project} not found in the backend (kubectl apply -f config/ first)")
     record = get_backend_repo_record(entity, backend_api, backend_project)
     # A record is the project's assignment, with the repository nested
     repository = record.trigger_repository if entity == "trigger" else record.results_repository

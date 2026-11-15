@@ -3,7 +3,12 @@ from typing import cast
 
 from kubernetes import client
 from kubernetes.client import V1Secret
+from kubernetes.client.exceptions import ApiException
 from kubernetes.config import list_kube_config_contexts, load_kube_config
+
+# The node config resources (ADR 0032)
+GROUP = "fn.aridhia.com"
+VERSION = "v1alpha1"
 
 
 def current_context() -> str:
@@ -19,6 +24,44 @@ def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
     if secret.data is None:
         raise ValueError(f"Secret {secret_name} has no data")
     return base64.b64decode(secret.data[key].encode()).decode()
+
+
+def k8s_secret_version(secret_name: str, namespace: str) -> str | None:
+    """The resourceVersion of a Kubernetes secret, None when there is none"""
+    load_kube_config()
+    try:
+        return client.CoreV1Api().read_namespaced_secret(secret_name, namespace).metadata.resource_version
+    except ApiException as error:
+        if error.status == 404:
+            return None
+        raise
+
+
+def write_k8s_secret(secret_name: str, namespace: str, values: dict[str, str]) -> str:
+    """Create or replace a Kubernetes secret with exactly these values; returns its new resourceVersion"""
+    load_kube_config()
+    v1 = client.CoreV1Api()
+    body = client.V1Secret(metadata=client.V1ObjectMeta(name=secret_name, namespace=namespace), string_data=values)
+    if k8s_secret_version(secret_name, namespace) is None:
+        return v1.create_namespaced_secret(namespace, body).metadata.resource_version
+    return v1.replace_namespaced_secret(secret_name, namespace, body).metadata.resource_version
+
+
+def list_node_config(plural: str) -> list[dict]:
+    """Every fn.aridhia.com resource of a kind, in every namespace"""
+    load_kube_config()
+    return client.CustomObjectsApi().list_cluster_custom_object(GROUP, VERSION, plural)["items"]
+
+
+def get_node_config(plural: str, namespace: str, name: str) -> dict | None:
+    """One fn.aridhia.com resource, None when there is none"""
+    load_kube_config()
+    try:
+        return client.CustomObjectsApi().get_namespaced_custom_object(GROUP, VERSION, namespace, plural, name)
+    except ApiException as error:
+        if error.status == 404:
+            return None
+        raise
 
 
 def remove_k8s_secret_keys(secret_name: str, namespace: str, keys: list[str]):

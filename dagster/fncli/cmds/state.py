@@ -11,7 +11,7 @@ import logging
 import click
 
 from fncli.cmds.common import BackendConfig, build_admin_backend_api
-from fncli.cmds.nodefile import context_option, step_project_option, step_target
+from fncli.cmds.target import context_option, step_project_option, step_target
 from fncli.cmds.repository import get_backend_repo_record
 from fncli.backend import FncliBackendAPI
 
@@ -43,7 +43,7 @@ def get(api: FncliBackendAPI, path: str, **params):
 def find_project(api: FncliBackendAPI, name: str):
     project = api.find_project(name)
     if project is None:
-        raise click.ClickException(f"Project {name} not found, run fncli apply first")
+        raise click.ClickException(f"Project {name} not found, kubectl apply -f config/ first")
     return project
 
 
