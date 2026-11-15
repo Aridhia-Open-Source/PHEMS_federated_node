@@ -31,6 +31,8 @@ class Settings:
   superuser_pass:str = ""
   dagster_kc_user:str = ""
   dagster_kc_email:str = ""
+  operator_kc_user:str = ""
+  operator_kc_email:str = ""
   manage_realm:bool = True
   keycloak_realm:str = "FederatedNode"
   realm:str = "master"
@@ -73,6 +75,10 @@ class Settings:
   @property
   def dagster_kc_password(self) -> str:
     return read_secret("DAGSTER_KC_PASSWORD")
+
+  @property
+  def operator_kc_password(self) -> str:
+    return read_secret("OPERATOR_KC_PASSWORD")
 
 
 settings = Settings()

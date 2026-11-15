@@ -139,6 +139,21 @@ def ensure_realm_accounts(admin_token:str):
             admin_token=admin_token
         )
 
+    # The nexus operator's user (ADR 0032): Administrator, not System, so it may change node config
+    # but not call the system-only routes. Its password follows operator-keycloak-creds, like Dagster's.
+    if settings.operator_kc_user and settings.operator_kc_password and settings.operator_kc_email:
+        logger.info("Creating the nexus operator user")
+        create_user(
+            settings.operator_kc_user,
+            settings.operator_kc_password,
+            email=settings.operator_kc_email,
+            first_name="Nexus",
+            last_name="Operator",
+            role_name="Administrator",
+            admin_token=admin_token,
+            reset_password_if_exists=True
+        )
+
 
 def ensure_superuser(admin_token:str):
     """
