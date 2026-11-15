@@ -96,6 +96,17 @@ Tests and lint:
 - nexus-api decides, Dagster carries out decisions (ADR 0021); Dagster and fncli parse API responses into their own models.
 - CI (`.github/workflows/build.yml`) runs pylint, hadolint, helm lint/template/unittest, nexus-api tests, Dagster tests and Keycloak integration tests.
 
+## Agent team
+
+When work is split across subagents, pick the model by the job:
+
+- Fable: advisor. Plans, and reviews each diff before commit.
+- Opus: development work; leads implementation steps.
+- Sonnet: mechanical work (import moves, renames, running a single test file).
+- Haiku: basic actions (status checks, greps, PR text, log summaries).
+
+The main session coordinates, commits and pushes.
+
 ## Working tips for agents
 
 - Find code with `git grep -n <symbol>` and read the lines around the hits; avoid reading whole modules.
