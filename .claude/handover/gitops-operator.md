@@ -29,7 +29,19 @@ Part 2, Flux (ADR 0031), local with Gitea first:
 (Filled in by the advisor review.)
 
 ## Next step
-Step 2.
+1. **Rerun the advisor (Fable, background).** It was cut off by an account switch before writing anything. Its job:
+   - Write `project/plans/gitops-operator.md`, the detailed plan. For each step: what and why, real file paths, design decisions, risks, what done means, how to test it.
+   - Update ADR 0031: delivery is proved locally first with Gitea, Gitea Actions, `act_runner` and Flux in kind; GitHub Actions comes after.
+   - Update ADR 0032 with anything that reading the code forces: CRD group, finalizers, what goes into nexus-client.
+   - Fill "Refined plan" above, and list at most 4 open questions for the user.
+   - Keep it MADR, terse, no client names, no mention of 0033.
+2. Commit and push the advisor's output, then ask codepint the open questions.
+3. Step 2 (move the client to `nexus/client/`): Opus lead, with Sonnet doing the import moves.
+
+## Team and permissions
+- Fable: advisor; it plans and reviews each step's diff before commit. Opus: leads, operator then Flux. Sonnet: mechanical work. The main session coordinates, commits and pushes.
+- codepint has given this work full control of the dev cluster and permission to push branches. Commit and push after each chunk.
+- Run single test files, not full suites. Check `~/.claude/usage.json` before each step.
 
 ## Open questions
 - CRD API group name (ADR 0032 says `fn.aridhia.com`, to be decided).
