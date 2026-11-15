@@ -355,7 +355,7 @@ def test_a_failing_file_is_a_valid_spec_whose_task_exits_non_zero(config):
 
     spec = json.loads(content)["spec"]
     assert path.startswith(config.watch_dir)
-    assert spec["env"] == {"A": "1", "PYPIPES_EXIT_CODE": "1"}
+    assert spec["env"] == {"A": "1", "DEMO_FORCE_EXIT_CODE": "1"}
     assert "unknown_field" not in spec
 
 

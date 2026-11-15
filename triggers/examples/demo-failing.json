@@ -2,7 +2,7 @@
   "spec": {
     "image": "localhost:5001/demo-fn:latest",
     "env": {
-      "PYPIPES_EXIT_CODE": "1"
+      "DEMO_FORCE_EXIT_CODE": "1"
     }
   }
 }

@@ -38,7 +38,7 @@ logger = logging.getLogger("pr")
 # What the sensor makes of the pull request: a task (watched), no trigger at all (unwatched,
 # the file is outside the watch_dir, so the backend fan-out skips the PR) or reject it (invalid,
 # the spec does not validate). A failing PR is a valid spec whose task exits non-zero (the reference image
-# exits with PYPIPES_EXIT_CODE), so its task ends FAILED in seconds.
+# exits with DEMO_FORCE_EXIT_CODE), so its task ends FAILED in seconds.
 KINDS = ["watched", "unwatched", "invalid", "failing"]
 
 POLL_SECONDS = 3
@@ -91,7 +91,7 @@ def file_for(config: TriggerRepoConfig, branch: str, kind: str, trigger: dict) -
     trigger = copy.deepcopy(trigger)
     spec = trigger["spec"]
     if kind == "failing":
-        spec["env"] = {**spec.get("env", {}), "PYPIPES_EXIT_CODE": "1"}
+        spec["env"] = {**spec.get("env", {}), "DEMO_FORCE_EXIT_CODE": "1"}
     if kind == "invalid":
         # The backend's PrSpecFile forbids unknown fields
         spec["unknown_field"] = True

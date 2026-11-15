@@ -84,7 +84,7 @@ Secrets, datasets and the trigger and results repositories are global: they belo
 `--kind` picks the file, and so what the sensor makes of the PR: `watched` (default) is the trigger file as a new
 `.json` spec file under the watch_dir, which becomes a task; `unwatched` is a file
 outside the watch_dir, so the PR creates no trigger; `invalid` is the trigger file under the watch_dir
-with an unknown field added to its spec, so the PR is rejected; `failing` adds `PYPIPES_EXIT_CODE=1` to its env, so the task fails.
+with an unknown field added to its spec, so the PR is rejected; `failing` adds `DEMO_FORCE_EXIT_CODE=1` to its env, so the task fails.
 `fncli trigger` runs the same steps for a project, always `watched`.
 
 **Sensors** (`cmds/sensor.py`; needs the Dagster webserver on `DAGSTER_URL`, default `http://localhost:3000`)
