@@ -3,8 +3,24 @@
 Dev only (values.schema.json refuses it without local_development): the dind sidecar is privileged.
 The runner talks to the Docker daemon in the sidecar over a unix socket on a shared emptyDir, so
 the daemon listens on no port. The registration token is the chart's (gitea-runner-secret.yaml), the one Gitea
-is started with.
+is started with. The registration (/data/.runner) is on a PVC, so a restart reuses it instead of registering a
+new runner; Recreate keeps two pods off the one registration.
 */ -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gitea-runner-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-runner
+    release: {{ .Release.Name }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Mi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,6 +31,8 @@ metadata:
     release: {{ .Release.Name }}
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: gitea-runner
@@ -51,6 +69,8 @@ spec:
         volumeMounts:
         - name: docker-socket
           mountPath: /var/run
+        - name: runner-data
+          mountPath: /data
       - name: dind
         image: "{{ .Values.gitea.actions.runner.dind.image.repository }}:{{ .Values.gitea.actions.runner.dind.image.tag }}"
         imagePullPolicy: {{ .Values.gitea.actions.runner.dind.image.pullPolicy }}
@@ -66,4 +86,7 @@ spec:
       volumes:
       - name: docker-socket
         emptyDir: {}
+      - name: runner-data
+        persistentVolumeClaim:
+          claimName: gitea-runner-data
 {{- end }}
