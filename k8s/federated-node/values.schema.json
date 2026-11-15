@@ -4,6 +4,48 @@
     "required": [
         "db"
     ],
+    "if": {
+        "required": [
+            "gitea"
+        ],
+        "properties": {
+            "gitea": {
+                "required": [
+                    "actions"
+                ],
+                "properties": {
+                    "actions": {
+                        "required": [
+                            "runner"
+                        ],
+                        "properties": {
+                            "runner": {
+                                "required": [
+                                    "enabled"
+                                ],
+                                "properties": {
+                                    "enabled": {
+                                        "const": true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "then": {
+        "required": [
+            "local_development"
+        ],
+        "properties": {
+            "local_development": {
+                "const": true,
+                "description": "gitea.actions.runner runs a privileged Docker-in-Docker sidecar: dev only"
+            }
+        }
+    },
     "definitions": {
         "tag": {
             "type": [
@@ -258,6 +300,79 @@
                     "type": "integer",
                     "default": 2592000,
                     "description": "Duration in seconds for tokens"
+                }
+            }
+        },
+        "gitea": {
+            "type": "object",
+            "properties": {
+                "actions": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "runner": {
+                            "type": "object",
+                            "description": "Dev only (needs local_development): the runner pod has a privileged Docker-in-Docker sidecar",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "default": false
+                                },
+                                "image": {
+                                    "type": "object",
+                                    "properties": {
+                                        "repository": {
+                                            "type": "string"
+                                        },
+                                        "tag": {
+                                            "type": "string"
+                                        },
+                                        "pullPolicy": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "dind": {
+                                    "type": "object",
+                                    "properties": {
+                                        "image": {
+                                            "type": "object",
+                                            "properties": {
+                                                "repository": {
+                                                    "type": "string"
+                                                },
+                                                "tag": {
+                                                    "type": "string"
+                                                },
+                                                "pullPolicy": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "labels": {
+                                    "type": "string",
+                                    "description": "Runner labels, comma separated, e.g. ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"
+                                },
+                                "secret": {
+                                    "type": "object",
+                                    "description": "The secret gitea-admin-init writes the registration token to",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "key": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         },
