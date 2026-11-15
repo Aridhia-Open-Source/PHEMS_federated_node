@@ -63,11 +63,11 @@ sequenceDiagram
     participant DG as Dagster (daemon + run pods)
     participant K8s as Kubernetes
 
-    Dev->>CLI: apply -f examples/globals-e2e.yaml -y, then apply -f examples/projects/e2e.yaml -y
-    CLI->>BE: create project, then the global secrets, trigger and results repository, dataset
-    CLI->>BE: assign the repositories and dataset to the project
-    CLI->>Git: create repos and tokens (Gitea, via localhost:4000)
-    CLI->>K8s: store tokens in the secrets
+    Dev->>CLI: gitea setup -f config/e2e/fn-dev.yaml
+    CLI->>Git: create repos and OAuth apps (Gitea, via localhost:4000)
+    CLI->>K8s: store the OAuth credentials in the NodeSecrets' Secrets
+    Dev->>K8s: kubectl apply -f config/ (GitProvider, NodeSecret, Repository, Dataset, Project)
+    K8s->>BE: the nexus operator syncs them: secrets, repositories, dataset, project and its assignments
     Dev->>CLI: start-sensor all
     CLI->>DG: GraphQL start sensors (3000)
     Dev->>CLI: open-pr --merge

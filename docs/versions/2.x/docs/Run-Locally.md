@@ -8,8 +8,8 @@ This is for trying and developing the FN. For a real cluster, use [Prerequisites
 ## What you end up with
 
 - A local [kind](https://kind.sigs.k8s.io/) cluster with the FN installed, and a Gitea running inside it.
-- A small demo database, registered with the node as a dataset.
-- `fncli`, a command-line tool, on your PATH. `fncli apply` sets a node up from files, and `fncli demo` walks one pull request through it, one confirmed step at a time: it opens and merges a pull request, waits for the task to run, and merges the results pull request. `fncli delete` cleans up. [Using fncli](./Using-fncli) explains the files.
+- A small demo database, registered with the node as a dataset (a Kubernetes resource that the nexus operator syncs).
+- `fncli`, a command-line tool, on your PATH. `kubectl apply` of the files in `config/` sets a node up, and `fncli demo` walks one pull request through it, one confirmed step at a time: it opens and merges a pull request, waits for the task to run, and merges the results pull request. `kubectl delete` cleans up. [Using fncli](./Using-fncli) explains the files.
 
 
 ## 1. Install the tools
@@ -75,7 +75,7 @@ In `.dev.env`, set:
 | `KEYCLOAK_FIRST_USER_EMAIL` | your email. It is your admin login for the API |
 | `KEYCLOAK_FIRST_USER_PASSWORD` | a password you will remember. Quote it if it has special characters, because bash reads the file |
 
-Leave `CLUSTER_NAME=fn`, `NAMESPACE=fn` and `RELEASE_NAME=fn-dev` as they are, and leave the other lines alone. The cluster name and namespace are written into the Tiltfile, the example files and the port-forward scripts. Your own names go in your own files under `bootstrap/` (later steps), not here.
+Leave `CLUSTER_NAME=fn`, `NAMESPACE=fn` and `RELEASE_NAME=fn-dev` as they are, and leave the other lines alone. The cluster name and namespace are written into the Tiltfile, the example files and the port-forward scripts. Your own names go in your own copies of the files in `config/` (later steps), not here.
 
 In `k8s/federated-node/dev.values.yaml`, set `nodeId` to a name for your node (any text; it is required, and names the node in the results it delivers). Leave `db.host` as `db.fn.svc`, which has to match `NAMESPACE`, and every image `tag` as `latest`. The Gitea block is already switched on, and the chart generates its admin password.
 
@@ -150,7 +150,7 @@ Both demos use one dataset, `demo-db`: a tiny Postgres with a `cdm.person` table
 ```sh
 fncli experiment deploy                 # the release: the database, its role and secret
 fncli experiment seed demo          # the schemas and rows
-fncli experiment setup demo         # registers demo-db (and its secret) with the node
+fncli experiment setup demo         # waits for demo-db (and its secret) to sync to the node
 kubectl get pods -n experiments     # the database Running
 ```
 
@@ -166,32 +166,31 @@ If it says a sensor is not found, Dagster is still loading its code: wait a minu
 
 ## 7. The Gitea demo
 
-Everything lives in the cluster's Gitea, so nothing outside is needed. The demo is two files: the global resources (the git provider, the OAuth app secrets and the two repositories), and the project, which only assigns them and the dataset.
+Everything lives in the cluster's Gitea, so nothing outside is needed. The demo is two files in `config/`: `gitea.yaml` (the git provider) and `demo.yaml` (the OAuth app secrets, the two repositories and the project, which assigns the dataset).
 
 ```sh
-fncli diff  -f examples/globals-gitea.yaml          # preview: reads only
-fncli apply -f examples/globals-gitea.yaml          # creates the provider, secrets and both Gitea repos
-fncli apply -f examples/projects/demo-gitea.yaml    # the project and its assignments (uses demo-db)
-fncli demo  -f examples/projects/demo-gitea.yaml    # the guided pull request walk
+fncli gitea setup -f config/demo.yaml    # the Gitea repositories, and a Kubernetes Secret with each one's OAuth app
+kubectl apply -f config/                 # the provider, NodeSecrets, repositories and the project (uses demo-db)
+kubectl get fn -n fn                     # each resource's Synced and Message: wait for them all to sync
+fncli demo --project demo-gitea          # the guided pull request walk
 ```
 
-`apply` prints what it will change, asks, then does it. Run the diff again afterwards: it should show nothing left to change.
+`fncli gitea setup` keeps a Secret that exists, so it is safe to rerun. The nexus operator syncs the applied resources to nexus-api, and says in `Message` what a resource is waiting for.
 
-`fncli demo` creates and deletes nothing. It first checks that the node matches the project file, and stops with the rows that differ if it does not, so run the applies first. Before each step it says what the step does and shows the equivalent command. **Enter** runs it, **s** skips it, **q** quits. After each step it prints `Open:` addresses for your browser, and the objects it made. The pull request step waits up to 5 minutes for the task to run. Log in to the Gitea pages as `gitea_admin`. Useful options:
+`fncli demo` creates and deletes nothing. It first reads the project's Project resource, and stops, showing the operator's message, if it is not synced, so apply first. Before each step it says what the step does and shows the equivalent command. **Enter** runs it, **s** skips it, **q** quits. After each step it prints `Open:` addresses for your browser, and the objects it made. The pull request step waits up to 5 minutes for the task to run. Log in to the Gitea pages as `gitea_admin`. Useful options:
 
 - `-y` runs every step without asking.
 - `--from N` starts at step N, for example after a failed step.
 
-Run the demo again as often as you like. `fncli demo -f examples/projects/demo-gitea.yaml examples/demo-failing.json` makes the task fail on purpose, to see the failure path. Without the guided checks, `fncli trigger --pr --merge --watch examples/demo.json` opens, merges and follows a pull request directly.
+Run the demo again as often as you like. `fncli demo --project demo-gitea triggers/examples/demo-failing.json` makes the task fail on purpose, to see the failure path. Without the guided checks, `fncli trigger --pr --merge --watch triggers/examples/demo.json` opens, merges and follows a pull request directly.
 
 Clean up:
 
 ```sh
-fncli delete -f examples/projects/demo-gitea.yaml           # the project only
-fncli delete -f examples/globals-gitea.yaml --all           # also the shared repos, secrets and provider
+kubectl delete -f config/demo.yaml       # the project, repositories and NodeSecrets (config/gitea.yaml stays)
 ```
 
-Delete is a soft delete, and it skips anything another project still uses. The Gitea repos and OAuth apps stay in Gitea, and the next run reuses them. The dataset `demo-db` is not in these files, so neither delete touches it.
+The operator soft-deletes the records, and keeps anything another project still uses. The Gitea repos, OAuth apps and Secrets stay, and the next run reuses them. The dataset `demo-db` is the experiments chart's, so the delete does not touch it.
 
 
 ## 8. The GitHub demo with your own repository
@@ -214,36 +213,35 @@ fncli never creates or deletes GitHub repositories, tokens or Apps. You make the
    GH_INSTALLATION_ID=<your installation ID>
    ```
 5. **Give fncli a researcher token.** The demo's pull requests into the trigger repository are your own work, not the node's, so they do not use the App. Either run `gh auth login`, or put `RESEARCHER_GIT_TOKEN=<token>` in `.dev.env`, a personal access token that can write to the repository.
-6. **Copy the examples and edit the copies.** Your copies under `bootstrap/` are gitignored:
+6. **Copy the example and edit the copy.** The file is `config/github/demo-github.yaml`:
 
    ```sh
-   mkdir -p bootstrap/projects
-   cp bootstrap/examples/globals-github.yaml bootstrap/globals-<your-name>-github.yaml
-   cp bootstrap/examples/projects/demo-github.yaml bootstrap/projects/<your-name>-github.yaml
+   cp config/github/demo-github.yaml config/github/<your-name>-github.yaml
    ```
 
    | Change | Where |
    |---|---|
-   | The repository address | The globals file, for the trigger and the results repository, and the project file, for both: all four places, `https://github.com/<owner>/<repo>` |
-   | The secret label | The globals file: the `secrets:` key, and `secret:` under both repositories. Lowercase letters, digits, `-` and `.` only |
-   | The private key path | The globals file, `PRIVATE_KEY: {file: ...}`. `~` works |
-   | `watch_dir` and `target_dir` | The project file. Directories in your repository, for example `mgmt/requests/` and `mgmt/results/`. They must not overlap, because the results pull requests go to the same repository and must not look like triggers |
-   | `base_branch` | The project file, in both places: your repository's default branch |
-   | The project name | The project file. Different from your Gitea project's |
+   | The repository address | Both Repositories' `spec.uri`, and the project's `repository:` under `triggers` and `results`: all four places, `https://github.com/<owner>/<repo>` |
+   | The NodeSecret name | The NodeSecret's `metadata.name`, and `spec.secret` of both Repositories. Lowercase letters, digits, `-` and `.` only |
+   | The Kubernetes Secret name | The NodeSecret's `spec.fromSecret.name`, and the `kubectl create secret` below |
+   | `watchDir` and `targetDir` | The project. Directories in your repository, for example `mgmt/requests/` and `mgmt/results/`. They must not overlap, because the results pull requests go to the same repository and must not look like triggers |
+   | `baseBranch` | The project, in both places: your repository's default branch |
+   | The project name | The project. Different from your Gitea project's |
 
-   Leave the `providers:` block and the dataset `demo-db` as they are.
-7. **Diff, apply, demo, delete:**
+   Leave the GitProvider and the dataset `demo-db` as they are.
+7. **Store the App's values, apply, demo, delete:**
 
    ```sh
-   fncli diff  -f bootstrap/globals-<your-name>-github.yaml
-   fncli apply -f bootstrap/globals-<your-name>-github.yaml
-   fncli apply -f bootstrap/projects/<your-name>-github.yaml
-   fncli demo  -f bootstrap/projects/<your-name>-github.yaml
-   fncli delete -f bootstrap/projects/<your-name>-github.yaml
-   fncli delete -f bootstrap/globals-<your-name>-github.yaml --all
+   kubectl create secret generic phems-sandbox-github-app -n fn \
+     --from-literal=APP_ID="$GH_APP_ID" --from-literal=INSTALLATION_ID="$GH_INSTALLATION_ID" \
+     --from-file=PRIVATE_KEY=$HOME/.config/phems/<your-app>.private-key.pem
+   kubectl apply -f config/github/<your-name>-github.yaml
+   kubectl get fn -n fn                     # wait for every resource to sync
+   fncli demo --project <your-project>
+   kubectl delete -f config/github/<your-name>-github.yaml
    ```
 
-   In the diff, `GH_APP_ID`, `GH_INSTALLATION_ID` and the key file must say `set`. The demo asks nexus-api for a token for each repository and calls GitHub with it, then opens a pull request into your repository, merges it, and later merges the results pull request, which you can watch in your repository.
+   `GH_APP_ID` and `GH_INSTALLATION_ID` must be set in your shell (`set -a; source .dev.env; set +a`). The demo asks nexus-api for a token for each repository and calls GitHub with it, then opens a pull request into your repository, merges it, and later merges the results pull request, which you can watch in your repository.
 
 Nothing is deleted in your GitHub repository, and the dataset stays.
 
@@ -256,19 +254,19 @@ Nothing is deleted in your GitHub repository, and the dataset stays.
 | `context.yaml not found ...` | `cp bootstrap/examples/context.yaml bootstrap/context.yaml`, or give `--context FILE` |
 | `node.env_file ... not found` | The env file must exist in or above the context file's directory. Make `.dev.env` (step 3) |
 | `fncli: command not found` | Activate mise in your shell (step 1), then open a new terminal. Or run `mise run setup` if you have not |
-| `No such command 'diff'` or `No module named 'fncli'` | Run `mise run setup` in this checkout. An old pipx copy: `pipx uninstall phems` |
-| `Nothing was applied, these secret values cannot be read`, or `missing` in the diff | Set what it names: `GH_APP_ID` and `GH_INSTALLATION_ID` in `.dev.env`, the key file at the path in your globals file, and for the demo database the `fncli experiment` steps |
+| `No such command 'gitea'` or `No module named 'fncli'` | Run `mise run setup` in this checkout. An old pipx copy: `pipx uninstall phems` |
+| A resource in `kubectl get fn -n fn` is not synced | Read its `Message`: a Kubernetes Secret that is missing (`fncli gitea setup`, or `kubectl create secret` for GitHub), a dataset that is not on the node (the `fncli experiment` steps), or a repository not applied yet |
 | `No experiments deployment: run fncli experiment deploy first` | `fncli experiment deploy` |
 | `Writing to a GitHub repo needs RESEARCHER_GIT_TOKEN, or gh auth login` | Step 8, item 5 |
 | A merged pull request does nothing | `fncli sensor-status`. Sensors are stopped by default: `fncli start-sensor --group all` |
-| `fncli demo`: `The node does not match ... yet` | `fncli apply` the globals file, then the project file, then the demo again |
+| `fncli demo`: `Project ... is not synced to the node yet` | `kubectl get fn -n fn`, fix what the `Message` names, `kubectl apply -f config/` again, then the demo |
 | A demo step failed | Fix the cause and rerun with `--from N` |
 | `Connection refused` on localhost 5000, 4000 or 3000 | Tilt must be running (`tilt up --stream`) |
 | Helm will not render, or the chart's subcharts are missing | `mise run helm deps` |
 | `mise run deploy`: `dev cluster is owned by ...` | Tear down from the owning copy, or `mise run deploy --force-owner`. `mise run deploy-owner` shows the owner |
 | `mise run deploy` fails on an existing release | It runs `helm upgrade --install`, so rerunning is safe. If the release is stuck, `mise run teardown` then `mise run deploy` |
 | `stale postgres data` on reinstall | Postgres only reads its password when it first creates its data. Keep the password secret and the data, or delete both: `mise run teardown` does |
-| `delete --all` ends with `Skipped, the backend refused` | A project outside the file still uses what it deletes (the other demo's repository, say). Delete that project first |
+| A resource stays `Terminating` after `kubectl delete` | A project outside the file still uses it (the other demo's repository, say). Delete that project first |
 | Pods in `ImagePullBackOff`, or the chart fails on `nodeId` or the database host | A stale or hand-edited `dev.values.yaml`. Compare it with `dev.example.values.yml` |
 | A pod is stuck in `CrashLoopBackOff` | `kubectl describe pod <pod> -n fn` and `kubectl logs <pod> -n fn` |
 
@@ -277,12 +275,12 @@ Nothing is deleted in your GitHub repository, and the dataset stays.
 
 | Goal | Command |
 |---|---|
-| Remove a demo project from the node | `fncli delete -f` its project file, then `fncli delete -f` its globals file with `--all` |
+| Remove a demo project from the node | `kubectl delete -f` its file in `config/` |
 | Remove the release and all its data, keep the cluster | `mise run teardown`, then `mise run deploy` again |
 | Delete the cluster, keep the registries and their images | `mise run cluster down`, then `mise run cluster up` |
 | Delete the cluster and the registries | `./scripts/cluster.sh down --remove-registries` |
 | Teardown, new cluster and deploy in one go | `mise run teardown && mise run cluster down && mise run cluster up && mise run deploy` |
 
-`mise run teardown` wipes the node's data and releases the cluster's owner. It keeps the `experiments` release, so the demo database survives. After `mise run teardown` and `mise run deploy`, or the full reset above, run `tilt up --stream` again, then `fncli start-sensor --group all`, then the demo. Your `.dev.env`, `dev.values.yaml`, `bootstrap/context.yaml`, your files under `bootstrap/` and the App's key file are untouched. After the full reset, run `fncli experiment deploy` again if `kubectl get pods -n experiments` shows nothing.
+`mise run teardown` wipes the node's data and releases the cluster's owner. It keeps the `experiments` release, so the demo database survives. After `mise run teardown` and `mise run deploy`, or the full reset above, run `tilt up --stream` again, then `fncli start-sensor --group all`, then the demo. Your `.dev.env`, `dev.values.yaml`, `bootstrap/context.yaml`, your files under `config/` and the App's key file are untouched. The node resources and Secrets in namespace `fn` go with the namespace: run the `fncli gitea setup` and `kubectl apply` of the demo again. After the full reset, run `fncli experiment deploy` again if `kubectl get pods -n experiments` shows nothing.
 
-`fncli experiment down` removes every experiment's dataset from the node and then the release. It stops while a demo project still uses `demo-db`: delete that project first.
+`fncli experiment down` deletes every experiment's node project and uninstalls the release, which removes the datasets' resources. `demo-db` stays `Terminating` while a demo project still uses it: delete that project first (`kubectl delete -f config/demo.yaml`).
