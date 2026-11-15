@@ -166,7 +166,7 @@ test_pull() {
   local envs=() rc=0
   for v in "${PROXY_VARS[@]}"; do envs+=(-e "$v"); done
   docker rm -f "$DIND" >/dev/null 2>&1 || true
-  # The CA goes in the system trust store before dockerd starts, as IT pushes it to a laptop.
+  # The CA goes in the system trust store before dockerd starts, as IT pushes it to a developer workstation.
   docker run -d --rm --privileged --name "$DIND" --network "$NETWORK" "${envs[@]}" \
     -e DOCKER_TLS_CERTDIR= -v "${WORK}/ca.crt:/proxysim-ca.crt:ro" --entrypoint sh docker:dind \
     -c 'cat /proxysim-ca.crt >> /etc/ssl/certs/ca-certificates.crt; exec dockerd-entrypoint.sh' >/dev/null
