@@ -19,7 +19,7 @@ from app.definitions.sensors.task.pull_request_sync import (
 )
 from app.definitions.sensors.task.reconcile import task_reconcile_sensor
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
-from nexus_client.http import BackendAdapter, BackendSession
+from nexus_client.http import BackendSession, PasswordFileAdapter
 
 
 @dg.sensor(

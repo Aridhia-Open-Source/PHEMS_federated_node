@@ -271,7 +271,7 @@ class TestPasswordFileAdapter:
         password_file.write_text("old\n", encoding="utf-8")
         adapter = PasswordFileAdapter(base_url="https://backend", username="u", password_file=str(password_file))
 
-        with patch("app.utils.requests.post", return_value=response(body={"token": "t"})) as post:
+        with patch("nexus_client.http.requests.post", return_value=response(body={"token": "t"})) as post:
             adapter.login()
             password_file.write_text("rotated", encoding="utf-8")
             adapter.login()
