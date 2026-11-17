@@ -82,7 +82,7 @@ Expect a further revision at `0.0.1-dev`. Flux upgrades to the reverted version;
 
 ## 5. Config: add a project, then remove it
 
-This needs the operator (PR #656): add `operator.enabled: true` to `values.yaml` first, and push. The project names repositories and a dataset that must already be in nexus-api, here the e2e ones.
+The site's values turn on the operator, which syncs these resources into nexus-api. The project names repositories and a dataset that must already be in nexus-api, here the e2e ones.
 
 Add to `nodeConfig` in `values.yaml`, then commit and push:
 

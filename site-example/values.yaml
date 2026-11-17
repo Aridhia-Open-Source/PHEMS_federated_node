@@ -88,8 +88,14 @@ gitea:
     runner:
       enabled: true
 
-# The node's config as custom resources (ADR 0032). The operator (operator.enabled, PR #656) syncs them
-# into nexus-api; GitOps-Delivery.md adds a project here to show it.
+# The operator syncs the node's config custom resources into nexus-api (ADR 0032). It also watches
+# experiments, where the dev dataset lives, as the dev values do.
+operator:
+  enabled: true
+  image: localhost:5001/nexus_operator
+  watchNamespaces: [experiments]
+
+# The node's config as custom resources (ADR 0032); GitOps-Delivery.md adds a project here to show it.
 nodeConfig:
   providers:
     - name: gitea-local
