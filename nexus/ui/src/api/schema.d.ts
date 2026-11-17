@@ -1621,6 +1621,9 @@ export interface components {
             slug: string;
             /** Url */
             url: string;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /**
          * DatasetHealthDTO
@@ -1662,6 +1665,9 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /**
          * GitProviderHealthDTO
@@ -1907,6 +1913,9 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /**
          * ProjectDatasetDTO
@@ -1922,6 +1931,9 @@ export interface components {
             revoked: boolean;
             /** Active */
             active: boolean;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /** ProjectDatasetHealthDTO */
         ProjectDatasetHealthDTO: {
@@ -1984,6 +1996,9 @@ export interface components {
             revoked: boolean;
             /** Active */
             active: boolean;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /** ProjectResultsRepositoryHealthDTO */
         ProjectResultsRepositoryHealthDTO: {
@@ -2090,6 +2105,9 @@ export interface components {
             revoked: boolean;
             /** Active */
             active: boolean;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /** ProjectTriggerRepositoryHealthDTO */
         ProjectTriggerRepositoryHealthDTO: {
@@ -2309,6 +2327,9 @@ export interface components {
             enabled: boolean;
             /** Revoked */
             revoked: boolean;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /** ResultsRepositoryHealthDTO */
         ResultsRepositoryHealthDTO: {
@@ -2345,6 +2366,9 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /**
          * SecretHealthDTO
@@ -2555,6 +2579,9 @@ export interface components {
             revoked: boolean;
             /** Pr Cursor */
             pr_cursor: string;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /**
          * TriggerRepositoryRefDTO
@@ -2585,6 +2612,16 @@ export interface components {
             role: string[];
             /** Needs To Reset Password */
             needs_to_reset_password: boolean;
+        };
+        /**
+         * UserRefDTO
+         * @description A nexus-api user as a record names it, as its owner (ADR 0036).
+         */
+        UserRefDTO: {
+            /** Id */
+            id: string;
+            /** Username */
+            username: string;
         };
         /** ValidationError */
         ValidationError: {

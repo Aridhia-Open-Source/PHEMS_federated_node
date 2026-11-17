@@ -5065,6 +5065,27 @@
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5083,7 +5104,9 @@
           "created_at",
           "updated_at",
           "slug",
-          "url"
+          "url",
+          "owner",
+          "owner_group"
         ],
         "title": "DatasetDTO"
       },
@@ -5171,6 +5194,27 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5183,7 +5227,9 @@
           "enabled",
           "revoked",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "owner",
+          "owner_group"
         ],
         "title": "GitProviderDTO"
       },
@@ -5852,6 +5898,27 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5863,7 +5930,9 @@
           "revoked",
           "default_dataset_id",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectDTO"
       },
@@ -5887,6 +5956,27 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5895,7 +5985,9 @@
           "dataset",
           "enabled",
           "revoked",
-          "active"
+          "active",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectDatasetDTO",
         "description": "A project's resource for a global dataset, the dataset nested. Addressed by the dataset's id."
@@ -6044,6 +6136,27 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6055,7 +6168,9 @@
           "owned_by_federated_node",
           "enabled",
           "revoked",
-          "active"
+          "active",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectResultsRepositoryDTO",
         "description": "A project's resource for a global results repository, the repository nested. Addressed by the repository's id."
@@ -6315,6 +6430,27 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6328,7 +6464,9 @@
           "pr_count",
           "enabled",
           "revoked",
-          "active"
+          "active",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectTriggerRepositoryDTO",
         "description": "A project's resource for a global trigger repository, the repository nested. Addressed by the repository's id."
@@ -6948,6 +7086,27 @@
           "revoked": {
             "type": "boolean",
             "title": "Revoked"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6958,7 +7117,9 @@
           "provider",
           "secret",
           "enabled",
-          "revoked"
+          "revoked",
+          "owner",
+          "owner_group"
         ],
         "title": "ResultsRepositoryDTO"
       },
@@ -7054,6 +7215,27 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7066,7 +7248,9 @@
           "namespace",
           "enabled",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "owner",
+          "owner_group"
         ],
         "title": "SecretDTO"
       },
@@ -7696,6 +7880,27 @@
           "pr_cursor": {
             "type": "string",
             "title": "Pr Cursor"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7707,7 +7912,9 @@
           "secret",
           "enabled",
           "revoked",
-          "pr_cursor"
+          "pr_cursor",
+          "owner",
+          "owner_group"
         ],
         "title": "TriggerRepositoryDTO"
       },
@@ -7776,6 +7983,25 @@
         ],
         "title": "UserDTO",
         "description": "A simplified Keycloak user, as listed. firstName and lastName are Keycloak's names."
+      },
+      "UserRefDTO": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username"
+        ],
+        "title": "UserRefDTO",
+        "description": "A nexus-api user as a record names it, as its owner (ADR 0036)."
       },
       "ValidationError": {
         "properties": {
