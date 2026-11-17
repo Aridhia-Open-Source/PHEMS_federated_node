@@ -26,6 +26,7 @@ Status: Proposed, 2026-11-17.
 - **Owned records carry `owner_id` and `owner_group`,** both nullable, from one mixin, `OwnedMixin`; a model opts in by inheriting it. `owner_id` is a foreign key to `users`; `owner_group` is a group or role name. Today the owned records are git providers, secrets, trigger and results repositories, datasets, projects, and the project's dataset, trigger repository and results repository assignments.
 - **The caller that creates a record owns it** (`set_owner`). When the caller is in an owner group, `owner_group` is set to that group and the record is locked to it; otherwise `owner_group` stays null and the record is open.
 - **Only members of a record's owner group may change it.** Anyone else (an update, a re-assignment, a delete, a revoke) gets a 409 naming the group. An open record can be changed by anyone the route's scope allows, as before.
+- **No admin override.** An Administrator (or Super Administrator) outside the owner group gets the same 409; `get_for_write` has no admin bypass. A locked record changes only through its owner, by changing the service's source.
 - **A member of an owner group that writes a record takes it over:** `owner_id` becomes the caller, and an open record is locked to the caller's group.
 - **Responses show the owner,** as `owner` (`id` and `username`, or null) and `owner_group`.
 - **There is no audit trail yet.** Who changed what, and when, comes later and builds on this table.
@@ -62,7 +63,7 @@ Status: Proposed, 2026-11-17.
 
 ## Open questions
 
-- Whether an admin should be able to override a service's ownership (for example, to revoke in an emergency) or take a record over.
+- A Super Administrator override (for example, to revoke in an emergency, or to take a record over) may come later. It is not built.
 - Which fields are owner-controlled: today any change is refused; `owner_locked_fields` and `fields` are there for when that narrows.
 - Whether a forced delete of a global resource, or a project's delete, should also be refused when it cascades to a locked project resource. Today only the record addressed is checked.
 - Whether a write to a project's sub-resource (a project secret, an assignment) should also be refused when the project itself is locked.

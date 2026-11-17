@@ -162,6 +162,19 @@ def test_a_change_by_someone_outside_the_owner_group_is_a_409(client, callers):
     assert (provider.name, provider.deleted_at, provider.owner_id) == ("gt", None, "id-svc")
 
 
+def test_an_administrator_has_no_override_on_a_locked_record(client, callers, mock_kc_client):
+    """No admin bypass: even an admin-only change (revoking) by an Administrator outside the group is a 409."""
+    provider = create_provider(client, "service_token")
+    assert mock_kc_client["wrappers_kc"].return_value.is_user_admin("admin_token")
+
+    response = client.patch(f"{PROV}/{provider['id']}", json={"revoked": True}, headers=as_("admin_token"))
+
+    assert response.status_code == 409
+    assert f"owned by {GROUP}" in response.json()["error"]
+    db.session.expire_all()
+    assert GitProvider.get_by_id(provider["id"]).revoked is False
+
+
 # get_for_write
 
 def _caller(groups=()):
