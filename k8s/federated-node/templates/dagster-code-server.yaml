@@ -4,6 +4,11 @@ here rather than by the dagster-user-deployments subchart (disabled) so the imag
 follows appVersion - a subchart value cannot be templated. Run pods inherit it via
 DAGSTER_CURRENT_IMAGE, so the run launcher sets no job_image.
 
+It logs in to nexus-api as dagster, from dagster-keycloak-creds (keycloak-secrets.yaml). The password
+is a mounted file read at every login (DAGSTER_KC_PASSWORD_FILE in dagster-env-config), not env, so the
+credential rotation reaches it without a restart (a directory mount: a subPath one never refreshes).
+Run pods mount it the same way (dagster.runLauncher in values.yaml).
+
 No nonRootSC: the dagster image declares no USER, so runAsNonRoot would stop the pod
 starting. See _prepare_artifact_dir in dagster/app/definitions/pipes.py.
 */}}
@@ -103,11 +108,18 @@ spec:
                 secretKeyRef:
                   name: {{ include "dagsterDbSecretName" . }}
                   key: {{ include "dagsterDbSecretKey" . }}
+            - name: DAGSTER_KC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: dagster-keycloak-creds
+                  key: DAGSTER_KC_USER
           envFrom:
             - configMapRef:
                 name: dagster-env-config
-            - secretRef:
-                name: dagster-keycloak-creds
+          volumeMounts:
+            - name: dagster-keycloak-creds
+              mountPath: /etc/secrets/dagster
+              readOnly: true
           {{- with ((.Values.fnDagster).codeServer).resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -126,4 +138,8 @@ spec:
             timeoutSeconds: 10
             successThreshold: 1
             failureThreshold: 15
+      volumes:
+        - name: dagster-keycloak-creds
+          secret:
+            secretName: dagster-keycloak-creds
 {{- end }}

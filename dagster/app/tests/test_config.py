@@ -14,7 +14,7 @@ from app.config import (
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
     for key in (
-        "NEXUS_API_URL", "DAGSTER_KC_USER", "DAGSTER_KC_PASSWORD",
+        "NEXUS_API_URL", "DAGSTER_KC_USER", "DAGSTER_KC_PASSWORD_FILE",
         "DAGSTER_ARTIFACT_MOUNT_PATH", "DAGSTER_ARTIFACTS_PVC_NAME", "GH_RESULTS_DIR", "GH_TOKEN",
         "GH_API_URI", "GH_DELIVERY_REPO", "GH_DELIVERY_BASE_BRANCH",
         "DAGSTER_PIPES_FS_GROUP", "DAGSTER_PIPES_RUN_AS_USER",
@@ -29,7 +29,7 @@ class TestEnvConfig:
     def test_values_come_from_the_environment(self, monkeypatch):
         monkeypatch.setenv("NEXUS_API_URL", "http://nexus-api.fn.svc:5000")
         monkeypatch.setenv("DAGSTER_KC_USER", "dagster")
-        monkeypatch.setenv("DAGSTER_KC_PASSWORD", "secret")
+        monkeypatch.setenv("DAGSTER_KC_PASSWORD_FILE", "/etc/secrets/dagster/DAGSTER_KC_PASSWORD")
 
         config = BackendConfig()
 
@@ -43,7 +43,7 @@ class TestEnvConfig:
     def test_an_empty_value_is_treated_as_missing(self, monkeypatch):
         monkeypatch.setenv("NEXUS_API_URL", "")
         monkeypatch.setenv("DAGSTER_KC_USER", "dagster")
-        monkeypatch.setenv("DAGSTER_KC_PASSWORD", "secret")
+        monkeypatch.setenv("DAGSTER_KC_PASSWORD_FILE", "/etc/secrets/dagster/DAGSTER_KC_PASSWORD")
 
         with pytest.raises(ValidationError):
             BackendConfig()

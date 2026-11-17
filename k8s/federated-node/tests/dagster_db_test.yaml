@@ -90,6 +90,49 @@ tests:
           path: kind
           value: Deployment
 
+  # The Keycloak password is a file read at every login, so a rotation needs no restart.
+  # A directory mount, not subPath (a subPath mount never refreshes), and no password env.
+  - it: mounts the Keycloak password as a file on the code server
+    template: dagster-code-server.yaml
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: dagster-keycloak-creds
+            mountPath: /etc/secrets/dagster
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: dagster-keycloak-creds
+            secret:
+              secretName: dagster-keycloak-creds
+      - notContains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: dagster-keycloak-creds
+
+  - it: points the code server and run pods at the mounted password file
+    template: dagster-env-config.yaml
+    asserts:
+      - equal:
+          path: data.DAGSTER_KC_PASSWORD_FILE
+          value: /etc/secrets/dagster/DAGSTER_KC_PASSWORD
+
+  - it: mounts the Keycloak password on run pods instead of injecting it as env
+    template: charts/dagster/templates/configmap-instance.yaml
+    asserts:
+      - matchRegex:
+          path: data["dagster.yaml"]
+          pattern: "mountPath: /etc/secrets/dagster"
+      - notMatchRegex:
+          path: data["dagster.yaml"]
+          pattern: "env_secrets"
+
   # Guards against a pg_isready loop being pasted back into the values file: the
   # subchart's own check-db-ready is the only init container needed.
   - it: leaves waiting for Postgres to the subchart's own init container
