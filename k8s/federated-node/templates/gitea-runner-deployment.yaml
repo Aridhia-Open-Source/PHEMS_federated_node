@@ -66,11 +66,16 @@ spec:
           value: {{ .Values.gitea.actions.runner.labels | quote }}
         - name: DOCKER_HOST
           value: unix:///var/run/docker.sock
+        - name: CONFIG_FILE
+          value: /etc/act_runner/config.yaml
         volumeMounts:
         - name: docker-socket
           mountPath: /var/run
         - name: runner-data
           mountPath: /data
+        - name: runner-config
+          mountPath: /etc/act_runner
+          readOnly: true
       - name: dind
         image: "{{ .Values.gitea.actions.runner.dind.image.repository }}:{{ .Values.gitea.actions.runner.dind.image.tag }}"
         imagePullPolicy: {{ .Values.gitea.actions.runner.dind.image.pullPolicy }}
@@ -89,4 +94,23 @@ spec:
       - name: runner-data
         persistentVolumeClaim:
           claimName: gitea-runner-data
+      - name: runner-config
+        configMap:
+          name: gitea-runner-config
+---
+# Jobs run on dind's default bridge, not on a network act creates per job: Docker's embedded DNS on a
+# user network does not forward single-label names, so kind-registry (the release workflow's registry)
+# only resolves on the bridge, which uses the pod's DNS.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitea-runner-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: gitea-runner
+    release: {{ .Release.Name }}
+data:
+  config.yaml: |
+    container:
+      network: bridge
 {{- end }}

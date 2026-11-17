@@ -170,3 +170,25 @@ tests:
             enabled: true
     asserts:
       - failedTemplate: {}
+  - it: runs jobs on the dind bridge, where kind-registry resolves
+    template: templates/gitea-runner-deployment.yaml
+    set:
+      gitea:
+        actions:
+          enabled: true
+          runner:
+            enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: CONFIG_FILE
+            value: /etc/act_runner/config.yaml
+        documentIndex: 1
+      - isKind:
+          of: ConfigMap
+        documentIndex: 2
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: "network: bridge"
+        documentIndex: 2
