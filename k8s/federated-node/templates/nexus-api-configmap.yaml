@@ -9,6 +9,7 @@ data:
   PGPORT: {{ .Values.db.port | quote }}
   NEXUS_DB_NAME: {{ .Values.nexus.api.db.name | quote }}
   NEXUS_DB_USER: {{ .Values.nexus.api.db.user | quote }}
+  OWNER_GROUPS: {{ .Values.nexus.api.ownerGroups | join "," | quote }}
   KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}

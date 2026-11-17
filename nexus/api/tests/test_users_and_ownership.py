@@ -89,6 +89,20 @@ def test_a_later_call_refreshes_the_row_instead_of_adding_one(client, callers, m
     assert user.last_seen_at > dt(2020, 1, 1)
 
 
+def test_a_call_soon_after_the_last_leaves_the_row_alone_unless_the_username_changed(client, callers, monkeypatch):
+    client.get(PROV, headers=as_("person_token"))
+    seen = db.session.get(User, "id-person").last_seen_at
+
+    client.get(PROV, headers=as_("person_token"))
+    db.session.expire_all()
+    assert db.session.get(User, "id-person").last_seen_at == seen
+
+    monkeypatch.setitem(USERS["person_token"], "username", "renamed")
+    client.get(PROV, headers=as_("person_token"))
+    db.session.expire_all()
+    assert db.session.get(User, "id-person").username == "renamed"
+
+
 def test_the_owner_groups_are_a_setting(client, callers, monkeypatch):
     monkeypatch.setattr("app.helpers.wrappers.OWNER_GROUPS", ["Administrator"])
 
@@ -217,6 +231,9 @@ OWNED_WRITE_ROUTES = {
     ("PUT", "/projects/{project_id}/datasets/{dataset_id}"): {},
     ("PATCH", "/projects/{project_id}/datasets/{dataset_id}"): {"enabled": False},
     ("DELETE", "/projects/{project_id}/datasets/{dataset_id}"): None,
+    ("PUT", "/projects/{project_id}/secrets/{label}"): {},
+    ("PATCH", "/projects/{project_id}/secrets/{label}"): {"enabled": False},
+    ("DELETE", "/projects/{project_id}/secrets/{label}"): None,
     ("PUT", "/projects/{project_id}/repositories/triggers/{repo_id}"): {"watch_dir": "t", "base_branch": "main"},
     ("PATCH", "/projects/{project_id}/repositories/triggers/{repo_id}"): {"enabled": False},
     ("DELETE", "/projects/{project_id}/repositories/triggers/{repo_id}"): None,
@@ -228,9 +245,6 @@ OWNED_WRITE_ROUTES = {
 UNOWNED_WRITE_ROUTES = {
     ("PATCH", "/dagster/sensors"),
     ("PATCH", "/dagster/sensors/{name}"),
-    ("PUT", "/projects/{project_id}/secrets/{label}"),
-    ("PATCH", "/projects/{project_id}/secrets/{label}"),
-    ("DELETE", "/projects/{project_id}/secrets/{label}"),
     ("PATCH", "/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests/{number}"),
     ("PATCH", "/projects/{project_id}/results/{result_id}"),
     ("PATCH", "/projects/{project_id}/tasks/{task_id}"),
@@ -250,7 +264,7 @@ def test_every_write_route_is_classed_as_owned_or_not():
 @pytest.fixture
 def every_owned_record(
     client, project, global_secret, global_dataset, global_trigger_repo, global_results_repo,
-    assigned_dataset, assigned_trigger_repo, assigned_results_repo,
+    assigned_dataset, assigned_secret, assigned_trigger_repo, assigned_results_repo,
 ) -> dict:
     """One of each owned record, all locked to GROUP; the path parameters that address them."""
     for model in OwnedMixin.__subclasses__():

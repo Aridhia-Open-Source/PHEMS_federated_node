@@ -256,11 +256,22 @@ def delete_project_dataset(project_id: int, dataset_id: int, caller: Caller = De
     db.session.commit()
 
 
-def _secret_resource(project_id: int, label: str) -> ProjectSecret:
+def _secret(label: str) -> Secret:
     secret = Secret.query.filter_by(label=label).one_or_none()
     if secret is None:
         raise DBRecordNotFoundError(f"Secret {label} does not exist")
-    return _resource(ProjectSecret, project_id, secret.id, f"Secret {label}")
+    return secret
+
+
+def _secret_resource(project_id: int, label: str) -> ProjectSecret:
+    return _resource(ProjectSecret, project_id, _secret(label).id, f"Secret {label}")
+
+
+def _secret_resource_for_write(project_id: int, label: str, caller: Caller) -> ProjectSecret:
+    return get_for_write(
+        db.session, ProjectSecret, {"project_id": project_id, "secret_id": _secret(label).id}, caller,
+        missing=f"Secret {label} is not assigned to project {project_id}",
+    )
 
 
 @router.get('/{project_id}/secrets', response_model=list[ProjectSecretDTO])
@@ -283,7 +294,10 @@ def get_project_secret(project_id: int, label: str):
 
 
 @router.put('/{project_id}/secrets/{label}', response_model=ProjectSecretDTO)
-def put_project_secret(project_id: int, label: str, response: Response, body: dict = Body(default_factory=dict)):
+def put_project_secret(
+    project_id: int, label: str, response: Response, body: dict = Body(default_factory=dict),
+    caller: Caller = Depends(get_caller)
+):
     """
     PUT /projects/<project_id>/secrets/{label} endpoint. Assigns a global secret to the project,
     201, and replaces the project's settings if it is assigned already, 200.
@@ -293,13 +307,14 @@ def put_project_secret(project_id: int, label: str, response: Response, body: di
     if not set(body) <= {"enabled"}:
         raise InvalidRequest("Provide, optionally, enabled")
     enabled = _enabled(body)
-    secret = Secret.query.filter_by(label=label).one_or_none()
-    if secret is None:
-        raise DBRecordNotFoundError(f"Secret {label} does not exist")
+    secret = _secret(label)
 
-    resource = ProjectSecret.query.filter_by(project_id=project.id, secret_id=secret.id).one_or_none()
+    resource = get_for_write(
+        db.session, ProjectSecret, {"project_id": project.id, "secret_id": secret.id}, caller, optional=True
+    )
     if resource is None:
         resource = ProjectSecret(project.id, secret.id, enabled=enabled)
+        set_owner(resource, caller)
         resource.add()
         response.status_code = HTTPStatus.CREATED
         return ProjectSecretDTO.from_model(resource)
@@ -315,7 +330,7 @@ def patch_project_secret(project_id: int, label: str, body: dict = Body(default_
     PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the project resource on or off (enabled),
     or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
-    resource = _secret_resource(project_id, label)
+    resource = _secret_resource_for_write(project_id, label, caller)
     fields = {"enabled", "revoked"}
     if not body or not set(body) <= fields:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
@@ -332,12 +347,12 @@ def patch_project_secret(project_id: int, label: str, body: dict = Body(default_
 
 
 @router.delete('/{project_id}/secrets/{label}', status_code=HTTPStatus.NO_CONTENT)
-def delete_project_secret(project_id: int, label: str):
+def delete_project_secret(project_id: int, label: str, caller: Caller = Depends(get_caller)):
     """
     DELETE /projects/<project_id>/secrets/{label} endpoint. Unassigns the secret, not the secret
     itself: a soft delete that also revokes the project resource.
     """
-    resource = _secret_resource(project_id, label)
+    resource = _secret_resource_for_write(project_id, label, caller)
     resource.soft_delete()
     db.session.commit()
 

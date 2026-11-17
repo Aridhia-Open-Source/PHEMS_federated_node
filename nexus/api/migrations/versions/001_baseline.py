@@ -237,8 +237,11 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
+        sa.Column('owner_id', sa.String(length=255), nullable=True),
+        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
+        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_project_secrets_project_secret', 'project_secrets', ['project_id', 'secret_id'])

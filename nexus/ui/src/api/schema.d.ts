@@ -2068,6 +2068,9 @@ export interface components {
             revoked: boolean;
             /** Active */
             active: boolean;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /** ProjectSecretHealthDTO */
         ProjectSecretHealthDTO: {

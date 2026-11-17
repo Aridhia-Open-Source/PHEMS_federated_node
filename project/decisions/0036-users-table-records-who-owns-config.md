@@ -16,13 +16,13 @@ Status: Proposed, 2026-11-17.
 - **nexus-api has a `users` table,** one row per Keycloak identity that has called it. It records identity only; access stays in Keycloak.
 - **Columns:** `id` (the Keycloak user id, the primary key), `username`, `created_at`, `last_seen_at`.
 - **The caller's groups are read from the token:** its realm roles and, when the token has a `groups` claim, its Keycloak groups. `Caller.groups` holds them.
-- **Owner groups are one setting,** `OWNER_GROUPS`: a comma-separated list of group or role names, by default `service-account`. That realm role is defined in the chart's realm (`k8s/federated-node/scripts/realms.json`) and granted in Keycloak like any other role.
-- **The row is written on each authenticated call.** `get_caller` upserts it (one `INSERT ... ON CONFLICT DO UPDATE`, committed at once), refreshing `username` and `last_seen_at`. The caller then carries `user`.
+- **Owner groups are one setting,** `OWNER_GROUPS`: a comma-separated list of group or role names, by default `service-account`, set from the chart value `nexus.api.ownerGroups`. That realm role is defined in the chart's realm (`k8s/federated-node/scripts/realms.json`) and granted in Keycloak like any other role.
+- **The row is upserted on each authenticated call.** `get_caller` upserts it (one `INSERT ... ON CONFLICT DO UPDATE`, committed at once), refreshing `username` and `last_seen_at`; a row seen in the last minute under the same username is left alone. The caller then carries `user`.
 - **The row is never deleted.** Records keep pointing at it after the Keycloak user is gone.
 
 ### Who owns a record
 
-- **Owned records carry `owner_id` and `owner_group`,** both nullable, from one mixin, `OwnedMixin`; a model opts in by inheriting it. `owner_id` is a foreign key to `users`; `owner_group` is a group or role name. Today the owned records are git providers, secrets, trigger and results repositories, datasets, projects, and the project's dataset, trigger repository and results repository assignments.
+- **Owned records carry `owner_id` and `owner_group`,** both nullable, from one mixin, `OwnedMixin`; a model opts in by inheriting it. `owner_id` is a foreign key to `users`; `owner_group` is a group or role name. Today the owned records are git providers, secrets, trigger and results repositories, datasets, projects, and the project's dataset, secret, trigger repository and results repository assignments.
 - **The caller that creates a record owns it** (`set_owner`). When the caller is in an owner group, `owner_group` is set to that group and the record is locked to it; otherwise `owner_group` stays null and the record is open.
 - **Only members of a record's owner group may change it.** Anyone else (an update, a re-assignment, a delete, a revoke) gets a 409 naming the group. An open record can be changed by anyone the route's scope allows, as before.
 - **No admin override.** An Administrator (or Super Administrator) outside the owner group gets the same 409; `get_for_write` has no admin bypass. A locked record changes only through its owner, by changing the service's source.
@@ -66,6 +66,5 @@ Status: Proposed, 2026-11-17.
 - Which fields are owner-controlled: today any change is refused; `owner_locked_fields` and `fields` are there for when that narrows.
 - Whether a forced delete of a global resource, or a project's delete, should also be refused when it cascades to a locked project resource. Today only the record addressed is checked.
 - Whether a write to a project's sub-resource (a project secret, an assignment) should also be refused when the project itself is locked.
-- Whether `OWNER_GROUPS` should be a chart value; today it is an environment variable with a default.
-- Whether the Dagster System user should be in an owner group. It holds `System`, not `service-account`, so today it is `human`; it creates no config records.
+- Whether the Dagster System user should be in an owner group. It holds `System`, not `service-account`, so its writes lock nothing; it creates no config records.
 - Whether a service should be able to hand a record back to people (unlock it).

@@ -2,6 +2,8 @@
 A Keycloak identity that has called nexus-api (ADR 0036). Identity only: what a caller may do stays in
 Keycloak. Records point at it to say who owns them.
 """
+from datetime import timedelta
+
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import declared_attr, relationship
@@ -22,14 +24,23 @@ class User(db.Model, BaseModel):
 
     @classmethod
     def seen(cls, user_id: str, username: str) -> "User":
-        """Creates the user, or refreshes its username and last_seen_at, in one statement, and commits."""
-        stmt = insert(cls).values(id=user_id, username=username).on_conflict_do_update(
+        """
+        Creates the user, or refreshes its username and last_seen_at, in one statement, and commits. A row seen
+        in the last minute under the same username is left alone, so most calls write nothing. It still commits,
+        as the conflict locks the row either way.
+        """
+        stmt = insert(cls).values(id=user_id, username=username)
+        stmt = stmt.on_conflict_do_update(
             index_elements=[cls.id],
             set_={"username": username, "last_seen_at": func.now()},
+            where=sa.or_(
+                cls.last_seen_at < func.now() - timedelta(minutes=1),
+                cls.username.is_distinct_from(stmt.excluded.username),
+            ),
         ).returning(cls)
         user = db.session.scalars(
             stmt, execution_options={"populate_existing": True}
-        ).one()
+        ).one_or_none() or db.session.get(cls, user_id)
         db.session.commit()
         return user
 
