@@ -34,6 +34,7 @@ from app.dtos.results_repository import (
 )
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
+from app.helpers.ownership import get_for_write, set_owner
 from app.helpers.project_state import require_disabled
 from app.helpers.pull_request_fanout import backfill, skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
@@ -71,7 +72,7 @@ def project_by_id(project_id: int):
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=ProjectCreatedDTO)
-def create_project(req: ProjectRequest):
+def create_project(req: ProjectRequest, caller: Caller = Depends(get_caller)):
     """
     POST /projects endpoint.
     """
@@ -80,6 +81,7 @@ def create_project(req: ProjectRequest):
         raise InvalidRequest(f"Project {body["name"]} already exists", HTTPStatus.CONFLICT)
 
     project = Project(**body)
+    set_owner(project, caller)
     project.add()
     return {"id": project.id}
 
@@ -95,7 +97,7 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
     while it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger
     (see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.
     """
-    project = Project.get_by_id(project_id)
+    project = get_for_write(db.session, Project, project_id, caller)
 
     fields = {"enabled", "backfill", "revoked"}
     if not body or not set(body) <= fields:
@@ -127,14 +129,14 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
 
 
 @router.delete('/{project_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_project(project_id: int):
+def delete_project(project_id: int, caller: Caller = Depends(get_caller)):
     """
     DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes
     every project resource under it: datasets, secrets, results repository and trigger repositories. Its tasks
     and triggers stay. Secrets, datasets and results repositories belong to no project: they, and
     their stored values, are left alone.
     """
-    project = Project.get_by_id(project_id)
+    project = get_for_write(db.session, Project, project_id, caller)
     for resource in (
         *project.dataset_assignments, *project.secret_assignments,
         *project.trigger_repository_assignments, *project.results_repository_assignments,
@@ -184,7 +186,10 @@ def get_project_dataset(project_id: int, dataset_id: int):
 
 
 @router.put('/{project_id}/datasets/{dataset_id}', response_model=ProjectDatasetDTO)
-def put_project_dataset(project_id: int, dataset_id: int, response: Response, body: dict = Body(default_factory=dict)):
+def put_project_dataset(
+    project_id: int, dataset_id: int, response: Response, body: dict = Body(default_factory=dict),
+    caller: Caller = Depends(get_caller)
+):
     """
     PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Assigns a global dataset to the
     project, 201, and replaces the project's settings if it is assigned already, 200. The first one assigned becomes the project's default.
@@ -196,9 +201,12 @@ def put_project_dataset(project_id: int, dataset_id: int, response: Response, bo
     enabled = _enabled(body)
     dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id)
 
-    resource = ProjectDataset.query.filter_by(project_id=project.id, dataset_id=dataset.id).one_or_none()
+    resource = get_for_write(
+        db.session, ProjectDataset, {"project_id": project.id, "dataset_id": dataset.id}, caller, optional=True
+    )
     if resource is None:
         resource = ProjectDataset(project.id, dataset.id, enabled=enabled)
+        set_owner(resource, caller)
         resource.add()
         response.status_code = HTTPStatus.CREATED
         return ProjectDatasetDTO.from_model(resource)
@@ -214,7 +222,10 @@ def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(de
     PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the project resource on or
     off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
-    resource = _dataset_resource(project_id, dataset_id)
+    resource = get_for_write(
+        db.session, ProjectDataset, {"project_id": project_id, "dataset_id": dataset_id}, caller,
+        missing=f"Dataset {dataset_id} is not assigned to project {project_id}",
+    )
     fields = {"enabled", "revoked"}
     if not body or not set(body) <= fields:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
@@ -231,13 +242,16 @@ def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(de
 
 
 @router.delete('/{project_id}/datasets/{dataset_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_project_dataset(project_id: int, dataset_id: int):
+def delete_project_dataset(project_id: int, dataset_id: int, caller: Caller = Depends(get_caller)):
     """
     DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unassigns the dataset, not the
     dataset itself: a soft delete that also revokes the project resource. If it was the project's default,
     the project has none afterwards.
     """
-    resource = _dataset_resource(project_id, dataset_id)
+    resource = get_for_write(
+        db.session, ProjectDataset, {"project_id": project_id, "dataset_id": dataset_id}, caller,
+        missing=f"Dataset {dataset_id} is not assigned to project {project_id}",
+    )
     resource.soft_delete()
     db.session.commit()
 
@@ -362,7 +376,8 @@ def get_project_results_repository(project_id: int, repository_id: int):
 
 @router.put('/{project_id}/repositories/results/{repository_id}', response_model=ProjectResultsRepositoryDTO)
 def put_project_results_repository(
-    project_id: int, repository_id: int, response: Response, req: ProjectResultsRepositoryRequest
+    project_id: int, repository_id: int, response: Response, req: ProjectResultsRepositoryRequest,
+    caller: Caller = Depends(get_caller)
 ):
     """
     PUT /projects/<project_id>/repositories/results/<repository_id> endpoint. Assigns a global
@@ -388,7 +403,10 @@ def put_project_results_repository(
     created = resource is None
     if created:
         resource = ProjectResultsRepository(project.id, repo.id, target_dir, req.base_branch)
+        set_owner(resource, caller)
         resource.add(commit=False)
+    else:
+        resource = get_for_write(db.session, ProjectResultsRepository, resource.id, caller)
     resource.target_dir = target_dir
     resource.base_branch = req.base_branch
     resource.owned_by_federated_node = req.owned_by_federated_node
@@ -411,7 +429,10 @@ def patch_project_results_repository(
     off (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
-    resource = _results_resource(project_id, repository_id)
+    resource = get_for_write(
+        db.session, ProjectResultsRepository, {"project_id": project_id, "results_repository_id": repository_id},
+        caller, missing=f"Results repository {repository_id} is not assigned to project {project_id}",
+    )
     body = req.model_dump(exclude_unset=True)
     if not body:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectResultsRepositoryPatchRequest.model_fields))}")
@@ -432,12 +453,15 @@ def patch_project_results_repository(
 
 
 @router.delete('/{project_id}/repositories/results/{repository_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_project_results_repository(project_id: int, repository_id: int):
+def delete_project_results_repository(project_id: int, repository_id: int, caller: Caller = Depends(get_caller)):
     """
     DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unassigns the
     repository, not the repository itself: a soft delete that also revokes the project resource. A task of the
     project still in flight gets a REVOKED result.
     """
-    resource = _results_resource(project_id, repository_id)
+    resource = get_for_write(
+        db.session, ProjectResultsRepository, {"project_id": project_id, "results_repository_id": repository_id},
+        caller, missing=f"Results repository {repository_id} is not assigned to project {project_id}",
+    )
     resource.soft_delete()
     db.session.commit()

@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends
 from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitProviderRequest
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.helpers.ownership import get_for_write, set_owner
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.wrappers import Caller, get_caller, require_scope
 from app.models.git_provider import GitProvider
@@ -56,7 +57,7 @@ def get_provider(provider_id: int):
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO)
-def post_provider(req: GitProviderRequest):
+def post_provider(req: GitProviderRequest, caller: Caller = Depends(get_caller)):
     """
     POST /global/providers/ — create a provider. The name and the uri are unique (409).
     Body: {"name": "...", "type": "github", "uri": "https://github.com", "api_uri": "https://api.github.com",
@@ -67,6 +68,7 @@ def post_provider(req: GitProviderRequest):
     except ValueError as e:
         raise InvalidRequest(str(e))
     _check_unique(provider)
+    set_owner(provider, caller)
     provider.add()
 
     return GitProviderDTO.from_model(provider)
@@ -80,7 +82,7 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
     the provider, and so every repository on it, from every project at once, or restores it, and does not
     change `enabled`: see helpers/task_config.revoked_resources.
     """
-    provider = GitProvider.get_by_id(provider_id)
+    provider = get_for_write(session, GitProvider, provider_id, caller)
 
     sent = req.model_fields_set
     if not sent:
@@ -111,12 +113,12 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
 
 
 @router.delete('/{provider_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_provider(provider_id: int):
+def delete_provider(provider_id: int, caller: Caller = Depends(get_caller)):
     """
     DELETE /global/providers/<id> — delete the provider. Refused with a 409 while a repository
     is on it.
     """
-    provider = GitProvider.get_by_id(provider_id)
+    provider = get_for_write(session, GitProvider, provider_id, caller)
     users = len(provider.trigger_repositories) + len(provider.results_repositories)
     if users:
         raise InvalidRequest(

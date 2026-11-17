@@ -7,6 +7,7 @@ from app.dtos.base import DTO, WireDatetime
 from app.helpers.const import PUBLIC_URL
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.secret import SecretDTO
+from app.dtos.user import UserRefDTO
 from app.models.dataset import SUPPORTED_ENGINES, Dataset
 from app.models.project_dataset import ProjectDataset
 
@@ -27,6 +28,9 @@ class DatasetDTO(DTO):
     updated_at: WireDatetime
     slug: str
     url: str
+    owner: UserRefDTO | None
+    # The group whose members alone may change it, null when it is open (ADR 0036)
+    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: Dataset):
@@ -47,6 +51,8 @@ class DatasetDTO(DTO):
             updated_at=obj.updated_at,
             slug=slug,
             url=f"https://{PUBLIC_URL}/global/datasets/{obj.id}",
+            owner=UserRefDTO.of(obj.owner),
+            owner_group=obj.owner_group,
         )
 
 
@@ -57,6 +63,9 @@ class ProjectDatasetDTO(DTO):
     enabled: bool
     revoked: bool
     active: bool
+    owner: UserRefDTO | None
+    # The group whose members alone may change it, null when it is open (ADR 0036)
+    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: ProjectDataset):
@@ -66,6 +75,8 @@ class ProjectDatasetDTO(DTO):
             enabled=obj.enabled,
             revoked=obj.revoked,
             active=obj.active,
+            owner=UserRefDTO.of(obj.owner),
+            owner_group=obj.owner_group,
         )
 
 

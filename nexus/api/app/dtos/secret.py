@@ -1,4 +1,5 @@
 from app.dtos.base import DTO, WireDatetime
+from app.dtos.user import UserRefDTO
 from app.models.project_secret import ProjectSecret
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -14,6 +15,9 @@ class SecretDTO(DTO):
     enabled: bool
     created_at: WireDatetime
     updated_at: WireDatetime
+    owner: UserRefDTO | None
+    # The group whose members alone may change it, null when it is open (ADR 0036)
+    owner_group: str | None
 
 
 class ProjectSecretDTO(DTO):

@@ -25,7 +25,8 @@ from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
-from app.helpers.wrappers import require_scope
+from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.wrappers import Caller, get_caller, require_scope
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
@@ -169,7 +170,7 @@ def get_secret(label: str):
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=SecretDTO)
-def post_secret(body: dict = Body(default_factory=dict)):
+def post_secret(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /global/secrets — create the secret in its store and the reference to it. The label is
     unique across the node; the secret is stored under the generated key
@@ -206,13 +207,14 @@ def post_secret(body: dict = Body(default_factory=dict)):
     # One created disabled goes straight to quarantine, as if it had been disabled after.
     store = SecretProvider(secret.provider)
     store.set(secret.key, secret.namespace if secret.enabled else store.quarantine_namespace, values)
+    set_owner(secret, caller)
     secret.add()
 
     return SecretDTO.from_model(secret)
 
 
 @router.patch('/{label}', response_model=SecretDTO)
-def patch_secret(label: str, body: dict = Body(default_factory=dict)):
+def patch_secret(label: str, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     PATCH /global/secrets/<label> — replace the stored values, e.g. to rotate a token, and/or turn it on
     or off (enabled). The secret then holds exactly these keys, so send every key it needs: any other,
@@ -227,7 +229,7 @@ def patch_secret(label: str, body: dict = Body(default_factory=dict)):
     when both are asked for.
     Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
     """
-    secret = _get_secret(label)
+    secret = get_for_write(session, Secret, {"label": label}, caller, missing=f"Secret {label} does not exist")
     unknown = set(body) - {"values", "enabled"}
     if unknown and ("values" in body or "enabled" in body):
         raise InvalidRequest(f"Unknown fields: {', '.join(sorted(unknown))}")
@@ -266,7 +268,7 @@ def patch_secret(label: str, body: dict = Body(default_factory=dict)):
 
 
 @router.delete('/{label}', status_code=HTTPStatus.NO_CONTENT)
-def delete_secret(label: str, force: bool = False):
+def delete_secret(label: str, force: bool = False, caller: Caller = Depends(get_caller)):
     """
     DELETE /global/secrets/<label> — soft delete the reference and revoke and delete its project
     resources, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused
@@ -274,7 +276,7 @@ def delete_secret(label: str, force: bool = False):
     disabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay
     pointing at it, and can be repointed with their secret_label.
     """
-    secret = _get_secret(label)
+    secret = get_for_write(session, Secret, {"label": label}, caller, missing=f"Secret {label} does not exist")
     enabled = [(dataset.name, dataset) for dataset in secret.datasets if dataset.enabled] + [
         (repository.uri, repository)
         for repository in (*secret.trigger_repositories, *secret.results_repositories) if repository.enabled

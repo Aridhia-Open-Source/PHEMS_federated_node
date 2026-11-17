@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from app.dtos.base import DTO, WireDatetime
+from app.dtos.user import UserRefDTO
 from app.helpers.exceptions import InvalidRequest
 from app.models.git_provider import GitProvider
 from app.models.git_provider_type import GitProviderType
@@ -20,6 +21,9 @@ class GitProviderRefDTO(DTO):
 class GitProviderDTO(GitProviderRefDTO):
     created_at: WireDatetime
     updated_at: WireDatetime
+    owner: UserRefDTO | None
+    # The group whose members alone may change it, null when it is open (ADR 0036)
+    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: GitProvider):

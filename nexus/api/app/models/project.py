@@ -9,9 +9,10 @@ from app.helpers.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import Models, sqla_column
+from app.models.user import OwnedMixin
 
 
-class Project(SoftDeleteMixin, db.Model, BaseModel):
+class Project(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     __tablename__ = 'projects'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)

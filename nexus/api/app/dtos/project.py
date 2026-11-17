@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.dtos.base import DTO, WireDatetime
+from app.dtos.user import UserRefDTO
 from app.helpers.exceptions import InvalidRequest
 
 
@@ -13,6 +14,9 @@ class ProjectDTO(DTO):
     default_dataset_id: int | None
     created_at: WireDatetime
     updated_at: WireDatetime
+    owner: UserRefDTO | None
+    # The group whose members alone may change it, null when it is open (ADR 0036)
+    owner_group: str | None
 
 
 class ProjectCreatedDTO(DTO):

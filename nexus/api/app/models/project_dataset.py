@@ -7,9 +7,10 @@ from sqlalchemy.orm import relationship
 from app.helpers.base_model import BaseModel, db
 from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import Models
+from app.models.user import OwnedMixin
 
 
-class ProjectDataset(SoftDeleteMixin, db.Model, BaseModel):
+class ProjectDataset(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     __tablename__ = 'project_datasets'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
