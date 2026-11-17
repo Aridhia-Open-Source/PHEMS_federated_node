@@ -34,7 +34,6 @@ router = APIRouter(
 session = db.session
 
 
-@router.get('/', response_model=list[ResultsRepositoryDTO])
 @router.get('', response_model=list[ResultsRepositoryDTO])
 def get_repositories():
     """
@@ -79,8 +78,6 @@ def delete_repository(repo_id: int, force: bool = False):
     delete_global(repo, repo.project_assignments, force)
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=ResultsRepositoryDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
 @router.post('', status_code=HTTPStatus.CREATED, response_model=ResultsRepositoryDTO,
              dependencies=[Depends(require_scope('can_do_admin'))])
 def post_repository(req: RepositoryRequest):

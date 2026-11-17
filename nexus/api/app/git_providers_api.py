@@ -39,7 +39,6 @@ def _check_unique(provider: GitProvider, current_id: int | None = None):
             )
 
 
-@router.get('/', response_model=list[GitProviderDTO])
 @router.get('', response_model=list[GitProviderDTO])
 def get_providers():
     """
@@ -56,8 +55,6 @@ def get_provider(provider_id: int):
     return GitProviderDTO.from_model(GitProvider.get_by_id(provider_id))
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
 @router.post('', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO,
              dependencies=[Depends(require_scope('can_do_admin'))])
 def post_provider(req: GitProviderRequest):

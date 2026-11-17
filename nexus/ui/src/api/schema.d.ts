@@ -113,30 +113,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/projects/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Projects
-         * @description GET /projects endpoint.
-         */
-        get: operations["list_projects_projects__get"];
-        put?: never;
-        /**
-         * Create Project
-         * @description POST /projects endpoint.
-         */
-        post: operations["create_project_projects__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/projects/{project_id}": {
         parameters: {
             query?: never;
@@ -379,31 +355,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/global/datasets/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Datasets
-         * @description GET /global/datasets/ endpoint. Returns a list of all datasets
-         */
-        get: operations["get_datasets_global_datasets__get"];
-        put?: never;
-        /**
-         * Post Datasets
-         * @description POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
-         *     already taken (case-insensitive) is a 409. A disabled secret_label is a 400
-         */
-        post: operations["post_datasets_global_datasets__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/global/datasets/{dataset_id}": {
         parameters: {
             query?: never;
@@ -458,33 +409,6 @@ export interface paths {
          * @description POST /projects/<project_id>/tasks endpoint. Creates a new task from API request
          */
         post: operations["post_tasks_projects__project_id__tasks_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/tasks/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Tasks
-         * @description GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id
-         *     Query params:
-         *         - page, size: see fastapi-pagination
-         *         - status: filter by task status (optional)
-         */
-        get: operations["get_tasks_projects__project_id__tasks__get"];
-        put?: never;
-        /**
-         * Post Tasks
-         * @description POST /projects/<project_id>/tasks endpoint. Creates a new task from API request
-         */
-        post: operations["post_tasks_projects__project_id__tasks__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -858,32 +782,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/global/users/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Users List
-         * @description GET /global/users/ endpoint. This is a simplified version
-         *     of what keycloak returns as a user list.
-         */
-        get: operations["get_users_list_global_users__get"];
-        put?: never;
-        /**
-         * Create User
-         * @description POST /global/users endpoint. Creates a KC user, and sets a temp
-         *         password for them.
-         */
-        post: operations["create_user_global_users__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/global/users/reset-password": {
         parameters: {
             query?: never;
@@ -926,32 +824,6 @@ export interface paths {
          * @description POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
          */
         post: operations["post_repository_global_repositories_triggers_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/triggers/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Repositories
-         * @description GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled and
-         *     not revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project
-         *     resources say: that is what Dagster polls.
-         */
-        get: operations["get_repositories_global_repositories_triggers__get"];
-        put?: never;
-        /**
-         * Post Repository
-         * @description POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
-         */
-        post: operations["post_repository_global_repositories_triggers__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1215,34 +1087,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/global/secrets/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Secrets
-         * @description GET /global/secrets — list the secrets. The values are never returned.
-         */
-        get: operations["get_secrets_global_secrets__get"];
-        put?: never;
-        /**
-         * Post Secret
-         * @description POST /global/secrets — create the secret in its store and the reference to it. The label is
-         *     unique across the node; the secret is stored under the generated key
-         *     "fn-secret-<label>", which is fixed from then on. Admin only.
-         *     Body: {"label": "...", "description": "...", "provider": "K8S", "values": {"KEY": "value", ...}, "enabled": true}
-         *     The description and enabled are optional.
-         */
-        post: operations["post_secret_global_secrets__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/global/secrets/{label}": {
         parameters: {
             query?: never;
@@ -1312,32 +1156,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/global/providers/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Providers
-         * @description GET /global/providers/ — list the providers
-         */
-        get: operations["get_providers_global_providers__get"];
-        put?: never;
-        /**
-         * Post Provider
-         * @description POST /global/providers/ — create a provider. The name and the uri are unique (409).
-         *     Body: {"name": "...", "type": "github", "uri": "https://github.com", "api_uri": "https://api.github.com",
-         *     "enabled": true}. enabled is optional.
-         */
-        post: operations["post_provider_global_providers__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/global/providers/{provider_id}": {
         parameters: {
             query?: never;
@@ -1390,32 +1208,6 @@ export interface paths {
          *     PUT /projects/<id>/repositories/results/<repository id>
          */
         post: operations["post_repository_global_repositories_results_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/results/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Repositories
-         * @description GET /global/repositories/results/ — list the repositories
-         */
-        get: operations["get_repositories_global_repositories_results__get"];
-        put?: never;
-        /**
-         * Post Repository
-         * @description POST /global/repositories/results/ — create a new repository, assigned to no project yet. project_id
-         *     and target_dir are not accepted, results repositories are global: assign one with
-         *     PUT /projects/<id>/repositories/results/<repository id>
-         */
-        post: operations["post_repository_global_repositories_results__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1779,31 +1571,6 @@ export interface paths {
          *           lists them. A revoked project is still enabled, so its tasks stay.
          */
         get: operations["get_all_tasks_tasks_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/tasks/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get All Tasks
-         * @description GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
-         *     GET /projects/<project_id>/tasks. Query params:
-         *         - page, size: as the project's list
-         *         - status: one or more task statuses, comma separated (optional)
-         *         - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
-         *           lists them. A revoked project is still enabled, so its tasks stay.
-         */
-        get: operations["get_all_tasks_tasks__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3016,73 +2783,6 @@ export interface operations {
             };
         };
     };
-    list_projects_projects__get: {
-        parameters: {
-            query?: {
-                /** @description Page number */
-                page?: number;
-                /** @description Page size */
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_ProjectDTO_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_project_projects__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectCreatedDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     project_by_id_projects__project_id__get: {
         parameters: {
             query?: never;
@@ -3752,75 +3452,6 @@ export interface operations {
             };
         };
     };
-    get_datasets_global_datasets__get: {
-        parameters: {
-            query?: {
-                /** @description Page number */
-                page?: number;
-                /** @description Page size */
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_DatasetDTO_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_datasets_global_datasets__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DatasetDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_dataset_global_datasets__dataset_id__get: {
         parameters: {
             query?: never;
@@ -3958,80 +3589,6 @@ export interface operations {
         };
     };
     post_tasks_projects__project_id__tasks_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TaskCreatedDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_tasks_projects__project_id__tasks__get: {
-        parameters: {
-            query?: {
-                status?: string | null;
-                /** @description Page number */
-                page?: number;
-                /** @description Page size */
-                size?: number;
-            };
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_TaskDTO_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_tasks_projects__project_id__tasks__post: {
         parameters: {
             query?: never;
             header?: never;
@@ -4693,61 +4250,6 @@ export interface operations {
             };
         };
     };
-    get_users_list_global_users__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserDTO"][];
-                };
-            };
-        };
-    };
-    create_user_global_users__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["NewUserDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     reset_password_global_users_reset_password_put: {
         parameters: {
             query?: never;
@@ -4813,72 +4315,6 @@ export interface operations {
         };
     };
     post_repository_global_repositories_triggers_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerRepositoryDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_repositories_global_repositories_triggers__get: {
-        parameters: {
-            query?: {
-                pollable?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TriggerRepositoryDTO"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_repository_global_repositories_triggers__post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5491,61 +4927,6 @@ export interface operations {
             };
         };
     };
-    get_secrets_global_secrets__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SecretDTO"][];
-                };
-            };
-        };
-    };
-    post_secret_global_secrets__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SecretDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_secret_global_secrets__label__get: {
         parameters: {
             query?: never;
@@ -5698,59 +5079,6 @@ export interface operations {
             };
         };
     };
-    get_providers_global_providers__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GitProviderDTO"][];
-                };
-            };
-        };
-    };
-    post_provider_global_providers__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GitProviderRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GitProviderDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_provider_global_providers__provider_id__get: {
         parameters: {
             query?: never;
@@ -5867,59 +5195,6 @@ export interface operations {
         };
     };
     post_repository_global_repositories_results_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RepositoryRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResultsRepositoryDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_repositories_global_repositories_results__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResultsRepositoryDTO"][];
-                };
-            };
-        };
-    };
-    post_repository_global_repositories_results__post: {
         parameters: {
             query?: never;
             header?: never;
@@ -6542,42 +5817,6 @@ export interface operations {
         };
     };
     get_all_tasks_tasks_get: {
-        parameters: {
-            query?: {
-                status?: string | null;
-                project_enabled?: string | null;
-                /** @description Page number */
-                page?: number;
-                /** @description Page size */
-                size?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_TaskDTO_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_all_tasks_tasks__get: {
         parameters: {
             query?: {
                 status?: string | null;

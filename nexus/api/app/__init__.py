@@ -13,7 +13,7 @@ from app import (
     dagster_api, healthcheck_api,
 )
 from app.errors import register_error_handlers
-from app.middleware import JsonObjectBodyMiddleware, SessionMiddleware
+from app.middleware import JsonObjectBodyMiddleware, SessionMiddleware, TrailingSlashMiddleware
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger('main')
@@ -26,6 +26,7 @@ def create_app() -> FastAPI:
     # The last added runs first: the session scope wraps everything
     app.add_middleware(JsonObjectBodyMiddleware)
     app.add_middleware(SessionMiddleware)
+    app.add_middleware(TrailingSlashMiddleware)
 
     for module in (
         main, projects_api, datasets_api, tasks_api, results_api, users_api, trigger_repositories_api,

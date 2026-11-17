@@ -31,7 +31,6 @@ router = APIRouter(prefix='/global/datasets', tags=["datasets"])
 session = db.session
 
 
-@router.get('/', response_model=Page[DatasetDTO], dependencies=[Depends(require_scope('can_access_dataset'))])
 @router.get('', response_model=Page[DatasetDTO], dependencies=[Depends(require_scope('can_access_dataset'))])
 def get_datasets():
     """
@@ -67,8 +66,6 @@ def _reject_taken_name(name: str, own_id: int | None = None):
         raise InvalidRequest(f"Dataset {name} already exists", HTTPStatus.CONFLICT)
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=DatasetDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
 @router.post('', status_code=HTTPStatus.CREATED, response_model=DatasetDTO,
              dependencies=[Depends(require_scope('can_do_admin'))])
 def post_datasets(body: dict = Body(default_factory=dict)):

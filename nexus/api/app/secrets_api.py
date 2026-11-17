@@ -152,7 +152,6 @@ def _get_secret(label: str) -> Secret:
     return secret
 
 
-@router.get('/', response_model=list[SecretDTO])
 @router.get('', response_model=list[SecretDTO])
 def get_secrets():
     """
@@ -169,8 +168,6 @@ def get_secret(label: str):
     return SecretDTO.from_model(_get_secret(label))
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=SecretDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
 @router.post('', status_code=HTTPStatus.CREATED, response_model=SecretDTO,
              dependencies=[Depends(require_scope('can_do_admin'))])
 def post_secret(body: dict = Body(default_factory=dict)):

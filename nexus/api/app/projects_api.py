@@ -51,7 +51,6 @@ from app.models.secret import Secret
 router = APIRouter(prefix='/projects', tags=["projects"], dependencies=[Depends(require_scope('can_admin_dataset'))])
 
 
-@router.get('/', response_model=Page[ProjectDTO])
 @router.get('', response_model=Page[ProjectDTO])
 def list_projects(filters: QueryFilters = Depends()):
     """
@@ -71,7 +70,6 @@ def project_by_id(project_id: int):
     return ProjectDTO.from_model(project)
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=ProjectCreatedDTO)
 @router.post('', status_code=HTTPStatus.CREATED, response_model=ProjectCreatedDTO)
 def create_project(req: ProjectRequest):
     """
