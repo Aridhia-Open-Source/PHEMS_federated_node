@@ -32,8 +32,8 @@ def test_create_and_get_shape_defaults(client, admin_headers):
     assert created.status_code == 201, created.json()
     assert set(created.json()) == {"id"}
     got = client.get(f"/projects/{created.json()['id']}", headers=admin_headers).json()
-    assert set(got) == {"id", "name", "description", "enabled", "revoked", "default_dataset_id",
-                        "created_at", "updated_at", "owner", "owner_group"}
+    assert set(got) == {"id", "name", "description", "enabled", "revoked", "managed_by", "default_dataset_id",
+                        "created_at", "updated_at"}
     assert (got["name"], got["description"], got["enabled"], got["revoked"], got["default_dataset_id"]) == \
         ("Alpha", "first", False, False, None)
     plain = create(client, admin_headers, name="Plain", enabled=True)

@@ -23,11 +23,10 @@ from app.dtos.secret import SecretDTO
 from app.helpers.base_model import db
 from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.helpers.managed import SECRET, guard
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
-from app.helpers.ownership import get_for_write, release, require_members, set_owner
-from app.helpers.soft_delete import describe_project
-from app.helpers.wrappers import Caller, get_caller, superuser_only
+from app.helpers.wrappers import Caller, get_caller, require_scope
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
@@ -168,7 +167,10 @@ def get_secret(label: str):
     return SecretDTO.from_model(_get_secret(label))
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=SecretDTO)
+@router.post('/', status_code=HTTPStatus.CREATED, response_model=SecretDTO,
+             dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post('', status_code=HTTPStatus.CREATED, response_model=SecretDTO,
+             dependencies=[Depends(require_scope('can_do_admin'))])
 def post_secret(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /global/secrets — create the secret in its store and the reference to it. The label is
@@ -200,6 +202,7 @@ def post_secret(body: dict = Body(default_factory=dict), caller: Caller = Depend
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
+    guard(secret, caller)
 
     # The store first, so a failure there leaves no row pointing at nothing. If the row
     # then fails, the stored secret is left for a retry to adopt: writing it overwrites.
@@ -212,7 +215,7 @@ def post_secret(body: dict = Body(default_factory=dict), caller: Caller = Depend
     return SecretDTO.from_model(secret)
 
 
-@router.patch('/{label}', response_model=SecretDTO)
+@router.patch('/{label}', response_model=SecretDTO, dependencies=[Depends(require_scope('can_do_admin'))])
 def patch_secret(label: str, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     PATCH /global/secrets/<label> — replace the stored values, e.g. to rotate a token, and/or turn it on
@@ -228,7 +231,8 @@ def patch_secret(label: str, body: dict = Body(default_factory=dict), caller: Ca
     when both are asked for.
     Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
     """
-    secret = get_for_write(session, Secret, {"label": label}, caller, missing=f"Secret {label} does not exist")
+    secret = _get_secret(label)
+    guard(secret, caller, body, SECRET)
     unknown = set(body) - {"values", "enabled"}
     if unknown and ("values" in body or "enabled" in body):
         raise InvalidRequest(f"Unknown fields: {', '.join(sorted(unknown))}")
@@ -266,7 +270,7 @@ def patch_secret(label: str, body: dict = Body(default_factory=dict), caller: Ca
     return SecretDTO.from_model(secret)
 
 
-@router.delete('/{label}', status_code=HTTPStatus.NO_CONTENT)
+@router.delete('/{label}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])
 def delete_secret(label: str, force: bool = False, caller: Caller = Depends(get_caller)):
     """
     DELETE /global/secrets/<label> — soft delete the reference and revoke and delete its project
@@ -275,7 +279,8 @@ def delete_secret(label: str, force: bool = False, caller: Caller = Depends(get_
     disabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay
     pointing at it, and can be repointed with their secret_label.
     """
-    secret = get_for_write(session, Secret, {"label": label}, caller, missing=f"Secret {label} does not exist")
+    secret = _get_secret(label)
+    guard(secret, caller)
     enabled = [(dataset.name, dataset) for dataset in secret.datasets if dataset.enabled] + [
         (repository.uri, repository)
         for repository in (*secret.trigger_repositories, *secret.results_repositories) if repository.enabled

@@ -307,7 +307,7 @@ The files in `config/` are Kubernetes custom resources (group `fn.aridhia.com/v1
 | Git provider, trigger repository, results repository | a GitProvider and Repositories | `kubectl apply` |
 | Dataset | a Dataset | `kubectl apply` |
 | Project and its resources | a Project (the operator creates it disabled, enables it last) | `kubectl apply` |
-| Enable | the Project's `enabled` | `kubectl apply`, or `project-set --enabled true` |
+| Enable | the Project's `enabled` | `kubectl apply` (nexus-api refuses `project-set --enabled` on a project the operator manages, ADR 0032) |
 | Check | | `project-healthcheck`, `verify-project` |
 | Start sensors | | `start-sensor --group all` |
 | Open and merge a spec pull request | a trigger file (`triggers/`) | `trigger FILE --pr --merge` |

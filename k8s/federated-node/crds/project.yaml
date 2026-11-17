@@ -48,6 +48,11 @@ spec:
                 enabled:
                   type: boolean
                   default: true
+                backfill:
+                  type: boolean
+                  description: >-
+                    When the operator enables the project, create the triggers of the pull requests stored while it was
+                    off instead of skipping them. Applies each time enabled goes from false to true.
                 datasets:
                   type: array
                   items:

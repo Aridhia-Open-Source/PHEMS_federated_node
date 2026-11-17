@@ -64,6 +64,12 @@ def get_node_config(plural: str, namespace: str, name: str) -> dict | None:
         raise
 
 
+def patch_node_config(plural: str, namespace: str, name: str, operations: list[dict]) -> dict:
+    """A JSON patch of one fn.aridhia.com resource; returns the resource as patched"""
+    load_kube_config()
+    return client.CustomObjectsApi().patch_namespaced_custom_object(GROUP, VERSION, namespace, plural, name, operations)
+
+
 def remove_k8s_secret_keys(secret_name: str, namespace: str, keys: list[str]):
     """Remove keys from a Kubernetes secret and leave the others as they are."""
     load_kube_config()

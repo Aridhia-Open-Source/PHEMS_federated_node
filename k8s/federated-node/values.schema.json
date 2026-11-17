@@ -1329,6 +1329,9 @@
                             "enabled": {
                                 "type": "boolean"
                             },
+                            "backfill": {
+                                "type": "boolean"
+                            },
                             "datasets": {
                                 "type": "array",
                                 "items": {

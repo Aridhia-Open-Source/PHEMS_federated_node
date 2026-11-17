@@ -75,10 +75,12 @@ function ProjectList() {
           { header: "Name", cell: (p) => <Link to={String(p.id)}>{p.name}</Link> },
           { header: "Description", cell: (p) => p.description },
           { header: "Enabled", cell: (p) => (
-            <EnabledToggle ownedBy={ownedBy(p, groups)} hideLabel enabled={p.enabled} onChange={(enabled) => setEnabled.mutate({ project_id: p.id, enabled })} />
+            <EnabledToggle hideLabel enabled={p.enabled} readOnly={!!p.managed_by}
+              onChange={(enabled) => setEnabled.mutate({ project_id: p.id, enabled })} />
           ) },
           { header: "Created", cell: (p) => p.created_at },
-          { header: "", cell: (p) => <DeleteButton ownedBy={ownedBy(p, groups)} what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
+          // A project the operator manages is removed through its custom resource (ADR 0032)
+          { header: "", cell: (p) => !p.managed_by && <DeleteButton what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
         ]}
       />
     </section>
@@ -129,7 +131,7 @@ function ProjectDetail() {
       <PageHeader
         title={m.detail(data.name)}
         actions={
-          <EnabledToggle ownedBy={ownedBy(data, groups)} enabled={data.enabled} busy={setEnabled.isPending}
+          <EnabledToggle enabled={data.enabled} busy={setEnabled.isPending} readOnly={!!data.managed_by}
             onChange={(enabled) => setEnabled.mutate({ project_id: id, enabled })} />
         }
       />

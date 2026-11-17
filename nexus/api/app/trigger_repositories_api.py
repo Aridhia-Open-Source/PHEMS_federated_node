@@ -25,6 +25,7 @@ from app.dtos.trigger_repository import (
 )
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.helpers.managed import REPOSITORY, guard
 from app.helpers.git_tokens import mint_token, require_token_allowed
 from app.helpers.ownership import get_for_write, release, set_owner
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
@@ -133,16 +134,20 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
     return GitTokenDTO(token=token, expires_at=expires_at)
 
 
-@router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
+@router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])
 def delete_repository(repo_id: int, force: bool = False, caller: Caller = Depends(get_caller)):
     """
     DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
     """
-    repo = get_for_write(session, TriggerRepository, repo_id, caller)
-    delete_global(repo, repo.project_assignments, force, caller)
+    repo = TriggerRepository.get_by_id(repo_id)
+    guard(repo, caller)
+    delete_global(repo, repo.project_assignments, force)
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO)
+@router.post('/', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO,
+             dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO,
+             dependencies=[Depends(require_scope('can_do_admin'))])
 def post_repository(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
@@ -170,7 +175,7 @@ def post_repository(body: dict = Body(default_factory=dict), caller: Caller = De
         raise InvalidRequest(
             f"Trigger repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
         )
-    set_owner(repo, caller)
+    guard(repo, caller)
     repo.add()
 
     return TriggerRepositoryDTO.from_model(repo)
@@ -195,6 +200,7 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
     req = RepositoryPatchRequest.parse(body)
     if 'revoked' in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
+    guard(repo, caller, body, REPOSITORY)
 
     secret = repo.secret
     if 'secret_label' in body:

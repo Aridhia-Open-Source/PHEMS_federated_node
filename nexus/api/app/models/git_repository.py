@@ -30,6 +30,9 @@ class GitRepositoryMixin:
     secret_id = sa.Column(
         sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False
     )
+    # The nexus operator's user when its custom resource declares the record: only the operator may change the
+    # declared fields (helpers/managed.py, ADR 0032)
+    managed_by = sa.Column(sa.String(253), nullable=True)
 
     @validates('repo_path')
     def validate_repo_path(self, key, value):

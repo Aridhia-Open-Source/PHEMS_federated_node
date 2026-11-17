@@ -26,6 +26,7 @@ from app.dtos.trigger_repository import (
 )
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
+from app.helpers.managed import TRIGGER_ASSIGNMENT, guard
 from app.helpers.project_state import require_accepts_tasks
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
@@ -81,7 +82,7 @@ def list_project_trigger_repositories(project_id: int, active: str = ''):
 @router.put('/{repo_id}', response_model=ProjectTriggerRepositoryDTO)
 def put_project_trigger_repository(
     project_id: int, repo_id: int, response: Response, req: ProjectTriggerRepositoryRequest,
-    caller: Caller = Depends(get_caller)
+    caller: Caller = Depends(get_caller),
 ):
     """
     PUT /projects/<project_id>/repositories/triggers/<repo_id> — assigns a global trigger
@@ -93,7 +94,8 @@ def put_project_trigger_repository(
     Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir and
     base_branch are required, enabled is optional and defaults to true.
     """
-    project = require_member(Project.get_by_id(project_id), caller)
+    project = Project.get_by_id(project_id)
+    guard(project, caller)
     repo = TriggerRepository.get_by_id(repo_id)
     watch_dir = normalise_dir(req.watch_dir)
     assignment = get_for_write(
@@ -162,6 +164,7 @@ def patch_project_trigger_repository(
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectTriggerRepositoryPatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
+    guard(assignment.project, caller, body, TRIGGER_ASSIGNMENT)
 
     was_active = assignment.active
     if "base_branch" in body:
@@ -192,11 +195,8 @@ def delete_project_trigger_repository(project_id: int, repo_id: int, caller: Cal
     DELETE /projects/<project_id>/repositories/triggers/<repo_id> — unassigns the
     repository, not the repository itself: a soft delete that also revokes the project resource.
     """
-    require_member(Project.get_by_id(project_id), caller)
-    assignment = get_for_write(
-        session, ProjectTriggerRepository, {"project_id": project_id, "trigger_repository_id": repo_id}, caller,
-        missing=f"Trigger repository {repo_id} is not assigned to project {project_id}",
-    )
+    assignment = _assignment(project_id, repo_id)
+    guard(assignment.project, caller)
     assignment.soft_delete()
     session.commit()
 

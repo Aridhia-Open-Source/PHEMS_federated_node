@@ -70,11 +70,13 @@ from fncli.tests.e2e.conftest import (
     logger,
     merge_pr,
     merge_watched_pr,
+    patch_project,
     pr_of,
     pull_requests,
     quiet_wait,
     record_counts,
     record_stored,
+    set_spec,
     stored_without_a_trigger,
     summary,
     teardown_step,
@@ -289,8 +291,9 @@ def test_disabled_resource_record_counts(fncli, flow):
     record_counts(fncli, flow, "disabled_resource_before")
 
 
-def test_disabled_resource_switch_off_resource(fncli):
-    fncli.call(resource_set_command, kind="trigger", enabled="false", expect=200)
+def test_disabled_resource_switch_off_resource():
+    """Through the Project custom resource: nexus-api refuses the change through the API (ADR 0032)"""
+    patch_project(set_spec("repositories/triggers/0/enabled", False))
 
 
 def test_disabled_resource_inactive(fncli):
@@ -306,8 +309,8 @@ def test_disabled_resource_nothing_ingested_while_off(fncli, flow):
     fncli.assert_counts(flow["disabled_resource_before"], "trigger resource switched off")
 
 
-def test_disabled_resource_switch_on_resource(fncli):
-    fncli.call(resource_set_command, kind="trigger", enabled="true", expect=200)
+def test_disabled_resource_switch_on_resource():
+    patch_project(set_spec("repositories/triggers/0/enabled", True))
 
 
 def test_disabled_resource_missed_pr_not_replayed(fncli, flow):

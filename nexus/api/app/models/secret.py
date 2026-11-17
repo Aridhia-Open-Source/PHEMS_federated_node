@@ -35,6 +35,9 @@ class Secret(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     namespace = sa.Column(sa.String(253), nullable=True)
     # Turned on or off for the whole node, whatever the project resources say
     enabled = sa.Column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
+    # The nexus operator's user when its custom resource declares the record: only the operator may change the
+    # declared fields (helpers/managed.py, ADR 0032)
+    managed_by = sa.Column(sa.String(253), nullable=True)
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()

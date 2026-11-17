@@ -24,6 +24,8 @@ class DatasetDTO(DTO):
     extra_connection_args: str | None
     enabled: bool
     revoked: bool
+    # The nexus operator's user when its custom resource declares the record (ADR 0032)
+    managed_by: str | None
     created_at: WireDatetime
     updated_at: WireDatetime
     slug: str
@@ -47,6 +49,7 @@ class DatasetDTO(DTO):
             extra_connection_args=obj.extra_connection_args,
             enabled=obj.enabled,
             revoked=obj.revoked,
+            managed_by=obj.managed_by,
             created_at=obj.created_at,
             updated_at=obj.updated_at,
             slug=slug,

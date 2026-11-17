@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitProviderRequest
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.ownership import get_for_write, release, set_owner
+from app.helpers.managed import GIT_PROVIDER, guard
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.wrappers import Caller, get_caller, superuser_only
 from app.models.git_provider import GitProvider
@@ -54,7 +54,10 @@ def get_provider(provider_id: int):
     return GitProviderDTO.from_model(GitProvider.get_by_id(provider_id))
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO)
+@router.post('/', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO,
+             dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post('', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO,
+             dependencies=[Depends(require_scope('can_do_admin'))])
 def post_provider(req: GitProviderRequest, caller: Caller = Depends(get_caller)):
     """
     POST /global/providers/ — create a provider. The name and the uri are unique (409).
@@ -66,7 +69,7 @@ def post_provider(req: GitProviderRequest, caller: Caller = Depends(get_caller))
     except ValueError as e:
         raise InvalidRequest(str(e))
     _check_unique(provider)
-    set_owner(provider, caller)
+    guard(provider, caller)
     provider.add()
 
     return GitProviderDTO.from_model(provider)
@@ -87,6 +90,7 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
         raise InvalidRequest("No fields provided to update")
     if 'revoked' in sent and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a git provider")
+    guard(provider, caller, sent, GIT_PROVIDER)
 
     was_enabled, was_revoked = provider.enabled, provider.revoked
     try:
@@ -110,13 +114,14 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
     return GitProviderDTO.from_model(provider)
 
 
-@router.delete('/{provider_id}', status_code=HTTPStatus.NO_CONTENT)
+@router.delete('/{provider_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])
 def delete_provider(provider_id: int, caller: Caller = Depends(get_caller)):
     """
     DELETE /global/providers/<id> — delete the provider. Refused with a 409 while a repository
     is on it.
     """
-    provider = get_for_write(session, GitProvider, provider_id, caller)
+    provider = GitProvider.get_by_id(provider_id)
+    guard(provider, caller)
     users = len(provider.trigger_repositories) + len(provider.results_repositories)
     if users:
         raise InvalidRequest(

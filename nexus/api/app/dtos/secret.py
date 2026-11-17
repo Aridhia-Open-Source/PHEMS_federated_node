@@ -13,6 +13,8 @@ class SecretDTO(DTO):
     key: str
     namespace: str | None
     enabled: bool
+    # The nexus operator's user when its custom resource declares the record (ADR 0032)
+    managed_by: str | None
     created_at: WireDatetime
     updated_at: WireDatetime
     owner: UserRefDTO | None

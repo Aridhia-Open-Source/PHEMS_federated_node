@@ -45,6 +45,7 @@ from fncli.k8s import (
     get_configmap_value,
     get_node_config,
     k8s_secret_version,
+    patch_node_config,
     restart_code_server,
     set_configmap_value,
 )
@@ -294,6 +295,7 @@ def env():
 
 
 POLL_SECONDS = 2  # how often a wait for something to happen looks at the project
+SYNC_TIMEOUT = 180  # how long the operator may take to sync a patched custom resource
 
 
 def wait_for(predicate, timeout: float, describe: str, interval: float = POLL_SECONDS):
@@ -308,6 +310,28 @@ def wait_for(predicate, timeout: float, describe: str, interval: float = POLL_SE
         if time.monotonic() >= deadline:
             pytest.fail(f"Timed out after {timeout}s waiting for {describe}")
         time.sleep(interval)
+
+
+def patch_project(*operations: dict):
+    """
+    A JSON patch of the dev project's custom resource, and a wait until the operator has synced it. nexus-api refuses
+    (409) a change to what the resource declares through the API or fncli (ADR 0032), so a group that switches the
+    project, or one of its repository assignments, off or on does it here.
+    """
+    project = node_config.of_kind(project_resources(), "Project")[0]
+    name, namespace = project["metadata"]["name"], project["metadata"]["namespace"]
+    generation = patch_node_config("projects", namespace, name, list(operations))["metadata"]["generation"]
+
+    def synced():
+        status = get_node_config("projects", namespace, name).get("status", {})
+        return status.get("synced") and status.get("observedGeneration", 0) >= generation
+
+    wait_for(synced, SYNC_TIMEOUT, f"Project {name} generation {generation} synced")
+
+
+def set_spec(path: str, value) -> dict:
+    """A JSON patch operation that sets spec/<path> of a resource"""
+    return {"op": "add", "path": f"/spec/{path}", "value": value}
 
 
 class Fncli:

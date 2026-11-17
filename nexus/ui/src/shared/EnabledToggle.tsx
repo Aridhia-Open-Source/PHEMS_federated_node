@@ -11,11 +11,11 @@ type Props = {
   busy?: boolean;
   // In a column headed "Enabled": the label is still read out, not shown
   hideLabel?: boolean;
-  // The owner group, when the viewer is not in it: greyed out
-  ownedBy?: string | null;
+  // Managed by the nexus operator: changed through its custom resource, not here (ADR 0032)
+  readOnly?: boolean;
 };
 
-export function EnabledToggle({ enabled, onChange, busy, hideLabel, ownedBy }: Props) {
+export function EnabledToggle({ enabled, onChange, busy, hideLabel, readOnly }: Props) {
   const id = useId();
   const label = shellMessages.widgets.enabled;
   return (
@@ -25,7 +25,7 @@ export function EnabledToggle({ enabled, onChange, busy, hideLabel, ownedBy }: P
       label={hideLabel ? <span className="sr-only">{label}</span> : label}
       className="justify-start"
       checked={enabled}
-      disabled={busy || !!ownedBy}
+      disabled={busy || readOnly}
       onChange={(e) => onChange(e.target.checked)}
     />
     </OwnedBy>

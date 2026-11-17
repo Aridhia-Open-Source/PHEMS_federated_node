@@ -19,6 +19,7 @@ Status: Proposed, 2026-11-11.
 - **Node config is described in declarative YAML**, kept in git: providers, secrets, repositories, datasets and projects. A secret entry names where its value comes from, never the value.
 - **The config is custom resources.** CRDs in the API group `fn.aridhia.com`, version `v1alpha1`, namespaced: `GitProvider`, `NodeSecret` (a reference only), `Repository`, `Dataset`, `Project`. The secret kind is not called `Secret`, because `kubectl get secrets` always means the core kind. All five share the category `fn`, so `kubectl get fn` lists them. In dev they are YAML files in `config/`. On a deployed node the site's Helm values hold the same fields, and the chart templates them into custom resources.
 - **CRDs ship as static YAML in the chart's `crds/`,** so Helm installs them before the templates and a first install with `nodeConfig` set works (as templates, the custom resources fail on kinds that do not exist yet). Helm never upgrades or deletes `crds/`, so an uninstall never deletes the kinds and, by cascade, the config. Upgrades go through Flux (`install.crds` and `upgrade.crds: CreateReplace` on the HelmRelease); `mise run deploy` applies them with kubectl before Helm.
+- **A `Project` may set `backfill: true`:** when the operator enables it, the pull requests stored while it was off get their triggers instead of being skipped. It applies each time `enabled` goes from false to true, so it is removed once used.
 - **Names are the nexus-api keys.** `metadata.name` is the project, dataset or provider name, or the secret's label. A `Repository` is keyed by `spec.uri`, and a `Project` names its repositories by uri and its datasets by name.
 - **A `NodeSecret` names a Kubernetes Secret in its own namespace:** `fromSecret: {name}` takes every key as it is, and `values: {KEY: {secretKeyRef: {name, key}}}` maps keys one by one.
 - **Dev applies them with kubectl:** `kubectl apply -f`, `kubectl diff -f` and `kubectl delete -f` on the files in `config/`. A deployed node uses `helm upgrade` with the values. The operator and the custom resources are the same in both, so dev runs the production path.
@@ -28,17 +29,32 @@ Status: Proposed, 2026-11-11.
 ### The operator
 
 - **An operator applies the resources.** It is written in Python with Kopf. For each resource it creates, updates, and on removal soft-deletes the record in nexus-api ([0008](0008-enabled-revoked-and-soft-delete.md)).
-- **It lives in `nexus/operator/`,** with its own image and a Deployment of one replica (Kopf leader election covers a restart or a rolling update). It is not a Service, because nothing calls it. It belongs to nexus, not Dagster.
-- **It finds a record by its key and adopts it.** A record that already exists with the same name or uri (made in the UI, say) is taken over and updated. The id in the resource's status is a cache.
+- **It lives in `nexus/operator/`,** with its own image and a Deployment of one replica with the `Recreate` strategy, run `--standalone` (no Kopf peering), so two never run at once. A restart or an upgrade is a short gap; on start the resume handler syncs every resource again. It is not a Service, because nothing calls it. It belongs to nexus, not Dagster.
+- **It finds a record by its key and adopts it.** A record that already exists with the same name or uri (made in the UI, say) is taken over: the operator sends every declared field once, which marks it managed. The id in the resource's status is a cache.
 - **It sends secret values, because nexus-api stores them.** `POST /global/secrets` takes the values and writes them to its own store; it cannot adopt an existing Kubernetes Secret. The operator reads the source Secret and sends its values, and sends them again when the source changes. It keeps the source's `resourceVersion` in status, never a value or a hash of one.
-- **One sync function per kind,** run on create, on update, and on a timer. The timer is how UI edits are put back and a rotated source Secret is seen.
+- **One sync function per kind,** run on create, on update and on resume. Only `NodeSecret`s also run on a timer: a rotated source Secret changes no custom resource, so the timer is how it is seen.
 - **Order comes from retries.** A resource whose dependency is not there yet (a project's dataset, a repository's secret) is retried, with what it waits for in its status. Helm and kubectl apply in any order.
 - **A finalizer, `fn.aridhia.com/nexus-sync`, holds a removed resource until nexus-api has soft-deleted the record.**
 - **Uninstall is not a delete.** A pre-delete hook stops the operator and strips the finalizers, so removing the release does not hang and does not soft-delete the node's records.
 - **It watches the release namespace and any listed in `operator.watchNamespaces`,** and reads a source Secret only in the resource's own namespace. Its Role there: the five kinds and their status, `get` on Secrets, `create` on Events.
 - **Removal is safe on a shared node.** The operator never deletes with `?force=true`. A global resource another project still uses is refused by nexus-api with a 409; the operator reports it in the resource's status, keeps the record, and retries; the resource stays `Terminating` until the delete goes through.
-- **Removal and drift.** Removing an entry from the values and upgrading deletes it (in dev, `kubectl delete -f`), so a revert works for config as it does for the chart. Edits made in the UI that differ from the config are put back.
+- **Removal.** Removing an entry from the values and upgrading deletes it (in dev, `kubectl delete -f`), so a revert works for config as it does for the chart.
 - **The operator's scope is nexus-api only.** It never touches the git server: no repository creation, no Gitea OAuth apps. Those stay dev-only fncli steps, or a one-time job run by the site.
+
+### Managed records
+
+- **A record the operator creates or changes is managed:** nexus-api sets its `managed_by` to the operator's Keycloak user. GitProvider, Secret, TriggerRepository, ResultsRepository, Dataset and Project carry the column; a project's assignments are managed with their project.
+- **nexus-api refuses (409) a change to a managed field, or the removal of a managed record, unless the caller is the operator,** the same convention as a refused state move ([0005](0005-state-transition-tables.md)). The error says to change the custom resource. nexus-api knows the operator by its token's username, `fn-operator` (`OPERATOR_KC_USER`).
+- **This replaces putting back drift.** A managed field cannot drift, so no timer reverts API or UI edits, and an edit is never silently undone.
+- **Runtime state stays editable through the API:** `revoked` everywhere (the admin's switch, [0008](0008-enabled-revoked-and-soft-delete.md)), the `enabled` of a GitProvider, Secret, repository or Dataset (not in their CRDs, and a disabled Secret still disables what uses it), a dataset assignment's `enabled`, `owned_by_federated_node`, cursors, pull requests, tasks and results.
+
+| Kind | Managed fields (API names) |
+|---|---|
+| `GitProvider` | `name`, `type`, `uri`, `api_uri`; removal |
+| `NodeSecret` (Secret) | `values`; removal |
+| `Repository` (trigger or results) | `provider_id`, `secret_label`; removal (`uri` is the key) |
+| `Dataset` | `name`, `host`, `port`, `type`, `read_schema`, `write_schema`, `secret_label`; removal |
+| `Project` | `enabled` (and `backfill`); removal; which datasets and repositories are assigned (PUT and DELETE); a trigger assignment's `watch_dir`, `base_branch`, `enabled`; the results assignment's `target_dir`, `base_branch`, `enabled` |
 
 ### The shared client package
 
@@ -292,6 +308,11 @@ What it does not need:
 
 What it costs:
 
+- **A schema change:** `managed_by` on six tables, in the regenerated `001_baseline.py` ([0023](0023-fastapi-replaces-flask.md)).
+- **Managed settings change only through the custom resource.** The e2e suites and the QA docs switch a project or its repository assignments off and on by patching the `Project`, not through fncli or the API; revoking still goes through the API.
+- **A wiped nexus-api database is rebuilt only when the operator restarts** (its resume handler), since no timer re-syncs the kinds other than `NodeSecret`.
+- **A disabled Secret cannot be rotated** (409): the `NodeSecret` stays unsynced, with nexus-api's reason in its status, until the Secret is enabled.
+
 - **The operator is a new component** to build, test and run in every node. It is small: the client code already exists, and Kopf handles the watch loop, retries and status.
 - **Moving the client is a one-time change** to the imports in Dagster and fncli.
 - **Every consumer build needs the client's source:** the bake named context for images, and the second `pyproject.toml` in the compile step.
@@ -307,6 +328,7 @@ What it costs:
 - **Keep the env files and add update and preview to the step commands:** still one project per file, and a second engine beside anything that runs on a deployed node.
 - **Crossplane:** needs a nexus-api provider, which is the same effort as our own operator, and it is heavier to run.
 - **An operator that also creates git repositories and OAuth apps:** not needed on a deployed node, and the hardest part to get right.
+- **The operator puts back drift on a timer:** an edit through the UI or fncli was silently undone within a minute, and anything that switched a project or assignment off for a while (QA, the e2e suites) raced the timer.
 - **ConfigMaps instead of CRDs:** untyped, no schema validation, no status, and no RBAC per kind.
 - **Publishing `nexus-client` to PyPI:** versioned and hashed, but every API change that needs a client change becomes a release and a version bump in each consumer, and the images lag. Worth it only when something outside the repository needs the client.
 - **A client generated from `openapi.json`:** the models alone could be generated, but the `requests` adapters (retry, token refresh) do not fit generated httpx clients.

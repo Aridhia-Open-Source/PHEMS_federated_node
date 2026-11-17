@@ -26,10 +26,7 @@ from fncli.cmds.common import DagsterConfig, build_admin_backend_api
 from fncli.cmds.project import project_healthcheck_command
 from fncli.cmds.secret import delete_gitea_token_command, verify_git_secret_command
 from fncli.cmds.sensor import DELIVERY_RETRY_SENSOR, sensor_status_command
-from fncli.cmds.state import (
-    resource_set_command,
-    project_set_command,
-)
+from fncli.cmds.state import resource_set_command
 from fncli.sensors import DagsterAPI
 from fncli.tests.e2e.conftest import (
     DELIVERED_STEPS,
@@ -52,6 +49,7 @@ from fncli.tests.e2e.conftest import (
     merge_pr,
     merge_pr_with_task,
     merge_watched_pr,
+    patch_project,
     pr_of,
     quiet_wait,
     record_counts,
@@ -59,6 +57,7 @@ from fncli.tests.e2e.conftest import (
     result_with,
     results_of,
     rotate_trigger_secret,
+    set_spec,
     stored_without_a_trigger,
     summary,
     task_has_status,
@@ -330,8 +329,9 @@ def test_backfill_record_counts(fncli, flow):
     record_stored(fncli, flow, "backfill_before")
 
 
-def test_backfill_disable_project(fncli):
-    fncli.call(project_set_command, enabled="false", expect=200)
+def test_backfill_disable_project():
+    """Through the Project custom resource: nexus-api refuses the change through the API (ADR 0032)"""
+    patch_project(set_spec("enabled", False))
 
 
 def test_backfill_project_is_disabled(fncli):
@@ -346,8 +346,8 @@ def test_backfill_pr_stored_without_a_task(fncli, flow):
     fncli.wait_for_state("the PR stored, with no task", STEP_TIMEOUT, stored_without_a_trigger(flow, "backfill_before"))
 
 
-def test_backfill_enable_project_with_backfill(fncli):
-    fncli.call(project_set_command, enabled="true", backfill=True, expect=200)
+def test_backfill_enable_project_with_backfill():
+    patch_project(set_spec("enabled", True), set_spec("backfill", True))
 
 
 def test_backfill_pr_gets_its_task(fncli, flow):
@@ -359,6 +359,11 @@ def test_backfill_task_finishes(fncli):
     fncli.wait_for_state("no task in flight", TASK_TIMEOUT, tasks_finished)
 
 
+def test_backfill_dropped_from_the_spec():
+    """Left in, the next enable would backfill too"""
+    patch_project({"op": "remove", "path": "/spec/backfill"})
+
+
 # --- work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on ----------------
 
 
@@ -366,8 +371,8 @@ def test_switched_off_results_resource_wait_for_tasks_to_finish(fncli):
     fncli.wait_for_state("no task in flight and every result settled", TASK_TIMEOUT, drained)
 
 
-def test_switched_off_results_resource_switch_off_resource(fncli):
-    fncli.call(resource_set_command, kind="results", enabled="false", expect=200)
+def test_switched_off_results_resource_switch_off_resource():
+    patch_project(set_spec("repositories/results/enabled", False))
 
 
 def test_switched_off_results_resource_inactive(fncli):
@@ -396,8 +401,8 @@ def test_switched_off_results_resource_not_delivered_while_off(fncli, flow):
     assert [(r["step"], r["state"]) for r in results] == [("UNKNOWN", "FAILED")], f"unexpected results\n{json.dumps(summary(snapshot), indent=2)}"
 
 
-def test_switched_off_results_resource_switch_on_resource(fncli):
-    fncli.call(resource_set_command, kind="results", enabled="true", expect=200)
+def test_switched_off_results_resource_switch_on_resource():
+    patch_project(set_spec("repositories/results/enabled", True))
 
 
 def test_switched_off_results_resource_retry_sensor_delivers(fncli, flow):

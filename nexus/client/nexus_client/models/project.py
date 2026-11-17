@@ -6,6 +6,8 @@ class Project(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: int
+    # The nexus operator's user when its custom resource declares the record (ADR 0032)
+    managed_by: str | None = None
     name: str
     description: str | None = None
     enabled: bool = False

@@ -1,8 +1,10 @@
 """
 Kopf handlers: each custom resource of fn.aridhia.com/v1alpha1 -> its nexus-api record (ADR 0032).
 
-create, update, resume and a timer call the kind's sync (sync.py); delete calls its delete without force, and a 409
-keeps the resource Terminating with nexus-api's reason in status until the delete goes through. Kopf keeps its own
+create, update and resume call the kind's sync (sync.py); delete calls its delete without force, and a 409 keeps the
+resource Terminating with nexus-api's reason in status until the delete goes through. No timer puts back API edits:
+nexus-api refuses (409) anyone else's change to a record the operator manages. Only NodeSecrets have a timer, to see a
+rotated source Secret. Kopf keeps its own
 state in annotations, so status holds only what the operator writes: synced, nexusId, message, observedGeneration.
 
 Run with `kopf run -m nexus_operator.main --standalone --namespace <ns> ...` (the chart's Deployment).
@@ -128,8 +130,10 @@ for kind in KINDS:
     kopf.on.create(GROUP, VERSION, kind, id="sync")(handler)
     kopf.on.update(GROUP, VERSION, kind, id="sync")(handler)
     kopf.on.resume(GROUP, VERSION, kind, id="sync")(handler)
-    # The first resync waits one interval, so it never races the create handler into a duplicate POST (409)
-    kopf.timer(
-        GROUP, VERSION, kind, id="resync", interval=env.sync_interval_seconds, initial_delay=env.sync_interval_seconds
-    )(handler)
     kopf.on.delete(GROUP, VERSION, kind, id="delete")(partial(remove, kind))
+# A rotated source Secret changes no NodeSecret, so only a timer sees it. The first tick waits one interval, so it never
+# races the create handler into a duplicate POST (409).
+kopf.timer(
+    GROUP, VERSION, "nodesecrets", id="resync", interval=env.sync_interval_seconds,
+    initial_delay=env.sync_interval_seconds,
+)(partial(reconcile, "nodesecrets"))

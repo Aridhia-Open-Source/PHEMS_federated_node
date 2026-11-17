@@ -584,7 +584,7 @@ operator:
   # Namespaces watched besides the release namespace (dev adds experiments). The operator reads a
   # NodeSecret's source Secret only in the NodeSecret's own namespace.
   watchNamespaces: []
-  # How often every resource is synced again: puts back UI edits and sees a rotated source Secret
+  # How often every NodeSecret is synced again, to see a rotated source Secret
   syncIntervalSeconds: 60
   resources:
     requests:
