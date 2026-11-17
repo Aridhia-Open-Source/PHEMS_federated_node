@@ -23,14 +23,13 @@ from app.helpers.git_tokens import mint_token, require_token_allowed
 from app.helpers.ownership import get_for_write, set_owner
 from app.helpers.soft_delete import delete_global
 from app.helpers.task_config import results_resource
-from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 
 router = APIRouter(
-    prefix='/global/repositories/results', tags=["results_repositories"],
-    dependencies=[Depends(require_scope('can_do_admin'))]
+    prefix='/global/repositories/results', tags=["results_repositories"]
 )
 session = db.session
 

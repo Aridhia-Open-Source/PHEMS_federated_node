@@ -5,14 +5,13 @@ dagster endpoints:
 - PATCH /dagster/sensors
 - PATCH /dagster/sensors/<name>
 """
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body
 
 from app.dtos.sensor import SensorDTO
 from app.helpers.dagster import list_sensors, set_sensor_status
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.wrappers import require_scope
 
-router = APIRouter(prefix='/dagster', tags=["dagster"], dependencies=[Depends(require_scope('can_do_admin'))])
+router = APIRouter(prefix='/dagster', tags=["dagster"])
 
 STATUSES = ("RUNNING", "STOPPED")
 

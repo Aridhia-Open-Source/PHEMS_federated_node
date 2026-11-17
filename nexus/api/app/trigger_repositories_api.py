@@ -29,7 +29,7 @@ from app.helpers.git_tokens import mint_token, require_token_allowed
 from app.helpers.ownership import get_for_write, set_owner
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.soft_delete import delete_global
-from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.git_provider import GitProvider
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
@@ -37,8 +37,7 @@ from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
 
 router = APIRouter(
-    prefix='/global/repositories/triggers', tags=["trigger_repositories"],
-    dependencies=[Depends(require_scope('can_do_admin'))]
+    prefix='/global/repositories/triggers', tags=["trigger_repositories"]
 )
 session = db.session
 

@@ -2475,6 +2475,42 @@
         }
       }
     },
+    "/global/users/reset-password": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Reset Password",
+        "description": "PUT /global/users/reset-password endpoint. Interface to keycloak\n    API, so we can change the credentials and make sure\n    there are no pending action to undertake",
+        "operationId": "reset_password_global_users_reset_password_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/global/users": {
       "get": {
         "tags": [
@@ -2528,42 +2564,6 @@
                 }
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/users/reset-password": {
-      "put": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Reset Password",
-        "description": "PUT /global/users/reset-password endpoint. Interface to keycloak\n    API, so we can change the credentials and make sure\n    there are no pending action to undertake",
-        "operationId": "reset_password_global_users_reset_password_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",

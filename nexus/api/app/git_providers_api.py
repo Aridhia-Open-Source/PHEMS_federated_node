@@ -17,12 +17,10 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.ownership import get_for_write, set_owner
 from app.helpers.pull_request_fanout import skip_gap
-from app.helpers.wrappers import Caller, get_caller, require_scope
+from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
 
-router = APIRouter(
-    prefix='/global/providers', tags=["git_providers"], dependencies=[Depends(require_scope('can_do_admin'))]
-)
+router = APIRouter(prefix='/global/providers', tags=["git_providers"])
 session = db.session
 
 
