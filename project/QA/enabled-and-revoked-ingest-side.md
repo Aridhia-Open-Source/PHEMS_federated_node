@@ -11,7 +11,7 @@ The rules in words:
 
 The rules are in [docs/architecture/revoke-and-enabled.md], [Enabled, revoked and soft delete] and [Pull requests stored once per repository, fanned out to project resources, with cursors].
 
-Needs: the dev project with all sensors running and no task in flight; an administrator login for anything `--revoked`. The cases that switch the project or its trigger resource with `--enabled` change settings the operator owns, so they pause it; `--revoked`, `global-set` and `secret-set` do not need that. Use this routine in every case unless the steps say otherwise:
+Needs: the dev project with all sensors running and no task in flight; an administrator login for anything `--revoked`. The cases that switch the project or its trigger resource (`project off`, `trigger resource on` and the like) patch the Project and wait until it is synced, as in "Change a setting of the Project" in [the index](README.md): nexus-api refuses `fncli project-set --enabled` and `fncli resource-set trigger --enabled` on a project the operator manages. `--revoked`, `global-set` and `secret-set` go through `fncli` as before. Use this routine in every case unless the steps say otherwise:
 
 - **Before:** note the counts (pull requests, stored, tasks) with the command in [the index](README.md).
 - **Switch it:** the command in the case.
@@ -21,11 +21,9 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 ## A disabled project stores pull requests without a trigger, and enabling it skips them
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Before. `fncli project-set --enabled false`.
+1. Before. `project off`.
 2. Merge.
-3. `fncli project-set --enabled true`. Wait five intervals. Counts.
+3. `project on`. Wait five intervals. Counts.
 4. Merge another watched pull request.
 
 - **Expected:** after step 2 the stored count is up by one and the project's pull request and task counts are unchanged. After step 3 they are still unchanged: the pull request merged while the project was off never gets a trigger. In step 4 the new pull request gets a trigger and a task.
@@ -36,27 +34,26 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## Enabling a project with `backfill` creates the missed triggers, once
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Before. `fncli project-set --enabled false`. Merge. Wait until the stored count is up by one.
-2. `fncli project-set --enabled true --backfill`. Wait.
-3. `fncli project-set --enabled false`, then `fncli project-set --enabled true --backfill` again.
+1. Before. `project off`. Merge. Wait until the stored count is up by one.
+2. `project on with backfill`. Wait. Then remove `backfill` from the Project.
+3. `project off`, then `project on with backfill` again. Remove `backfill` again.
 
 - **Expected:** after step 2 the pull request merged while the project was off gets a trigger and a task, once (pull request and task counts each up by one). After step 3 there are no more: repeating `backfill` creates no duplicate. Pull requests before the project resource's cursor do not get a trigger.
 - **Rule:** `"backfill": true` on enable creates the triggers of pull requests stored while the project was off ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the project is disabled gets a task when it is enabled with backfill" (written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_enabling_with_backfill_twice_creates_no_duplicates`). The suite does not repeat it. The suite makes the switch with the operator running, which can put it back within one resync interval.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the project is disabled gets a task when it is enabled with backfill" (written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_enabling_with_backfill_twice_creates_no_duplicates`). The suite makes the switch through the Project (`patch_project`, with `backfill` set, then removed) and does not repeat it.
 - [ ] Pass
 - [ ] Fail — notes:
 
 ## `backfill` is refused unless it enables a disabled project
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
+Use a project no custom resource names, so the operator does not manage it: on a managed project nexus-api answers every one of these with a 409 first (see [operator and node config](operator-and-node-config.md)).
 
-1. On an enabled project: `fncli project-set --enabled true --backfill --expect 400`.
-2. On an enabled project: `PATCH /projects/<pid>` with `{"backfill": true}` (no `enabled`).
-3. On a disabled project: `PATCH` with `{"enabled": false, "backfill": true}`.
+1. `POST /projects` with `{"name": "qa-scratch"}` (it is created disabled). `PATCH /projects/<pid>` with `{"enabled": true}`. Then, on this enabled project, `PATCH` with `{"enabled": true, "backfill": true}`.
+2. On the enabled project: `PATCH` with `{"backfill": true}` (no `enabled`).
+3. `PATCH` with `{"enabled": false}`, then on the disabled project `PATCH` with `{"enabled": false, "backfill": true}`.
+4. `DELETE /projects/<pid>`.
 
-- **Expected:** 400 each time and nothing changes; `backfill` is not stored.
+- **Expected:** 400 in steps 1 to 3 (each refused `PATCH`) and nothing changes; `backfill` is not stored.
 - **Rule:** `backfill` is a 400 unless the body also has `enabled: true` and the project is currently disabled ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **Automated by:** Automated: `nexus/api/tests/test_projects_api.py` (`test_backfill_without_enabling_is_400`, `test_backfill_on_an_enabled_project_is_400`) and the refused-backfill action of the stateful test. They miss the live node.
 - [ ] Pass
@@ -64,12 +61,10 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## Backfill does not give a trigger to a project resource that is off
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. `fncli project-set --enabled false`. `fncli resource-set trigger --enabled false`.
+1. `project off`, then `trigger resource off`.
 2. Merge. Wait until stored.
-3. `fncli project-set --enabled true --backfill`. Counts.
-4. `fncli resource-set trigger --enabled true`. Counts.
+3. `project on with backfill`. Remove `backfill`. Counts.
+4. `trigger resource on`. Counts.
 
 - **Expected:** the pull request gets no trigger at step 3 (the project resource is off) and none at step 4 (switching the project resource on skips the gap).
 - **Rule:** backfill calls the trigger creation only for project resources that now accept triggers; there is no backfill for any other switch ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
@@ -92,16 +87,14 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## A trigger resource switched off gets no trigger, and switching it on skips the gap
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Before. `fncli resource-set trigger --enabled false`. `fncli project-show` (project resource `active` false).
+1. Before. `trigger resource off`. `fncli project-show` (project resource `active` false).
 2. Merge. Counts.
-3. `fncli resource-set trigger --enabled true`. Counts.
+3. `trigger resource on`. Counts.
 4. Merge another.
 
 - **Expected:** step 2: no trigger and no task, and the pull request is still stored (the poll serves every project). Step 3: still none. Step 4: a trigger and a task.
 - **Rule:** switching a project resource back on moves its cursor to now ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the trigger resource is switched off gets no task" (written, never run on a cluster); `nexus/api/tests/test_trigger_repositories_and_resources.py` (`test_switching_a_repository_back_on_skips_the_gap`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster. The suite makes the switch with the operator running, which can put it back within one resync interval.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the trigger resource is switched off gets no task" (written, never run on a cluster); `nexus/api/tests/test_trigger_repositories_and_resources.py` (`test_switching_a_repository_back_on_skips_the_gap`). The suite makes the switch through the Project (`patch_project`). The unit tests miss the live sensors, and the suite itself is unproven on a cluster.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -174,12 +167,10 @@ No fncli command changes a GitProvider: use `PATCH /global/providers/<id>` with 
 
 ## When two switches are off, switching one on changes nothing
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Before. `fncli resource-set trigger --enabled false` and `fncli global-set trigger --enabled false`.
+1. Before. `trigger resource off` and `fncli global-set trigger --enabled false`.
 2. `fncli global-set trigger --enabled true`. `fncli project-show` (project resource `active` false: the project resource is still off).
 3. Merge. Counts.
-4. `fncli resource-set trigger --enabled true`. Counts.
+4. `trigger resource on`. Counts.
 5. Merge another.
 
 - **Expected:** step 3: stored, no trigger. Step 4: still none (the gap is skipped from now). Step 5: a trigger and a task. Try the same order with `revoked` on the project resource and `enabled` on the GlobalResource.
@@ -190,11 +181,9 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## Revoke never changes `enabled`, and un-revoke never switches anything on
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. `fncli resource-set trigger --enabled false`. Then `fncli resource-set trigger --revoked true`, then `fncli resource-set trigger --revoked false`. `fncli project-show` after each.
-2. Do the same on the project (`fncli project-set`) and on the trigger repository (`fncli global-set trigger`).
-3. Switch each back on.
+1. `trigger resource off`. Then `fncli resource-set trigger --revoked true`, then `fncli resource-set trigger --revoked false`. `fncli project-show` after each.
+2. Do the same on the project (`project off`, then `fncli project-set --revoked true` and `false`) and on the trigger repository (`fncli global-set trigger --enabled false`, then `--revoked true` and `false`).
+3. Switch each back on: `trigger resource on`, `project on`, `fncli global-set trigger --enabled true`.
 
 - **Expected:** after un-revoking, `enabled` is still `false` and the project resource or project is still inactive. The flags never overwrite each other.
 - **Rule:** revoking sets only `revoked`, so a re-grant restores the previous state without overriding a manual disable ([Enabled, revoked and soft delete]).
@@ -216,13 +205,11 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## A pull request merged just before a switch-off, and not yet ingested, is skipped when switched on
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
 This is a known limit; the case records what the node does.
 
 1. `fncli stop-sensor --group ingest`.
 2. Merge. Do not let ingest run.
-3. `fncli resource-set trigger --enabled false`, then `fncli resource-set trigger --enabled true`.
+3. `trigger resource off`, then `trigger resource on`.
 4. `fncli start-sensor --group ingest`. Wait five intervals. Counts.
 
 - **Expected:** the pull request is stored (stored up by one) and gets no trigger, because switching the project resource on moved its cursor to now. If the beta needs such a pull request to be processed, record it as a finding.
