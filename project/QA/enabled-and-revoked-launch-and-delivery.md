@@ -13,6 +13,8 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 
 ## A disabled project's waiting task waits, and launches when the project is enabled
 
+Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
+
 1. Make the change while the task is `PENDING`: `fncli project-set --enabled false`.
 2. Start the launcher and wait five intervals. Then `fncli project-set --enabled true`.
 
@@ -35,6 +37,8 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 - [ ] Fail — notes:
 
 ## A project that is both revoked and disabled keeps its waiting tasks waiting; they fail once it is enabled
+
+Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
 
 1. Task `PENDING`, launcher stopped. `fncli project-set --revoked true`, then `fncli project-set --enabled false`.
 2. Start the launcher, wait five intervals.
@@ -94,6 +98,8 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 
 ## A trigger resource switched off does not stop a waiting task
 
+Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
+
 1. Task `PENDING`, launcher stopped. `fncli resource-set trigger --enabled false`. Start the launcher.
 2. `fncli resource-set trigger --enabled true`.
 
@@ -115,6 +121,8 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 - [ ] Fail — notes:
 
 ## A running task is not stopped when its project is disabled; its result is delivered
+
+Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
 
 1. Merge a watched pull request. While the task is `RUNNING`: `fncli project-set --enabled false`.
 2. Wait until the task finishes and the result appears. Then `fncli project-set --enabled true`.
@@ -160,13 +168,15 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 
 ## A results resource switched off while the task runs holds the result, which is delivered once the resource is on
 
+Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
+
 1. Merge a watched pull request. While the task is `RUNNING`: `fncli resource-set results --enabled false`.
 2. Wait for the task to finish. Look at the result for ten intervals.
 3. `fncli resource-set results --enabled true`. Watch.
 
 - **Expected:** the task is `SUCCESS`. The result is recorded with step `UNKNOWN`, state `FAILED` and an error saying the results resource is switched off; nothing is pushed and it stays that way for as long as the project resource is off. After step 3 the delivery retry sensor delivers it: step `OPENED`, state `DELIVERED`, with a `number` and `url`.
 - **Rule:** a switched-off results resource holds the result; the retry sensor delivers it once the project resource is active ([Enabled, revoked and soft delete]; [Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on" (`dagster/fncli/tests/e2e/test_failure_paths.py`), which switches the project resource off before the task starts, not while it runs; written, never run on a cluster. `nexus/api/tests/test_results_and_delivery.py` (`test_post_result_through_a_switched_off_resource_is_failed_and_waits`). [TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster) lists its assumptions as unchecked.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on" (`dagster/fncli/tests/e2e/test_failure_paths_long.py`), which switches the project resource off before the task starts, not while it runs; written, never run on a cluster. `nexus/api/tests/test_results_and_delivery.py` (`test_post_result_through_a_switched_off_resource_is_failed_and_waits`). [TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster) lists its assumptions as unchecked. The suite makes the switch with the operator running, which can put it back within one resync interval.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -207,6 +217,8 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 
 ## A revoke while a result is held applies on the next attempt, and a results-side revoke pauses the retry
 
+Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
+
 1. Hold a result: merge a watched pull request, `fncli resource-set results --enabled false` while it runs, wait for the held result.
 2. `fncli project-set --revoked true`. Then `fncli resource-set results --enabled true`. Watch the result.
 3. Hold another result the same way. `fncli resource-set results --revoked true`, then `fncli resource-set results --enabled true`. Wait ten intervals. Then `fncli resource-set results --revoked false`.
@@ -218,6 +230,8 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 - [ ] Fail — notes:
 
 ## Revoked wins over switched off, and changed wins over switched off
+
+Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
 
 1. Merge a watched pull request. While the task is `RUNNING`: `fncli resource-set results --enabled false` and `fncli resource-set trigger --revoked true`. Wait for the result.
 2. Restore. New task. While it runs: `fncli resource-set results --enabled false` and `fncli resource-set results --target-dir <another directory>`. Wait for the result. Restore.
@@ -233,7 +247,7 @@ Needs: the dev project with all sensors running, an administrator login for `--r
 Use scratch GlobalResources or the second project. Destructive: not on the main test project.
 
 1. Task `RUNNING`; `DELETE` its project's results resource (or force-delete the scratch ResultsRepository). Wait for the result.
-2. Task `PENDING` (launcher stopped) in the second project; `fncli delete -f examples/projects/e2e-second-projects.yaml -y`. Start the launcher. Look for the task and its results.
+2. Task `PENDING` (launcher stopped) in the second project; `kubectl delete -f config/e2e/qa-two.yaml`. Start the launcher. Look for the task and its results.
 
 - **Expected:** step 1: the result is `REVOKED` (final), because a deleted project resource counts as revoked; the results route reads the deleted project resource on purpose. Step 2: the project is hidden (404); its `PENDING` tasks are never launched and never failed; asking for its results is a 404 and nothing is delivered.
 - **Rule:** deleting sets `deleted_at` and `revoked`; a deleted project is hidden ([Enabled, revoked and soft delete]).

@@ -2,7 +2,7 @@
 
 A Secret is a reference to a value in the store (Kubernetes). Switching a Secret off moves its value to a quarantine namespace and switches off every dataset, trigger repository and results repository that uses it; switching it on moves the value back but does not switch them on again. The unit tests run this against an in-memory store, so the real move is only checked here.
 
-Needs: an administrator token and `kubectl`. To see where a value is, list names only: `kubectl get secret -A | grep <key>` (the key is `fn-secret-<label>`). Never print a Secret's data (`-o yaml`, `-o json`, `jsonpath`), and never write a value into the notes. Use a scratch Secret and scratch GlobalResources for the destructive cases. The quarantine namespace name is not in the sources: find it from the first case and write it down (check).
+Needs: an administrator token and `kubectl`. To see where a value is, list names only: `kubectl get secret -A | grep <key>` (the key is `fn-secret-<label>`). Never print a Secret's data (`-o yaml`, `-o json`, `jsonpath`), and never write a value into the notes. Use a scratch Secret and scratch GlobalResources for the destructive cases. Make them with the HTTP routes, not as custom resources. A Secret the operator syncs from a NodeSecret has two copies: nexus-api's under `fn-secret-<label>`, which these cases move, and the NodeSecret's source Secret, which the operator only reads and never moves. A disabled Secret refuses new values with a 409, so the operator cannot send a rotated value to it until it is on again. The quarantine namespace name is not in the sources: find it from the first case and write it down (check).
 
 ## Disabling a Secret moves its value out and switches off what uses it
 

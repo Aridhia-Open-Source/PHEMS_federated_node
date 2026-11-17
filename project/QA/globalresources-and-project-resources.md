@@ -2,7 +2,7 @@
 
 A GlobalResource (a dataset, trigger repository, results repository or GitProvider; a Secret is only used by them) is created once by the administrator. A project reaches it only through its own project resource (a ProjectResource). These cases check the create, assign, unassign and delete rules. The rules for switching things on and off are in the two enabled and revoked sections.
 
-Needs: an administrator token. On the dev cluster `fncli apply -f examples/globals-e2e.yaml -y` then `fncli apply -f examples/projects/e2e.yaml -y` creates the whole set; the cases below use the HTTP routes so they also work on a node that fncli cannot reach. Use a scratch name (for example `qa-scratch`) for anything you create, and delete it at the end. Never put a real token in a request you keep in the notes.
+Needs: an administrator token. On the dev cluster the node config in `config/` creates the whole set through the operator (see [the index](README.md) and [operator and node config](operator-and-node-config.md)); the cases below use the HTTP routes, to check the rules behind the records the operator writes, so they also work on a node that `fncli` cannot reach. Use a scratch name (for example `qa-scratch`) for anything you create, project included, and delete it at the end. Never make these changes on `fn-dev`, `qa-two` or anything else a custom resource describes: the operator puts its settings and assignments back at the next resync. Never put a real token in a request you keep in the notes.
 
 ## Create a GitProvider, and reject a bad one
 
@@ -63,20 +63,20 @@ Needs: an administrator token. On the dev cluster `fncli apply -f examples/globa
 
 - **Expected:** 201 the first time, 200 the second with the new settings (a `PUT` replaces the project's settings; fields left out take their defaults). Step 3 is 400, 400, 404, 404. The project resource shows `enabled`, `revoked`, a computed `active`, and its cursor.
 - **Rule:** `PUT` assigns (201 then 200), the path uses the GlobalResource's id ([Global resources and project resources]).
-- **Automated by:** Automated: `nexus/api/tests/test_trigger_repositories_and_resources.py`, `nexus/api/tests/test_smoke.py`; the end-to-end setup creates the project resource on a live cluster. It misses real logins (mocked Keycloak).
+- **Automated by:** Automated: `nexus/api/tests/test_trigger_repositories_and_resources.py`, `nexus/api/tests/test_smoke.py`; the end-to-end setup creates the project resource on a live cluster, through the operator. It misses real logins (mocked Keycloak).
 - [ ] Pass
 - [ ] Fail — notes:
 
 ## Assigning a results repository needs the project disabled, and a project has one
 
 1. On an enabled project, `PUT /projects/<pid>/repositories/results/<id>` with `{"target_dir": "<dir>", "base_branch": "main"}`.
-2. `fncli project-set --enabled false`, then repeat the `PUT`, then `fncli project-set --enabled true`.
+2. `PATCH /projects/<pid>` with `{"enabled": false}`, then repeat the `PUT`, then `PATCH` with `{"enabled": true}`.
 3. Try to assign a second, different ResultsRepository without unassigning the first.
 4. Change `target_dir` with `PATCH` on the project resource while the project is enabled.
 
 - **Expected:** step 1 is 409. Step 2 gives 201, and enabling afterwards works. Step 3 is refused (check the status; a project has one results resource, so unassign first). Step 4 is 200: `target_dir` can be edited at any time.
 - **Rule:** one results repository per project, assigned only while the project is disabled ([Global resources and project resources]); edits are free ([A task is pinned to its configuration]).
-- **Automated by:** Automated: `nexus/api/tests/test_results_and_delivery.py`; the end-to-end setup assigns it on a live cluster. The unit tests miss the live node.
+- **Automated by:** Automated: `nexus/api/tests/test_results_and_delivery.py`; the end-to-end setup assigns it on a live cluster, through the operator. The unit tests miss the live node.
 - [ ] Pass
 - [ ] Fail — notes:
 
