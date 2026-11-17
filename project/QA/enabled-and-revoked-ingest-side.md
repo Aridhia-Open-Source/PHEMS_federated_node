@@ -40,7 +40,7 @@ Needs: the dev project with all sensors running and no task in flight; an admini
 
 - **Expected:** after step 2 the pull request merged while the project was off gets a trigger and a task, once (pull request and task counts each up by one). After step 3 there are no more: repeating `backfill` creates no duplicate. Pull requests before the project resource's cursor do not get a trigger.
 - **Rule:** `"backfill": true` on enable creates the triggers of pull requests stored while the project was off ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the project is disabled gets a task when it is enabled with backfill" (written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_enabling_with_backfill_twice_creates_no_duplicates`). The suite makes the switch through the Project (`patch_project`, with `backfill` set, then removed) and does not repeat it.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a PR merged while the project is disabled gets a task when it is enabled with backfill" (written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_enabling_with_backfill_twice_creates_no_duplicates`); `nexus/operator/tests/test_sync.py` (`test_project_enabled_with_backfill_only_when_it_was_disabled`). The suite makes the switch through the Project (`patch_project`, with `backfill` set, then removed) and does not repeat it.
 - [ ] Pass
 - [ ] Fail — notes:
 

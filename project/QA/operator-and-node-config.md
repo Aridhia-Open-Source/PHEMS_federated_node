@@ -1,6 +1,6 @@
 # Operator and node config
 
-The node's config is five kinds of custom resource in the API group `fn.aridhia.com/v1alpha1`: `GitProvider`, `NodeSecret`, `Repository`, `Dataset` and `Project`. The nexus operator (the `nexus-operator` Deployment) syncs each one to its nexus-api record: it creates or adopts the record, sends only what differs, soft-deletes it when the resource is deleted, and puts back edits made outside the config. These cases check that it does, and that it never does more.
+The node's config is five kinds of custom resource in the API group `fn.aridhia.com/v1alpha1`: `GitProvider`, `NodeSecret`, `Repository`, `Dataset` and `Project`. The nexus operator (the `nexus-operator` Deployment) syncs each one to its nexus-api record: it creates or adopts the record, sends only what differs, and soft-deletes it when the resource is deleted. A record it manages is changed only through its custom resource: nexus-api refuses anyone else's change to a field the resource declares, and the record's removal, with a 409. These cases check that it does, and that it never does more.
 
 Needs: the dev project applied and synced (see [the index](README.md)), the second project file `config/e2e/qa-two.yaml`, an administrator token for the HTTP checks, and the nexus-api and operator logs (`kubectl logs deploy/nexus-operator -n fn --tail=200`). For anything you make, copy a file from `config/e2e/` to a scratch file outside the repository and give it a scratch name (for example `qa-scratch`); delete it at the end. Never put a Secret value in a scratch file: a NodeSecret only names a Kubernetes Secret.
 
@@ -11,9 +11,9 @@ Needs: the dev project applied and synced (see [the index](README.md)), the seco
 3. `kubectl get events -n fn --field-selector reason=Synced`.
 4. `GET /projects`, `GET /global/repositories/triggers`, `GET /global/datasets`, `GET /global/providers` and `GET /global/secrets`.
 
-- **Expected:** every resource shows `Synced` `true` and an empty `Message`. Each status has `nexusId` (the record's id; none for a NodeSecret) and `observedGeneration` equal to `metadata.generation`. There is one `Synced` Event per resource that changed something. nexus-api has one record per resource, under the resource's name (a repository under its uri), and the project `fn-dev` is enabled with the dataset, trigger repository and results repository assigned with the settings in the file.
+- **Expected:** every resource shows `Synced` `true` and an empty `Message`. Each status has `nexusId` (the record's id; none for a NodeSecret) and `observedGeneration` equal to `metadata.generation`. There is one `Synced` Event per resource that changed something. nexus-api has one record per resource, under the resource's name (a repository under its uri), and the project `fn-dev` is enabled with the dataset, trigger repository and results repository assigned with the settings in the file. Every one of these records has `managed_by` `fn-operator`.
 - **Rule:** the custom resources are the node config; one sync per kind writes `synced`, `nexusId`, `message` and `observedGeneration` ([Declarative node config through an operator]).
-- **Automated by:** Partly automated: the setup step `apply` of every end-to-end suite applies the files and waits for `status.synced`; `nexus/operator/tests/test_sync.py` (`test_provider_created_when_missing`, `test_dataset_created`, `test_new_project_created_disabled_then_enabled_last`) against a fake API. Neither looks at the Events or the record's settings.
+- **Automated by:** Partly automated: the setup step `apply` of every end-to-end suite applies the files and waits for `status.synced`; `nexus/operator/tests/test_sync.py` (`test_provider_created_when_missing`, `test_dataset_created`, `test_new_project_created_disabled_then_enabled_last`) against a fake API; `nexus/api/tests/test_managed.py` (`test_operator_create_marks_the_record_and_others_get_a_409`) for `managed_by`. None looks at the Events or the record's settings on a live node.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -34,10 +34,9 @@ Needs: the dev project applied and synced (see [the index](README.md)), the seco
 
 1. In a copy of `config/e2e/fn-dev.yaml`, change the trigger's `watchDir` to `specs-qa/`. `kubectl diff -f` the copy.
 2. `kubectl diff -f config/e2e/fn-dev.yaml` (no change).
-3. Change the trigger resource's `watch_dir` in the UI (or `PATCH /projects/<pid>/repositories/triggers/<id>`), and at once `kubectl diff -f config/e2e/fn-dev.yaml` again.
-4. Wait one resync interval.
+3. `PATCH /projects/<pid>/repositories/triggers/<id>` with `{"watch_dir": "specs-qa/"}`, and at once `kubectl diff -f config/e2e/fn-dev.yaml` again.
 
-- **Expected:** step 1 shows only the `watchDir` line, and changes nothing. Step 2 shows nothing. Step 3 also shows nothing: `kubectl diff` compares the file with the custom resource, not with nexus-api. After step 4 the UI shows `specs/` again (see the drift case below).
+- **Expected:** step 1 shows only the `watchDir` line, and changes nothing. Step 2 shows nothing. In step 3 the `PATCH` is refused (409, see the case on refused changes below), so the record is unchanged, and `kubectl diff` shows nothing either way: it compares the file with the custom resource, not with nexus-api.
 - **Rule:** dev applies the config with `kubectl apply`, `kubectl diff` and `kubectl delete` ([Declarative node config through an operator]).
 - **Automated by:** Manual only.
 - [ ] Pass
@@ -112,29 +111,56 @@ Do this last in a session: it tears the test project down.
 - [ ] Pass
 - [ ] Fail — notes:
 
-## An edit made outside the config is put back
+## A change to a managed field, or removal of a managed record, is refused with a 409
 
-1. In the UI (or with `fncli resource-set trigger --base-branch qa-other`), change the `fn-dev` trigger resource's `base_branch`. Also switch the project off: `fncli project-set --enabled false`.
-2. Read the state command at once, then again after one resync interval.
-3. `kubectl get events -n fn --field-selector reason=Synced` and the operator log.
-4. `fncli resource-set trigger --revoked true`, wait one resync interval, then `fncli resource-set trigger --revoked false`.
+Use an administrator token. Every call below is expected to fail, so nothing needs undoing; if one succeeds, put it back through the Project or the matching custom resource.
 
-- **Expected:** step 2 first shows the edit, then, within one resync interval, `base_branch` back to `main` and the project enabled again. Enabling it again moves the cursors like any other switch: pull requests merged in between get no trigger. Step 3 shows a `Synced` Event for `fn-dev` at the time it was put back. In step 4 the revoke holds: `revoked` is not in the config, so the operator leaves it alone.
-- **Rule:** edits made in the UI that differ from the config are put back; the timer is how ([Declarative node config through an operator]).
-- **Automated by:** Manual only. The unit tests compare fields once; nothing runs the timer.
+1. `fncli project-set --enabled false`. `fncli project-set --enabled true --backfill`. `fncli resource-set trigger --enabled false`. `fncli resource-set trigger --base-branch qa-other`. `fncli resource-set results --target-dir qa-other`.
+2. `PATCH /global/datasets/<id>` with `{"host": "elsewhere"}`. `PATCH /global/providers/<id>` with `{"name": "renamed"}`. `PATCH /global/repositories/triggers/<id>` with `{"secret_label": "<another label>"}`. `PATCH /global/secrets/<label>` with `{"values": {"QA_KEY": "<throwaway>"}}`.
+3. `PUT /projects/<pid>/datasets/<dataset id>` with `{}`. `DELETE /projects/<pid>/repositories/triggers/<id>`. `DELETE /projects/<pid>`. `DELETE /global/providers/<id>`.
+4. In the UI: look at the project's Enabled toggle (list and detail) and its delete button.
+5. Read the state command and `GET` the records again. After a few minutes: `kubectl get events -n fn --field-selector reason=Synced` and the operator log.
+
+- **Expected:** every call in steps 1 to 3 is a 409 whose error names the record as managed by `fn-operator`, lists the refused fields and says to change its custom resource instead (a removal has no fields). Nothing in the records changes, and the operator makes no call for any of it. In the UI the project's Enabled toggle is read-only and its delete button is not shown. Step 5 shows no new `Synced` Event and no change.
+- **Rule:** nexus-api refuses (409) a change to a managed field, or the removal of a managed record, unless the caller is the operator; this replaces putting back drift, so nothing is silently undone ([Declarative node config through an operator]; a refused move is a 409 as in [State transition tables]).
+- **Automated by:** Partly automated: `nexus/api/tests/test_managed.py` (every kind and the project's assignments, against the app with a faked Keycloak token). The end-to-end suites patch the Project for this reason (`patch_project`), but none sends a refused call. Nothing checks the UI or a live node.
+- [ ] Pass
+- [ ] Fail — notes:
+
+## Runtime state stays editable, and the operator leaves it alone
+
+1. `fncli project-set --revoked true`, then `--revoked false`. `fncli resource-set trigger --revoked true`, then `false`. `fncli resource-set dataset --enabled false`, then `true`.
+2. `fncli global-set trigger --enabled false`. Leave it off for a few minutes. Read the state command and the operator log. Then `fncli global-set trigger --enabled true`.
+
+- **Expected:** each call is accepted (200). After those minutes the trigger repository is still off and the operator has made no call about it: `revoked`, a GlobalResource's `enabled` and a dataset resource's `enabled` are not in the config, so nothing puts them back. `managed_by` of the records is unchanged.
+- **Rule:** runtime state stays editable through the API: `revoked` everywhere, the `enabled` of a GitProvider, Secret, repository or Dataset, a dataset assignment's `enabled`, cursors, pull requests, tasks and results ([Declarative node config through an operator]; [Enabled, revoked and soft delete]).
+- **Automated by:** Partly automated: `nexus/api/tests/test_managed.py` (`revoked` and `enabled` stay editable on a managed provider, dataset, repository and project). Nothing waits to see that the operator does not touch it.
+- [ ] Pass
+- [ ] Fail — notes:
+
+## A disabled Secret is not rotated: the NodeSecret stays unsynced until it is enabled
+
+1. `fncli secret-set --entity trigger --enabled false` (this also disables the trigger repository that uses it).
+2. Rotate the trigger repository's token (see "Rotate a git token" in [the index](README.md)). Wait one resync interval. `kubectl get nodesecret fn-trigger-repo-creds -n fn -o yaml`.
+3. `fncli secret-set --entity trigger --enabled true`, then `fncli global-set trigger --enabled true`. Wait one resync interval. `fncli verify-git-secret --entity trigger`.
+
+- **Expected:** after step 2 the NodeSecret is `Synced` `false` and `Message` holds nexus-api's 409 reason; nexus-api still has the old values. After step 3 it syncs again within a resync interval and the verify passes.
+- **Rule:** a disabled Secret cannot be rotated (409): the NodeSecret stays unsynced, with nexus-api's reason in its status, until the Secret is enabled ([Declarative node config through an operator]).
+- **Automated by:** Manual only. The decision states it; check the status text.
 - [ ] Pass
 - [ ] Fail — notes:
 
 ## A record made in the UI with the same name is adopted
 
-1. Before applying it, make a project `qa-scratch` in the UI (or `POST /projects`) with nothing assigned.
+1. Before applying it, make a project `qa-scratch` in the UI (or `POST /projects`) with nothing assigned. Look at its `managed_by` (empty) and `PATCH /projects/<pid>` with `{"enabled": true}` (200: a hand-made record is editable).
 2. Copy `config/e2e/qa-two.yaml`, rename the project `qa-scratch`, and apply it.
-3. `GET /projects` and the project's resources. Compare `nexusId` with the id from step 1.
-4. Delete the scratch file.
+3. `GET /projects` and the project's resources. Compare `nexusId` with the id from step 1. Look at `managed_by`.
+4. `PATCH /projects/<pid>` with `{"enabled": false}`.
+5. Delete the scratch file.
 
-- **Expected:** there is one project `qa-scratch`, with the id from step 1, now with the dataset and repositories of the file. No duplicate. Step 4 soft-deletes it.
+- **Expected:** there is one project `qa-scratch`, with the id from step 1, now with the dataset and repositories of the file and `managed_by` `fn-operator`. No duplicate. The `PATCH` in step 4 is a 409: the operator took the record over by sending every declared field once. Step 5 soft-deletes it.
 - **Rule:** the operator finds a record by its key (name or uri) and adopts it; the id in status is a cache ([Declarative node config through an operator]).
-- **Automated by:** Partly automated: `nexus/operator/tests/test_sync.py` (`test_repository_adopted_and_patched`) for a repository, against a fake API; nothing for a project on a live node.
+- **Automated by:** Partly automated: `nexus/operator/tests/test_sync.py` (`test_repository_adopted_and_patched`, `test_provider_made_by_hand_adopted_with_every_declared_field`, `test_project_made_by_hand_marked_by_sending_enabled`) against a fake API, and `nexus/api/tests/test_managed.py` (`test_a_record_made_by_hand_is_editable_until_the_operator_adopts_it`); nothing on a live node.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -159,7 +185,7 @@ Do this last in a session: it tears the test project down.
 5. Delete the scratch project.
 
 - **Expected:** step 1 is `1 Recreate`. In step 2 the change waits, then is synced once the new pod is up; at start the new pod syncs every resource again and sends nothing for those that already match (no duplicate record, no project disabled and enabled, no Secret sent again). In step 4 the old pod is gone before the new one starts: two never run at once. Record how long the start takes.
-- **Rule:** one replica with `Recreate`; a resume syncs every resource ([Declarative node config through an operator]). The decision says Kopf leader election covers a restart; the chart runs Kopf standalone with peering off instead, and `Recreate` is what keeps two from running. Record it if you see two pods at once.
+- **Rule:** one replica with `Recreate`; a resume syncs every resource ([Declarative node config through an operator]). The chart runs Kopf standalone with peering off, and `Recreate` is what keeps two from running. Record it if you see two pods at once. No timer syncs the kinds other than NodeSecret, so a record lost from nexus-api's database comes back only when the operator starts.
 - **Automated by:** Partly automated: `k8s/federated-node/tests/nexus_operator_test.yaml` ("runs one replica with Recreate, watching the release namespace and watchNamespaces"); nothing restarts it on a cluster.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -212,7 +238,7 @@ Only on a node delivered by Flux.
 2. `kubectl get events -n <release namespace> --field-selector reason=Synced` and the operator log.
 3. `kubectl edit` one Project and change a field. Wait for Flux's interval. Note whether the site's HelmRelease sets `driftDetection`.
 
-- **Expected:** the Event and the log line carry the Flux annotations of the resource (which commit applied it). Step 3 is a check: with drift detection on, Flux puts the custom resource back to the values and the operator then puts nexus-api back; without it, the edit holds (and the operator syncs it to nexus-api) until the next upgrade. Record which.
+- **Expected:** the Event and the log line carry the Flux annotations of the resource (which commit applied it). Step 3 is a check: with drift detection on, Flux puts the custom resource back to the values and the operator syncs that to nexus-api; without it, the edit holds (and the operator syncs it to nexus-api) until the next upgrade. Either way nothing in nexus-api changes except through the custom resource. Record which.
 - **Rule:** changes are attributed in git and in Kubernetes (Events and logs with the Flux annotations), not yet in nexus-api ([Declarative node config through an operator]); Flux delivers the release and its values ([GitOps delivery with Helm and Flux]).
 - **Automated by:** Manual only.
 - [ ] Pass
@@ -224,3 +250,4 @@ Only on a node delivered by Flux.
 [Global resources and project resources]: ../decisions/0006-global-resources-and-project-resources.md
 [Enabled, revoked and soft delete]: ../decisions/0008-enabled-revoked-and-soft-delete.md
 [Generic Secret model and SecretProvider; per-repository tokens]: ../decisions/0007-secrets-and-secret-providers.md
+[State transition tables]: ../decisions/0005-state-transition-tables.md
