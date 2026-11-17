@@ -24,9 +24,6 @@ class Project(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     # The controller withdrew the project: everything it uses is blocked, its tasks fail and nothing is
     # delivered. Never touches enabled, so a re-grant restores the previous state.
     revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
-    # The nexus operator's user when its custom resource declares the record: only the operator may change the
-    # declared fields (helpers/managed.py, ADR 0032)
-    managed_by = sa.Column(sa.String(253), nullable=True)
     # A dataset the project has been assigned: set with the first one assigned.
     default_dataset_id = sa.Column(sa.Integer, sa.ForeignKey('datasets.id', ondelete='RESTRICT'), nullable=True)
     created_at = sqla_column.created_at()

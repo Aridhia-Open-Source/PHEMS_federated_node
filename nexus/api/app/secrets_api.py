@@ -23,7 +23,6 @@ from app.dtos.secret import SecretDTO
 from app.helpers.base_model import db
 from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.managed import SECRET, guard
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
 from app.helpers.wrappers import Caller, get_caller, require_scope
@@ -202,7 +201,6 @@ def post_secret(body: dict = Body(default_factory=dict), caller: Caller = Depend
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
-    guard(secret, caller)
 
     # The store first, so a failure there leaves no row pointing at nothing. If the row
     # then fails, the stored secret is left for a retry to adopt: writing it overwrites.

@@ -1838,8 +1838,6 @@ export interface components {
             enabled: boolean;
             /** Revoked */
             revoked: boolean;
-            /** Managed By */
-            managed_by: string | null;
             /** Created At */
             created_at: string;
             /** Updated At */
@@ -1888,8 +1886,6 @@ export interface components {
             enabled: boolean;
             /** Revoked */
             revoked: boolean;
-            /** Managed By */
-            managed_by: string | null;
             /** Created At */
             created_at: string;
             /** Updated At */
@@ -2136,8 +2132,6 @@ export interface components {
             enabled: boolean;
             /** Revoked */
             revoked: boolean;
-            /** Managed By */
-            managed_by: string | null;
             /** Default Dataset Id */
             default_dataset_id: number | null;
             /** Created At */
@@ -2595,8 +2589,6 @@ export interface components {
             namespace: string | null;
             /** Enabled */
             enabled: boolean;
-            /** Managed By */
-            managed_by: string | null;
             /** Created At */
             created_at: string;
             /** Updated At */
@@ -2812,8 +2804,6 @@ export interface components {
             enabled: boolean;
             /** Revoked */
             revoked: boolean;
-            /** Managed By */
-            managed_by: string | null;
             /** Pr Cursor */
             pr_cursor: string;
             owner: components["schemas"]["UserRefDTO"] | null;

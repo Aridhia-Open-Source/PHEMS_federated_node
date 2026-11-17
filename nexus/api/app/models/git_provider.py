@@ -107,9 +107,6 @@ class GitProvider(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     # The controller withdrew the provider from the whole node: the repositories on it are blocked.
     # Never touches enabled, so a re-grant restores the previous state.
     revoked = sa.Column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
-    # The nexus operator's user when its custom resource declares the record: only the operator may change the
-    # declared fields (helpers/managed.py, ADR 0032)
-    managed_by = sa.Column(sa.String(253), nullable=True)
 
     created_at = sqla_column.created_at()
     updated_at = sqla_column.updated_at()

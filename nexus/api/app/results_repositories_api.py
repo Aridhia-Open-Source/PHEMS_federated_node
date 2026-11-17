@@ -19,7 +19,6 @@ from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.managed import REPOSITORY, guard
 from app.helpers.git_tokens import mint_token, require_token_allowed
 from app.helpers.ownership import get_for_write, release, set_owner
 from app.helpers.soft_delete import delete_global
@@ -128,7 +127,6 @@ def patch_repository(repo_id: int, req: RepositoryPatchRequest, caller: Caller =
         raise InvalidRequest("No fields provided to update")
     if 'revoked' in sent and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
-    guard(repo, caller, sent, REPOSITORY)
 
     secret = repo.secret
     if 'secret_label' in sent:

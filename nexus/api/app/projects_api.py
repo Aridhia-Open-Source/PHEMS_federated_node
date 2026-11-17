@@ -27,7 +27,6 @@ from fastapi_pagination import Page
 
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
-from app.helpers.managed import PROJECT, RESULTS_ASSIGNMENT, guard
 from app.dtos.base import page_of
 from app.dtos.dataset import ProjectDatasetDTO
 from app.dtos.results_repository import (
@@ -108,7 +107,6 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
             raise InvalidRequest(f"{field} must be a boolean")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a project")
-    guard(project, caller, body, PROJECT)
     if "backfill" in body and (body.get("enabled") is not True or project.enabled):
         raise InvalidRequest("backfill is only valid with enabled: true on a disabled project")
 
@@ -202,7 +200,6 @@ def put_project_dataset(
     Body: {"enabled": true}, optional.
     """
     project = Project.get_by_id(project_id)
-    guard(project, caller)
     if not set(body) <= {"enabled"}:
         raise InvalidRequest("Provide, optionally, enabled")
     enabled = _enabled(body)
@@ -411,7 +408,6 @@ def put_project_results_repository(
     target_dir and base_branch are required, the last two are optional.
     """
     project = Project.get_by_id(project_id)
-    guard(project, caller)
     target_dir = normalise_dir(req.target_dir)
     if not target_dir:
         raise InvalidRequest("target_dir is required")
@@ -462,7 +458,6 @@ def patch_project_results_repository(
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectResultsRepositoryPatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
-    guard(resource.project, caller, body, RESULTS_ASSIGNMENT)
 
     if "target_dir" in body:
         target_dir = normalise_dir(body["target_dir"])

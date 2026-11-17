@@ -90,7 +90,6 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
         raise InvalidRequest("No fields provided to update")
     if 'revoked' in sent and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a git provider")
-    guard(provider, caller, sent, GIT_PROVIDER)
 
     was_enabled, was_revoked = provider.enabled, provider.revoked
     try:

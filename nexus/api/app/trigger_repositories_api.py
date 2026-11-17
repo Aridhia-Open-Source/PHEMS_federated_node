@@ -25,7 +25,6 @@ from app.dtos.trigger_repository import (
 )
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.managed import REPOSITORY, guard
 from app.helpers.git_tokens import mint_token, require_token_allowed
 from app.helpers.ownership import get_for_write, release, set_owner
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
@@ -200,7 +199,6 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
     req = RepositoryPatchRequest.parse(body)
     if 'revoked' in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
-    guard(repo, caller, body, REPOSITORY)
 
     secret = repo.secret
     if 'secret_label' in body:

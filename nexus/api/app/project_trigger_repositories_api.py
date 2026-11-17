@@ -26,7 +26,6 @@ from app.dtos.trigger_repository import (
 )
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
-from app.helpers.managed import TRIGGER_ASSIGNMENT, guard
 from app.helpers.project_state import require_accepts_tasks
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
@@ -95,7 +94,6 @@ def put_project_trigger_repository(
     base_branch are required, enabled is optional and defaults to true.
     """
     project = Project.get_by_id(project_id)
-    guard(project, caller)
     repo = TriggerRepository.get_by_id(repo_id)
     watch_dir = normalise_dir(req.watch_dir)
     assignment = get_for_write(
@@ -164,7 +162,6 @@ def patch_project_trigger_repository(
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectTriggerRepositoryPatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
-    guard(assignment.project, caller, body, TRIGGER_ASSIGNMENT)
 
     was_active = assignment.active
     if "base_branch" in body:

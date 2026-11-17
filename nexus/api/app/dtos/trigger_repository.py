@@ -20,8 +20,6 @@ class TriggerRepositoryDTO(DTO):
     secret: SecretDTO
     enabled: bool
     revoked: bool
-    # The nexus operator's user when its custom resource declares the record (ADR 0032)
-    managed_by: str | None
     # Where polling the provider resumes, see TriggerRepository.get_ingest_cursor
     pr_cursor: str
     owner: UserRefDTO | None
@@ -38,7 +36,6 @@ class TriggerRepositoryDTO(DTO):
             secret=SecretDTO.from_model(obj.secret),
             enabled=obj.enabled,
             revoked=obj.revoked,
-            managed_by=obj.managed_by,
             pr_cursor=obj.get_ingest_cursor(),
             owner=UserRefDTO.of(obj.owner),
             owner_group=obj.owner_group,

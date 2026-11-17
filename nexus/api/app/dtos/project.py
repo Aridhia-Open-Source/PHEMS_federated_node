@@ -11,8 +11,6 @@ class ProjectDTO(DTO):
     description: str | None
     enabled: bool
     revoked: bool
-    # The nexus operator's user when its custom resource declares the record (ADR 0032)
-    managed_by: str | None
     default_dataset_id: int | None
     created_at: WireDatetime
     updated_at: WireDatetime

@@ -5516,17 +5516,6 @@
             "type": "boolean",
             "title": "Revoked"
           },
-          "managed_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Managed By"
-          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -5578,7 +5567,6 @@
           "extra_connection_args",
           "enabled",
           "revoked",
-          "managed_by",
           "created_at",
           "updated_at",
           "slug",
@@ -5665,17 +5653,6 @@
             "type": "boolean",
             "title": "Revoked"
           },
-          "managed_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Managed By"
-          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -5715,7 +5692,6 @@
           "api_uri",
           "enabled",
           "revoked",
-          "managed_by",
           "created_at",
           "updated_at",
           "owner",
@@ -6370,17 +6346,6 @@
             "type": "boolean",
             "title": "Revoked"
           },
-          "managed_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Managed By"
-          },
           "default_dataset_id": {
             "anyOf": [
               {
@@ -6429,7 +6394,6 @@
           "description",
           "enabled",
           "revoked",
-          "managed_by",
           "default_dataset_id",
           "created_at",
           "updated_at",
@@ -7722,17 +7686,6 @@
             "type": "boolean",
             "title": "Enabled"
           },
-          "managed_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Managed By"
-          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -7772,7 +7725,6 @@
           "key",
           "namespace",
           "enabled",
-          "managed_by",
           "created_at",
           "updated_at",
           "owner",
@@ -8403,17 +8355,6 @@
             "type": "boolean",
             "title": "Revoked"
           },
-          "managed_by": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Managed By"
-          },
           "pr_cursor": {
             "type": "string",
             "title": "Pr Cursor"
@@ -8449,8 +8390,9 @@
           "secret",
           "enabled",
           "revoked",
-          "managed_by",
-          "pr_cursor"
+          "pr_cursor",
+          "owner",
+          "owner_group"
         ],
         "title": "TriggerRepositoryDTO"
       },

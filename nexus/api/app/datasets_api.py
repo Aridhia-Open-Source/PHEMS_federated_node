@@ -147,7 +147,6 @@ def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), call
         raise InvalidRequest("No field to update")
     if req.revoked is not None and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
-    guard(ds, caller, req.model_fields_set, DATASET)
     fields = req.model_dump(exclude_unset=True, exclude={"catalogue", "dictionaries", "secret_label"})
     cata_body = req.catalogue
     dict_body = req.dictionaries or []
