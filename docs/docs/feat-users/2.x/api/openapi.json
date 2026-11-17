@@ -2475,6 +2475,42 @@
         }
       }
     },
+    "/global/users/reset-password": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Reset Password",
+        "description": "PUT /global/users/reset-password endpoint. Interface to keycloak\n    API, so we can change the credentials and make sure\n    there are no pending action to undertake",
+        "operationId": "reset_password_global_users_reset_password_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/global/users": {
       "get": {
         "tags": [
@@ -2528,42 +2564,6 @@
                 }
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/users/reset-password": {
-      "put": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Reset Password",
-        "description": "PUT /global/users/reset-password endpoint. Interface to keycloak\n    API, so we can change the credentials and make sure\n    there are no pending action to undertake",
-        "operationId": "reset_password_global_users_reset_password_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -6338,6 +6338,27 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6346,7 +6367,9 @@
           "secret",
           "enabled",
           "revoked",
-          "active"
+          "active",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectSecretDTO",
         "description": "A project's resource for a global secret, the reference nested. Addressed by the secret's label. Never carries values."
