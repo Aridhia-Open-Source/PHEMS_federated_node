@@ -1558,7 +1558,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>http://localhost:5001/v2/n
 <p>Expect:</p>
 <ul>
 <li><code>values.yaml</code> becomes a new ConfigMap and Flux upgrades the release at once.</li>
-<li><code>kubectl get fn -n fn</code> lists the <code>Project</code> <code>gitops-demo</code> with <code>Synced</code> true.</li>
+<li><code>kubectl get fn -n fn-operator</code> lists the <code>Project</code> <code>gitops-demo</code> with <code>Synced</code> true.</li>
 <li>The project is in nexus-api (the UI at <code>http://localhost:8088</code>, or <code>GET /projects</code>).</li>
 </ul>
 <p>Then <code>git revert --no-edit HEAD &amp;&amp; git push</code>. The <code>Project</code> resource is gone after the upgrade, and the operator soft-deletes the project in nexus-api.</p>

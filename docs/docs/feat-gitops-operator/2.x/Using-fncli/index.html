@@ -1599,7 +1599,7 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Project</span>
 <span class="nt">metadata</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">demo-gitea</span>
-<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fn</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fn-operator</span>
 <span class="nt">spec</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">datasets</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">demo-db</span><span class="p p-Indicator">]</span><span class="w">                  </span><span class="c1"># the experiments chart's</span>
 <span class="w">  </span><span class="nt">repositories</span><span class="p">:</span>
@@ -1615,7 +1615,7 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <ul>
 <li><strong>The keys are the backend's own unique fields</strong>, so a file holds no ids: provider uri, repository uri, secret name, dataset name, project name.</li>
 <li><strong>A secret's values come from a Kubernetes Secret.</strong> A NodeSecret names it (<code>fromSecret</code>) or points at keys of other Secrets, so a file can never hold a secret value. <code>fncli gitea setup</code> makes the Secret for a Gitea repository; for a GitHub App you run <code>kubectl create secret</code> (<a href="../Run-Locally/">Run locally</a>).</li>
-<li><strong>The operator reports in each resource's status.</strong> <code>kubectl get fn -n fn</code> shows Synced and a Message, for example a Secret or dataset that is not there yet.</li>
+<li><strong>The operator reports in each resource's status.</strong> <code>kubectl get fn -n fn-operator</code> shows Synced and a Message, for example a Secret or dataset that is not there yet.</li>
 <li>Names may use only lowercase letters, digits, <code>-</code> and <code>.</code>.</li>
 </ul>
 <p>The format, the operator and more examples are in <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0032-declarative-node-config-through-an-operator.md">ADR 0032</a>.</p>
@@ -1640,7 +1640,7 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <td>The operator syncs each resource to nexus-api, in dependency order. A project is created disabled and enabled last</td>
 </tr>
 <tr>
-<td><code>kubectl get fn -n fn</code></td>
+<td><code>kubectl get fn -n fn-operator</code></td>
 <td>Each resource's Synced and Message</td>
 </tr>
 <tr>

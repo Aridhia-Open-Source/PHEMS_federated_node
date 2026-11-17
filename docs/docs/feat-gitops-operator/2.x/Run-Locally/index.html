@@ -1690,7 +1690,7 @@ fncli<span class="w"> </span>sensor-status
 <p>Everything lives in the cluster's Gitea, so nothing outside is needed. The demo is two files in <code>config/</code>: <code>gitea.yaml</code> (the git provider) and <code>demo.yaml</code> (the OAuth app secrets, the two repositories and the project, which assigns the dataset).</p>
 <div class="highlight"><pre><span></span><code>fncli<span class="w"> </span>gitea<span class="w"> </span>setup<span class="w"> </span>-f<span class="w"> </span>config/gitea.yaml<span class="w"> </span>-f<span class="w"> </span>config/demo.yaml<span class="w">    </span><span class="c1"># the Gitea repositories, and a Kubernetes Secret with each one's OAuth app</span>
 kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>config/<span class="w">                 </span><span class="c1"># the provider, NodeSecrets, repositories and the project (uses demo-db)</span>
-kubectl<span class="w"> </span>get<span class="w"> </span>fn<span class="w"> </span>-n<span class="w"> </span>fn<span class="w">                     </span><span class="c1"># each resource's Synced and Message: wait for them all to sync</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>fn<span class="w"> </span>-n<span class="w"> </span>fn-operator<span class="w">                     </span><span class="c1"># each resource's Synced and Message: wait for them all to sync</span>
 fncli<span class="w"> </span>demo<span class="w"> </span>--project<span class="w"> </span>demo-gitea<span class="w">          </span><span class="c1"># the guided pull request walk</span>
 </code></pre></div>
 <p><code>fncli gitea setup</code> keeps a Secret that exists, so it is safe to rerun. The nexus operator syncs the applied resources to nexus-api, and says in <code>Message</code> what a resource is waiting for.</p>
@@ -1759,11 +1759,11 @@ chmod<span class="w"> </span><span class="m">600</span><span class="w"> </span>~
 </table>
 <p>Leave the GitProvider and the dataset <code>demo-db</code> as they are.
 7. <strong>Store the App's values, apply, demo, delete:</strong></p>
-<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>phems-sandbox-github-app<span class="w"> </span>-n<span class="w"> </span>fn<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>phems-sandbox-github-app<span class="w"> </span>-n<span class="w"> </span>fn-operator<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">APP_ID</span><span class="o">=</span><span class="s2">"</span><span class="nv">$GH_APP_ID</span><span class="s2">"</span><span class="w"> </span>--from-literal<span class="o">=</span><span class="nv">INSTALLATION_ID</span><span class="o">=</span><span class="s2">"</span><span class="nv">$GH_INSTALLATION_ID</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--from-file<span class="o">=</span><span class="nv">PRIVATE_KEY</span><span class="o">=</span><span class="nv">$HOME</span>/.config/phems/&lt;your-app&gt;.private-key.pem
 kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>config/github/&lt;your-name&gt;-github.yaml
-kubectl<span class="w"> </span>get<span class="w"> </span>fn<span class="w"> </span>-n<span class="w"> </span>fn<span class="w">                     </span><span class="c1"># wait for every resource to sync</span>
+kubectl<span class="w"> </span>get<span class="w"> </span>fn<span class="w"> </span>-n<span class="w"> </span>fn-operator<span class="w">                     </span><span class="c1"># wait for every resource to sync</span>
 fncli<span class="w"> </span>demo<span class="w"> </span>--project<span class="w"> </span>&lt;your-project&gt;
 kubectl<span class="w"> </span>delete<span class="w"> </span>-f<span class="w"> </span>config/github/&lt;your-name&gt;-github.yaml
 </code></pre></div>
@@ -1799,7 +1799,7 @@ kubectl<span class="w"> </span>delete<span class="w"> </span>-f<span class="w"> 
 <td>Run <code>mise run setup</code> in this checkout. An old pipx copy: <code>pipx uninstall phems</code></td>
 </tr>
 <tr>
-<td>A resource in <code>kubectl get fn -n fn</code> is not synced</td>
+<td>A resource in <code>kubectl get fn -n fn-operator</code> is not synced</td>
 <td>Read its <code>Message</code>: a Kubernetes Secret that is missing (<code>fncli gitea setup</code>, or <code>kubectl create secret</code> for GitHub), a dataset that is not on the node (the <code>fncli experiment</code> steps), or a repository not applied yet</td>
 </tr>
 <tr>
@@ -1816,7 +1816,7 @@ kubectl<span class="w"> </span>delete<span class="w"> </span>-f<span class="w"> 
 </tr>
 <tr>
 <td><code>fncli demo</code>: <code>Project ... is not synced to the node yet</code></td>
-<td><code>kubectl get fn -n fn</code>, fix what the <code>Message</code> names, <code>kubectl apply -f config/</code> again, then the demo</td>
+<td><code>kubectl get fn -n fn-operator</code>, fix what the <code>Message</code> names, <code>kubectl apply -f config/</code> again, then the demo</td>
 </tr>
 <tr>
 <td>A demo step failed</td>
