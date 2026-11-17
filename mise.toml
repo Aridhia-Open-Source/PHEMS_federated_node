@@ -166,7 +166,7 @@ run = "./scripts/deploy_owner.sh show"
 description = "New sibling worktree with the dev config"
 quiet = true
 usage = '''
-flag "--name <name>" required=#true help="Directory name of the new sibling worktree"
+flag "--name <name>" required=#true help="Sibling directory name, or an absolute path, for the new worktree"
 flag "--branch <branch>" required=#true help="Branch to create"
 flag "--base <ref>" help="Base ref (default HEAD)"
 '''
