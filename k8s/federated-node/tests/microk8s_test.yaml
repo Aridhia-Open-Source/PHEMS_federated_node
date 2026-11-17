@@ -67,6 +67,9 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
   - it: creates selfsigned issuer
     template: certificates/issuer.yaml
     asserts:

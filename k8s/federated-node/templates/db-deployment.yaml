@@ -7,6 +7,9 @@ metadata:
   labels:
     app: postgres
 spec:
+  # Recreate: two postgres on the one data dir corrupt it (each is PID 1, so neither sees the other's lock)
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: postgres
