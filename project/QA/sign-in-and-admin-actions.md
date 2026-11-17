@@ -17,7 +17,7 @@ Needs: the administrator's login. Never write a password or token into the notes
 
 ## The Dagster System user works for the pipeline
 
-1. Run `fncli project-show` and `fncli global-set trigger --enabled true` (a change that is not managed, so it is not refused, ADR 0032) (both log in as the System user).
+1. Run `fncli project-show` and `fncli global-set trigger --enabled true` (both log in as the System user; the second is a change nexus-api does not refuse on a managed node, ADR 0032).
 2. Open `fncli sensor-status` after a few intervals.
 
 - **Expected:** both fncli calls succeed. No sensor tick fails with an authentication error.

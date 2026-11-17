@@ -115,7 +115,7 @@ Do this last in a session: it tears the test project down.
 
 Use an administrator token. Every call below is expected to fail, so nothing needs undoing; if one succeeds, put it back through the Project or the matching custom resource.
 
-1. `fncli project-set --enabled false`. `fncli project-set --enabled true --backfill`. `fncli resource-set trigger --enabled false`. `fncli resource-set trigger --base-branch qa-other`. `fncli resource-set results --target-dir qa-other`.
+1. Each with `--expect 409`: `fncli project-set --enabled false`, `fncli project-set --enabled true --backfill`, `fncli resource-set trigger --enabled false`, `fncli resource-set trigger --base-branch qa-other`, `fncli resource-set results --target-dir qa-other`.
 2. `PATCH /global/datasets/<id>` with `{"host": "elsewhere"}`. `PATCH /global/providers/<id>` with `{"name": "renamed"}`. `PATCH /global/repositories/triggers/<id>` with `{"secret_label": "<another label>"}`. `PATCH /global/secrets/<label>` with `{"values": {"QA_KEY": "<throwaway>"}}`.
 3. `PUT /projects/<pid>/datasets/<dataset id>` with `{}`. `DELETE /projects/<pid>/repositories/triggers/<id>`. `DELETE /projects/<pid>`. `DELETE /global/providers/<id>`.
 4. In the UI: look at the project's Enabled toggle (list and detail) and its delete button.
