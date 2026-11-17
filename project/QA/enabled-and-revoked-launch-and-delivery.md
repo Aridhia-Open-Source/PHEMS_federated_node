@@ -9,14 +9,12 @@ The rules in words ([docs/architecture/revoke-and-enabled.md#may-a-waiting-task-
 - A finished task's result is decided when it is created, in this order: the task is not `SUCCESS` (409); something it uses is revoked or deleted (`REVOKED`, final); the configuration changed (`STALE`, final; see [task pinning](task-pinning.md)); the results resource, ResultsRepository or GitProvider is switched off (held: step `UNKNOWN`, state `FAILED`, delivered by the retry sensor once active); otherwise delivered.
 - A failed task stays failed until it is retried; nothing re-evaluates it.
 
-Needs: the dev project with all sensors running, an administrator login for `--revoked`, and a task image that runs long enough to change something while it is `RUNNING` (check how long the reference image takes). Use the two recipes in [the index](README.md): "Make a change while a task is still PENDING" and "Make a change while a task is RUNNING or before delivery". Undo each change at the end and wait for every task and result to settle before the next case.
+Needs: the dev project with all sensors running, an administrator login for `--revoked`, and a task image that runs long enough to change something while it is `RUNNING` (check how long the reference image takes). The switches the Project declares (`project off`, `trigger resource off`, `results resource on`, `target directory` and the like) are patches of the Project, waiting until it is synced after each ("Change a setting of the Project" in [the index](README.md)); nexus-api refuses them through `fncli` on a project the operator manages. `--revoked`, `global-set` and `resource-set dataset` go through `fncli` as before. Use the two recipes in [the index](README.md): "Make a change while a task is still PENDING" and "Make a change while a task is RUNNING or before delivery". Undo each change at the end and wait for every task and result to settle before the next case.
 
 ## A disabled project's waiting task waits, and launches when the project is enabled
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Make the change while the task is `PENDING`: `fncli project-set --enabled false`.
-2. Start the launcher and wait five intervals. Then `fncli project-set --enabled true`.
+1. Make the change while the task is `PENDING`: `project off`.
+2. Start the launcher and wait five intervals. Then `project on`.
 
 - **Expected:** the task stays `PENDING` (not failed) while the project is off, and launches after step 2 and runs.
 - **Rule:** the launcher only looks at enabled projects; waiting costs nothing ([Enabled, revoked and soft delete]).
@@ -38,11 +36,9 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## A project that is both revoked and disabled keeps its waiting tasks waiting; they fail once it is enabled
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Task `PENDING`, launcher stopped. `fncli project-set --revoked true`, then `fncli project-set --enabled false`.
+1. Task `PENDING`, launcher stopped. `fncli project-set --revoked true`, then `project off`.
 2. Start the launcher, wait five intervals.
-3. `fncli project-set --enabled true`.
+3. `project on`.
 
 - **Expected:** after step 2 the task is still `PENDING`. After step 3 it goes `FAILED` with a "revoked: " cause. Restore with `fncli project-set --revoked false`.
 - **Rule:** the launcher only reads enabled projects, so they fail once it is enabled ([Enabled, revoked and soft delete]).
@@ -98,10 +94,8 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## A trigger resource switched off does not stop a waiting task
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Task `PENDING`, launcher stopped. `fncli resource-set trigger --enabled false`. Start the launcher.
-2. `fncli resource-set trigger --enabled true`.
+1. Task `PENDING`, launcher stopped. `trigger resource off`. Start the launcher.
+2. `trigger resource on`.
 
 - **Expected:** the task launches, runs and finishes; its result is delivered. Switching off stops new work only.
 - **Rule:** a switched-off trigger resource, repository or GitProvider does not stop a task that is not launched yet ([Enabled, revoked and soft delete]).
@@ -122,10 +116,8 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## A running task is not stopped when its project is disabled; its result is delivered
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Merge a watched pull request. While the task is `RUNNING`: `fncli project-set --enabled false`.
-2. Wait until the task finishes and the result appears. Then `fncli project-set --enabled true`.
+1. Merge a watched pull request. While the task is `RUNNING`: `project off`.
+2. Wait until the task finishes and the result appears. Then `project on`.
 
 - **Expected:** the task finishes `SUCCESS`; its result is delivered (`OPENED`) although the project is disabled.
 - **Rule:** a disabled project's running tasks finish and its finished tasks' results are delivered ([docs/architecture/revoke-and-enabled.md#what-each-state-does]).
@@ -168,15 +160,13 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## A results resource switched off while the task runs holds the result, which is delivered once the resource is on
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Merge a watched pull request. While the task is `RUNNING`: `fncli resource-set results --enabled false`.
+1. Merge a watched pull request. While the task is `RUNNING`: `results resource off`.
 2. Wait for the task to finish. Look at the result for ten intervals.
-3. `fncli resource-set results --enabled true`. Watch.
+3. `results resource on`. Watch.
 
 - **Expected:** the task is `SUCCESS`. The result is recorded with step `UNKNOWN`, state `FAILED` and an error saying the results resource is switched off; nothing is pushed and it stays that way for as long as the project resource is off. After step 3 the delivery retry sensor delivers it: step `OPENED`, state `DELIVERED`, with a `number` and `url`.
 - **Rule:** a switched-off results resource holds the result; the retry sensor delivers it once the project resource is active ([Enabled, revoked and soft delete]; [Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on" (`dagster/fncli/tests/e2e/test_failure_paths_long.py`), which switches the project resource off before the task starts, not while it runs; written, never run on a cluster. `nexus/api/tests/test_results_and_delivery.py` (`test_post_result_through_a_switched_off_resource_is_failed_and_waits`). [TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster) lists its assumptions as unchecked. The suite makes the switch with the operator running, which can put it back within one resync interval.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on" (`dagster/fncli/tests/e2e/test_failure_paths_long.py`), which switches the project resource off before the task starts, not while it runs; written, never run on a cluster. `nexus/api/tests/test_results_and_delivery.py` (`test_post_result_through_a_switched_off_resource_is_failed_and_waits`). [TESTING.md](../TESTING.md#checks-that-have-never-run-on-a-cluster) lists its assumptions as unchecked. The suite makes the switch through the Project (`patch_project`).
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -217,11 +207,9 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## A revoke while a result is held applies on the next attempt, and a results-side revoke pauses the retry
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Hold a result: merge a watched pull request, `fncli resource-set results --enabled false` while it runs, wait for the held result.
-2. `fncli project-set --revoked true`. Then `fncli resource-set results --enabled true`. Watch the result.
-3. Hold another result the same way. `fncli resource-set results --revoked true`, then `fncli resource-set results --enabled true`. Wait ten intervals. Then `fncli resource-set results --revoked false`.
+1. Hold a result: merge a watched pull request, `results resource off` while it runs, wait for the held result.
+2. `fncli project-set --revoked true`. Then `results resource on`. Watch the result.
+3. Hold another result the same way. `fncli resource-set results --revoked true`, then `results resource on`. Wait ten intervals. Then `fncli resource-set results --revoked false`.
 
 - **Expected:** step 2: the retry sensor's next attempt calls the results route, which sets the held result `REVOKED` (final, never delivered). Restore `fncli project-set --revoked false`. Step 3: while the project resource is revoked it is not active, so the retry is paused and the result stays held; after un-revoking, it is delivered (check: the sources say the retry resumes on un-revoke; a result recorded before a revoke keeps its step and state until the route is called for it again).
 - **Rule:** known limits: a result recorded before a revoke keeps its step until `POST /projects/<pid>/results` is called again; after a revoke on the results side the retry is paused and resumes on un-revoke ([docs/architecture/revoke-and-enabled.md#known-limits]).
@@ -231,10 +219,8 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## Revoked wins over switched off, and changed wins over switched off
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Merge a watched pull request. While the task is `RUNNING`: `fncli resource-set results --enabled false` and `fncli resource-set trigger --revoked true`. Wait for the result.
-2. Restore. New task. While it runs: `fncli resource-set results --enabled false` and `fncli resource-set results --target-dir <another directory>`. Wait for the result. Restore.
+1. Merge a watched pull request. While the task is `RUNNING`: `results resource off` and `fncli resource-set trigger --revoked true`. Wait for the result.
+2. Restore. New task. While it runs: `results resource off` and `target directory <another directory>`. Wait for the result. Restore.
 
 - **Expected:** step 1: the result is `REVOKED`, not held. Step 2: the result is `STALE`, not held.
 - **Rule:** the order is revoked, then changed, then switched off ([docs/architecture/revoke-and-enabled.md#may-a-finished-tasks-result-be-delivered]).
