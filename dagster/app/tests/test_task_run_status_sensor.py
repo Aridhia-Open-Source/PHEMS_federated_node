@@ -76,12 +76,12 @@ def backend_api(monkeypatch):
     for key, value in {
         "NEXUS_API_URL": "http://nexus-api.fn.svc:5000",
         "DAGSTER_KC_USER": "dagster",
-        "DAGSTER_KC_PASSWORD": "secret",
+        "DAGSTER_KC_PASSWORD_FILE": "/etc/secrets/dagster/DAGSTER_KC_PASSWORD",
     }.items():
         monkeypatch.setenv(key, value)
 
     api = MagicMock()
-    with patch("app.definitions.sensors.task.BackendAdapter"), \
+    with patch("app.definitions.sensors.task.PasswordFileAdapter"), \
          patch("app.definitions.sensors.task.BackendSession"), \
          patch("app.definitions.sensors.task.BackendAPI", return_value=api):
         yield api
