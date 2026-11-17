@@ -31,7 +31,7 @@ from app.models.secret_provider_type import SecretProviderType
 
 logger = logging.getLogger('secrets_api')
 router = APIRouter(
-    prefix='/global/secrets', tags=["secrets"], dependencies=[Depends(require_scope('can_admin_dataset'))]
+    prefix='/global/secrets', tags=["secrets"], dependencies=[Depends(require_scope('can_do_admin'))]
 )
 session = db.session
 
@@ -168,8 +168,7 @@ def get_secret(label: str):
     return SecretDTO.from_model(_get_secret(label))
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=SecretDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post('', status_code=HTTPStatus.CREATED, response_model=SecretDTO)
 def post_secret(body: dict = Body(default_factory=dict)):
     """
     POST /global/secrets — create the secret in its store and the reference to it. The label is
@@ -212,7 +211,7 @@ def post_secret(body: dict = Body(default_factory=dict)):
     return SecretDTO.from_model(secret)
 
 
-@router.patch('/{label}', response_model=SecretDTO, dependencies=[Depends(require_scope('can_do_admin'))])
+@router.patch('/{label}', response_model=SecretDTO)
 def patch_secret(label: str, body: dict = Body(default_factory=dict)):
     """
     PATCH /global/secrets/<label> — replace the stored values, e.g. to rotate a token, and/or turn it on
@@ -266,7 +265,7 @@ def patch_secret(label: str, body: dict = Body(default_factory=dict)):
     return SecretDTO.from_model(secret)
 
 
-@router.delete('/{label}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])
+@router.delete('/{label}', status_code=HTTPStatus.NO_CONTENT)
 def delete_secret(label: str, force: bool = False):
     """
     DELETE /global/secrets/<label> — soft delete the reference and revoke and delete its project

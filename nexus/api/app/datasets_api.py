@@ -27,11 +27,13 @@ from app.models.extras.dictionary import Dictionary
 from app.models.secret import Secret
 
 
-router = APIRouter(prefix='/global/datasets', tags=["datasets"])
+router = APIRouter(
+    prefix='/global/datasets', tags=["datasets"], dependencies=[Depends(require_scope('can_do_admin'))]
+)
 session = db.session
 
 
-@router.get('', response_model=Page[DatasetDTO], dependencies=[Depends(require_scope('can_access_dataset'))])
+@router.get('', response_model=Page[DatasetDTO])
 def get_datasets():
     """
     GET /global/datasets/ endpoint. Returns a list of all datasets
@@ -66,8 +68,7 @@ def _reject_taken_name(name: str, own_id: int | None = None):
         raise InvalidRequest(f"Dataset {name} already exists", HTTPStatus.CONFLICT)
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=DatasetDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post('', status_code=HTTPStatus.CREATED, response_model=DatasetDTO)
 def post_datasets(body: dict = Body(default_factory=dict)):
     """
     POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
@@ -104,7 +105,7 @@ def post_datasets(body: dict = Body(default_factory=dict)):
         raise
 
 
-@router.get('/{dataset_id}', response_model=DatasetDTO, dependencies=[Depends(require_scope('can_access_dataset'))])
+@router.get('/{dataset_id}', response_model=DatasetDTO)
 def get_dataset(dataset_id: int):
     """
     GET /global/datasets/id endpoint. Gets dataset with a give id
@@ -113,8 +114,7 @@ def get_dataset(dataset_id: int):
     return DatasetDTO.from_model(ds)
 
 
-@router.delete('/{dataset_id}', status_code=HTTPStatus.NO_CONTENT,
-               dependencies=[Depends(require_scope('can_do_admin'))])
+@router.delete('/{dataset_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_dataset(dataset_id: int, force: bool = False):
     """
     DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
@@ -125,7 +125,7 @@ def delete_dataset(dataset_id: int, force: bool = False):
     delete_global(ds, ds.project_assignments, force)
 
 
-@router.patch('/{dataset_id}', response_model=DatasetDTO, dependencies=[Depends(require_scope('can_do_admin'))])
+@router.patch('/{dataset_id}', response_model=DatasetDTO)
 def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. The tasks created before

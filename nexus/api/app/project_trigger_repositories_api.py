@@ -40,7 +40,7 @@ from app.models.trigger_state import TriggerState
 
 router = APIRouter(
     prefix='/projects/{project_id}/repositories/triggers', tags=["project_trigger_repositories"],
-    dependencies=[Depends(require_scope('can_admin_dataset'))]
+    dependencies=[Depends(require_scope('can_do_admin'))]
 )
 session = db.session
 

@@ -48,7 +48,7 @@ from app.secrets_api import SecretProvider, _get_secret
 
 HEALTHCHECK_MAX_WORKERS = 8
 
-router = APIRouter(tags=["healthcheck"], dependencies=[Depends(require_scope('can_admin_dataset'))])
+router = APIRouter(tags=["healthcheck"], dependencies=[Depends(require_scope('can_do_admin'))])
 
 
 def _trigger_resource(project_id: int, repository_id: int) -> ProjectTriggerRepository:

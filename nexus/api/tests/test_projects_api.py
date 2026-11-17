@@ -101,6 +101,24 @@ def test_patch_revoked_is_admin_only_shows_in_the_dto_and_leaves_enabled_alone(
     assert refresh(project).revoked is False
 
 
+# Project routes need can_do_admin: a non-admin is refused (403) and a caller with no token is unauthenticated (401)
+ADMIN_ROUTES = [
+    ("get", "/projects/{pid}"),
+    ("post", "/projects/{pid}/tasks"),
+    ("get", "/projects/{pid}/healthcheck"),
+    ("get", "/tasks"),
+    ("get", "/global/datasets"),
+]
+
+
+@pytest.mark.parametrize("method,url", ADMIN_ROUTES, ids=[f"{m} {u}" for m, u in ADMIN_ROUTES])
+def test_a_non_admin_is_refused_on_the_admin_routes(client, post_json_user_header, project, method, url):
+    url = url.format(pid=project.id)
+    kwargs = {"json": {}} if method == "post" else {}
+    assert getattr(client, method)(url, headers=post_json_user_header, **kwargs).status_code == 403
+    assert getattr(client, method)(url, **kwargs).status_code == 401
+
+
 def test_enable_and_disable_ignore_tasks_in_flight(client, admin_headers, project, make_task):
     make_task()  # pending
     off = patch(client, admin_headers, project.id, enabled=False)

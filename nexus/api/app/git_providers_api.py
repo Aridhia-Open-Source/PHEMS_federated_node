@@ -20,7 +20,7 @@ from app.helpers.wrappers import Caller, get_caller, require_scope
 from app.models.git_provider import GitProvider
 
 router = APIRouter(
-    prefix='/global/providers', tags=["git_providers"], dependencies=[Depends(require_scope('can_admin_dataset'))]
+    prefix='/global/providers', tags=["git_providers"], dependencies=[Depends(require_scope('can_do_admin'))]
 )
 session = db.session
 
@@ -55,8 +55,7 @@ def get_provider(provider_id: int):
     return GitProviderDTO.from_model(GitProvider.get_by_id(provider_id))
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post('', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO)
 def post_provider(req: GitProviderRequest):
     """
     POST /global/providers/ — create a provider. The name and the uri are unique (409).
@@ -73,7 +72,7 @@ def post_provider(req: GitProviderRequest):
     return GitProviderDTO.from_model(provider)
 
 
-@router.patch('/{provider_id}', response_model=GitProviderDTO, dependencies=[Depends(require_scope('can_do_admin'))])
+@router.patch('/{provider_id}', response_model=GitProviderDTO)
 def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Caller = Depends(get_caller)):
     """
     PATCH /global/providers/<id> — update a provider. The tasks created before
@@ -111,7 +110,7 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
     return GitProviderDTO.from_model(provider)
 
 
-@router.delete('/{provider_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])
+@router.delete('/{provider_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_provider(provider_id: int):
     """
     DELETE /global/providers/<id> — delete the provider. Refused with a 409 while a repository

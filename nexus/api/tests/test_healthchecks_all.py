@@ -342,7 +342,7 @@ def test_resource_healthcheck_shapes_and_flags(
         "results_repository": f"/projects/{pid}/repositories/results/{global_results_repo.id}/healthcheck",
     }
     common = {"project_id", "enabled", "revoked", "active"}
-    extra = {"trigger_repository": {"pr_count"}, "results_repository": {"owned_by_federated_node", "target_dir"}}
+    extra = {"trigger_repository": {"pr_count"}, "results_repository": {"owned_by_federated_node", "target_dir", "base_branch"}}
     for key, url in urls.items():
         body = get(client, admin_headers, url).json()
         assert set(body) == common | {key} | extra.get(key, set()), key

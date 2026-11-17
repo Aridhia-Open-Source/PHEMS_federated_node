@@ -23,7 +23,7 @@ from app.models.task_status import TaskStatus
 from app.models.result import Result
 from app.tasks_api import does_user_own_task
 
-router = APIRouter(prefix='/projects', tags=["results"])
+router = APIRouter(prefix='/projects', tags=["results"], dependencies=[Depends(require_scope('can_do_admin'))])
 
 # A result at one of these steps is never delivered again or has been delivered already
 FINAL_STEPS = {
@@ -46,10 +46,7 @@ def _project_result(project_id: int, result_id: int) -> Result:
     return result
 
 
-@router.get(
-    '/{project_id}/results', response_model=list[PullRequestResultDTO],
-    dependencies=[Depends(require_scope('can_admin_dataset'))]
-)
+@router.get('/{project_id}/results', response_model=list[PullRequestResultDTO])
 def get_results(
     project_id: int,
     step: list[str] = Query(default_factory=list),
@@ -86,10 +83,7 @@ def get_results(
     return [dump_result(r) for r in results]
 
 
-@router.get(
-    '/{project_id}/results/{result_id}', response_model=PullRequestResultDTO,
-    dependencies=[Depends(require_scope('can_exec_task'))]
-)
+@router.get('/{project_id}/results/{result_id}', response_model=PullRequestResultDTO)
 def get_result(project_id: int, result_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/results/<result_id> endpoint. Gets a single result
@@ -101,7 +95,7 @@ def get_result(project_id: int, result_id: int, caller: Caller = Depends(get_cal
 
 @router.post(
     '/{project_id}/results', response_model=PullRequestResultDTO,
-    dependencies=[Depends(require_scope('can_admin_dataset')), Depends(system_only)],
+    dependencies=[Depends(system_only)],
 )
 def post_result(
     project_id: int, response: Response, body: dict = Body(default_factory=dict),
@@ -192,7 +186,7 @@ def post_result(
 
 @router.patch(
     '/{project_id}/results/{result_id}', response_model=PullRequestResultDTO,
-    dependencies=[Depends(require_scope('can_admin_dataset')), Depends(system_only)],
+    dependencies=[Depends(system_only)],
 )
 def patch_result(
     project_id: int, result_id: int, body: dict = Body(default_factory=dict),

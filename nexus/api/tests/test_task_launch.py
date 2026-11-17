@@ -171,7 +171,7 @@ def test_the_system_user_may_launch_and_fail(client, system_headers, admin_heade
 
 def test_a_caller_without_the_scope_is_refused_and_nothing_changes(
         client, mock_kc_client, post_json_user_header, admin_headers, system_headers, project, full_task, resources):
-    """The scope is PATCH task's (can_admin_dataset); Keycloak refuses a caller whose roles lack it."""
+    """The router scope is can_do_admin; Keycloak refuses a caller whose roles lack it."""
     patch(client, admin_headers, resources["dataset"][0], revoked=True)
     before = stored(full_task.id)
     keycloak = mock_kc_client["wrappers_kc"].return_value

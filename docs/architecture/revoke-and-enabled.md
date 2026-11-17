@@ -11,7 +11,7 @@ Two flags control what a project, a GlobalResource or a ProjectResource may do. 
 |---|---|---|
 | Meaning | Switched off for now | Access withdrawn |
 | Effect | Stops new work. Work in flight finishes. Waiting work resumes when switched back on (a Dataset is the exception, see the table below) | Blocks the work. A result recorded while the revoke holds is never delivered |
-| Who sets it | Project routes: the `can_admin_dataset` scope. GlobalResource routes: the admin scope | Administrators only (`PATCH`, field `revoked`; 403 otherwise). The pipeline's System user can never set it |
+| Who sets it | Project and GlobalResource routes: the admin scope (`can_do_admin`) | Administrators only (`PATCH`, field `revoked`; 403 otherwise). The pipeline's System user can never set it |
 | Undo | `PATCH {"enabled": true}` | `PATCH {"revoked": false}` |
 
 Revoke never changes `enabled`, and un-revoke never re-enables. A result already `REVOKED` stays final. A task that failed needs a manual retry (`POST /projects/<pid>/tasks/<id>/retry`).

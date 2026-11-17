@@ -48,7 +48,7 @@ from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 
 
-router = APIRouter(prefix='/projects', tags=["projects"], dependencies=[Depends(require_scope('can_admin_dataset'))])
+router = APIRouter(prefix='/projects', tags=["projects"], dependencies=[Depends(require_scope('can_do_admin'))])
 
 
 @router.get('', response_model=Page[ProjectDTO])
