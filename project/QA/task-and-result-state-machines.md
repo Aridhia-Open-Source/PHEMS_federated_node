@@ -60,11 +60,9 @@ fncli stops the reconcile sensor together with the run-status sensors (`--group 
 
 ## The reconcile sensor leaves a disabled project's tasks alone, and repairs them once enabled
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. As above, with the five run-status sensors off. Merge a watched pull request. When the task is `RUNNING`, `fncli project-set --enabled false`.
+1. As above, with the five run-status sensors off. Merge a watched pull request. When the task is `RUNNING`, `project off`.
 2. Wait for the run to finish in the Dagster UI. Wait three intervals. Look at the task.
-3. `fncli project-set --enabled true`. Switch the five sensors back on.
+3. `project on`. Switch the five sensors back on.
 
 - **Expected:** while the project is disabled the task is not patched and stays `RUNNING` although the run finished. After step 3 the reconcile sensor sets it `SUCCESS`.
 - **Rule:** the reconcile sensor looks only at the tasks of enabled projects ([docs/architecture/sensors/task-reconcile.md]).
@@ -85,15 +83,13 @@ Pause the operator for this case, and start it again once the case is undone (se
 
 ## A held result is retried at most once per retry interval and delivered when the cause goes
 
-Pause the operator for this case, and start it again once the case is undone (see "Pause the operator" in [the index](README.md)): otherwise it puts back the setting the case switches at its next resync.
-
-1. Hold a result: merge a watched pull request, `fncli resource-set results --enabled false` while it runs, wait until the result is `UNKNOWN` and `FAILED`.
+1. Hold a result: merge a watched pull request, `results resource off` while it runs, wait until the result is `UNKNOWN` and `FAILED`.
 2. In the Dagster UI watch `results_delivery_retry_sensor` for several intervals with the project resource still off.
-3. `fncli resource-set results --enabled true`.
+3. `results resource on`.
 
 - **Expected:** step 2: the sensor does not launch a delivery (the project resource is not active), so there are no `deliver-retry` runs. Step 3: one delivery run starts (run key `deliver-retry/<result>/<slot>`) and the result goes `OPENED`, `DELIVERED`; the run is not repeated.
 - **Rule:** the retry sensor lists `FAILED` results at a non-final step on an active project resource; the run key carries a slot so a failing delivery is retried at most once per interval ([Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on" (written, never run on a cluster); `dagster/app/tests/test_results_delivery.py` (the retry sensor tests). It does not look at the run keys. The suite makes the switch with the operator running, which can put it back within one resync interval.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on" (written, never run on a cluster); `dagster/app/tests/test_results_delivery.py` (the retry sensor tests). It does not look at the run keys. The suite makes the switch through the Project (`patch_project`).
 - [ ] Pass
 - [ ] Fail — notes:
 
