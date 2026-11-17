@@ -22,7 +22,7 @@ import json
 
 import pytest
 
-from fncli.cmds.common import DagsterConfig, build_admin_backend_api
+from fncli.cmds.common import DagsterConfig, build_backend_api
 from fncli.cmds.project import project_healthcheck_command
 from fncli.cmds.secret import delete_gitea_token_command, verify_git_secret_command
 from fncli.cmds.sensor import DELIVERY_RETRY_SENSOR, sensor_status_command
@@ -82,11 +82,12 @@ def flow():
 def test_admin_login(fncli):
     """Revoking is admin only: log in as the first Keycloak user once, here, so a bad login fails with its cause."""
     try:
-        build_admin_backend_api(fncli.config).session.adapter.access_token
+        with fncli.as_admin():
+            build_backend_api(fncli.config).session.adapter.access_token
     except Exception as error:
         pytest.fail(
-            "admin login failed: check the first Keycloak user exists and KEYCLOAK_FIRST_USER_EMAIL in .dev.env "
-            f"matches the chart ({type(error).__name__}: {error})"
+            "admin login failed: check the first Keycloak user exists and the keycloak-first-user Secret "
+            f"matches it ({type(error).__name__}: {error})"
         )
 
 
@@ -159,7 +160,8 @@ def test_second_project_both_projects_get_a_task(fncli, flow):
 
 
 def test_second_project_revoke_second_projects_resource(fncli):
-    fncli.call(resource_set_command, kind="trigger", revoked="true", project=SECOND_PROJECT, expect=200)
+    with fncli.as_admin():
+        fncli.call(resource_set_command, kind="trigger", revoked="true", project=SECOND_PROJECT, expect=200)
 
 
 def test_second_project_wait_for_tasks_to_finish_again(fncli):

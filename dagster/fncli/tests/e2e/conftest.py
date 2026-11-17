@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import click
@@ -43,6 +44,7 @@ from fncli.context import load_context
 from fncli.k8s import (
     ENV_CONFIGMAP,
     get_configmap_value,
+    get_k8s_secret,
     get_node_config,
     k8s_secret_version,
     patch_node_config,
@@ -342,6 +344,11 @@ class Fncli:
     def __init__(self):
         load_dotenv(find_dotenv(".dev.env", usecwd=True))
         self.context = load_context(CONTEXT_FILE)
+        # fncli logs in as FN_USERNAME / FN_PASSWORD. The suite acts as Dagster (System), whose routes it calls (a
+        # repository's git token, the pull request writes), and as the first Keycloak user only for revoking (as_admin).
+        self.system_login = self.secret_login("dagster-keycloak-creds", "DAGSTER_KC_USER", "DAGSTER_KC_PASSWORD")
+        self.admin_login = self.secret_login("keycloak-first-user", "EMAIL", "PASSWORD")
+        os.environ["FN_USERNAME"], os.environ["FN_PASSWORD"] = self.system_login
         self.project = node_config.of_kind(project_resources(), "Project")[0]["metadata"]["name"]
         self.config = ProjectConfig(node=self.context.node, project_name=self.project)
         self.backend_api = build_backend_api(self.config)
@@ -351,6 +358,23 @@ class Fncli:
     def repo_config(self, entity: str):
         """The config of the dev project's trigger or results repository, as the node has it"""
         return load_repo_config(entity, self.context, self.project, self.backend_api)
+
+    def secret_login(self, secret_name: str, user_key: str, password_key: str) -> tuple[str, str]:
+        """A login from a Secret in the Keycloak namespace"""
+        namespace = self.context.node.keycloak_namespace
+        return (
+            get_k8s_secret(secret_name=secret_name, namespace=namespace, key=user_key),
+            get_k8s_secret(secret_name=secret_name, namespace=namespace, key=password_key),
+        )
+
+    @contextmanager
+    def as_admin(self):
+        """fncli logs in as the first Keycloak user (an Administrator) inside the block, for revoking, then as System again"""
+        os.environ["FN_USERNAME"], os.environ["FN_PASSWORD"] = self.admin_login
+        try:
+            yield
+        finally:
+            os.environ["FN_USERNAME"], os.environ["FN_PASSWORD"] = self.system_login
 
     def with_node(self, command, options: dict) -> dict:
         """The command's options, given the context and the dev project if it takes them and they are not given"""

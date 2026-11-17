@@ -276,8 +276,9 @@ fncli hello-world        # prints "Hello, world!"
 ### What it needs
 
 - The dev cluster running with Tilt up (`mise run deploy`, then `tilt up`: [DEPLOYMENT.md](DEPLOYMENT.md#run-it-locally)). That gives the port-forwards: nexus-api `localhost:5000`, Dagster `localhost:3000`, Gitea `localhost:4000`.
-- `kubectl` pointing at the cluster. fncli reads secrets (the Dagster system login, the Gitea admin password, the first user) from the **current context**, so check `kubectl config current-context` is the cluster you mean.
-- A `.dev.env`, which fncli finds by searching up from your current directory. It holds only the deploy settings (`NAMESPACE` among them), the first Keycloak user and the optional GitHub ids: `.dev.env.example` documents them. On the dev cluster the node itself is described by Kubernetes resources in `config/`, which `kubectl apply` makes real (the nexus operator syncs them to nexus-api, ADR 0032). Which node fncli talks to (and the defaults of `fncli trigger`) is in `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
+- `kubectl` pointing at the cluster. fncli reads secrets (the Gitea admin password, the Secrets a NodeSecret reads) from the **current context**, so check `kubectl config current-context` is the cluster you mean.
+- A `.dev.env`, which fncli finds by searching up from your current directory. It holds only the deploy settings (`NAMESPACE` among them), the first Keycloak user and the optional GitHub ids: `.dev.env.example` documents them.
+- A nexus-api login: fncli logs in as `FN_USERNAME` / `FN_PASSWORD` (in `.dev.env` or the shell), and asks for whichever is unset. It never picks a user itself. Revoking needs an Administrator; `verify-git-secret`, `merge-results-pr` and `fncli demo` mint repository git tokens, which only the System user (`dagster`, its password in the `dagster-keycloak-creds` secret) may do. On the dev cluster the node itself is described by Kubernetes resources in `config/`, which `kubectl apply` makes real (the nexus operator syncs them to nexus-api, ADR 0032). Which node fncli talks to (and the defaults of `fncli trigger`) is in `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
 
 ### The short way
 
@@ -315,7 +316,7 @@ The files in `config/` are Kubernetes custom resources (group `fn.aridhia.com/v1
 
 ### Operating the dev cluster with fncli
 
-These act on the project named by `--project NAME`, or the context's `defaults.project` (the first line says when it is used), and talk only to nexus-api and Dagster. They read the project's repositories and datasets from the node. They are written for the dev cluster. On another node they may work if you point the context file's `node.url` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options also need the `keycloak-first-user` secret (keys `EMAIL` and `PASSWORD`) that only `mise run deploy` creates, so on a real node revoke through the API instead.
+These act on the project named by `--project NAME`, or the context's `defaults.project` (the first line says when it is used), and talk only to nexus-api and Dagster. They read the project's repositories and datasets from the node. They are written for the dev cluster. On another node they may work if you point the context file's `node.url` and `DAGSTER_URL` at it and set the kube context, but that is untested. The `--revoked` options need an Administrator login (`FN_USERNAME`).
 
 | Command | What it does |
 |---|---|
