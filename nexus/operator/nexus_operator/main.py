@@ -80,6 +80,8 @@ def configure(settings: kopf.OperatorSettings, **_):
     settings.persistence.progress_storage = kopf.AnnotationsProgressStorage(prefix=GROUP)
     settings.persistence.diffbase_storage = kopf.AnnotationsDiffBaseStorage(prefix=GROUP)
     settings.peering.standalone = True
+    # The Role is per namespace, so kopf may not list namespaces or CRDs; without this it retries for ~50s at start
+    settings.scanning.disabled = True
     config.load_config()
 
 
