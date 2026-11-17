@@ -1544,7 +1544,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>http://localhost:5001/v2/n
 </code></pre></div>
 <p>Expect a further revision at <code>0.0.1-dev</code>. Flux upgrades to the reverted version; it is not a <code>helm rollback</code>, so the history keeps both moves. Reverting the chart does not revert the database: this works because both builds have the same migrations.</p>
 <h2 id="5-config-add-a-project-then-remove-it">5. Config: add a project, then remove it<a class="headerlink" href="#5-config-add-a-project-then-remove-it" title="Permanent link">&para;</a></h2>
-<p>This needs the operator (PR #656): add <code>operator.enabled: true</code> to <code>values.yaml</code> first, and push. The project names repositories and a dataset that must already be in nexus-api, here the e2e ones.</p>
+<p>The site's values turn on the operator, which syncs these resources into nexus-api. The project names repositories and a dataset that must already be in nexus-api, here the e2e ones.</p>
 <p>Add to <code>nodeConfig</code> in <code>values.yaml</code>, then commit and push:</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="nt">projects</span><span class="p">:</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitops-demo</span>
