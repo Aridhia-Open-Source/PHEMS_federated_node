@@ -30,7 +30,7 @@ Status: Proposed, 2026-11-11.
 
 - **An operator applies the resources.** It is written in Python with Kopf. For each resource it creates, updates, and on removal soft-deletes the record in nexus-api ([0008](0008-enabled-revoked-and-soft-delete.md)).
 - **It lives in `nexus/operator/`,** with its own image and a Deployment of one replica with the `Recreate` strategy, run `--standalone` (no Kopf peering), so two never run at once. A restart or an upgrade is a short gap; on start the resume handler syncs every resource again. It is not a Service, because nothing calls it. It belongs to nexus, not Dagster.
-- **It finds a record by its key and adopts it.** A record that already exists with the same name or uri (made in the UI, say) is taken over: the operator sends every declared field once, which marks it managed. The id in the resource's status is a cache.
+- **It finds a record by its key and adopts it.** A record that already exists with the same name or uri (made in the UI, say) is taken over by the first write it needs; one that already matches is left as it is. The id in the resource's status is a cache.
 - **It sends secret values, because nexus-api stores them.** `POST /global/secrets` takes the values and writes them to its own store; it cannot adopt an existing Kubernetes Secret. The operator reads the source Secret and sends its values, and sends them again when the source changes. It keeps the source's `resourceVersion` in status, never a value or a hash of one.
 - **One sync function per kind,** run on create, on update and on resume. Only `NodeSecret`s also run on a timer: a rotated source Secret changes no custom resource, so the timer is how it is seen.
 - **Order comes from retries.** A resource whose dependency is not there yet (a project's dataset, a repository's secret) is retried, with what it waits for in its status. Helm and kubectl apply in any order.
@@ -43,18 +43,9 @@ Status: Proposed, 2026-11-11.
 
 ### Managed records
 
-- **A record the operator creates or changes is managed:** nexus-api sets its `managed_by` to the operator's Keycloak user. GitProvider, Secret, TriggerRepository, ResultsRepository, Dataset and Project carry the column; a project's assignments are managed with their project.
-- **nexus-api refuses (409) a change to a managed field, or the removal of a managed record, unless the caller is the operator,** the same convention as a refused state move ([0005](0005-state-transition-tables.md)). The error says to change the custom resource. nexus-api knows the operator by its token's username, `fn-operator` (`OPERATOR_KC_USER`).
-- **This replaces putting back drift.** A managed field cannot drift, so no timer reverts API or UI edits, and an edit is never silently undone.
-- **Runtime state stays editable through the API:** `revoked` everywhere (the admin's switch, [0008](0008-enabled-revoked-and-soft-delete.md)), the `enabled` of a GitProvider, Secret, repository or Dataset (not in their CRDs, and a disabled Secret still disables what uses it), a dataset assignment's `enabled`, `owned_by_federated_node`, cursors, pull requests, tasks and results.
-
-| Kind | Managed fields (API names) |
-|---|---|
-| `GitProvider` | `name`, `type`, `uri`, `api_uri`; removal |
-| `NodeSecret` (Secret) | `values`; removal |
-| `Repository` (trigger or results) | `provider_id`, `secret_label`; removal (`uri` is the key) |
-| `Dataset` | `name`, `host`, `port`, `type`, `read_schema`, `write_schema`, `secret_label`; removal |
-| `Project` | `enabled` (and `backfill`); removal; which datasets and repositories are assigned (PUT and DELETE); a trigger assignment's `watch_dir`, `base_branch`, `enabled`; the results assignment's `target_dir`, `base_branch`, `enabled` |
+- **Record ownership ([0036](0036-users-table-records-who-owns-config.md)) does this.** The operator's user has the `service-account` role, one of nexus-api's owner groups, so every record it creates or writes is locked to that group (`owner_group`), assignments included.
+- **Anyone outside the group gets a 409** on any change to the record, its removal or its revoke, the same convention as a refused state move ([0005](0005-state-transition-tables.md)). The UI shows such records read-only.
+- **This replaces putting back drift.** A locked record cannot drift, so no timer reverts API or UI edits, and an edit is never silently undone.
 
 ### The shared client package
 
@@ -69,7 +60,7 @@ Status: Proposed, 2026-11-11.
 
 ### Auth and trust
 
-- **The operator has its own identity.** It logs in to nexus-api as its own Keycloak user, `fn-operator`, made by kc-init with a generated password that is rotated like Dagster's. It holds the Administrator role, not `System`: it may change node config, and may not call the system-only routes (git tokens, task state). It never uses a person's login. nexus-api's `/login` is a password grant today; a Keycloak service client (client credentials) and a role narrower than Administrator come later.
+- **The operator has its own identity.** It logs in to nexus-api as its own Keycloak user, `fn-operator`, made by kc-init with a generated password that is rotated like Dagster's. It holds the Administrator role, not `System`, plus `service-account` (its owner group, above): it may change node config, and may not call the system-only routes (git tokens, task state). It never uses a person's login. nexus-api's `/login` is a password grant today; a Keycloak service client (client credentials) and a role narrower than Administrator come later.
 - **Whoever can change the custom resources changes node config.** Two controls: review on the site repository (with Flux, a merge is the approval), and Kubernetes RBAC, where only Flux's ServiceAccount (and admins, for emergencies) may edit these kinds.
 - **Changes are attributed in git and in Kubernetes, not yet in nexus-api.** nexus-api keeps no audit record today. Each sync writes a Kubernetes Event and a log line with the commit Flux annotated on the resource; the site repository's history is the record of who approved it. An audit record in nexus-api is a later change.
 - **Calls go through the API,** so its auth and rules apply to every change.
@@ -308,8 +299,8 @@ What it does not need:
 
 What it costs:
 
-- **A schema change:** `managed_by` on six tables, in the regenerated `001_baseline.py` ([0023](0023-fastapi-replaces-flask.md)).
-- **Managed settings change only through the custom resource.** The e2e suites and the QA docs switch a project or its repository assignments off and on by patching the `Project`, not through fncli or the API; revoking still goes through the API.
+- **No schema change of its own:** ownership's `owner_id` and `owner_group` columns ([0036](0036-users-table-records-who-owns-config.md)) carry it.
+- **Managed records change only through the custom resource.** The e2e suites and the QA docs switch a project or its repository assignments off and on by patching the `Project`, not through fncli or the API.
 - **A wiped nexus-api database is rebuilt only when the operator restarts** (its resume handler), since no timer re-syncs the kinds other than `NodeSecret`.
 - **A disabled Secret cannot be rotated** (409): the `NodeSecret` stays unsynced, with nexus-api's reason in its status, until the Secret is enabled.
 

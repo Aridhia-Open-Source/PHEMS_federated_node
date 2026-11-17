@@ -17,7 +17,7 @@ from common import (
     assign_role, create_user, delete_bootstrap_user, get_role,
     login, health_check, set_token_exchange_for_global_client,
     setup_master_user, create_system_user,
-    set_global_client_secret, partial_import
+    set_global_client_secret, partial_import, assign_role, get_role
 )
 from migrations import run_migrations
 from settings import settings
@@ -141,9 +141,10 @@ def ensure_realm_accounts(admin_token:str):
 
     # The nexus operator's user (ADR 0032): Administrator, not System, so it may change node config
     # but not call the system-only routes. Its password follows operator-keycloak-creds, like Dagster's.
+    # It also has service-account, an owner group (ADR 0036): what it writes is locked to that group.
     if settings.operator_kc_user and settings.operator_kc_password and settings.operator_kc_email:
         logger.info("Creating the nexus operator user")
-        create_user(
+        operator_id = create_user(
             settings.operator_kc_user,
             settings.operator_kc_password,
             email=settings.operator_kc_email,
@@ -152,6 +153,10 @@ def ensure_realm_accounts(admin_token:str):
             role_name="Administrator",
             admin_token=admin_token,
             reset_password_if_exists=True
+        )
+        assign_role(
+            "service-account", get_role("service-account", admin_token), admin_token,
+            settings.keycloak_realm, operator_id
         )
 
 
@@ -218,8 +223,6 @@ def setup_keycloak():
     if used_bootstrap:
         bootstrap_platform_accounts(admin_token)
 
-    ensure_realm_accounts(admin_token)
-
     if settings.manage_realm:
         # Additive realms.json changes, then anything that must mutate existing configuration.
         partial_import(admin_token)
@@ -228,7 +231,8 @@ def setup_keycloak():
     else:
         logger.info("keycloak.manageRealm is false, skipping realm configuration")
 
-    ensure_superuser(admin_token)
+    # After the realm configuration, so a role realms.json added (service-account) exists on an upgrade
+    ensure_realm_accounts(admin_token)
 
     # Always last: on the bootstrap path this deletes the credential the run authenticated with.
     sweep_bootstrap_users()
