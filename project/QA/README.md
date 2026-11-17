@@ -2,7 +2,7 @@
 
 A plan for a person to run by hand against a deployed node. It starts where the automated tests stop: [../TESTING.md](../TESTING.md) says what the unit, integration and end-to-end tests cover and what they cannot show; this plan covers the rest, and repeats a few automated paths on a real node.
 
-It is written against the code at commit `9b9a8ec4` (branch `feat/gitops-operator`, which adds the nexus operator to `dagster-develop`). The node's config (git providers, Secrets, repositories, datasets, projects) is custom resources that the nexus operator applies to nexus-api ([Declarative node config through an operator]). Where this plan and the node disagree, record it as a finding. The decisions in [../decisions/README.md](../decisions/README.md) win over any text here, and the known issues are in [known-issues.md](known-issues.md).
+It is written against the code at commit `55e8d6917` (branch `feat/gitops-operator`, which adds the nexus operator to `dagster-develop`). The node's config (git providers, Secrets, repositories, datasets, projects) is custom resources that the nexus operator applies to nexus-api ([Declarative node config through an operator]). Where this plan and the node disagree, record it as a finding. The decisions in [../decisions/README.md](../decisions/README.md) win over any text here, and the known issues are in [known-issues.md](known-issues.md).
 
 ## How to use the plan
 
@@ -55,28 +55,32 @@ Rules for the notes you keep:
 
 **Sensor interval.** The configured minimum interval of every sensor (`DAGSTER_SENSORS_MIN_INTERVAL_SECONDS`; 30 seconds by default, shorter on the dev cluster; read the real value from the first case in [deploy and health checks](deploy-and-health.md)). "Wait five intervals" means five sensor intervals: the same wait the end-to-end suites use for "nothing happens".
 
-**Resync interval.** How often the operator syncs every resource again (`operator.syncIntervalSeconds`, 60 seconds by default). It is how an edit made outside the config is put back and how a changed source Secret reaches nexus-api.
+**Resync interval.** How often the operator looks at every NodeSecret again (`operator.syncIntervalSeconds`, 60 seconds by default), so a rotated source Secret reaches nexus-api. Nothing else is put back on a timer: the operator syncs the other kinds when they are created or changed and when it starts.
 
 **Synced.** `kubectl get fn -A` lists every node config resource with `Synced` and `Message`. `kubectl get <kind> <name> -n <namespace> -o yaml` shows the whole status: `synced`, `nexusId`, `message` (what it waits for, or nexus-api's refusal), `observedGeneration`, and for a NodeSecret `sourceVersions`. The kinds are `gitproviders`, `nodesecrets`, `repositories`, `datasets` and `projects`. `dev-dataset` and its NodeSecret are in namespace `experiments`; the rest are in `fn`.
 
-**Settings the operator owns.** The operator puts these back to the Project resource at the next resync:
+**Settings the Project owns.** nexus-api refuses (409, "change its custom resource instead") a change through `fncli`, the API or the UI to a field a custom resource declares, and the removal of a record the operator manages ([Declarative node config through an operator]). For a project these are:
 
-- the project's `enabled`;
+- the project's `enabled` and `backfill`;
 - the trigger resource's `enabled`, `watch_dir` and `base_branch` (`watchDir`, `baseBranch` in the Project);
 - the results resource's `enabled`, `target_dir` and `base_branch` (`targetDir`, `baseBranch`);
-- which datasets and trigger repositories the project has: one the Project does not name is unassigned;
-- which results repository the project has: one swapped or unassigned through the API is put back, which disables and enables the project again and so moves cursors.
+- which datasets, trigger repositories and results repository the project has (the `PUT` and `DELETE` routes).
 
-`revoked` (on anything), a GlobalResource's or Secret's `enabled`, and a dataset resource's `enabled` are not in the config, so `fncli` and the UI change them for good.
+Runtime state is not in the config and stays editable through `fncli`, the API and the UI: `revoked` on anything, a GlobalResource's or Secret's `enabled`, and a dataset resource's `enabled`. `fncli project-set --revoked` and `fncli resource-set KIND --revoked` are unchanged.
 
-**Pause the operator.** A case that changes a setting the operator owns with `fncli` or an HTTP call, and needs it to hold for longer than a resync, does it with the operator paused:
+**Change a setting of the Project.** A case that switches the project, its trigger or results resource, or changes a directory or branch, patches the Project resource and waits until the operator has synced it. Undo it with the opposite patch. The patches (the dev project is `fn-dev` in namespace `fn`; for `qa-two` use its name):
 
-1. Apply what you need first and wait until it is synced (a second project, a rotated Secret). A paused operator syncs nothing, and a `kubectl delete` waits on its finalizer.
-2. `kubectl scale deployment nexus-operator -n fn --replicas=0`.
-3. Run the case, and undo its change with the same command.
-4. `kubectl scale deployment nexus-operator -n fn --replicas=1`. It syncs every resource again at start: anything you did not undo is put back to the Project, and putting `enabled` back moves cursors like any other switch.
+| Shorthand | JSON patch operations (`kubectl patch project fn-dev -n fn --type=json -p '[...]'`) |
+|---|---|
+| project off, project on | `{"op":"add","path":"/spec/enabled","value":false}`, `...true` |
+| project on with backfill | `{"op":"add","path":"/spec/enabled","value":true},{"op":"add","path":"/spec/backfill","value":true}`. Then `{"op":"remove","path":"/spec/backfill"}`, or the next enable backfills too |
+| trigger resource off, on | `{"op":"add","path":"/spec/repositories/triggers/0/enabled","value":false}`, `...true` |
+| results resource off, on | `{"op":"add","path":"/spec/repositories/results/enabled","value":false}`, `...true` |
+| target directory | `{"op":"add","path":"/spec/repositories/results/targetDir","value":"<directory>"}` |
+| base branch | `.../triggers/0/baseBranch` or `.../results/baseBranch` in the same form |
+| watch directory | `.../triggers/0/watchDir` in the same form |
 
-The other way is to change the Project resource itself: set `enabled: false` (project, trigger or results) or a new `watchDir`, `targetDir` or `baseBranch` in a copy of the file and `kubectl apply` it, then apply the original file to undo. That is the production path, but it cannot pass `backfill` or `--expect`.
+Wait until `kubectl get project fn-dev -n fn -o jsonpath='{.metadata.generation} {.status.observedGeneration} {.status.synced}'` shows the same two numbers and `true`, then use the state command. Switching `enabled` back on moves the cursors like any other switch. A patch with two operations is one change.
 
 **Counts.** The numbers a case compares before and after:
 
@@ -100,7 +104,7 @@ Add `--project qa-two` to look at the second project.
 
 **Second project.** `kubectl apply -f config/e2e/qa-two.yaml`, then `kubectl wait --for=jsonpath='{.status.synced}'=true --timeout=180s -f config/e2e/qa-two.yaml`. It is the project `qa-two`, with the same dataset, trigger repository and results repository as the test project, with the same settings, and enabled. `kubectl delete -f config/e2e/qa-two.yaml` soft-deletes it and leaves the GlobalResources. Use `config/e2e/qa-three.yaml` (`qa-three`) for a third. Delete these before the test project's own file: while they exist, its repositories and dataset are still in use and their delete is refused.
 
-**Rotate a git token.** `fncli gitea setup -f config/e2e/fn-dev.yaml --rotate fn-trigger-repo-creds` (the results repository's is `fn-results-repo-creds`) authorises the OAuth app again and rewrites the Kubernetes Secret. The operator sends the new values at its next resync. Wait until `kubectl get nodesecret fn-trigger-repo-creds -n fn -o jsonpath='{.status.sourceVersions}'` shows the Secret's version (`kubectl get secret fn-trigger-repo-creds -n fn -o jsonpath='{.metadata.resourceVersion}'`, metadata only), then `fncli verify-git-secret --entity trigger`. Never rotate with the operator paused.
+**Rotate a git token.** `fncli gitea setup -f config/e2e/fn-dev.yaml --rotate fn-trigger-repo-creds` (the results repository's is `fn-results-repo-creds`) authorises the OAuth app again and rewrites the Kubernetes Secret. The operator sends the new values at its next resync of the NodeSecret. Wait until `kubectl get nodesecret fn-trigger-repo-creds -n fn -o jsonpath='{.status.sourceVersions}'` shows the Secret's version (`kubectl get secret fn-trigger-repo-creds -n fn -o jsonpath='{.metadata.resourceVersion}'`, metadata only), then `fncli verify-git-secret --entity trigger`.
 
 **Make a change while a task is still PENDING.** Used by [task pinning](task-pinning.md) and [enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md).
 
@@ -143,8 +147,8 @@ Ranked by risk: how complex the rules are, and how little of them an automated t
 | [Task pinning](task-pinning.md) | Highest | Two behaviours removed from the end-to-end suites; the rest never had one. Only unit-tested. A change while a task waits or runs fails it or stales its result |
 | [Enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md) | Highest | Three behaviours removed from the end-to-end suites and the rest unit-only; many orderings (revoked beats changed beats switched off); held results; work in flight |
 | [Failures mid-flow and limits](failures-mid-flow-and-limits.md) | Highest | Nothing automated beyond one lost token: services down mid-flow, token expiry and rotation, concurrent merges, the size limit, stuck runs. May expose stuck items |
-| [Operator and node config](operator-and-node-config.md) | High | New. The operator's sync is unit-tested against a fake API; refused deletes, drift, restarts, finalizers and the uninstall hook are seen only on a live cluster. The end-to-end suites use it for setup and never check it |
-| [Enabled and revoked: pull requests and triggers](enabled-and-revoked-ingest-side.md) | High | The most complex rules. The end-to-end failure suite covers the trigger side only, and has never run on a cluster; GitProvider flags, combinations and the edge of the skipped gap are unit-only. The operator puts back several of the switches, so the cases pause it |
+| [Operator and node config](operator-and-node-config.md) | High | New. The operator's sync is unit-tested against a fake API; refused deletes, refused API edits, restarts, finalizers and the uninstall hook are seen only on a live cluster. The end-to-end suites use it for setup and never check it |
+| [Enabled and revoked: pull requests and triggers](enabled-and-revoked-ingest-side.md) | High | The most complex rules. The end-to-end failure suite covers the trigger side only, and has never run on a cluster; GitProvider flags, combinations and the edge of the skipped gap are unit-only. The switches the Project declares are changed by patching the Project, so every such case waits for the operator to sync |
 | [Secrets and quarantine](secrets-and-quarantine.md) | High | The unit tests use an in-memory store; the real move of a value between namespaces is checked only here |
 | [Task and result state machines](task-and-result-state-machines.md) | High | Forward-only rules are unit-tested, but the live sensors that write them, the retry limit and the reconcile sensor are not |
 | [Two projects on the same GlobalResources](two-projects-on-the-same-globalresources.md) | High | Tests use at most two projects and one pull request at a time; shared edits reach every project |
