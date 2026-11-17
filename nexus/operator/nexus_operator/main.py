@@ -128,5 +128,8 @@ for kind in KINDS:
     kopf.on.create(GROUP, VERSION, kind, id="sync")(handler)
     kopf.on.update(GROUP, VERSION, kind, id="sync")(handler)
     kopf.on.resume(GROUP, VERSION, kind, id="sync")(handler)
-    kopf.timer(GROUP, VERSION, kind, id="resync", interval=env.sync_interval_seconds)(handler)
+    # The first resync waits one interval, so it never races the create handler into a duplicate POST (409)
+    kopf.timer(
+        GROUP, VERSION, kind, id="resync", interval=env.sync_interval_seconds, initial_delay=env.sync_interval_seconds
+    )(handler)
     kopf.on.delete(GROUP, VERSION, kind, id="delete")(partial(remove, kind))
