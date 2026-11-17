@@ -2,7 +2,8 @@
 {{- /*
   What the operator may do in each namespace it watches: the five fn.aridhia.com kinds (patch for
   its finalizer and Kopf's annotations) and their status, get a NodeSecret's source Secret, and
-  create Events. Nothing cluster-wide: Kopf runs namespaced with --namespace per namespace.
+  create Events. Nothing cluster-wide: Kopf runs namespaced with --namespace per namespace. Nothing in
+  the release namespace (operator-namespace.yaml).
 */}}
 {{- range (include "operatorNamespaces" . | fromJsonArray) }}
 ---
@@ -33,7 +34,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: nexus-operator
-    namespace: {{ $.Release.Namespace }}
+    namespace: {{ include "operator_namespace" $ }}
 roleRef:
   kind: Role
   name: {{ $.Release.Name }}-nexus-operator

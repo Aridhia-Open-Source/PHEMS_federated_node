@@ -33,7 +33,7 @@ A PR in the Gitea trigger repo, through a task, to a merged results PR in the Gi
 
 ```bash
 fncli experiment deploy && fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml
-kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml && kubectl get fn -n fn   # wait for every row to be synced
+kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml && kubectl get fn -n fn-operator   # wait for every row to be synced
 fncli verify-project
 fncli start-sensor --group all
 fncli trigger triggers/examples/demo.json --project fn-dev --pr --merge --watch --timeout 300
@@ -60,7 +60,7 @@ If something sticks: `fncli sensor-status`, and nexus-api and Dagster pod logs.
 - `fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml`. It first checks that kubectl points at the context's cluster. Then:
   - Gitea: creates the trigger repo and the results repo if they don't exist.
   - Gitea: for each NodeSecret the repositories name, creates an OAuth application of the NodeSecret's name for the admin user (`POST user/applications/oauth2`, then the authorisation over HTTP), and writes its credentials into the Kubernetes Secret the NodeSecret's `fromSecret` names. A Secret that exists is left alone (`--rotate NODESECRET` rewrites it).
-- `kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml` (`kubectl diff -f` with the same files shows what it would change). The nexus operator then syncs each resource to the backend, in dependency order, and reports it in the resource's status (`kubectl get fn -n fn`: Synced and Message):
+- `kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml` (`kubectl diff -f` with the same files shows what it would change). The nexus operator then syncs each resource to the backend, in dependency order, and reports it in the resource's status (`kubectl get fn -n fn-operator`: Synced and Message):
   - Backend: stores each secret (`POST /global/secrets`) from the Kubernetes Secret its NodeSecret names. A resource whose Secret is missing stays unsynced, with the reason in its Message.
   - Backend: registers the Gitea host as a git provider (`POST /global/providers`) if it is missing, or changes what differs (`PATCH /global/providers/{id}`).
   - Backend: registers the trigger repo (`POST /global/repositories/triggers`, with the provider's id and the repo's `owner/name` path) and the results repo (`POST /global/repositories/results`) if they are missing.

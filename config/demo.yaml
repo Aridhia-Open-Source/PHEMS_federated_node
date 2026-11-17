@@ -3,7 +3,7 @@
 #   fncli experiment deploy; fncli experiment seed demo; fncli experiment setup demo
 #   fncli gitea setup -f config/gitea.yaml -f config/demo.yaml           # the Gitea repositories, and the OAuth apps' Secrets
 #   kubectl apply -f config/                         # gitea.yaml and this file
-#   kubectl get fn -n fn                             # synced, or the operator's message
+#   kubectl get fn -n fn-operator                             # synced, or the operator's message
 #   fncli demo --project demo-gitea
 #   kubectl delete -f config/demo.yaml               # clean up; Gitea is left alone
 # `fncli gitea setup` makes each NodeSecret's Kubernetes Secret (fromSecret) from a Gitea OAuth app of the
@@ -12,7 +12,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: NodeSecret
 metadata:
   name: demo-trigger-repo-creds
-  namespace: fn
+  namespace: fn-operator
 spec:
   fromSecret: {name: demo-trigger-repo-creds}
 ---
@@ -20,7 +20,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: NodeSecret
 metadata:
   name: demo-results-repo-creds
-  namespace: fn
+  namespace: fn-operator
 spec:
   fromSecret: {name: demo-results-repo-creds}
 ---
@@ -28,7 +28,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Repository
 metadata:
   name: demo-trigger-repo
-  namespace: fn
+  namespace: fn-operator
 spec:
   type: trigger
   uri: http://gitea.fn.svc:4000/gitea_admin/demo-trigger-repo
@@ -38,7 +38,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Repository
 metadata:
   name: demo-results-repo
-  namespace: fn
+  namespace: fn-operator
 spec:
   type: results
   uri: http://gitea.fn.svc:4000/gitea_admin/demo-results-repo
@@ -48,7 +48,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Project
 metadata:
   name: demo-gitea
-  namespace: fn
+  namespace: fn-operator
 spec:
   datasets: [demo-db]                              # the experiments chart's, in namespace experiments
   repositories:

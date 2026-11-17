@@ -61,6 +61,12 @@ class NamespaceConfig(EnvConfig):
     namespace: str = Field(default="", alias="NAMESPACE")
 
 
+class OperatorNamespaceConfig(EnvConfig):
+    """The nexus operator's namespace (chart global.namespaces.operator), where the node config resources are"""
+
+    namespace: str = Field(default="fn-operator", alias="OPERATOR_NAMESPACE")
+
+
 class GiteaConfig(BackendConfig, NamespaceConfig):
     # Host-side script: the address comes from the Gitea provider's uri on the node, and an in-cluster host
     # (gitea.fn.svc) is reached through the Tilt port-forward on localhost.

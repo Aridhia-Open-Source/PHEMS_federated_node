@@ -110,6 +110,9 @@ global:
     # Where the backend keeps project secrets (dataset credentials, git tokens). Dagster reads
     # them here and nowhere else in the node; the release namespace holds none.
     secrets: fn-secrets
+    # The nexus operator's own namespace (operator.enabled): its Deployment, the node config custom resources,
+    # their NodeSecret source Secrets and its Keycloak login. It has no access to the release namespace.
+    operator: fn-operator
 
 token:
   # 8 hours. Was 2592000 (30 days), the same order as the rotation period -- which meant sessions
@@ -282,8 +285,8 @@ operator:
   enabled: false
 
 # The node's config, rendered as custom resources (GitProvider, NodeSecret, Repository, Dataset, Project) in the
-# release namespace for the operator to sync (ADR 0032). No secret values here: a secret names the Kubernetes
-# Secret, in the release namespace, its values are in. Example:
+# operator namespace (global.namespaces.operator) for the operator to sync (ADR 0032). No secret values here: a
+# secret names the Kubernetes Secret, in the operator namespace, its values are in. Example:
 #   providers:
 #     - name: github
 #       type: github
@@ -581,8 +584,8 @@ dagster:
 operator:
   image: ghcr.io/aridhia-open-source/nexus_operator
   tag:
-  # Namespaces watched besides the release namespace (dev adds experiments). The operator reads a
-  # NodeSecret's source Secret only in the NodeSecret's own namespace.
+  # Namespaces watched besides its own (global.namespaces.operator; dev adds experiments). The operator
+  # reads a NodeSecret's source Secret only in the NodeSecret's own namespace. Never list the release namespace.
   watchNamespaces: []
   # How often every NodeSecret is synced again, to see a rotated source Secret
   syncIntervalSeconds: 60

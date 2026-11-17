@@ -3,20 +3,20 @@
   The Kopf operator (nexus/operator, ADR 0032). One replica with Recreate, so two never run at once
   and Kopf's peering stays off (--standalone in the image). Nothing calls it, so no Service.
   It logs in to nexus-api as fn-operator (Administrator), from operator-keycloak-creds
-  (keycloak-secrets.yaml). The password is a mounted file read at every login, not env, so the
+  (keycloak-secrets.yaml, in the operator's namespace). The password is a mounted file read at every login, not env, so the
   credential rotation reaches it without a restart (a directory mount: a subPath one never refreshes).
 */}}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: nexus-operator
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "operator_namespace" . }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nexus-operator
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ include "operator_namespace" . }}
   labels:
     app: nexus-operator
 spec:

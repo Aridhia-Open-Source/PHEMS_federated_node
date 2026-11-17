@@ -1,6 +1,6 @@
 {{/*
 Each database as node config (ADR 0032): a Dataset named as the database, and the NodeSecret with its login, read from
-the Secret secrets.yaml makes. The nexus operator watches this namespace (dev values operator.watchNamespaces) and
+the Secret secrets.yaml makes. The nexus operator watches this namespace besides its own (dev values operator.watchNamespaces) and
 makes them in nexus-api; a project is assigned the dataset by name (config/).
 */}}
 {{- range $key, $db := .Values.dbs }}

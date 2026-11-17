@@ -5,7 +5,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: NodeSecret
 metadata:
   name: uc1-trigger-repo-creds
-  namespace: fn
+  namespace: fn-operator
 spec:
   fromSecret: {name: uc1-trigger-repo-creds}
 ---
@@ -13,7 +13,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: NodeSecret
 metadata:
   name: uc1-results-repo-creds
-  namespace: fn
+  namespace: fn-operator
 spec:
   fromSecret: {name: uc1-results-repo-creds}
 ---
@@ -21,7 +21,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Repository
 metadata:
   name: uc1-trigger-repo
-  namespace: fn
+  namespace: fn-operator
 spec:
   type: trigger
   uri: http://gitea.fn.svc:4000/gitea_admin/uc1-trigger-repo
@@ -31,7 +31,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Repository
 metadata:
   name: uc1-results-repo
-  namespace: fn
+  namespace: fn-operator
 spec:
   type: results
   uri: http://gitea.fn.svc:4000/gitea_admin/uc1-results-repo
@@ -41,7 +41,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Project
 metadata:
   name: uc1
-  namespace: fn
+  namespace: fn-operator
 spec:
   datasets: [uc1-omop]
   repositories:

@@ -36,7 +36,7 @@ Status: Proposed, 2026-11-11.
 - **Order comes from retries.** A resource whose dependency is not there yet (a project's dataset, a repository's secret) is retried, with what it waits for in its status. Helm and kubectl apply in any order.
 - **A finalizer, `fn.aridhia.com/nexus-sync`, holds a removed resource until nexus-api has soft-deleted the record.**
 - **Uninstall is not a delete.** A pre-delete hook stops the operator and strips the finalizers, so removing the release does not hang and does not soft-delete the node's records.
-- **It watches the release namespace and any listed in `operator.watchNamespaces`,** and reads a source Secret only in the resource's own namespace. Its Role there: the five kinds and their status, `get` on Secrets, `create` on Events.
+- **It runs in its own namespace, `fn-operator` (`global.namespaces.operator`),** which holds its Deployment, the custom resources, their NodeSecret source Secrets and its Keycloak login. It watches that namespace and any listed in `operator.watchNamespaces`, and reads a source Secret only in the resource's own namespace. Its Role there: the five kinds and their status, `get` on Secrets, `create` on Events. It has no access to the release namespace, so a NodeSecret cannot name `kc-secrets` or a database password there.
 - **Removal is safe on a shared node.** The operator never deletes with `?force=true`. A global resource another project still uses is refused by nexus-api with a 409; the operator reports it in the resource's status, keeps the record, and retries; the resource stays `Terminating` until the delete goes through.
 - **Removal.** Removing an entry from the values and upgrading deletes it (in dev, `kubectl delete -f`), so a revert works for config as it does for the chart.
 - **The operator's scope is nexus-api only.** It never touches the git server: no repository creation, no Gitea OAuth apps. Those stay dev-only fncli steps, or a one-time job run by the site.
@@ -163,7 +163,7 @@ spec:
 In dev the Kubernetes Secret that holds the values is made from local env and files, then kubectl applies the resources:
 
 ```bash
-kubectl create secret generic analysis-github-app -n fn \
+kubectl create secret generic analysis-github-app -n fn-operator \
   --from-literal=APP_ID="$GH_APP_ID" --from-literal=INSTALLATION_ID="$GH_INSTALLATION_ID" \
   --from-file=PRIVATE_KEY=$HOME/.config/fn/analysis-app.private-key.pem
 
@@ -171,7 +171,7 @@ kubectl diff   -f config/globals.yaml                 # preview the change to th
 kubectl apply  -f config/globals.yaml                 # provider, repositories, credentials
 kubectl apply  -f config/projects/cohort-study.yaml   # the project and its assignments
 kubectl delete -f config/projects/cohort-study.yaml   # soft delete; the operator keeps what another project still uses
-kubectl get fn -n fn                                  # every kind: synced or not, with the operator's message
+kubectl get fn -n fn-operator                                  # every kind: synced or not, with the operator's message
 ```
 
 ### Proposed: the same config on a deployed node
@@ -237,7 +237,7 @@ Usage:
 - **Add or change:** edit the values, open a pull request, merge. Flux runs `helm upgrade`; the operator creates or updates the record in nexus-api.
 - **Remove:** delete the entry, or `git revert` the commit that added it. Helm deletes the `Project`; the operator soft-deletes it in nexus-api.
 - **Who changed it:** the site repository's history, and the operator's Event on the resource with the commit Flux applied.
-- **See the state:** `kubectl get fn -n fn` shows each resource and whether it is synced, with the operator's message when it is not.
+- **See the state:** `kubectl get fn -n fn-operator` shows each resource and whether it is synced, with the operator's message when it is not.
 - **Without Flux:** `helm upgrade --install` with the same values has the same effect. Dev uses `kubectl apply -f` on the files instead.
 
 ### The shared client package in a build
@@ -316,7 +316,7 @@ What it costs:
 - **The operator is a new component** to build, test and run in every node. It is small: the client code already exists, and Kopf handles the watch loop, retries and status.
 - **Moving the client is a one-time change** to the imports in Dagster and fncli.
 - **Every consumer build needs the client's source:** the bake named context for images, and the second `pyproject.toml` in the compile step.
-- **The operator reads Secrets** in the namespaces it watches, and holds an Administrator login to nexus-api. Both are wider than node config strictly needs.
+- **The operator reads Secrets** in the namespaces it watches (its own and `operator.watchNamespaces`, never the release namespace), and holds an Administrator login to nexus-api. Both are wider than node config strictly needs.
 - **A removal that nexus-api refuses leaves a `Terminating` resource.** The same entry cannot be added back until the delete goes through or the finalizer is removed by hand.
 - **Delete then re-add makes a new record.** nexus-api frees a deleted name, so the re-added project gets a new id and the old one keeps its history.
 - **nexus-api has no audit record yet,** so its own data does not show which commit made a change.

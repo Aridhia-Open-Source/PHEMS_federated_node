@@ -17,7 +17,7 @@
 {{- $operatorNs := list -}}
 {{- if (.Values.operator).enabled -}}
   {{- /* Must match the namespaces keycloak-secrets.yaml writes operator-keycloak-creds into. */ -}}
-  {{- $operatorNs = list $kcNs .Release.Namespace | uniq -}}
+  {{- $operatorNs = list $kcNs (include "operator_namespace" .) | uniq -}}
 {{- end -}}
 {{- /*
   Per-credential switches, resolved with hasKey rather than `| default true`.

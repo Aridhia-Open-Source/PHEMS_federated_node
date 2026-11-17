@@ -120,8 +120,9 @@ firstUserSecret:
   lastName: User
   email: dev.user+admin@example.org
 
-# The nexus operator (ADR 0032). It also watches experiments, where `fncli experiment` puts its resources;
-# deploy.sh creates that namespace first, for the operator's Role there.
+# The nexus operator (ADR 0032). It runs in fn-operator (global.namespaces.operator), where config/ puts its
+# resources, and also watches experiments, where `fncli experiment` puts its dataset resources; deploy.sh creates
+# that namespace first, for the operator's Role there.
 operator:
   enabled: true
   image: localhost:5001/nexus-operator-fn

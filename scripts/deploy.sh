@@ -173,9 +173,10 @@ if [ "$RELEASE_EXISTS" = "true" ]; then
     "deployment/${RELEASE_NAME}-${DAGSTER_USER_DEPLOYMENT:-dagster-fn}" \
     "deployment/${RELEASE_NAME}-dagster-daemon" \
     "deployment/${RELEASE_NAME}-dagster-webserver"
-  # Only with operator.enabled
-  if kubectl get deployment nexus-operator -n "$NAMESPACE" > /dev/null 2>&1; then
-    kubectl rollout restart -n "$NAMESPACE" deployment/nexus-operator
+  # Only with operator.enabled. It runs in its own namespace (global.namespaces.operator).
+  OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-fn-operator}"
+  if kubectl get deployment nexus-operator -n "$OPERATOR_NAMESPACE" > /dev/null 2>&1; then
+    kubectl rollout restart -n "$OPERATOR_NAMESPACE" deployment/nexus-operator
   fi
 fi
 

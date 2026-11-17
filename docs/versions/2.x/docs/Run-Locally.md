@@ -171,7 +171,7 @@ Everything lives in the cluster's Gitea, so nothing outside is needed. The demo 
 ```sh
 fncli gitea setup -f config/gitea.yaml -f config/demo.yaml    # the Gitea repositories, and a Kubernetes Secret with each one's OAuth app
 kubectl apply -f config/                 # the provider, NodeSecrets, repositories and the project (uses demo-db)
-kubectl get fn -n fn                     # each resource's Synced and Message: wait for them all to sync
+kubectl get fn -n fn-operator                     # each resource's Synced and Message: wait for them all to sync
 fncli demo --project demo-gitea          # the guided pull request walk
 ```
 
@@ -232,11 +232,11 @@ fncli never creates or deletes GitHub repositories, tokens or Apps. You make the
 7. **Store the App's values, apply, demo, delete:**
 
    ```sh
-   kubectl create secret generic phems-sandbox-github-app -n fn \
+   kubectl create secret generic phems-sandbox-github-app -n fn-operator \
      --from-literal=APP_ID="$GH_APP_ID" --from-literal=INSTALLATION_ID="$GH_INSTALLATION_ID" \
      --from-file=PRIVATE_KEY=$HOME/.config/phems/<your-app>.private-key.pem
    kubectl apply -f config/github/<your-name>-github.yaml
-   kubectl get fn -n fn                     # wait for every resource to sync
+   kubectl get fn -n fn-operator                     # wait for every resource to sync
    fncli demo --project <your-project>
    kubectl delete -f config/github/<your-name>-github.yaml
    ```
@@ -255,11 +255,11 @@ Nothing is deleted in your GitHub repository, and the dataset stays.
 | `node.env_file ... not found` | The env file must exist in or above the context file's directory. Make `.dev.env` (step 3) |
 | `fncli: command not found` | Activate mise in your shell (step 1), then open a new terminal. Or run `mise run setup` if you have not |
 | `No such command 'gitea'` or `No module named 'fncli'` | Run `mise run setup` in this checkout. An old pipx copy: `pipx uninstall phems` |
-| A resource in `kubectl get fn -n fn` is not synced | Read its `Message`: a Kubernetes Secret that is missing (`fncli gitea setup`, or `kubectl create secret` for GitHub), a dataset that is not on the node (the `fncli experiment` steps), or a repository not applied yet |
+| A resource in `kubectl get fn -n fn-operator` is not synced | Read its `Message`: a Kubernetes Secret that is missing (`fncli gitea setup`, or `kubectl create secret` for GitHub), a dataset that is not on the node (the `fncli experiment` steps), or a repository not applied yet |
 | `No experiments deployment: run fncli experiment deploy first` | `fncli experiment deploy` |
 | `Writing to a GitHub repo needs RESEARCHER_GIT_TOKEN, or gh auth login` | Step 8, item 5 |
 | A merged pull request does nothing | `fncli sensor-status`. Sensors are stopped by default: `fncli start-sensor --group all` |
-| `fncli demo`: `Project ... is not synced to the node yet` | `kubectl get fn -n fn`, fix what the `Message` names, `kubectl apply -f config/` again, then the demo |
+| `fncli demo`: `Project ... is not synced to the node yet` | `kubectl get fn -n fn-operator`, fix what the `Message` names, `kubectl apply -f config/` again, then the demo |
 | A demo step failed | Fix the cause and rerun with `--from N` |
 | `Connection refused` on localhost 5000, 4000 or 3000 | Tilt must be running (`tilt up --stream`) |
 | Helm will not render, or the chart's subcharts are missing | `mise run helm deps` |

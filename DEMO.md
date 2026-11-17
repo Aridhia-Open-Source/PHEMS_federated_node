@@ -38,7 +38,7 @@ Everything lives in the cluster's Gitea, so nothing outside is needed.
 ```bash
 fncli gitea setup -f config/gitea.yaml -f config/demo.yaml    # the two Gitea repos, and a Kubernetes Secret with each one's OAuth app
 kubectl apply -f config/                 # the provider (gitea.yaml) and demo.yaml: NodeSecrets, repos, the project (uses demo-db)
-kubectl get fn -n fn                     # wait for Synced on every row; the Message says what is missing
+kubectl get fn -n fn-operator                     # wait for Synced on every row; the Message says what is missing
 fncli demo --project demo-gitea          # the guided pull request walk (or rely on defaults.project)
 ```
 
@@ -47,11 +47,11 @@ fncli demo --project demo-gitea          # the guided pull request walk (or rely
 Needs a GitHub App installed on your repo ([SETUP_GIT_APPS.md](SETUP_GIT_APPS.md)): its key at `~/.config/phems/phems-sandbox.private-key.pem`, and `GH_APP_ID` and `GH_INSTALLATION_ID` in `.dev.env`. For your own repo, copy `config/github/demo-github.yaml` and change the repo, the Secret name and the key path.
 
 ```bash
-kubectl create secret generic phems-sandbox-github-app -n fn \
+kubectl create secret generic phems-sandbox-github-app -n fn-operator \
   --from-literal=APP_ID="$GH_APP_ID" --from-literal=INSTALLATION_ID="$GH_INSTALLATION_ID" \
   --from-file=PRIVATE_KEY=$HOME/.config/phems/phems-sandbox.private-key.pem
 kubectl apply -f config/github/demo-github.yaml   # provider, NodeSecret, repos, project demo-github
-kubectl get fn -n fn                              # wait for Synced
+kubectl get fn -n fn-operator                              # wait for Synced
 fncli demo --project demo-github                  # or defaults.project: demo-github
 ```
 
@@ -66,7 +66,7 @@ fncli demo --project demo-github                  # or defaults.project: demo-gi
 kubectl delete -f config/demo.yaml     # the project, repos and NodeSecrets (the provider in gitea.yaml stays)
 ```
 
-The operator deletes them from the node too, and skips anything another project still uses (see the Message in `kubectl get fn -n fn`). The Gitea repos and OAuth apps stay in Gitea.
+The operator deletes them from the node too, and skips anything another project still uses (see the Message in `kubectl get fn -n fn-operator`). The Gitea repos and OAuth apps stay in Gitea.
 
 ## When something fails
 
@@ -74,6 +74,6 @@ The operator deletes them from the node too, and skips anything another project 
 |---|---|
 | `No such command 'gitea'` (or `trigger`) | fncli is an old pipx copy or from another checkout: `pipx uninstall phems`, then `mise run setup` here |
 | `is for kubectl context X, but the current one is Y` | `kubectl config use-context kind-fn` |
-| `demo` says the Project is not synced yet | `kubectl get fn -n fn` shows which resource is stuck and its Message; fix it and `kubectl apply -f config/` again |
+| `demo` says the Project is not synced yet | `kubectl get fn -n fn-operator` shows which resource is stuck and its Message; fix it and `kubectl apply -f config/` again |
 | `Dataset demo-db is not on the node` | step 2 was skipped |
 | the dataset login check fails | `fncli experiment seed demo`, then check `kubectl get pods -n experiments` |

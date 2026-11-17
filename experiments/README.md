@@ -51,7 +51,7 @@ Kubernetes secret `dbs.NAME.secret.name` in `experiments`, and the schemas are `
 `config/gitea.yaml` (`kubectl apply`) and waits for every resource to sync. `setup`, `run`, `teardown` and `down`
 talk to the node, so they need your context file (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`).
 `run` takes its pull request's project and repositories from the node, not from `.dev.env`, and the task's image
-from `trigger.json`. `kubectl get fn -n fn` shows each resource's Synced and Message.
+from `trigger.json`. `kubectl get fn -A` shows each resource's Synced and Message.
 
 `run` and `run --local` add `DEV_ENV` from your shell (JSON, e.g. `DEV_ENV='{"EXAMPLE_FLAG": "1"}'`) to the `env`
 of the trigger file. An experiment can use it for a quick dev run (see its README). With no `DEV_ENV`, or with
@@ -81,7 +81,7 @@ fncli demo --project demo-gitea              # the pull request walk on the appl
 kubectl delete -f config/demo.yaml           # clean up (demo-github: config/github/demo-github.yaml)
 ```
 
-`fncli demo` creates and deletes nothing: it stops, showing the operator's message, unless the Project resource is synced (`kubectl get fn -n fn`).
+`fncli demo` creates and deletes nothing: it stops, showing the operator's message, unless the Project resource is synced (`kubectl get fn -A`).
 
 A project that names a dataset that is not on the node does not sync, so run `deploy` and `setup` first.
 
@@ -102,7 +102,7 @@ name to try to read) and `SLEEP_SECONDS` (to hang the task and see the pod's dea
 - `fncli experiment teardown NAME` removes what `setup` applied for NAME: `kubectl delete` of
   `config/experiments/NAME.yaml`, its project, repositories and NodeSecrets. The dataset is the chart's, so it
   stays until `down`, as do the Gitea repos, OAuth apps and Secrets. A repository that another project still uses
-  stays `Terminating`, with the reason in `kubectl get fn -n fn`.
+  stays `Terminating`, with the reason in `kubectl get fn -A`.
 - `fncli experiment down` does that for every experiment, then uninstalls the release, which removes the
   datasets' resources. The secrets and database files stay, so a later `setup` gets the same data back. If a demo
   project still uses `demo-db`, the dataset stays `Terminating` until you delete the demo project:

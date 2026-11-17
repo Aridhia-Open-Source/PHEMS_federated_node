@@ -8,11 +8,12 @@
 {{- /* The RBAC goes before the Job: Helm breaks a weight tie by name, which depends on the release name. */}}
 {{- $hook := dict "helm.sh/hook" "pre-delete" "helm.sh/hook-weight" "-20" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
 {{- $jobHook := merge (dict "helm.sh/hook-weight" "-10") $hook }}
+{{- $operatorNs := include "operator_namespace" . }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: nexus-operator-uninstall
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ $operatorNs }}
   annotations:
     {{- toYaml $hook | nindent 4 }}
 {{- range (include "operatorNamespaces" . | fromJsonArray) }}
@@ -28,7 +29,7 @@ rules:
 - apiGroups: ["fn.aridhia.com"]
   resources: ["gitproviders", "nodesecrets", "repositories", "datasets", "projects"]
   verbs: ["get", "list", "patch"]
-{{- if eq . $.Release.Namespace }}
+{{- if eq . $operatorNs }}
 - apiGroups: ["apps"]
   resources: ["deployments", "deployments/scale"]
   resourceNames: ["nexus-operator"]
@@ -48,7 +49,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: nexus-operator-uninstall
-    namespace: {{ $.Release.Namespace }}
+    namespace: {{ $operatorNs }}
 roleRef:
   kind: Role
   name: {{ $.Release.Name }}-nexus-operator-uninstall
@@ -59,7 +60,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: nexus-operator-uninstall
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ $operatorNs }}
   annotations:
     {{- toYaml $jobHook | nindent 4 }}
 spec:
@@ -77,8 +78,8 @@ spec:
           command: ["/bin/sh", "-ec"]
           args:
             - |
-              kubectl scale deployment nexus-operator -n {{ .Release.Namespace }} --replicas=0
-              kubectl wait pod -l app=nexus-operator -n {{ .Release.Namespace }} --for=delete --timeout=120s || true  # no pod left is the goal
+              kubectl scale deployment nexus-operator -n {{ $operatorNs }} --replicas=0
+              kubectl wait pod -l app=nexus-operator -n {{ $operatorNs }} --for=delete --timeout=120s || true  # no pod left is the goal
               for ns in {{ include "operatorNamespaces" . | fromJsonArray | join " " }}; do
                 for kind in gitproviders nodesecrets repositories datasets projects; do
                   for name in $(kubectl get "$kind.fn.aridhia.com" -n "$ns" -o name); do

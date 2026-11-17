@@ -135,7 +135,7 @@ Design decisions:
   `force`. A 409 keeps the resource in `Terminating` with the message in status and retries with backoff.
 - **Uninstall.** A pre-delete hook Job stops the operator and strips the finalizers, so `helm uninstall` and
   `mise run teardown` do not hang and do not soft-delete records.
-- **Namespaces.** The operator watches the release namespace plus `operator.watchNamespaces` (dev adds
+- **Namespaces.** The operator runs in `fn-operator` and watches it plus `operator.watchNamespaces` (dev adds
   `experiments`). It reads a source Secret only in the resource's own namespace.
 - **RBAC.** Role per watched namespace: the five kinds and their `status` (get, list, watch, patch), `secrets` (get),
   `events` (create). Kopf's peering is off (one replica, `Recreate` strategy).

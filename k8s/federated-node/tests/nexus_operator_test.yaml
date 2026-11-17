@@ -17,18 +17,21 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: runs one replica with Recreate, watching the release namespace and watchNamespaces
+  - it: runs one replica with Recreate in its own namespace, watching it and watchNamespaces, not the release namespace
     template: nexus-operator-deployment.yaml
     documentSelector:
       path: kind
       value: Deployment
     asserts:
       - equal:
+          path: metadata.namespace
+          value: fn-operator
+      - equal:
           path: spec.strategy.type
           value: Recreate
       - equal:
           path: spec.template.spec.containers[0].args
-          value: [--namespace=federatednode, --namespace=experiments]
+          value: [--namespace=fn-operator, --namespace=experiments]
       - matchRegex:
           path: spec.template.spec.containers[0].image
           pattern: ^ghcr.io/aridhia-open-source/nexus_operator:.+
@@ -61,15 +64,53 @@ tests:
                 - secret:
                     name: operator-keycloak-creds
 
-  - it: has a Role in each watched namespace
+  - it: makes its own namespace
+    template: operator-namespace.yaml
+    asserts:
+      - isKind:
+          of: Namespace
+      - equal:
+          path: metadata.name
+          value: fn-operator
+
+  - it: makes no namespace when the operator is off
+    template: operator-namespace.yaml
+    set:
+      operator.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: has a Role in each watched namespace, none in the release namespace
     template: nexus-operator-roles.yaml
     asserts:
       - hasDocuments:
           count: 4
       - equal:
           path: metadata.namespace
+          value: fn-operator
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
           value: experiments
         documentIndex: 2
+      - notEqual:
+          path: metadata.namespace
+          value: federatednode
+      - equal:
+          path: subjects[0].namespace
+          value: fn-operator
+        documentIndex: 1
+
+  - it: takes its namespace from global.namespaces.operator
+    template: nexus-operator-roles.yaml
+    set:
+      global.namespaces.operator: node-config
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: node-config
+        documentIndex: 0
 
   - it: strips the finalizers in a pre-delete hook
     template: nexus-operator-uninstall-hook.yaml
@@ -85,7 +126,13 @@ tests:
           value: "-10"
       - matchRegex:
           path: spec.template.spec.containers[0].args[0]
-          pattern: 'for ns in federatednode experiments'
+          pattern: 'for ns in fn-operator experiments'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'kubectl scale deployment nexus-operator -n fn-operator'
+      - equal:
+          path: metadata.namespace
+          value: fn-operator
 
   - it: creates the hook's RBAC before its Job
     template: nexus-operator-uninstall-hook.yaml
@@ -108,3 +155,16 @@ tests:
       - equal:
           path: data.OPERATOR_KC_USER
           value: Zm4tb3BlcmF0b3I=
+      - notEqual:
+          path: metadata.namespace
+          value: federatednode
+
+  - it: puts the fn-operator login in the operator namespace, and nothing else there
+    template: keycloak-secrets.yaml
+    documentSelector:
+      path: metadata.namespace
+      value: fn-operator
+    asserts:
+      - equal:
+          path: metadata.name
+          value: operator-keycloak-creds

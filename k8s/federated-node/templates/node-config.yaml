@@ -1,5 +1,5 @@
 {{- /*
-nodeConfig as custom resources (ADR 0032), for the operator to sync into nexus-api. Each entry's fields are its spec,
+nodeConfig as custom resources (ADR 0032), in the operator's namespace, for the operator to sync into nexus-api. Each entry's fields are its spec,
 as in the dev files; the name moves to metadata.name. A repository with no name is named by its type and the slug
 of its uri (trigger-..., results-...), so one uri can be both; spec.uri stays the nexus-api key.
 */}}
@@ -10,7 +10,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: GitProvider
 metadata:
   name: {{ .name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ include "operator_namespace" $ }}
 spec:
   {{- omit . "name" | toYaml | nindent 2 }}
 {{- end }}
@@ -20,7 +20,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: NodeSecret
 metadata:
   name: {{ $name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ include "operator_namespace" $ }}
 spec:
   {{- toYaml $secret | nindent 2 }}
 {{- end }}
@@ -33,7 +33,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Repository
 metadata:
   name: {{ .name | default $slug }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ include "operator_namespace" $ }}
 spec:
   type: {{ $type }}
   {{- omit . "name" | toYaml | nindent 2 }}
@@ -45,7 +45,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Dataset
 metadata:
   name: {{ .name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ include "operator_namespace" $ }}
 spec:
   {{- omit . "name" | toYaml | nindent 2 }}
 {{- end }}
@@ -55,7 +55,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Project
 metadata:
   name: {{ .name }}
-  namespace: {{ $.Release.Namespace }}
+  namespace: {{ include "operator_namespace" $ }}
 spec:
   {{- omit . "name" | toYaml | nindent 2 }}
 {{- end }}

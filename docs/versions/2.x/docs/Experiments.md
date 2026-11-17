@@ -34,7 +34,7 @@ fncli experiment run NAME              # trigger a pull request, follow the task
 
 They are safe to rerun after a failure. `setup`, `run`, `teardown` and `down` talk to the node, so they need your context file ([Using fncli](./Using-fncli#the-context-file)). If `fncli experiment` says "No such command", run `mise run setup` in this checkout.
 
-`deploy` makes the dataset: it is `dbs.<name>.name` of `values.yaml`, and its secret reads the Kubernetes secret `dbs.<name>.secret.name` in `experiments`. `setup` waits for it to sync to the node. If `config/experiments/<name>.yaml` exists, it then runs `fncli gitea setup` on it (the Gitea repositories, and a Secret with an OAuth app for each NodeSecret), applies it with `config/gitea.yaml` using `kubectl apply`, and waits for every resource to sync. `kubectl get fn -n fn` shows each resource's Synced and Message.
+`deploy` makes the dataset: it is `dbs.<name>.name` of `values.yaml`, and its secret reads the Kubernetes secret `dbs.<name>.secret.name` in `experiments`. `setup` waits for it to sync to the node. If `config/experiments/<name>.yaml` exists, it then runs `fncli gitea setup` on it (the Gitea repositories, and a Secret with an OAuth app for each NodeSecret), applies it with `config/gitea.yaml` using `kubectl apply`, and waits for every resource to sync. `kubectl get fn -A` shows each resource's Synced and Message.
 
 `run` takes its pull request's project and repositories from the node, and the task's image from `trigger.json`. It adds `DEV_ENV` from your shell (JSON) to the task's `env`, which is how a quick run is asked for (`DEV_ENV='{"SOME_FLAG": "1"}' fncli experiment run NAME`). `FULL=1` leaves it out.
 
@@ -79,7 +79,7 @@ Run it like any experiment (`up`, `build attacker`, `seed attacker`, `setup atta
 
 ## Clean up
 
-- `fncli experiment teardown NAME` removes what `setup` applied for NAME: `kubectl delete` of `config/experiments/<name>.yaml`, its project, repositories and NodeSecrets. The dataset is the chart's, so it stays until `down`, as do the release and its database. A repository that another project still uses stays `Terminating`, with the reason in `kubectl get fn -n fn`.
+- `fncli experiment teardown NAME` removes what `setup` applied for NAME: `kubectl delete` of `config/experiments/<name>.yaml`, its project, repositories and NodeSecrets. The dataset is the chart's, so it stays until `down`, as do the release and its database. A repository that another project still uses stays `Terminating`, with the reason in `kubectl get fn -A`.
 - `fncli experiment down` does that for every experiment, then uninstalls the release, which removes the datasets' resources. The secrets and database files stay, so a later `setup` gets the same data back. If a demo project still uses `demo-db`, the dataset stays `Terminating`: delete the demo project first.
 - To start from empty: `kubectl delete ns experiments`, then delete `~/.fn/data/experiments`. Postgres owns it, so that needs root or the kind node.
 

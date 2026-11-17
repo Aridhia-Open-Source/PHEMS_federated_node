@@ -32,7 +32,7 @@ TRIGGER = {"spec": {"image": "localhost:5001/x-fn:latest", "env": {"BASE": "1"}}
 
 def project_resource(name="exp") -> dict:
     """What config/experiments/NAME.yaml holds, as far as the commands read it: the Project resource"""
-    return {"apiVersion": "fn.aridhia.com/v1alpha1", "kind": "Project", "metadata": {"name": name, "namespace": "fn"},
+    return {"apiVersion": "fn.aridhia.com/v1alpha1", "kind": "Project", "metadata": {"name": name, "namespace": "fn-operator"},
             "spec": {"datasets": ["x-db"], "repositories": {}}}
 
 

@@ -184,6 +184,9 @@ securityContext:
 {{- define "secrets_namespace" -}}
 {{ ((.Values.global).namespaces).secrets | default "fn-secrets" }}
 {{- end -}}
+{{- define "operator_namespace" -}}
+{{ ((.Values.global).namespaces).operator | default "fn-operator" }}
+{{- end -}}
 {{- /* The service accounts that store secrets. Emitted as RoleBinding subjects. */ -}}
 {{- define "nexusApiSubjects" -}}
 - kind: ServiceAccount
@@ -283,7 +286,8 @@ could point out of its folder.
 {{ printf "%s:%s" (.Values.operator.image) ((.Values.operator.tag) | default (include "image-tag" . | trim)) }}
 {{- end }}
 
-{{/* The namespaces the operator watches: the release namespace plus operator.watchNamespaces, as JSON */}}
+{{/* The namespaces the operator watches: its own namespace plus operator.watchNamespaces, as JSON. Never the
+     release namespace, which holds the node's own credentials. */}}
 {{- define "operatorNamespaces" -}}
-{{ prepend (.Values.operator.watchNamespaces | default list) .Release.Namespace | uniq | toJson }}
+{{ prepend (.Values.operator.watchNamespaces | default list) (include "operator_namespace" .) | uniq | toJson }}
 {{- end }}

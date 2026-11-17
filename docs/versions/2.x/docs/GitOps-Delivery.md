@@ -100,7 +100,7 @@ Add to `nodeConfig` in `values.yaml`, then commit and push:
 Expect:
 
 - `values.yaml` becomes a new ConfigMap and Flux upgrades the release at once.
-- `kubectl get fn -n fn` lists the `Project` `gitops-demo` with `Synced` true.
+- `kubectl get fn -n fn-operator` lists the `Project` `gitops-demo` with `Synced` true.
 - The project is in nexus-api (the UI at `http://localhost:8088`, or `GET /projects`).
 
 Then `git revert --no-edit HEAD && git push`. The `Project` resource is gone after the upgrade, and the operator soft-deletes the project in nexus-api.

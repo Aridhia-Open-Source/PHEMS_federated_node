@@ -5,7 +5,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: GitProvider
 metadata:
   name: gitea-local
-  namespace: fn
+  namespace: fn-operator
 spec:
   type: gitea
   uri: http://gitea.fn.svc:4000                    # as the node sees it, not the port-forward

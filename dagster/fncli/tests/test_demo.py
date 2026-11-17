@@ -22,7 +22,7 @@ CONFIG = REPO_ROOT / "config"
 def project_resource(name="demo-gitea", synced=True, generation=2, observed=2, message="") -> dict:
     """A Project resource as the cluster returns it, with the operator's status"""
     return {
-        "metadata": {"name": name, "namespace": "fn", "generation": generation},
+        "metadata": {"name": name, "namespace": "fn-operator", "generation": generation},
         "spec": {
             "datasets": ["shared"],
             "repositories": {
@@ -139,7 +139,7 @@ def test_yes_runs_every_step_in_order(ran, run_demo, opened):
 
     assert result.exit_code == 0, result.output
     assert names(ran) == ["one", "two", "three"]
-    assert opened == [("fn", "demo-gitea")]
+    assert opened == [("fn-operator", "demo-gitea")]
     assert "Step 3: title of three" in result.output
     assert result.output.rstrip().endswith("Done.")
 
@@ -265,7 +265,7 @@ def test_the_demo_refuses_with_exit_1_until_the_operator_has_synced_the_project(
 
     assert result.exit_code == 1
     assert "Project demo-gitea is not synced to the node yet: dataset shared not found" in result.output
-    assert "kubectl get fn -n fn" in result.output
+    assert "kubectl get fn -n fn-operator" in result.output
     assert ran == []
 
 
@@ -300,7 +300,7 @@ def test_a_project_flag_beats_the_default_and_says_nothing(ran, run_demo, opened
     result = run_demo("--yes", "--project", "demo-other")
 
     assert "Using the defaults" not in result.output
-    assert opened == [("fn", "demo-other")]
+    assert opened == [("fn-operator", "demo-other")]
 
 
 def test_the_env_default_project_beats_the_context_file(ran, run_demo, opened, monkeypatch):
@@ -309,7 +309,7 @@ def test_the_env_default_project_beats_the_context_file(ran, run_demo, opened, m
     result = run_demo("--yes")
 
     assert result.output.splitlines()[0].endswith(": project demo-other")
-    assert opened == [("fn", "demo-other")]
+    assert opened == [("fn-operator", "demo-other")]
 
 
 def test_no_project_flag_and_no_default_is_a_usage_error(ran, run_demo, context_file):

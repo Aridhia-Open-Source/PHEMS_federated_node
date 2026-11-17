@@ -20,7 +20,7 @@ import requests
 from nexus_client.http import BackendSession
 from fncli.backend import FncliBackendAPI
 from nexus_client.git_uri import repo_path_of
-from fncli.cmds.common import DagsterConfig, NamespaceConfig, RepoConfig, to_host_url
+from fncli.cmds.common import DagsterConfig, OperatorNamespaceConfig, RepoConfig, to_host_url
 from fncli.cmds.target import announce_defaults, context_option, open_target
 from fncli.cmds.pr import DEFAULT_TRIGGER_FILE, merge_results_pr_command, resolve_trigger
 from fncli.cmds.project import project_healthcheck_command
@@ -346,7 +346,7 @@ def demo_command(ctx, trigger_file, context, project, yes_to_all, from_step):
     delivers its results in a results pull request, which is merged, then checks of the whole project. It creates and
     deletes nothing: set the node up first with kubectl apply of the project's node config (config/demo.yaml, after
     `fncli gitea setup -f config/gitea.yaml -f config/demo.yaml`), and remove it afterwards with kubectl delete. It stops unless the
-    project's Project resource is synced (`kubectl get fn -n NAMESPACE`).
+    project's Project resource is synced (`kubectl get fn -n OPERATOR_NAMESPACE`, default fn-operator).
 
     TRIGGER is the trigger file the pull request adds: a path, or one relative to triggers/, default
     examples/demo.json (examples/demo-failing.json makes a task that fails).
@@ -365,7 +365,7 @@ def demo_command(ctx, trigger_file, context, project, yes_to_all, from_step):
             raise click.UsageError(f"Give --project, or set defaults.project in {context.path}")
         announce_defaults(context, [f"project {project}"])
     api = open_target(context)
-    namespace = NamespaceConfig().namespace
+    namespace = OperatorNamespaceConfig().namespace
     resource = get_node_config("projects", namespace, project)
     if resource is None:
         raise click.ClickException(

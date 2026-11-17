@@ -1,7 +1,7 @@
 # The GitHub demo: the phems-sandbox repository as both trigger and results repository, through a GitHub App, and
 # the project demo-github. The dataset demo-db is the experiments chart's (`fncli experiment setup demo`).
 # The App's values go in a Kubernetes Secret first; no value is in this file:
-#   kubectl create secret generic phems-sandbox-github-app -n fn \
+#   kubectl create secret generic phems-sandbox-github-app -n fn-operator \
 #     --from-literal=APP_ID="$GH_APP_ID" --from-literal=INSTALLATION_ID="$GH_INSTALLATION_ID" \
 #     --from-file=PRIVATE_KEY=$HOME/.config/phems/phems-sandbox.private-key.pem
 #   kubectl apply -f config/github/demo-github.yaml
@@ -10,7 +10,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: GitProvider
 metadata:
   name: github
-  namespace: fn
+  namespace: fn-operator
 spec:
   type: github
   uri: https://github.com
@@ -19,7 +19,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: NodeSecret
 metadata:
   name: phems-sandbox-creds                        # shared by the trigger and the results repository
-  namespace: fn
+  namespace: fn-operator
 spec:
   fromSecret: {name: phems-sandbox-github-app}     # keys APP_ID, INSTALLATION_ID, PRIVATE_KEY
 ---
@@ -27,7 +27,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Repository
 metadata:
   name: phems-sandbox-trigger
-  namespace: fn
+  namespace: fn-operator
 spec:
   type: trigger
   uri: https://github.com/Aridhia-Open-Source/phems-sandbox
@@ -37,7 +37,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Repository
 metadata:
   name: phems-sandbox-results
-  namespace: fn
+  namespace: fn-operator
 spec:
   type: results
   uri: https://github.com/Aridhia-Open-Source/phems-sandbox
@@ -47,7 +47,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Project
 metadata:
   name: demo-github
-  namespace: fn
+  namespace: fn-operator
 spec:
   datasets: [demo-db]
   repositories:

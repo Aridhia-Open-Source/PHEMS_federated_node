@@ -20,11 +20,11 @@ the API client.
    as `GH_APP_ID` and `GH_INSTALLATION_ID`, and keep the key at `~/.config/phems/phems-sandbox.private-key.pem`:
 
 ```bash
-kubectl create secret generic phems-sandbox-github-app -n fn \
+kubectl create secret generic phems-sandbox-github-app -n fn-operator \
   --from-literal=APP_ID="$GH_APP_ID" --from-literal=INSTALLATION_ID="$GH_INSTALLATION_ID" \
   --from-file=PRIVATE_KEY=$HOME/.config/phems/phems-sandbox.private-key.pem
 kubectl apply -f config/github/demo-github.yaml     # provider, NodeSecret, repositories and the project
-kubectl get fn -n fn                                # each resource's Synced and Message
+kubectl get fn -n fn-operator                                # each resource's Synced and Message
 fncli verify-git-secret --entity trigger --project demo-github   # nexus-api mints a token, GitHub accepts it
 fncli verify-git-secret --entity results --project demo-github
 ```

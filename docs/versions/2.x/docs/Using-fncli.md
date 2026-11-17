@@ -61,7 +61,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Project
 metadata:
   name: demo-gitea
-  namespace: fn
+  namespace: fn-operator
 spec:
   datasets: [demo-db]                  # the experiments chart's
   repositories:
@@ -77,7 +77,7 @@ spec:
 
 - **The keys are the backend's own unique fields**, so a file holds no ids: provider uri, repository uri, secret name, dataset name, project name.
 - **A secret's values come from a Kubernetes Secret.** A NodeSecret names it (`fromSecret`) or points at keys of other Secrets, so a file can never hold a secret value. `fncli gitea setup` makes the Secret for a Gitea repository; for a GitHub App you run `kubectl create secret` ([Run locally](./Run-Locally)).
-- **The operator reports in each resource's status.** `kubectl get fn -n fn` shows Synced and a Message, for example a Secret or dataset that is not there yet.
+- **The operator reports in each resource's status.** `kubectl get fn -n fn-operator` shows Synced and a Message, for example a Secret or dataset that is not there yet.
 - Names may use only lowercase letters, digits, `-` and `.`.
 
 The format, the operator and more examples are in [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0032-declarative-node-config-through-an-operator.md).
@@ -95,7 +95,7 @@ The node config is applied in the style of kubectl, because it is kubectl.
 |---|---|
 | `fncli gitea setup -f FILE [--rotate NODESECRET]` | Creates the Gitea repositories of the file's Repository resources and, for each NodeSecret they name, a Gitea OAuth app named after it. Writes `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN` into the Kubernetes Secret the NodeSecret's `fromSecret` names |
 | `kubectl apply -f config/` | The operator syncs each resource to nexus-api, in dependency order. A project is created disabled and enabled last |
-| `kubectl get fn -n fn` | Each resource's Synced and Message |
+| `kubectl get fn -n fn-operator` | Each resource's Synced and Message |
 | `kubectl diff -f FILE` | What an apply would change |
 | `kubectl delete -f FILE` | Soft-deletes the resources' records |
 

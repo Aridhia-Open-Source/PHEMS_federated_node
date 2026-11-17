@@ -4,7 +4,7 @@ apiVersion: fn.aridhia.com/v1alpha1
 kind: Project
 metadata:
   name: qa-three
-  namespace: fn
+  namespace: fn-operator
 spec:
   datasets: [dev-dataset]
   repositories:

@@ -94,6 +94,11 @@
                 "secrets": {
                     "type": "string",
                     "default": "fn-secrets"
+                },
+                "operator": {
+                    "type": "string",
+                    "default": "fn-operator",
+                    "description": "The nexus operator's namespace: its Deployment, the node config custom resources and their source Secrets"
                 }
             }
         },
@@ -1112,13 +1117,34 @@
                 "enabled": {
                     "type": "boolean",
                     "default": false
+                },
+                "image": {
+                    "type": "string"
+                },
+                "tag": {
+                    "$ref": "#/definitions/tag"
+                },
+                "watchNamespaces": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "Namespaces watched besides the operator's own (global.namespaces.operator). Never the release namespace."
+                },
+                "syncIntervalSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 60
+                },
+                "resources": {
+                    "type": "object"
                 }
             }
         },
         "nodeConfig": {
             "type": "object",
             "additionalProperties": false,
-            "description": "The node's config, rendered as fn.aridhia.com custom resources in the release namespace for the operator (ADR 0032). No secret values: secrets name the Kubernetes Secret that holds them",
+            "description": "The node's config, rendered as fn.aridhia.com custom resources in the operator namespace (global.namespaces.operator) (ADR 0032). No secret values: secrets name the Kubernetes Secret that holds them",
             "properties": {
                 "providers": {
                     "type": "array",

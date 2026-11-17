@@ -280,7 +280,7 @@ The demo is `config/demo.yaml`: two NodeSecrets (each one's Kubernetes Secret ho
 
    ```bash
    kubectl apply -f config/
-   kubectl get fn -n fn
+   kubectl get fn -n fn-operator
    ```
 
    Every row should show `Synced` true. A row that does not has its reason in `Message`: a missing Secret, a dataset that is not on the node, a repository the project names that is not applied yet. Fix it and apply again.
@@ -309,7 +309,7 @@ The demo is `config/demo.yaml`: two NodeSecrets (each one's Kubernetes Secret ho
    kubectl delete -f config/demo.yaml      # the project, repositories and NodeSecrets (config/gitea.yaml stays)
    ```
 
-   - The operator deletes them from the node too. It skips what another project still uses, and says so in `kubectl get fn -n fn`.
+   - The operator deletes them from the node too. It skips what another project still uses, and says so in `kubectl get fn -n fn-operator`.
    - The Gitea repos, OAuth apps and Kubernetes Secrets stay, and the next run reuses them.
    - The dataset `demo-db` is the experiments chart's, so the delete does not touch it. `fncli experiment down` removes it (with the release), and it waits while a project still uses it.
 
@@ -371,16 +371,16 @@ fncli never creates or deletes GitHub repos, tokens or Apps. You make them, then
 10. Store the App's values in the Secret, apply, run the demo, delete.
 
     ```bash
-    kubectl create secret generic phems-sandbox-github-app -n fn \
+    kubectl create secret generic phems-sandbox-github-app -n fn-operator \
       --from-literal=APP_ID="$GH_APP_ID" --from-literal=INSTALLATION_ID="$GH_INSTALLATION_ID" \
       --from-file=PRIVATE_KEY=$HOME/.config/phems/<your-app>.private-key.pem
     kubectl apply -f config/github/<your-name>-github.yaml
-    kubectl get fn -n fn
+    kubectl get fn -n fn-operator
     fncli demo --project <your-project>
     kubectl delete -f config/github/<your-name>-github.yaml
     ```
 
-    `GH_APP_ID` and `GH_INSTALLATION_ID` must be set in your shell, for example `set -a; source .dev.env; set +a`. The `kubectl delete` of the Secret itself is separate: `kubectl delete secret phems-sandbox-github-app -n fn`. The file has no Gitea section, so there are no Gitea repos to make. The demo asks the backend for a token for each repo and calls GitHub with it (the two `verify-git-secret` steps), then opens a pull request into your repo, merges it, and later merges the results pull request, which you can watch in your repo. Everything is also visible in the `Open:` addresses.
+    `GH_APP_ID` and `GH_INSTALLATION_ID` must be set in your shell, for example `set -a; source .dev.env; set +a`. The `kubectl delete` of the Secret itself is separate: `kubectl delete secret phems-sandbox-github-app -n fn-operator`. The file has no Gitea section, so there are no Gitea repos to make. The demo asks the backend for a token for each repo and calls GitHub with it (the two `verify-git-secret` steps), then opens a pull request into your repo, merges it, and later merges the results pull request, which you can watch in your repo. Everything is also visible in the `Open:` addresses.
 
     The delete notes at the end of step 8 apply here too: nothing is deleted in your GitHub repo, and the dataset stays.
 
@@ -393,14 +393,14 @@ Only what the repo's scripts and docs already call out.
 | fncli: `... is for kubectl context kind-fn, but the current one is ...` | `kubectl config use-context kind-fn` |
 | fncli: `node.env_file ... not found` | The env file must exist in or above the context file's directory. Make `.dev.env` (step 4) |
 | fncli: `context.yaml not found, as given or under bootstrap/ from here up` | `cp bootstrap/examples/context.yaml bootstrap/context.yaml` (step 5), or give `--context FILE` |
-| `kubectl get fn -n fn` shows a row not synced | Read its `Message`: a Kubernetes Secret that is missing (`fncli gitea setup -f FILE`, or `kubectl create secret` for GitHub, step 9), a dataset that is not on the node (the `fncli experiment` steps in step 7), or a repository not applied yet |
+| `kubectl get fn -n fn-operator` shows a row not synced | Read its `Message`: a Kubernetes Secret that is missing (`fncli gitea setup -f FILE`, or `kubectl create secret` for GitHub, step 9), a dataset that is not on the node (the `fncli experiment` steps in step 7), or a repository not applied yet |
 | `The node cannot connect to the dataset's database` | `fncli experiment deploy`, then `fncli experiment seed demo` |
 | `No experiments deployment: run fncli experiment deploy first` | `fncli experiment deploy` |
 | `fncli: command not found` | Activate mise in your shell (step 2), then a new terminal. Or run `mise run setup` if you have not |
 | `fncli experiment`: `No such command`, or `No module named 'fncli'` | Run `mise run setup` in this checkout (step 5). An old pipx copy: `pipx uninstall phems` |
 | `Writing to a GitHub repo needs RESEARCHER_GIT_TOKEN, or gh auth login` | Step 9, item 7 |
 | A merged pull request does nothing | `fncli sensor-status`. Sensors are stopped by default: `fncli start-sensor --group all` |
-| `fncli demo`: `Project ... is not synced to the node yet` | `kubectl get fn -n fn` and read the `Message`. Fix what it names, `kubectl apply -f config/` again, then the demo |
+| `fncli demo`: `Project ... is not synced to the node yet` | `kubectl get fn -n fn-operator` and read the `Message`. Fix what it names, `kubectl apply -f config/` again, then the demo |
 | A demo step failed | Fix the cause and rerun with `fncli demo --project <your project> --from N` |
 | `Connection refused` on localhost 5000, 4000 or 3000 | Tilt must be running (`tilt up --stream`). Check `tilt logs \| grep "Port forward"`, or forward by hand: `kubectl port-forward service/nexus-api 5000:5000 -n fn` |
 | Helm will not render, or the chart's subcharts are missing | `mise run helm deps` |
@@ -411,7 +411,7 @@ Only what the repo's scripts and docs already call out.
 | Pods in `ImagePullBackOff`, or the chart fails with a missing `nodeId` or a wrong database host | A stale or hand-edited `dev.values.yaml`. Compare it with `dev.example.values.yml`: `nodeId` set, image tags `latest`, `db.host` equal to `db.<NAMESPACE>.svc` |
 | `mise run teardown`: `No cluster reachable, so nothing was wiped` | `~/.fn/data` is still on disk. Delete it before you reinstall, or keep the password secrets that go with it |
 | `mise run teardown`: `namespace fn is gone, so an earlier teardown already wiped /data` | Nothing to do. It is information |
-| A resource stays `Terminating` after `kubectl delete` | A project outside the file still uses it (the repository of the other demo, say). `kubectl get fn -n fn` shows the operator's message. Delete that project first |
+| A resource stays `Terminating` after `kubectl delete` | A project outside the file still uses it (the repository of the other demo, say). `kubectl get fn -n fn-operator` shows the operator's message. Delete that project first |
 | A pod is stuck in `CrashLoopBackOff` | `kubectl describe pod <pod> -n fn` and `kubectl logs <pod> -n fn` |
 
 ## 11. Teardown and starting over

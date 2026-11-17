@@ -33,7 +33,7 @@ Run commands from anywhere inside the repo: `.dev.env` is found by searching up 
 Three kinds of file, none with a secret value:
 
 - **The context** (`bootstrap/context.yaml`, from `bootstrap/examples/context.yaml`): which node fncli works on (its url, the kubectl context it must be on, its env file) and the `defaults` of the commands. Every command that talks to the node reads it. It is found from the current directory up, or give `--context FILE` (`FNCLI_CONTEXT`). Without one the command stops and tells you to copy the example.
-- **Node config** (`config/*.yaml`, `config/*/*.yaml`): Kubernetes custom resources (`fn.aridhia.com/v1alpha1`: GitProvider, NodeSecret, Repository, Dataset, Project) for the dev flows: `gitea.yaml`, `demo.yaml`, `github/`, `experiments/` and `e2e/`. They are applied with `kubectl apply -f`, and the nexus operator syncs them to nexus-api; `kubectl get fn -n fn` shows each resource's Synced and Message. A NodeSecret names a Kubernetes Secret, never a value. [ADR 0032](../../project/decisions/0032-declarative-node-config-through-an-operator.md) has the format and examples.
+- **Node config** (`config/*.yaml`, `config/*/*.yaml`): Kubernetes custom resources (`fn.aridhia.com/v1alpha1`: GitProvider, NodeSecret, Repository, Dataset, Project) for the dev flows: `gitea.yaml`, `demo.yaml`, `github/`, `experiments/` and `e2e/`. They are applied with `kubectl apply -f`, and the nexus operator syncs them to nexus-api; `kubectl get fn -n fn-operator` shows each resource's Synced and Message. A NodeSecret names a Kubernetes Secret, never a value. [ADR 0032](../../project/decisions/0032-declarative-node-config-through-an-operator.md) has the format and examples.
 - **Trigger files** (`triggers/*.json`, examples in `triggers/examples/`; a path, or one relative to the nearest `triggers/`): the JSON that asks the node to run a task, `{"spec": {"image": "...", "env": {...}}}`, the same file whether it is sent in a pull request or (later) to the API.
 
 ```bash
@@ -41,7 +41,7 @@ cp bootstrap/examples/context.yaml bootstrap/context.yaml
 fncli experiment deploy                     # the demo database, which the dev project's stand-in dataset reads
 fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml # the Gitea repos of the dev project, and the Secrets with their OAuth apps
 kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml   # provider, dataset, secrets, repos, project
-kubectl get fn -n fn                        # each resource's Synced and Message
+kubectl get fn -n fn-operator                        # each resource's Synced and Message
 fncli start-sensor --group all      # ingest -> evaluate -> launcher, plus the run-status sensors (fncli sensor-status to watch)
 fncli trigger triggers/examples/demo.json --project fn-dev --pr --merge   # a task, by a merged pull request
 kubectl delete -f config/e2e/fn-dev.yaml -f config/e2e/dev-dataset.yaml   # delete it all again, last (Gitea repos stay)
@@ -130,7 +130,7 @@ A second project on the same global resources is `kubectl apply -f config/e2e/qa
 ```bash
 fncli gitea setup -f config/gitea.yaml -f config/demo.yaml                # first: the Gitea repos and OAuth Secrets
 kubectl apply -f config/                             # then the node config (config/gitea.yaml and config/demo.yaml)
-kubectl get fn -n fn                                 # wait for every row to be synced
+kubectl get fn -n fn-operator                                 # wait for every row to be synced
 fncli demo --project demo-gitea                      # step by step, with triggers/examples/demo.json
 fncli demo --project demo-github -y                  # every step without asking, on GitHub (phems-sandbox; apply config/github/demo-github.yaml first)
 fncli demo --project demo-gitea triggers/examples/demo-failing.json   # a task that fails
