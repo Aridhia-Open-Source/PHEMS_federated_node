@@ -9,6 +9,9 @@ metadata:
     release: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.gitea.replicaCount | default 1 }}
+  # Recreate: two pods on the one /data volume fight over its queue lock and the new one exits
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: gitea

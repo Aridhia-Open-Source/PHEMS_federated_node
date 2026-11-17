@@ -15,6 +15,12 @@ set:
         name: gitea-admin
         key: password
 tests:
+  - it: recreates gitea on upgrade, so two pods never share /data
+    template: templates/gitea-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
   - it: leaves actions and the runner off by default
     template: templates/gitea-deployment.yaml
     asserts:
