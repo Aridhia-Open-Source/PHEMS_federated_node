@@ -14,11 +14,10 @@ Status: Proposed, 2026-11-17.
 ### The users table
 
 - **nexus-api has a `users` table,** one row per Keycloak identity that has called it. It records identity only; access stays in Keycloak.
-- **Columns:** `id` (the Keycloak user id, the primary key), `username`, `kind`, `created_at`, `last_seen_at`.
+- **Columns:** `id` (the Keycloak user id, the primary key), `username`, `created_at`, `last_seen_at`.
 - **The caller's groups are read from the token:** its realm roles and, when the token has a `groups` claim, its Keycloak groups. `Caller.groups` holds them.
 - **Owner groups are one setting,** `OWNER_GROUPS`: a comma-separated list of group or role names, by default `service-account`. That realm role is defined in the chart's realm (`k8s/federated-node/scripts/realms.json`) and granted in Keycloak like any other role.
-- **`kind` is `human` or `service`.** It is `service` when the caller is in an owner group, otherwise `human`.
-- **The row is written on each authenticated call.** `get_caller` upserts it (one `INSERT ... ON CONFLICT DO UPDATE`, committed at once), refreshing `username`, `kind` and `last_seen_at`. The caller then carries `user` and `kind`.
+- **The row is written on each authenticated call.** `get_caller` upserts it (one `INSERT ... ON CONFLICT DO UPDATE`, committed at once), refreshing `username` and `last_seen_at`. The caller then carries `user`.
 - **The row is never deleted.** Records keep pointing at it after the Keycloak user is gone.
 
 ### Who owns a record
@@ -53,7 +52,7 @@ Status: Proposed, 2026-11-17.
 
 ## Alternatives considered
 
-- **Plain Keycloak id strings, as in `develop`:** no username without a Keycloak call per record, no foreign key, and nowhere to keep the kind.
+- **Plain Keycloak id strings, as in `develop`:** no username without a Keycloak call per record and no foreign key.
 - **Reading the user from Keycloak on demand:** a Keycloak admin call per record shown, and a deleted Keycloak user leaves the id unreadable.
 - **Ownership in Keycloak (a resource per record):** access stays in Keycloak, but a record's owner is a fact about the record, and nexus-api already owns the record and its rules ([0021](0021-nexus-api-owns-the-record-and-the-rules.md)).
 - **Locking records a person owns too:** a person's records would then be locked to that person, which is not wanted; only programs need protection from drift.

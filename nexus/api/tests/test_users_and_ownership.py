@@ -17,7 +17,7 @@ from app.helpers.wrappers import token_groups
 from app.models.git_provider import GitProvider
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
-from app.models.user import OwnedMixin, User, UserKind
+from app.models.user import OwnedMixin, User
 
 PROV = "/global/providers"
 GROUP = "service-account"
@@ -66,13 +66,12 @@ def test_the_callers_groups_are_its_realm_roles_and_keycloak_groups():
     assert token_groups({}) == frozenset()
 
 
-def test_a_call_creates_the_callers_row_a_member_of_an_owner_group_is_a_service(client, callers):
+def test_a_call_creates_the_callers_row(client, callers):
     client.get(PROV, headers=as_("person_token"))
     client.get(PROV, headers=as_("service_token"))
 
     person, svc = db.session.get(User, "id-person"), db.session.get(User, "id-svc")
-    assert (person.username, person.kind) == ("person", UserKind.HUMAN)
-    assert (svc.username, svc.kind) == ("svc", UserKind.SERVICE)
+    assert (person.username, svc.username) == ("person", "svc")
 
 
 def test_a_later_call_refreshes_the_row_instead_of_adding_one(client, callers, monkeypatch):
@@ -96,7 +95,6 @@ def test_the_owner_groups_are_a_setting(client, callers, monkeypatch):
     provider = create_provider(client, "person_token")
 
     assert provider["owner_group"] == "Administrator"
-    assert db.session.get(User, "id-person").kind == UserKind.SERVICE
 
 
 # Owner on create

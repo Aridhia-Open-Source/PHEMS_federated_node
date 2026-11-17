@@ -2,20 +2,12 @@
 A Keycloak identity that has called nexus-api (ADR 0036). Identity only: what a caller may do stays in
 Keycloak. Records point at it to say who owns them.
 """
-from enum import Enum
-
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import declared_attr, relationship
 from sqlalchemy.sql import func
 
 from app.helpers.base_model import BaseModel, db
-
-
-class UserKind(str, Enum):
-    """service: the caller is in one of the owner groups (OWNER_GROUPS), a program rather than a person."""
-    HUMAN = "human"
-    SERVICE = "service"
 
 
 class User(db.Model, BaseModel):
@@ -25,19 +17,15 @@ class User(db.Model, BaseModel):
     # The Keycloak user id
     id = sa.Column(sa.String(255), primary_key=True)
     username = sa.Column(sa.String(255), nullable=False)
-    kind = sa.Column(
-        sa.Enum(UserKind, name='userkind', values_callable=lambda kinds: [k.value for k in kinds]),
-        nullable=False,
-    )
     created_at = sa.Column(sa.DateTime(timezone=False), nullable=False, server_default=func.now())
     last_seen_at = sa.Column(sa.DateTime(timezone=False), nullable=False, server_default=func.now())
 
     @classmethod
-    def seen(cls, user_id: str, username: str, kind: UserKind) -> "User":
-        """Creates the user, or refreshes its username, kind and last_seen_at, in one statement, and commits."""
-        stmt = insert(cls).values(id=user_id, username=username, kind=kind).on_conflict_do_update(
+    def seen(cls, user_id: str, username: str) -> "User":
+        """Creates the user, or refreshes its username and last_seen_at, in one statement, and commits."""
+        stmt = insert(cls).values(id=user_id, username=username).on_conflict_do_update(
             index_elements=[cls.id],
-            set_={"username": username, "kind": kind, "last_seen_at": func.now()},
+            set_={"username": username, "last_seen_at": func.now()},
         ).returning(cls)
         user = db.session.scalars(
             stmt, execution_options={"populate_existing": True}
@@ -46,7 +34,7 @@ class User(db.Model, BaseModel):
         return user
 
     def __repr__(self):
-        return f'<User ({self.username}, {self.kind.value})>'
+        return f'<User ({self.username})>'
 
 
 class OwnedMixin:

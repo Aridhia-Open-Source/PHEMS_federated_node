@@ -29,7 +29,6 @@ def upgrade() -> None:
     op.create_table('users',
         sa.Column('id', sa.String(length=255), nullable=False),
         sa.Column('username', sa.String(length=255), nullable=False),
-        sa.Column('kind', sa.Enum('human', 'service', name='userkind'), nullable=False),
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('last_seen_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.PrimaryKeyConstraint('id')
@@ -394,4 +393,3 @@ def downgrade() -> None:
     op.drop_table('git_providers')
     op.drop_table('users')
     sa.Enum(name='secretprovidertype').drop(op.get_bind())
-    sa.Enum(name='userkind').drop(op.get_bind())

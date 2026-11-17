@@ -11,7 +11,7 @@ from fastapi import Depends, Request
 from app.helpers.const import OWNER_GROUPS
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
-from app.models.user import User, UserKind
+from app.models.user import User
 
 logger = logging.getLogger('wrappers')
 logger.setLevel(logging.INFO)
@@ -28,10 +28,6 @@ class Caller:
     groups: frozenset[str]
     # The caller's row in users, created or refreshed on this call (ADR 0036)
     user: User
-
-    @property
-    def kind(self) -> UserKind:
-        return self.user.kind
 
     @property
     def owner_group(self) -> str | None:
@@ -60,7 +56,6 @@ def get_caller(request: Request) -> Caller:
     token_info = kc_client.decode_token(token)
     user = kc_client.get_user_by_username(token_info['username'])
     groups = token_groups(token_info)
-    kind = UserKind.SERVICE if owner_group_of(groups) else UserKind.HUMAN
 
     # TODO(DAR): DAR checking is disconnected, as in the previous backend. Every caller takes the plain path.
     return Caller(
@@ -70,7 +65,7 @@ def get_caller(request: Request) -> Caller:
         is_system=kc_client.is_system_user(token),
         kc_client=kc_client,
         groups=groups,
-        user=User.seen(user["id"], user["username"], kind),
+        user=User.seen(user["id"], user["username"]),
     )
 
 
