@@ -121,7 +121,7 @@ Logins are Keycloak users, with the realm roles `Users`, `Administrator`, `Super
 
 **How are secrets protected?** The Keycloak admin password is in the `kc-secrets` secret in the `keycloak` namespace, and anyone holding it can act as any user. Store it somewhere sensible, and rotate it (`keycloak.credentialGeneration`, or `keycloak.credentialRotation.enabled`). Kubernetes secrets are base64 encoded, not encrypted, unless you have enabled encryption at rest on etcd or use an external secrets provider. Check which is true for your cluster.
 
-**How will you upgrade?** nexus-api applies its database migrations itself, in an init container, on every deploy. A Helm rollback does not roll the schema back, so take a database snapshot before upgrading. You install the Gateway API and Traefik CRDs, so you also upgrade them ([Prerequisites](./Prerequisites#install-the-gateway-api-and-traefik-crds)).
+**How will you upgrade?** nexus-api applies its database migrations itself, in an init container, on every deploy. A Helm rollback does not roll the schema back, so take a database snapshot before upgrading. You install the Gateway API and Traefik CRDs, so you also upgrade them ([Prerequisites](./Prerequisites#install-the-gateway-api-and-traefik-crds)). The chart's own CRDs (`fn.aridhia.com`) are applied by a pre-upgrade hook on every `helm upgrade`.
 
 
 ## Where next

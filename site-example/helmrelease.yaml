@@ -20,7 +20,7 @@ spec:
         kind: HelmRepository
         name: fn-charts
       interval: 1m
-  # The chart's crds/ are created on install and replaced on upgrade (Helm alone never upgrades them)
+  # The chart's crds/ are created on install and replaced on upgrade (the chart's pre-upgrade hook also applies them)
   install:
     crds: CreateReplace
   # A failed upgrade is retried twice, then rolled back to the last good revision

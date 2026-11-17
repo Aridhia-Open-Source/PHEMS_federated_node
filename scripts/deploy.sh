@@ -136,7 +136,8 @@ custom_ca_prepare
 
 echo
 echo "=== Applying CRDs ======================================================="
-# Helm installs the chart's crds/ on a first install but never upgrades them (ADR 0032)
+# Helm installs the chart's crds/ on a first install but never upgrades them (ADR 0032). The chart's
+# pre-upgrade hook applies them on upgrade too.
 kubectl apply -f k8s/federated-node/crds/
 
 echo

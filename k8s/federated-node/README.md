@@ -100,6 +100,10 @@ NodeSecret source Secrets, and the operator's Keycloak login (`operator-keycloak
 watches that namespace and `operator.watchNamespaces` only, and has no access to the release namespace, so a
 NodeSecret cannot copy `kc-secrets` or a database password into nexus-api.
 
+## Node config CRDs
+Helm installs `crds/` on a first install only, so a pre-upgrade hook (`templates/crds-upgrade-hook.yaml`)
+applies them with `kubectl apply --server-side` on every `helm upgrade`. No extra step is needed.
+
 ## Gateway API CRD update
 ```sh
 VERSION=x.y.z
