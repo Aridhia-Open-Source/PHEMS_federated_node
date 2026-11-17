@@ -209,8 +209,8 @@ def teardown(target: Target):
     in_use = {r.provider.id for r in backend_api.get_trigger_repositories() + backend_api.get_results_repositories()}
     for uri in sorted(providers):
         provider = backend_api.find_git_provider(uri)
-        # A provider the node config declares (managed_by) is the operator's to remove (ADR 0032)
-        if provider and provider.id not in in_use and not provider.managed_by:
+        # A provider locked to an owner group (the operator, ADR 0036) is its owner's to remove
+        if provider and provider.id not in in_use and not provider.owner_group:
             backend_api.delete_git_provider(provider.id)
             logger.info(f"Deleted provider {provider.name}")
     for repo in [*LAYOUT.trigger_repos, *LAYOUT.results_repos]:

@@ -13,8 +13,8 @@ class GitProvider(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: int
-    # The nexus operator's user when its custom resource declares the record (ADR 0032)
-    managed_by: str | None = None
+    # The group whose members alone may change it, null when it is open (ADR 0036)
+    owner_group: str | None = None
     name: str
     type: str
     uri: str

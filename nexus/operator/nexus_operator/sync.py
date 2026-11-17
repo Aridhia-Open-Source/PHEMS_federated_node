@@ -5,9 +5,9 @@ compares first and sends only what differs: a PUT resets what its body omits, an
 its source Secret changed.
 
 A record is found by its natural key (name, label or uri) and adopted; the resource's status.nexusId is a cache.
-nexus-api marks what the operator creates or changes as managed (managed_by), and then refuses anyone else's change
-to the declared fields, so they cannot drift. A record made by hand has no managed_by: the sync sends all of its
-declared fields once, which marks it.
+The operator is in an owner group (ADR 0036): nexus-api locks what it creates or writes to that group, and refuses
+anyone else's change, so it cannot drift. A record made by hand that already matches is left as it is; the first
+write it needs takes it over.
 A dependency that is not in nexus-api yet raises kopf.TemporaryError naming it, and the resource is retried.
 
 Spec fields are the CRDs' (camelCase); the API's are snake_case.
@@ -61,11 +61,6 @@ def differing(wanted: dict, current: dict, same: Mapping[str, Callable] = None) 
     }
 
 
-def changes(wanted: dict, current: dict, same: Mapping[str, Callable] = None) -> dict:
-    """What to send: every wanted field to adopt a record nobody manages yet, else those that differ"""
-    return wanted if current["managed_by"] is None else differing(wanted, current, same)
-
-
 def waiting_for(missing: list[str]):
     if missing:
         raise kopf.TemporaryError(f"waiting for {', '.join(missing)}")
@@ -92,7 +87,7 @@ def sync_provider(api: BackendAPI, name: str, spec: Mapping) -> Synced:
     current = find_provider(api, name, uri)
     if current is None:
         return Synced(api.get_or_create_git_provider(uri, name, wanted["type"], wanted["api_uri"]).id, True)
-    data = changes(wanted, current.model_dump(), {"uri": same_uri, "api_uri": same_uri})
+    data = differing(wanted, current.model_dump(), {"uri": same_uri, "api_uri": same_uri})
     if data:
         api.patch_git_provider(current.id, data)
     return Synced(current.id, bool(data))
@@ -117,16 +112,12 @@ def has_secret(api: BackendAPI, label: str) -> bool:
     return any(secret["label"] == label for secret in api.get_secrets())
 
 
-def has_managed_secret(api: BackendAPI, label: str) -> bool:
-    return any(secret["label"] == label and secret["managed_by"] for secret in api.get_secrets())
-
-
 def sync_secret(
     api: BackendAPI, label: str, spec: Mapping, namespace: str, read_secret: SecretReader, seen: Mapping[str, str],
     spec_changed: bool,
 ) -> Synced:
     """
-    Sends the values when the record is missing or not managed yet, the spec changed since the last sync
+    Sends the values when the record is missing, the spec changed since the last sync
     (`spec_changed`), or a source Secret's resourceVersion is not the one in status (`seen`). Status keeps the
     resourceVersions, never a value or a hash of one.
     """
@@ -144,7 +135,7 @@ def sync_secret(
     status = {"sourceVersions": versions}
     # Only the current sources: a status merge-patch never drops the key of a source no longer named
     unchanged = not spec_changed and all(seen.get(name) == version for name, version in versions.items())
-    if unchanged and has_managed_secret(api, label):
+    if unchanged and has_secret(api, label):
         return Synced(None, False, status)
     api.upsert_secret(label, values)
     return Synced(None, True, status)
@@ -180,9 +171,9 @@ def sync_repository(api: BackendAPI, name: str, spec: Mapping) -> Synced:
     if current is None:
         create = api.create_repository if kind == "trigger" else api.create_results_repository
         return Synced(create(provider.id, repo_path_of(uri), spec["secret"]).id, True)
-    data = changes(
+    data = differing(
         {"provider_id": provider.id, "secret_label": spec["secret"]},
-        {"provider_id": current.provider.id, "secret_label": current.secret.label, "managed_by": current.managed_by},
+        {"provider_id": current.provider.id, "secret_label": current.secret.label},
     )
     if data:
         patch = api.patch_trigger_repository if kind == "trigger" else api.patch_results_repository
@@ -216,7 +207,7 @@ def sync_dataset(api: BackendAPI, name: str, spec: Mapping) -> Synced:
             read_schema=wanted["read_schema"], write_schema=wanted["write_schema"],
         )
         return Synced(dataset.id, True)
-    data = changes(wanted, {**current.model_dump(), "secret_label": current.secret.label})
+    data = differing(wanted, {**current.model_dump(), "secret_label": current.secret.label})
     if data:
         api.patch_dataset(current.id, data)
     return Synced(current.id, bool(data))
@@ -314,7 +305,7 @@ def sync_project(api: BackendAPI, name: str, spec: Mapping) -> Synced:
             changed = True
 
     wanted_enabled = spec.get("enabled", True)
-    if enabled != wanted_enabled or project.managed_by is None:
+    if enabled != wanted_enabled:
         data = {"enabled": wanted_enabled}
         if wanted_enabled and not was_enabled and spec.get("backfill"):
             data["backfill"] = True

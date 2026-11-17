@@ -15,11 +15,11 @@ def record(**fields):
 @pytest.fixture
 def api():
     api = MagicMock()
-    api.get_secrets.return_value = [{"label": "creds", "managed_by": "fn-operator"}]
+    api.get_secrets.return_value = [{"label": "creds", "owner_group": "service-account"}]
     api.get_git_providers.return_value = [
         record(
             id=1, name="github", type="github", uri="https://github.com", api_uri="https://api.github.com",
-            managed_by="fn-operator",
+            owner_group="service-account",
         ),
     ]
     return api
@@ -44,16 +44,14 @@ def test_provider_patched_with_only_what_differs(api):
     api.patch_git_provider.assert_called_once_with(1, {"name": "gh"})
 
 
-def test_provider_made_by_hand_adopted_with_every_declared_field(api):
+def test_provider_made_by_hand_that_matches_is_left_alone(api):
     api.get_git_providers.return_value = [
         record(id=1, name="github", type="github", uri="https://github.com", api_uri="https://api.github.com",
-               managed_by=None),
+               owner_group=None),
     ]
     result = sync.sync_provider(api, "github", {"type": "github", "uri": "https://github.com"})
-    api.patch_git_provider.assert_called_once_with(
-        1, {"name": "github", "type": "github", "uri": "https://github.com", "api_uri": "https://api.github.com"},
-    )
-    assert result.changed
+    api.patch_git_provider.assert_not_called()
+    assert not result.changed
 
 
 def test_secret_sent_only_when_a_source_changed(api):
@@ -82,10 +80,10 @@ def test_secret_sent_when_the_spec_changed_with_the_same_source(api):
     assert result.changed
 
 
-def test_secret_made_by_hand_sent_once_to_adopt_it(api):
-    api.get_secrets.return_value = [{"label": "creds", "managed_by": None}]
+def test_secret_made_by_hand_not_sent_while_its_source_is_unchanged(api):
+    api.get_secrets.return_value = [{"label": "creds", "owner_group": None}]
     sync.sync_secret(api, "creds", {"fromSecret": {"name": "app"}}, "fn", lambda ns, n: ({"APP_ID": "1"}, "3"), {"app": "3"}, False)
-    api.upsert_secret.assert_called_once_with("creds", {"APP_ID": "1"})
+    api.upsert_secret.assert_not_called()
 
 
 def test_secret_sent_when_the_record_is_missing(api):
@@ -102,7 +100,7 @@ def test_repository_waits_for_its_provider_and_secret(api):
 
 
 def test_repository_adopted_and_patched(api):
-    api.find_results_repository.return_value = record(id=3, provider=record(id=1), secret=record(label="old"), managed_by="fn-operator")
+    api.find_results_repository.return_value = record(id=3, provider=record(id=1), secret=record(label="old"), owner_group="service-account")
     result = sync.sync_repository(api, "r", {"type": "results", "uri": "https://github.com/org/out", "secret": "creds"})
     api.patch_results_repository.assert_called_once_with(3, {"secret_label": "creds"})
     assert (result.nexus_id, result.changed) == (3, True)
@@ -139,7 +137,7 @@ def test_new_project_created_disabled_then_enabled_last(api):
     api.find_trigger_repository.return_value = trigger
     api.find_results_repository.return_value = results
     api.find_project.return_value = None
-    api.get_or_create_project.return_value = record(id=9, enabled=False, managed_by="fn-operator")
+    api.get_or_create_project.return_value = record(id=9, enabled=False, owner_group="service-account")
     api.get_project_datasets.return_value = []
     api.get_project_trigger_repositories.return_value = []
     api.get_project_results_repositories.return_value = []
@@ -157,7 +155,7 @@ def test_live_project_only_patched_where_it_differs(api):
     api.find_dataset.return_value = record(id=4)
     api.find_trigger_repository.return_value = record(id=2)
     api.find_results_repository.return_value = record(id=3)
-    api.find_project.return_value = record(id=9, enabled=True, managed_by="fn-operator")
+    api.find_project.return_value = record(id=9, enabled=True, owner_group="service-account")
     api.get_project_datasets.return_value = [record(dataset=record(id=4))]
     api.get_project_trigger_repositories.return_value = [
         record(trigger_repository=record(id=2), watch_dir="specs", base_branch="dev", enabled=True),
@@ -179,7 +177,7 @@ def test_live_project_disabled_to_change_its_results_repository(api):
     api.find_dataset.return_value = record(id=4)
     api.find_trigger_repository.return_value = record(id=2)
     api.find_results_repository.return_value = record(id=5)
-    api.find_project.return_value = record(id=9, enabled=True, managed_by="fn-operator")
+    api.find_project.return_value = record(id=9, enabled=True, owner_group="service-account")
     api.get_project_datasets.return_value = [record(dataset=record(id=4))]
     api.get_project_trigger_repositories.return_value = [
         record(trigger_repository=record(id=2), watch_dir="specs", base_branch="main", enabled=True),
@@ -205,7 +203,7 @@ def test_project_enabled_with_backfill_only_when_it_was_disabled(api):
     api.find_dataset.return_value = record(id=4)
     api.find_trigger_repository.return_value = record(id=2)
     api.find_results_repository.return_value = record(id=5)
-    api.find_project.return_value = record(id=9, enabled=False, managed_by="fn-operator")
+    api.find_project.return_value = record(id=9, enabled=False, owner_group="service-account")
     api.get_project_datasets.return_value = [record(dataset=record(id=4))]
     api.get_project_trigger_repositories.return_value = [
         record(trigger_repository=record(id=2), watch_dir="specs", base_branch="main", enabled=True),
@@ -219,7 +217,7 @@ def test_project_enabled_with_backfill_only_when_it_was_disabled(api):
 
     # Live, and disabled only to swap its results repository: the re-enable never backfills
     api.patch_project.reset_mock()
-    api.find_project.return_value = record(id=9, enabled=True, managed_by="fn-operator")
+    api.find_project.return_value = record(id=9, enabled=True, owner_group="service-account")
     api.get_project_results_repositories.return_value = [
         record(results_repository=record(id=3), target_dir="results", base_branch="main", enabled=True),
     ]
@@ -227,11 +225,11 @@ def test_project_enabled_with_backfill_only_when_it_was_disabled(api):
     assert api.patch_project.call_args_list == [call(9, {"enabled": False}), call(9, {"enabled": True})]
 
 
-def test_project_made_by_hand_marked_by_sending_enabled(api):
+def test_project_made_by_hand_that_matches_is_left_alone(api):
     api.find_dataset.return_value = record(id=4)
     api.find_trigger_repository.return_value = record(id=2)
     api.find_results_repository.return_value = record(id=3)
-    api.find_project.return_value = record(id=9, enabled=True, managed_by=None)
+    api.find_project.return_value = record(id=9, enabled=True, owner_group=None)
     api.get_project_datasets.return_value = [record(dataset=record(id=4))]
     api.get_project_trigger_repositories.return_value = [
         record(trigger_repository=record(id=2), watch_dir="specs", base_branch="main", enabled=True),
@@ -242,15 +240,15 @@ def test_project_made_by_hand_marked_by_sending_enabled(api):
 
     result = sync.sync_project(api, "cohort", PROJECT)
 
-    api.patch_project.assert_called_once_with(9, {"enabled": True})
-    assert result.changed
+    api.patch_project.assert_not_called()
+    assert not result.changed
 
 
 def test_live_project_unassigns_what_the_spec_dropped(api):
     api.find_dataset.return_value = record(id=4)
     api.find_trigger_repository.return_value = record(id=2)
     api.find_results_repository.return_value = record(id=3)
-    api.find_project.return_value = record(id=9, enabled=True, managed_by="fn-operator")
+    api.find_project.return_value = record(id=9, enabled=True, owner_group="service-account")
     api.get_project_datasets.return_value = [record(dataset=record(id=4)), record(dataset=record(id=6))]
     api.get_project_trigger_repositories.return_value = [
         record(trigger_repository=record(id=2), watch_dir="specs", base_branch="main", enabled=True),
