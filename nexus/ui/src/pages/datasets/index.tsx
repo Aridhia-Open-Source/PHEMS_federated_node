@@ -81,10 +81,11 @@ function DatasetList() {
           { header: "Type", cell: (d) => d.type },
           { header: "Secret", cell: (d) => d.secret.label },
           { header: "Enabled", cell: (d) => (
-            <EnabledToggle ownedBy={ownedBy(d, groups)} hideLabel enabled={d.enabled} onChange={(enabled) => setEnabled.mutate({ id: d.id, enabled })} />
+            <EnabledToggle hideLabel enabled={d.enabled} readOnly={d.owner_group != null}
+              onChange={(enabled) => setEnabled.mutate({ id: d.id, enabled })} />
           ) },
-          { header: "", cell: (d) => (
-            <DeleteButton ownedBy={ownedBy(d, groups)} what={d.name} allowForce onConfirm={(force) => remove.mutate({ id: d.id, force })} />
+          { header: "", cell: (d) => d.owner_group == null && (
+            <DeleteButton what={d.name} allowForce onConfirm={(force) => remove.mutate({ id: d.id, force })} />
           ) },
         ]}
       />
@@ -150,6 +151,8 @@ function DatasetDetail() {
   const setEnabled = useSetEnabled();
   const remove = useRemove(() => nav(".."));
   if (!data) return <Loading />;
+  // A record locked to an owner group (the operator) is changed only by its members (ADR 0036)
+  const locked = data.owner_group != null;
   return (
     <section>
       <BackLink to=".." what={m.back} />
@@ -157,8 +160,9 @@ function DatasetDetail() {
         title={m.detail(data.name)}
         actions={
           <>
-            <EnabledToggle ownedBy={ownedBy(data, groups)} enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />
-            <DeleteButton ownedBy={ownedBy(data, groups)} what={data.name} allowForce onConfirm={(force) => remove.mutate({ id, force })} />
+            <EnabledToggle enabled={data.enabled} readOnly={locked}
+              onChange={(enabled) => setEnabled.mutate({ id, enabled })} />
+            {!locked && <DeleteButton what={data.name} allowForce onConfirm={(force) => remove.mutate({ id, force })} />}
           </>
         }
       />

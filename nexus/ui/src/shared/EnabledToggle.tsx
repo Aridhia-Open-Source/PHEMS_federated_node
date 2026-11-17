@@ -11,7 +11,7 @@ type Props = {
   busy?: boolean;
   // In a column headed "Enabled": the label is still read out, not shown
   hideLabel?: boolean;
-  // Managed by the nexus operator: changed through its custom resource, not here (ADR 0032)
+  // Locked to an owner group (the operator): changed only by its members, not here (ADR 0036)
   readOnly?: boolean;
 };
 

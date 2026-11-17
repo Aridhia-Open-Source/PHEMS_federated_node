@@ -103,9 +103,10 @@ function RepoList() {
           { header: "Cursor", cell: (r) => r.pr_cursor },
           { header: "Revoked", cell: (r) => (r.revoked ? <StatusBadge status="revoked" /> : null) },
           { header: "Enabled", cell: (r) => (
-            <EnabledToggle ownedBy={ownedBy(r, groups)} hideLabel enabled={r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id, enabled })} />
+            <EnabledToggle hideLabel enabled={r.enabled} readOnly={r.owner_group != null}
+              onChange={(enabled) => setEnabled.mutate({ id: r.id, enabled })} />
           ) },
-          { header: "", cell: (r) => (
+          { header: "", cell: (r) => r.owner_group == null && (
             <span className="flex gap-2">
               <RevokeButton ownedBy={ownedBy(r, groups)} revoked={r.revoked} what={r.repo_path}
                 onChange={(revoked) => revoke.mutate({ id: r.id, revoked })} />
@@ -179,6 +180,8 @@ function RepoDetail() {
   const revoke = useSetRevoked();
   const remove = useRemove(() => nav(".."));
   if (!data) return <Loading />;
+  // A record locked to an owner group (the operator) is changed only by its members (ADR 0036)
+  const locked = data.owner_group != null;
   const editFields: Field[] = [
     { name: "provider_id", label: "Provider", type: "select", required: true,
       options: providers.data?.map(providerOption) ?? [] },
@@ -192,18 +195,20 @@ function RepoDetail() {
       <PageHeader
         title={m.detail(data.repo_path)}
         actions={
-          <>
-            <RevokeButton ownedBy={ownedBy(data, groups)} revoked={data.revoked} what={data.repo_path}
-              onChange={(revoked) => revoke.mutate({ id, revoked })} />
-            <DeleteButton ownedBy={ownedBy(data, groups)} what={data.repo_path} allowForce
-              onConfirm={(force) => remove.mutate({ id, force })} />
-          </>
+          !locked && (
+            <>
+              <RevokeButton revoked={data.revoked} what={data.repo_path}
+                onChange={(revoked) => revoke.mutate({ id, revoked })} />
+              <DeleteButton what={data.repo_path} allowForce
+                onConfirm={(force) => remove.mutate({ id, force })} />
+            </>
+          )
         }
       />
       <Json value={data} />
-      <SectionHeading>{shellMessages.pages.edit}</SectionHeading>
-      {providers.data && secrets.data && (
-        <DtoForm ownedBy={ownedBy(data, groups)} key={JSON.stringify(data)} fields={editFields} submitLabel="Update" busy={update.isPending}
+      {!locked && <SectionHeading>{shellMessages.pages.edit}</SectionHeading>}
+      {!locked && providers.data && secrets.data && (
+        <DtoForm key={JSON.stringify(data)} fields={editFields} submitLabel="Update" busy={update.isPending}
           initial={{
             provider_id: data.provider ? providerOption(data.provider) : "",
             secret_label: data.secret.label,
