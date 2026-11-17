@@ -2,7 +2,7 @@
 
 A GlobalResource (a dataset, trigger repository, results repository or GitProvider; a Secret is only used by them) is created once by the administrator. A project reaches it only through its own project resource (a ProjectResource). These cases check the create, assign, unassign and delete rules. The rules for switching things on and off are in the two enabled and revoked sections.
 
-Needs: an administrator token. On the dev cluster `fncli gitea setup -f config/e2e/fn-dev.yaml` then `kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml` creates the whole set; the cases below use the HTTP routes so they also work on a node that fncli cannot reach. Use a scratch name (for example `qa-scratch`) for anything you create, and delete it at the end. Never put a real token in a request you keep in the notes.
+Needs: an administrator token. On the dev cluster `fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml` then `kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml` creates the whole set; the cases below use the HTTP routes so they also work on a node that fncli cannot reach. Use a scratch name (for example `qa-scratch`) for anything you create, and delete it at the end. Never put a real token in a request you keep in the notes.
 
 ## Create a GitProvider, and reject a bad one
 

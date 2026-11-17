@@ -1,7 +1,7 @@
 # The Gitea demo (DEMO.md): its two repositories, their credentials and the project demo-gitea. The dataset demo-db is
 # the experiments chart's (`fncli experiment deploy`), the provider is gitea.yaml.
 #   fncli experiment deploy; fncli experiment seed demo; fncli experiment setup demo
-#   fncli gitea setup -f config/demo.yaml           # the Gitea repositories, and the OAuth apps' Secrets
+#   fncli gitea setup -f config/gitea.yaml -f config/demo.yaml           # the Gitea repositories, and the OAuth apps' Secrets
 #   kubectl apply -f config/                         # gitea.yaml and this file
 #   kubectl get fn -n fn                             # synced, or the operator's message
 #   fncli demo --project demo-gitea

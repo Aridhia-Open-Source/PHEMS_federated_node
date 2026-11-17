@@ -169,7 +169,7 @@ If it says a sensor is not found, Dagster is still loading its code: wait a minu
 Everything lives in the cluster's Gitea, so nothing outside is needed. The demo is two files in `config/`: `gitea.yaml` (the git provider) and `demo.yaml` (the OAuth app secrets, the two repositories and the project, which assigns the dataset).
 
 ```sh
-fncli gitea setup -f config/demo.yaml    # the Gitea repositories, and a Kubernetes Secret with each one's OAuth app
+fncli gitea setup -f config/gitea.yaml -f config/demo.yaml    # the Gitea repositories, and a Kubernetes Secret with each one's OAuth app
 kubectl apply -f config/                 # the provider, NodeSecrets, repositories and the project (uses demo-db)
 kubectl get fn -n fn                     # each resource's Synced and Message: wait for them all to sync
 fncli demo --project demo-gitea          # the guided pull request walk

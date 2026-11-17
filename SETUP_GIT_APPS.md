@@ -34,7 +34,7 @@ GitHub OAuth Apps (user tokens) are not supported.
 
 ## Gitea: an OAuth2 application
 
-The default dev setup. `fncli gitea setup -f config/demo.yaml` creates the Gitea repositories of the file's Repository
+The default dev setup. `fncli gitea setup -f config/gitea.yaml -f config/demo.yaml` creates the Gitea repositories of the file's Repository
 resources and, for each NodeSecret they name, an OAuth2 application of that name for the admin user. It writes
 `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN` into the Kubernetes Secret the NodeSecret's `fromSecret` names, and
 keeps a Secret that exists unless you pass `--rotate NODESECRET`. Run it before `kubectl apply` of the same file;

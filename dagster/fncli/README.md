@@ -39,7 +39,7 @@ Three kinds of file, none with a secret value:
 ```bash
 cp bootstrap/examples/context.yaml bootstrap/context.yaml
 fncli experiment deploy                     # the demo database, which the dev project's stand-in dataset reads
-fncli gitea setup -f config/e2e/fn-dev.yaml # the Gitea repos of the dev project, and the Secrets with their OAuth apps
+fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml # the Gitea repos of the dev project, and the Secrets with their OAuth apps
 kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml   # provider, dataset, secrets, repos, project
 kubectl get fn -n fn                        # each resource's Synced and Message
 fncli start-sensor --group all      # ingest -> evaluate -> launcher, plus the run-status sensors (fncli sensor-status to watch)
@@ -125,10 +125,10 @@ A second project on the same global resources is `kubectl apply -f config/e2e/qa
 
 ## Demo
 
-`fncli demo [TRIGGER] [--project NAME]` walks the pull request process on a node that `kubectl apply` has already set up with the project's node config, and proves it works: checks that the node can log in to the dataset's database and the git host, a merged pull request that adds the trigger file, its task and its results pull request, then checks of the whole project. It creates and deletes nothing. The flow is `fncli gitea setup -f config/demo.yaml`, `kubectl apply -f config/`, then `fncli demo --project demo-gitea` (as often as you like), then `kubectl delete -f config/demo.yaml`. First it reads the project's Project resource and stops with exit 1, showing the operator's message, unless the resource is synced. Before each step it says what the step does, shows the equivalent fncli command and asks: Enter runs it, `s` skips it, `q` quits. Steps are separated by a line of dashes. After each step it lists nexus-api calls it made (`METHOD /path -> status`, repeats counted) and shows what the step made: links to open in the browser (`Open:` lines) and nexus-api objects as JSON. A step that changes the project waits for the change to show in the project's state, polling every second, and prints it when it changes.
+`fncli demo [TRIGGER] [--project NAME]` walks the pull request process on a node that `kubectl apply` has already set up with the project's node config, and proves it works: checks that the node can log in to the dataset's database and the git host, a merged pull request that adds the trigger file, its task and its results pull request, then checks of the whole project. It creates and deletes nothing. The flow is `fncli gitea setup -f config/gitea.yaml -f config/demo.yaml`, `kubectl apply -f config/`, then `fncli demo --project demo-gitea` (as often as you like), then `kubectl delete -f config/demo.yaml`. First it reads the project's Project resource and stops with exit 1, showing the operator's message, unless the resource is synced. Before each step it says what the step does, shows the equivalent fncli command and asks: Enter runs it, `s` skips it, `q` quits. Steps are separated by a line of dashes. After each step it lists nexus-api calls it made (`METHOD /path -> status`, repeats counted) and shows what the step made: links to open in the browser (`Open:` lines) and nexus-api objects as JSON. A step that changes the project waits for the change to show in the project's state, polling every second, and prints it when it changes.
 
 ```bash
-fncli gitea setup -f config/demo.yaml                # first: the Gitea repos and OAuth Secrets
+fncli gitea setup -f config/gitea.yaml -f config/demo.yaml                # first: the Gitea repos and OAuth Secrets
 kubectl apply -f config/                             # then the node config (config/gitea.yaml and config/demo.yaml)
 kubectl get fn -n fn                                 # wait for every row to be synced
 fncli demo --project demo-gitea                      # step by step, with triggers/examples/demo.json

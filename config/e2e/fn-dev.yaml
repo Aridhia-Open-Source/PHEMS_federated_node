@@ -1,6 +1,6 @@
 # The dev project the end-to-end suites use (fn-dev): its repositories and their credentials. Its stand-in dataset is
 # dev-dataset.yaml, the provider is config/gitea.yaml. The suites' setup does this:
-#   fncli gitea setup -f config/e2e/fn-dev.yaml
+#   fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml
 #   kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml
 # and waits for every resource's status.synced. Teardown: kubectl delete -f config/e2e/fn-dev.yaml.
 apiVersion: fn.aridhia.com/v1alpha1

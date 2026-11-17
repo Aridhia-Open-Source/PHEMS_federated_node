@@ -27,12 +27,12 @@ fncli logs in first with `POST /login` on nexus-api, then makes its backend call
 
 Every command that talks to the node reads `bootstrap/context.yaml` first (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`). The commands that work on a project (`verify-project`, `project-show`, `open-pr`, `merge-results-pr`, ...) take `--project NAME`, else the context's `defaults.project`, and read its repositories and dataset from the node. The examples below are for the e2e project: `export FNCLI_DEFAULT_PROJECT=fn-dev` once, or add `--project fn-dev` to each.
 
-To watch the pull request part one confirmed step at a time, run `fncli gitea setup -f config/demo.yaml` and `kubectl apply -f config/`, then `fncli demo --project demo-gitea` (see Demo in [README.md](README.md)), then `kubectl delete -f config/demo.yaml`. The demo creates and deletes nothing.
+To watch the pull request part one confirmed step at a time, run `fncli gitea setup -f config/gitea.yaml -f config/demo.yaml` and `kubectl apply -f config/`, then `fncli demo --project demo-gitea` (see Demo in [README.md](README.md)), then `kubectl delete -f config/demo.yaml`. The demo creates and deletes nothing.
 
 A PR in the Gitea trigger repo, through a task, to a merged results PR in the Gitea results repo:
 
 ```bash
-fncli experiment deploy && fncli gitea setup -f config/e2e/fn-dev.yaml
+fncli experiment deploy && fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml
 kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml && kubectl get fn -n fn   # wait for every row to be synced
 fncli verify-project
 fncli start-sensor --group all
@@ -57,7 +57,7 @@ If something sticks: `fncli sensor-status`, and nexus-api and Dagster pod logs.
 ### 1. Set up the dev project
 
 - `fncli experiment deploy` first: the stand-in dataset `dev-dataset` reads the demo database's login, which the experiments chart makes.
-- `fncli gitea setup -f config/e2e/fn-dev.yaml`. It first checks that kubectl points at the context's cluster. Then:
+- `fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml`. It first checks that kubectl points at the context's cluster. Then:
   - Gitea: creates the trigger repo and the results repo if they don't exist.
   - Gitea: for each NodeSecret the repositories name, creates an OAuth application of the NodeSecret's name for the admin user (`POST user/applications/oauth2`, then the authorisation over HTTP), and writes its credentials into the Kubernetes Secret the NodeSecret's `fromSecret` names. A Secret that exists is left alone (`--rotate NODESECRET` rewrites it).
 - `kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml` (`kubectl diff -f` with the same files shows what it would change). The nexus operator then syncs each resource to the backend, in dependency order, and reports it in the resource's status (`kubectl get fn -n fn`: Synced and Message):

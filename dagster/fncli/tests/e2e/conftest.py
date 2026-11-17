@@ -90,7 +90,7 @@ def project_resources() -> list[dict]:
 def apply_node(fncli):
     """`fncli gitea setup` of the dev project (Gitea repositories, OAuth-app Secrets), then kubectl apply of its node
     config with the provider and the stand-in dataset, and a wait until the operator has synced them all."""
-    fncli.run("gitea", "setup", "-f", str(PROJECT_FILE), "--context", str(CONTEXT_FILE))
+    fncli.run("gitea", "setup", "-f", str(GITEA_FILE), "-f", str(PROJECT_FILE), "--context", str(CONTEXT_FILE))
     files = [GITEA_FILE, DATASET_FILE, PROJECT_FILE]
     node_config.apply(files)
     node_config.wait_synced(*node_config.file_args(files))

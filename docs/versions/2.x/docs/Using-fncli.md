@@ -128,7 +128,7 @@ The project and the way default to the context's `defaults`. `--api` is reserved
 1. It reads the project's Project resource. If the operator has not synced it, it stops with exit 1 and shows the operator's message. Nothing is applied for you.
 2. Then it checks the dataset and the git host, walks a pull request into the trigger repository, the task it becomes and the results pull request, then checks the whole project. Before each step it says what the step does, shows the equivalent fncli command, and asks.
 
-The flow is `fncli gitea setup -f config/demo.yaml`, `kubectl apply -f config/`, `demo` as often as you like, then `kubectl delete -f config/demo.yaml`. [Run locally](./Run-Locally#7-the-gitea-demo) walks it.
+The flow is `fncli gitea setup -f config/gitea.yaml -f config/demo.yaml`, `kubectl apply -f config/`, `demo` as often as you like, then `kubectl delete -f config/demo.yaml`. [Run locally](./Run-Locally#7-the-gitea-demo) walks it.
 
 
 ## Sensors and checks

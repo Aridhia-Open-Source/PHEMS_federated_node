@@ -345,7 +345,7 @@ def demo_command(ctx, trigger_file, context, project, yes_to_all, from_step):
     database and the git host, then a pull request into the trigger repository that is merged, becomes a task and
     delivers its results in a results pull request, which is merged, then checks of the whole project. It creates and
     deletes nothing: set the node up first with kubectl apply of the project's node config (config/demo.yaml, after
-    `fncli gitea setup -f config/demo.yaml`), and remove it afterwards with kubectl delete. It stops unless the
+    `fncli gitea setup -f config/gitea.yaml -f config/demo.yaml`), and remove it afterwards with kubectl delete. It stops unless the
     project's Project resource is synced (`kubectl get fn -n NAMESPACE`).
 
     TRIGGER is the trigger file the pull request adds: a path, or one relative to triggers/, default

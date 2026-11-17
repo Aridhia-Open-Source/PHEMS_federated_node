@@ -283,7 +283,7 @@ fncli hello-world        # prints "Hello, world!"
 
 ```bash
 fncli experiment deploy                       # the experiments release; the dev project's stand-in dataset reads the demo database's login
-fncli gitea setup -f config/e2e/fn-dev.yaml   # the Gitea repos of the dev project, and the Secrets with their OAuth apps
+fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml   # the Gitea repos of the dev project, and the Secrets with their OAuth apps
 kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml   # provider, dataset, secrets, repos, project
 kubectl get fn -n fn                          # each resource's Synced and Message; wait for every row to be synced
 fncli start-sensor --group all                # start the twelve sensors
@@ -296,7 +296,7 @@ The files in `config/` are Kubernetes custom resources (group `fn.aridhia.com/v1
 
 `fncli gitea setup -f FILE [--rotate NODESECRET]` is the one step kubectl cannot do. It creates the Gitea repositories of the file's Repository resources and, for each NodeSecret they name, a Gitea OAuth app named after the NodeSecret, and writes `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN` into the Kubernetes Secret the NodeSecret's `fromSecret` names. A Secret that exists is kept unless you pass `--rotate`. Run it before `kubectl apply` of the same file. Secrets from other sources are made with `kubectl create secret` (the GitHub App's, in [SETUP_GIT_APPS.md](SETUP_GIT_APPS.md)). Which node fncli talks to is in `bootstrap/context.yaml` (or `--context FILE`, `FNCLI_CONTEXT`): `fncli` refuses to run when `kubectl` points at another cluster.
 
-`fncli demo --project demo-gitea` (or `demo-github`) walks the pull request part one step at a time, on a node where `kubectl apply` has set up `config/demo.yaml` (after `fncli gitea setup -f config/demo.yaml`) or `config/github/demo-github.yaml`. It reads the Project resource and stops, showing the operator's message, unless it is synced. Before each step it says what the step does and shows the command, then asks: Enter runs it, `s` skips it, `q` quits. It adds the trigger file `triggers/examples/demo.json` in a pull request, or the one you name after the command. It creates and deletes nothing: `kubectl delete -f config/demo.yaml` cleans up. It uses its own project and repository names, so it never touches your test project.
+`fncli demo --project demo-gitea` (or `demo-github`) walks the pull request part one step at a time, on a node where `kubectl apply` has set up `config/demo.yaml` (after `fncli gitea setup -f config/gitea.yaml -f config/demo.yaml`) or `config/github/demo-github.yaml`. It reads the Project resource and stops, showing the operator's message, unless it is synced. Before each step it says what the step does and shows the command, then asks: Enter runs it, `s` skips it, `q` quits. It adds the trigger file `triggers/examples/demo.json` in a pull request, or the one you name after the command. It creates and deletes nothing: `kubectl delete -f config/demo.yaml` cleans up. It uses its own project and repository names, so it never touches your test project.
 
 ### API step to fncli
 

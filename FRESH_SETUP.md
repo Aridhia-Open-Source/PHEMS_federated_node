@@ -273,7 +273,7 @@ The demo is `config/demo.yaml`: two NodeSecrets (each one's Kubernetes Secret ho
 2. Make the Gitea repos and the Secrets the NodeSecrets read. This creates the Gitea repositories of the file's Repository resources and, for each NodeSecret they name, a Gitea OAuth app named after it, and writes `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN` into that NodeSecret's Kubernetes Secret. It keeps a Secret that exists, unless you pass `--rotate NODESECRET`. Run it before the apply below.
 
    ```bash
-   fncli gitea setup -f config/demo.yaml
+   fncli gitea setup -f config/gitea.yaml -f config/demo.yaml
    ```
 
 3. Apply the node resources, then check that the operator synced them.

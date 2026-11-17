@@ -63,7 +63,7 @@ sequenceDiagram
     participant DG as Dagster (daemon + run pods)
     participant K8s as Kubernetes
 
-    Dev->>CLI: gitea setup -f config/e2e/fn-dev.yaml
+    Dev->>CLI: gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml
     CLI->>Git: create repos and OAuth apps (Gitea, via localhost:4000)
     CLI->>K8s: store the OAuth credentials in the NodeSecrets' Secrets
     Dev->>K8s: kubectl apply -f config/ (GitProvider, NodeSecret, Repository, Dataset, Project)

@@ -5,7 +5,7 @@ commands, are in bootstrap/context.yaml (bootstrap/examples/context.yaml); the n
 resources in config/, which kubectl applies and the nexus operator syncs (ADR 0032), not the env:
 
     fncli --help
-    fncli gitea setup -f config/demo.yaml
+    fncli gitea setup -f config/gitea.yaml -f config/demo.yaml
     kubectl apply -f config/
 """
 

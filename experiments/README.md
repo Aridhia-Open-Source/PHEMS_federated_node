@@ -75,7 +75,7 @@ of the trigger file. An experiment can use it for a quick dev run (see its READM
 fncli experiment deploy                          # the release: databases, roles, secrets, and the datasets' node resources
 fncli experiment seed demo                   # the schemas and rows
 fncli experiment setup demo                  # waits for the dataset demo-db to sync
-fncli gitea setup -f config/demo.yaml        # the Gitea repos and OAuth Secrets (Gitea demo only; GitHub: see SETUP_GIT_APPS.md)
+fncli gitea setup -f config/gitea.yaml -f config/demo.yaml        # the Gitea repos and OAuth Secrets (Gitea demo only; GitHub: see SETUP_GIT_APPS.md)
 kubectl apply -f config/                     # the repos and the project, which assigns demo-db (or config/github/demo-github.yaml)
 fncli demo --project demo-gitea              # the pull request walk on the applied node, with the dataset healthcheck (repeatable)
 kubectl delete -f config/demo.yaml           # clean up (demo-github: config/github/demo-github.yaml)

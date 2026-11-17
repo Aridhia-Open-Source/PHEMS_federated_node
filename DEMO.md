@@ -36,7 +36,7 @@ fncli experiment setup demo         # waits for the Dataset demo-db to sync to t
 Everything lives in the cluster's Gitea, so nothing outside is needed.
 
 ```bash
-fncli gitea setup -f config/demo.yaml    # the two Gitea repos, and a Kubernetes Secret with each one's OAuth app
+fncli gitea setup -f config/gitea.yaml -f config/demo.yaml    # the two Gitea repos, and a Kubernetes Secret with each one's OAuth app
 kubectl apply -f config/                 # the provider (gitea.yaml) and demo.yaml: NodeSecrets, repos, the project (uses demo-db)
 kubectl get fn -n fn                     # wait for Synced on every row; the Message says what is missing
 fncli demo --project demo-gitea          # the guided pull request walk (or rely on defaults.project)
