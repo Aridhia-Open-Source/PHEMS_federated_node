@@ -13,7 +13,7 @@ from app.dtos.result import PullRequestResultDTO, dump_result
 from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.task_config import config_changes, results_resource, revoked_resources
-from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.result_state import ResultState
@@ -23,7 +23,7 @@ from app.models.task_status import TaskStatus
 from app.models.result import Result
 from app.tasks_api import does_user_own_task
 
-router = APIRouter(prefix='/projects', tags=["results"], dependencies=[Depends(require_scope('can_do_admin'))])
+router = APIRouter(prefix='/projects', tags=["results"])
 
 # A result at one of these steps is never delivered again or has been delivered already
 FINAL_STEPS = {

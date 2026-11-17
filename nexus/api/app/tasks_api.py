@@ -37,7 +37,7 @@ from app.helpers.state_rules import transition
 from app.helpers.task_config import decide_launch
 from app.helpers.task_resources import create_run_resources, delete_run_resources
 from app.dtos.task_spec import TaskSpecRequest
-from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only
 from app.dtos.dataset import DatasetDTO
 from app.dtos.base import page_of
 from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskResourcesDTO
@@ -50,9 +50,8 @@ from app.models.task import Task
 from app.models.task_status import RETRYABLE, TASK_MOVES, TaskStatus
 from app.models.trigger_state import TriggerState
 
-ADMIN_ONLY = [Depends(require_scope('can_do_admin'))]
-router = APIRouter(prefix='/projects/{project_id}/tasks', tags=["tasks"], dependencies=ADMIN_ONLY)
-all_router = APIRouter(prefix='/tasks', tags=["tasks"], dependencies=ADMIN_ONLY)
+router = APIRouter(prefix='/projects/{project_id}/tasks', tags=["tasks"])
+all_router = APIRouter(prefix='/tasks', tags=["tasks"])
 
 # What a task request that fails validation raises. Such a request is kept, as REJECTED.
 VALIDATION_ERRORS = (

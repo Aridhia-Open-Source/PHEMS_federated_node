@@ -1,5 +1,8 @@
 """/projects API: CRUD, enabled and backfill semantics, resource gating (datasets, secrets), delete cascade."""
+import inspect
+
 import pytest
+from fastapi.routing import APIRoute, RouteContext, iter_route_contexts
 
 from app.helpers.base_model import db
 from app.models.project import Project
@@ -101,22 +104,32 @@ def test_patch_revoked_is_admin_only_shows_in_the_dto_and_leaves_enabled_alone(
     assert refresh(project).revoked is False
 
 
-# Project routes need can_do_admin: a non-admin is refused (403) and a caller with no token is unauthenticated (401)
-ADMIN_ROUTES = [
-    ("get", "/projects/{pid}"),
-    ("post", "/projects/{pid}/tasks"),
-    ("get", "/projects/{pid}/healthcheck"),
-    ("get", "/tasks"),
-    ("get", "/global/datasets"),
-]
+# Deny by default: every route needs can_do_admin, except these (app.OPEN_ROUTERS). FastAPI's docs and
+# openapi routes are plain Starlette routes, not APIRoutes, so the walk skips them. An included router is one
+# entry in app.routes; iter_route_contexts gives each of its routes with the include-time dependencies added.
+OPEN_ROUTES = {
+    ("GET", "/"), ("GET", "/ready_check"), ("GET", "/health_check"), ("POST", "/login"), ("POST", "/refresh_token"),
+    ("PUT", "/global/users/reset-password"),
+}
 
 
-@pytest.mark.parametrize("method,url", ADMIN_ROUTES, ids=[f"{m} {u}" for m, u in ADMIN_ROUTES])
-def test_a_non_admin_is_refused_on_the_admin_routes(client, post_json_user_header, project, method, url):
-    url = url.format(pid=project.id)
-    kwargs = {"json": {}} if method == "post" else {}
-    assert getattr(client, method)(url, headers=post_json_user_header, **kwargs).status_code == 403
-    assert getattr(client, method)(url, **kwargs).status_code == 401
+def needs_admin(route: RouteContext) -> bool:
+    return any(
+        dep.dependency.__name__ == "_require_scope"
+        and inspect.getclosurevars(dep.dependency).nonlocals["scope"] == "can_do_admin"
+        for dep in route.dependencies
+    )
+
+
+def test_every_route_outside_the_open_list_needs_can_do_admin(client, post_json_user_header):
+    routes = {(method, route.path): route for route in iter_route_contexts(client.app.routes)
+              if isinstance(route.original_route, APIRoute) for method in route.methods}
+    assert OPEN_ROUTES <= set(routes)
+    assert [key for key, route in routes.items() if needs_admin(route) == (key in OPEN_ROUTES)] == []
+
+    # the temp-password flow stays reachable without admin
+    response = client.put("/global/users/reset-password", json={}, headers=post_json_user_header)
+    assert response.status_code not in (401, 403, 404)
 
 
 def test_enable_and_disable_ignore_tasks_in_flight(client, admin_headers, project, make_task):

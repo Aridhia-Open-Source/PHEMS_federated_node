@@ -16,7 +16,7 @@ import logging
 from datetime import datetime as dt
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body
 from kubernetes.client.exceptions import ApiException
 
 from app.dtos.secret import SecretDTO
@@ -25,14 +25,11 @@ from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
-from app.helpers.wrappers import require_scope
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
 logger = logging.getLogger('secrets_api')
-router = APIRouter(
-    prefix='/global/secrets', tags=["secrets"], dependencies=[Depends(require_scope('can_do_admin'))]
-)
+router = APIRouter(prefix='/global/secrets', tags=["secrets"])
 session = db.session
 
 SECRET_LABELS = {"type": "k8s_secret"}

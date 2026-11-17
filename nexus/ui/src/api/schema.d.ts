@@ -756,6 +756,28 @@ export interface paths {
         patch: operations["patch_result_projects__project_id__results__result_id__patch"];
         trace?: never;
     };
+    "/global/users/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Reset Password
+         * @description PUT /global/users/reset-password endpoint. Interface to keycloak
+         *         API, so we can change the credentials and make sure
+         *         there are no pending action to undertake
+         */
+        put: operations["reset_password_global_users_reset_password_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/global/users": {
         parameters: {
             query?: never;
@@ -776,28 +798,6 @@ export interface paths {
          *         password for them.
          */
         post: operations["create_user_global_users_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/users/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Reset Password
-         * @description PUT /global/users/reset-password endpoint. Interface to keycloak
-         *         API, so we can change the credentials and make sure
-         *         there are no pending action to undertake
-         */
-        put: operations["reset_password_global_users_reset_password_put"];
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4195,6 +4195,39 @@ export interface operations {
             };
         };
     };
+    reset_password_global_users_reset_password_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_users_list_global_users_get: {
         parameters: {
             query?: never;
@@ -4238,39 +4271,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["NewUserDTO"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reset_password_global_users_reset_password_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {

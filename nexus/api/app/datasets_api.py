@@ -20,16 +20,14 @@ from app.dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.soft_delete import delete_global
-from app.helpers.wrappers import Caller, get_caller, require_scope
+from app.helpers.wrappers import Caller, get_caller
 from app.models.dataset import Dataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
 from app.models.secret import Secret
 
 
-router = APIRouter(
-    prefix='/global/datasets', tags=["datasets"], dependencies=[Depends(require_scope('can_do_admin'))]
-)
+router = APIRouter(prefix='/global/datasets', tags=["datasets"])
 session = db.session
 
 
