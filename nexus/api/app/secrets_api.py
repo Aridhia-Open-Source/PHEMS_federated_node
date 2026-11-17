@@ -16,7 +16,7 @@ import logging
 from datetime import datetime as dt
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 from kubernetes.client.exceptions import ApiException
 
 from app.dtos.secret import SecretDTO
