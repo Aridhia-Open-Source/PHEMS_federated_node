@@ -1674,7 +1674,7 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <li>It reads the project's Project resource. If the operator has not synced it, it stops with exit 1 and shows the operator's message. Nothing is applied for you.</li>
 <li>Then it checks the dataset and the git host, walks a pull request into the trigger repository, the task it becomes and the results pull request, then checks the whole project. Before each step it says what the step does, shows the equivalent fncli command, and asks.</li>
 </ol>
-<p>The flow is <code>fncli gitea setup -f config/demo.yaml</code>, <code>kubectl apply -f config/</code>, <code>demo</code> as often as you like, then <code>kubectl delete -f config/demo.yaml</code>. <a href="../Run-Locally/#7-the-gitea-demo">Run locally</a> walks it.</p>
+<p>The flow is <code>fncli gitea setup -f config/gitea.yaml -f config/demo.yaml</code>, <code>kubectl apply -f config/</code>, <code>demo</code> as often as you like, then <code>kubectl delete -f config/demo.yaml</code>. <a href="../Run-Locally/#7-the-gitea-demo">Run locally</a> walks it.</p>
 <h2 id="sensors-and-checks">Sensors and checks<a class="headerlink" href="#sensors-and-checks" title="Permanent link">&para;</a></h2>
 <p>These act on the project in your context's defaults (or <code>--project NAME</code>), and talk only to nexus-api and Dagster. They are written for the development cluster.</p>
 <table>
