@@ -64,8 +64,7 @@ Images are built with `docker buildx bake`. The repo's root `docker-bake.hcl` ho
 | Command | What it does |
 |---|---|
 | `mise run images` | Build and push the node's images and every experiment's target to the local registry |
-| `mise run image --target <target>` | One target |
-| `mise run image-reload --target <target>` | Push one target, then roll the deployments |
+| `mise run image --target <target>` | One target; then restart only that deployment |
 | `mise run images-release --tag <tag>` | The release group, loaded into your local Docker, not pushed |
 | `fncli experiment build NAME` | Build and push just one experiment's image |
 

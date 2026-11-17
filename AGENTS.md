@@ -66,7 +66,7 @@ Testing rule: first run only the unit tests for the files or package you changed
 Images:
 
 - `mise run images` - build every dev image with `docker buildx bake` (`scripts/build_images.sh`), tagged `latest`, pushed to `localhost:5001`.
-- `mise run image --target nexus-api-fn` - one bake target; `mise run image-reload --target <target>` also restarts deployments.
+- `mise run image --target nexus-api-fn` - one bake target. To pick it up, restart just that deployment, or use Tilt live reload or `mise run reload-app` (nexus-api and Dagster).
 - `mise run images-release --tag x.y.z` - build the release images locally.
 
 Dependencies (Python):

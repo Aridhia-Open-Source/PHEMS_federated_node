@@ -121,11 +121,6 @@ description = "Build and push one image, e.g. --target nexus-api-fn"
 usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
 run = 'scripts/build_images.sh "$usage_target"'
 
-[tasks.image-reload]
-description = "Build and push one image, then restart the deployments"
-usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
-run = 'scripts/build_images.sh "$usage_target" && kubectl rollout restart deployment'
-
 # The ghcr.io images the release publishes, tagged and loaded into the local docker, not pushed
 [tasks.images-release]
 description = "Build the release images into the local docker"
