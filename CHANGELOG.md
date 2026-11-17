@@ -1,4 +1,7 @@
 # Releases Changelog
+## Unreleased
+- Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart
+
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller
 - Add storage mount options configuration to task controller

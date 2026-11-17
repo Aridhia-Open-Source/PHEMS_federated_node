@@ -18,7 +18,7 @@ from app.definitions.sensors.git.base import GitAPIFactory
 def backend_env(monkeypatch):
     monkeypatch.setenv("NEXUS_API_URL", "http://nexus-api.fn.svc:5000")
     monkeypatch.setenv("DAGSTER_KC_USER", "dagster")
-    monkeypatch.setenv("DAGSTER_KC_PASSWORD", "secret")
+    monkeypatch.setenv("DAGSTER_KC_PASSWORD_FILE", "/etc/secrets/dagster/DAGSTER_KC_PASSWORD")
 
 
 class TestConfigResources:

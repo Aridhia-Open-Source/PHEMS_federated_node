@@ -9,6 +9,7 @@ from nexus_client.http import (
     BaseHttpAdapter,
     HttpClient,
     OAuthAdapter,
+    PasswordFileAdapter,
 )
 
 
@@ -262,3 +263,17 @@ class TestBackendAdapter:
         with patch("nexus_client.http.requests.post", return_value=resp):
             with pytest.raises(requests.HTTPError):
                 adapter.login()
+
+
+class TestPasswordFileAdapter:
+    def test_each_login_reads_the_password_file_again(self, tmp_path):
+        password_file = tmp_path / "DAGSTER_KC_PASSWORD"
+        password_file.write_text("old\n", encoding="utf-8")
+        adapter = PasswordFileAdapter(base_url="https://backend", username="u", password_file=str(password_file))
+
+        with patch("nexus_client.http.requests.post", return_value=response(body={"token": "t"})) as post:
+            adapter.login()
+            password_file.write_text("rotated", encoding="utf-8")
+            adapter.login()
+
+        assert [call.kwargs["data"]["password"] for call in post.call_args_list] == ["old", "rotated"]
