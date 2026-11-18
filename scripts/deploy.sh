@@ -17,8 +17,6 @@ if [ -f k8s/federated-node/generated.values.yaml ]; then
   VALUES_ARGS=(-f generated.values.yaml "${VALUES_ARGS[@]}")
 fi
 
-# Flux would put its own version back: the release is either Flux's or deploy's
-./scripts/flux.sh check
 ./scripts/deploy_owner.sh claim
 
 echo

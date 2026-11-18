@@ -11,8 +11,6 @@ kind = "0.33.0"
 kubectl = "1.37.2"
 helm = "3.22.1"
 tilt = "0.37.8"
-# Flux CLI for `mise run flux` (ADR 0031)
-flux2 = "2.9.6"
 
 [env]
 # .generated.env (scripts/configure.sh --proxy / --ca-cert) first, so .dev.env wins
@@ -153,16 +151,6 @@ description = "Build the release images into the local docker"
 usage = 'flag "--tag <tag>" default="1.0" help="Image tag, e.g. 1.2.3"'
 run = 'TAG="$usage_tag" docker buildx bake -f docker-bake.hcl release --load'
 
-# mise run mirror-to-gitea [--tag v0.0.1-dev] [--repo federated-node]
-# A v* tag runs .gitea/workflows/release.yml in the dev Gitea, which publishes to the kind registry
-[tasks.mirror-to-gitea]
-description = "Push this working tree to the dev Gitea; --tag v* starts the release workflow"
-usage = '''
-flag "--tag <tag>" help="Tag to push, e.g. v0.0.1-dev (starts a release)"
-flag "--repo <repo>" default="federated-node" help="Gitea repository under the admin user"
-'''
-run = './scripts/mirror_to_gitea.sh --repo "$usage_repo" ${usage_tag:+--tag "$usage_tag"}'
-
 [tasks.reload-app]
 description = "Rebuild the Dagster and nexus-api images and restart their pods"
 run = "./scripts/reload_app.sh"
@@ -192,18 +180,6 @@ run = "./scripts/teardown.sh"
 [tasks.portfwd]
 description = "Port-forward the node's services (when Tilt is not running)"
 run = "./scripts/portfwd.sh"
-
-# mise run flux up | status | down
-# Flux delivering the dev node from a test site repository in Gitea (scripts/flux.sh, GitOps-Delivery.md)
-[tasks.flux]
-description = "Flux in the dev cluster: up (adopt the release from site-example), status, down"
-quiet = true
-usage = '''
-arg "<action>" help="up, status or down" {
-  choices "up" "status" "down"
-}
-'''
-run = './scripts/flux.sh "$usage_action"'
 
 [tasks.deploy-owner]
 description = "Show which worktree owns the dev cluster"
