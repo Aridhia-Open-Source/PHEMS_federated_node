@@ -14,6 +14,8 @@ import { Healthcheck } from "../../shared/Healthcheck";
 import { Loading } from "../../shared/Loading";
 import { NewButton } from "../../shared/NewButton";
 import { StatusBadge } from "../../shared/StatusBadge";
+import { useViewerGroups } from "../../api/auth";
+import { ownedBy } from "../../shared/owned";
 
 const m = shellMessages.pages.providers;
 
@@ -59,6 +61,7 @@ function useSetEnabled() {
 }
 
 function ProviderList() {
+  const groups = useViewerGroups();
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: KEY, queryFn: () => call(api.GET("/global/providers")) });
   const setEnabled = useSetEnabled();
@@ -78,9 +81,9 @@ function ProviderList() {
           { header: "URI", cell: (p) => p.uri },
           { header: "API URI", cell: (p) => p.api_uri },
           { header: "Enabled", cell: (p) => (
-            <EnabledToggle hideLabel enabled={p.enabled} onChange={(enabled) => setEnabled.mutate({ id: p.id, enabled })} />
+            <EnabledToggle ownedBy={ownedBy(p, groups)} hideLabel enabled={p.enabled} onChange={(enabled) => setEnabled.mutate({ id: p.id, enabled })} />
           ) },
-          { header: "", cell: (p) => <DeleteButton what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
+          { header: "", cell: (p) => <DeleteButton ownedBy={ownedBy(p, groups)} what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
         ]}
       />
     </section>
@@ -109,6 +112,7 @@ function ProviderCreate() {
 }
 
 function ProviderDetail() {
+  const groups = useViewerGroups();
   const id = Number(useParams().id);
   const qc = useQueryClient();
   const nav = useNavigate();
@@ -140,12 +144,12 @@ function ProviderDetail() {
       <PageHeader title={m.detail(data.name)} />
       <Json value={data} />
       <SectionHeading>{shellMessages.pages.edit}</SectionHeading>
-      <DtoForm key={data.updated_at} fields={editFields} initial={data} submitLabel="Update"
+      <DtoForm ownedBy={ownedBy(data, groups)} key={data.updated_at} fields={editFields} initial={data} submitLabel="Update"
         busy={update.isPending} onSubmit={(b) => update.mutate(b)} />
       <Healthcheck query={health} />
       <ProviderUsedBy id={id} />
       <SectionHeading>{shellMessages.pages.delete}</SectionHeading>
-      <DeleteButton what={data.name} onConfirm={() => remove.mutate()} />
+      <DeleteButton ownedBy={ownedBy(data, groups)} what={data.name} onConfirm={() => remove.mutate()} />
     </section>
   );
 }

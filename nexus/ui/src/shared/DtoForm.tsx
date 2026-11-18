@@ -6,6 +6,7 @@ import {
 import { shellMessages } from "@/shell/messages";
 
 import { sentence } from "./text";
+import { OwnedBy } from "./owned";
 
 const m = shellMessages.widgets;
 
@@ -27,6 +28,8 @@ type Props = {
   submitLabel?: string;
   onSubmit: (body: Record<string, unknown>) => void;
   busy?: boolean;
+  // The owner group, when the viewer is not in it: the submit button is greyed out
+  ownedBy?: string | null;
 };
 
 function toText(v: unknown, type: Field["type"]) {
@@ -35,7 +38,7 @@ function toText(v: unknown, type: Field["type"]) {
   return String(v);
 }
 
-export function DtoForm({ fields, initial = {}, submitLabel = m.save, onSubmit, busy }: Props) {
+export function DtoForm({ fields, initial = {}, submitLabel = m.save, onSubmit, busy, ownedBy }: Props) {
   const [values, setValues] = useState<Record<string, string | boolean>>(() =>
     Object.fromEntries(
       fields.map((f) => [f.name, f.type === "checkbox" ? Boolean(initial[f.name]) : toText(initial[f.name], f.type)]),
@@ -116,7 +119,9 @@ export function DtoForm({ fields, initial = {}, submitLabel = m.save, onSubmit, 
           </FormField>
         );
       })}
-      <Button type="submit" busy={busy} className="self-start">{submitLabel}</Button>
+      <OwnedBy group={ownedBy}>
+        <Button type="submit" busy={busy} disabled={!!ownedBy} className="self-start">{submitLabel}</Button>
+      </OwnedBy>
     </form>
   );
 }

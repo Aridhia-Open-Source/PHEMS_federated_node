@@ -22,6 +22,8 @@ import {
   datasetResource, globalPath, resourceKey, resourcesPath, resultsResource, secretResource,
   triggerResource, type Flags, type Kind,
 } from "../../shared/projectResources";
+import { useViewerGroups } from "../../api/auth";
+import { ownedBy } from "../../shared/owned";
 
 type ViewProps = {
   projectId: number;
@@ -40,6 +42,7 @@ type ViewProps = {
 const show = (v: unknown) => (v !== null && typeof v === "object" ? JSON.stringify(v) : String(v ?? ""));
 
 function ResourceView(p: ViewProps) {
+  const groups = useViewerGroups();
   const health = useQuery({
     queryKey: [...resourceKey(p.projectId, p.kind), p.id, "health"],
     queryFn: p.health,
@@ -53,7 +56,7 @@ function ResourceView(p: ViewProps) {
         title={p.title}
         actions={
           <>
-            <EnabledToggle enabled={p.resource.enabled} busy={p.busy} onChange={p.onToggle} />
+            <EnabledToggle ownedBy={ownedBy(p.resource, groups)} enabled={p.resource.enabled} busy={p.busy} onChange={p.onToggle} />
             <Button asChild variant="secondary" size="sm">
               <Link to={globalPath(p.kind, p.id)}>{m.global}<Icon name="next" size="sm" /></Link>
             </Button>

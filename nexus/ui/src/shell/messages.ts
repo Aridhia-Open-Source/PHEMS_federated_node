@@ -39,6 +39,7 @@ export const shellMessages = {
     usedBy: { title: "Used by", empty: "No project uses this" },
     backTo: (what: string) => `Back to ${what}`,
     statusOk: "OK",
+    ownedBy: (group: string) => `Owned by ${group}: only its members can change it`,
   },
   // Titles and actions of the pages in pages/
   pages: {

@@ -3,6 +3,8 @@ import { useId, useState } from "react";
 import { Button, Checkbox, ConfirmDialog } from "@/ui";
 import { shellMessages } from "@/shell/messages";
 
+import { OwnedBy } from "./owned";
+
 const m = shellMessages.widgets;
 
 type Props = {
@@ -15,17 +17,21 @@ type Props = {
   label?: string;
   // The consequence, one or two sentences
   description?: string;
+  // The owner group, when the viewer is not in it: greyed out
+  ownedBy?: string | null;
 };
 
-export function DeleteButton({ what, onConfirm, allowForce, label = m.delete, description = m.deleteDescription }: Props) {
+export function DeleteButton({ what, onConfirm, allowForce, label = m.delete, description = m.deleteDescription, ownedBy }: Props) {
   const [open, setOpen] = useState(false);
   const [force, setForce] = useState(false);
   const forceId = useId();
   return (
     <>
-      <Button type="button" variant="row" size="sm" onClick={() => { setForce(false); setOpen(true); }}>
-        {label}
-      </Button>
+      <OwnedBy group={ownedBy}>
+        <Button type="button" variant="row" size="sm" disabled={!!ownedBy} onClick={() => { setForce(false); setOpen(true); }}>
+          {label}
+        </Button>
+      </OwnedBy>
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}

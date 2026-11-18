@@ -20,6 +20,8 @@ import ProjectHealth from "../project-health";
 import ProjectTriggers from "../project-triggers";
 import ProjectTasks from "../project-tasks";
 import ProjectResults from "../project-results";
+import { useViewerGroups } from "../../api/auth";
+import { ownedBy } from "../../shared/owned";
 
 type Project = Schemas["ProjectDTO"];
 const KEY = ["projects"];
@@ -50,6 +52,7 @@ function useSetEnabled(id?: number) {
 }
 
 function ProjectList() {
+  const groups = useViewerGroups();
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const { data } = useQuery({
@@ -72,10 +75,10 @@ function ProjectList() {
           { header: "Name", cell: (p) => <Link to={String(p.id)}>{p.name}</Link> },
           { header: "Description", cell: (p) => p.description },
           { header: "Enabled", cell: (p) => (
-            <EnabledToggle hideLabel enabled={p.enabled} onChange={(enabled) => setEnabled.mutate({ project_id: p.id, enabled })} />
+            <EnabledToggle ownedBy={ownedBy(p, groups)} hideLabel enabled={p.enabled} onChange={(enabled) => setEnabled.mutate({ project_id: p.id, enabled })} />
           ) },
           { header: "Created", cell: (p) => p.created_at },
-          { header: "", cell: (p) => <DeleteButton what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
+          { header: "", cell: (p) => <DeleteButton ownedBy={ownedBy(p, groups)} what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
         ]}
       />
     </section>
@@ -111,6 +114,7 @@ const tabs = (id: number): NavItem[] => [
 ];
 
 function ProjectDetail() {
+  const groups = useViewerGroups();
   const id = Number(useParams().id);
   const { data } = useQuery({
     queryKey: [...KEY, id],
@@ -125,7 +129,7 @@ function ProjectDetail() {
       <PageHeader
         title={m.detail(data.name)}
         actions={
-          <EnabledToggle enabled={data.enabled} busy={setEnabled.isPending}
+          <EnabledToggle ownedBy={ownedBy(data, groups)} enabled={data.enabled} busy={setEnabled.isPending}
             onChange={(enabled) => setEnabled.mutate({ project_id: id, enabled })} />
         }
       />
