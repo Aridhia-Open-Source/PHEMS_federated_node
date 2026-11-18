@@ -34,7 +34,7 @@ from app.dtos.results_repository import (
 )
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
-from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.ownership import get_for_write, require_members, set_owner
 from app.helpers.project_state import require_disabled
 from app.helpers.pull_request_fanout import backfill, skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
@@ -132,15 +132,18 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
 def delete_project(project_id: int, caller: Caller = Depends(get_caller)):
     """
     DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes
-    every project resource under it: datasets, secrets, results repository and trigger repositories. Its tasks
+    every project resource under it: datasets, secrets, results repository and trigger repositories. A 409 names
+    the project resources owned by a group the caller is not in, and nothing is deleted. Its tasks
     and triggers stay. Secrets, datasets and results repositories belong to no project: they, and
     their stored values, are left alone.
     """
     project = get_for_write(db.session, Project, project_id, caller)
-    for resource in (
+    resources = [
         *project.dataset_assignments, *project.secret_assignments,
         *project.trigger_repository_assignments, *project.results_repository_assignments,
-    ):
+    ]
+    require_members(resources, caller, lambda resource: {"type": type(resource).__name__, "id": resource.id})
+    for resource in resources:
         resource.soft_delete()
     project.soft_delete()
     db.session.commit()
