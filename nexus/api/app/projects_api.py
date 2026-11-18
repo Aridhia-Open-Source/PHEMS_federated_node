@@ -34,7 +34,7 @@ from app.dtos.results_repository import (
 )
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
-from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.ownership import get_for_write, require_member, set_owner
 from app.helpers.project_state import require_disabled
 from app.helpers.pull_request_fanout import backfill, skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
@@ -195,7 +195,7 @@ def put_project_dataset(
     project, 201, and replaces the project's settings if it is assigned already, 200. The first one assigned becomes the project's default.
     Body: {"enabled": true}, optional.
     """
-    project = Project.get_by_id(project_id)
+    project = require_member(Project.get_by_id(project_id), caller)
     if not set(body) <= {"enabled"}:
         raise InvalidRequest("Provide, optionally, enabled")
     enabled = _enabled(body)
@@ -222,6 +222,7 @@ def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(de
     PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the project resource on or
     off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
+    require_member(Project.get_by_id(project_id), caller)
     resource = get_for_write(
         db.session, ProjectDataset, {"project_id": project_id, "dataset_id": dataset_id}, caller,
         missing=f"Dataset {dataset_id} is not assigned to project {project_id}",
@@ -248,6 +249,7 @@ def delete_project_dataset(project_id: int, dataset_id: int, caller: Caller = De
     dataset itself: a soft delete that also revokes the project resource. If it was the project's default,
     the project has none afterwards.
     """
+    require_member(Project.get_by_id(project_id), caller)
     resource = get_for_write(
         db.session, ProjectDataset, {"project_id": project_id, "dataset_id": dataset_id}, caller,
         missing=f"Dataset {dataset_id} is not assigned to project {project_id}",
@@ -268,6 +270,7 @@ def _secret_resource(project_id: int, label: str) -> ProjectSecret:
 
 
 def _secret_resource_for_write(project_id: int, label: str, caller: Caller) -> ProjectSecret:
+    require_member(Project.get_by_id(project_id), caller)
     return get_for_write(
         db.session, ProjectSecret, {"project_id": project_id, "secret_id": _secret(label).id}, caller,
         missing=f"Secret {label} is not assigned to project {project_id}",
@@ -303,7 +306,7 @@ def put_project_secret(
     201, and replaces the project's settings if it is assigned already, 200.
     Body: {"enabled": true}, optional.
     """
-    project = Project.get_by_id(project_id)
+    project = require_member(Project.get_by_id(project_id), caller)
     if not set(body) <= {"enabled"}:
         raise InvalidRequest("Provide, optionally, enabled")
     enabled = _enabled(body)
@@ -403,7 +406,7 @@ def put_project_results_repository(
     Body: {"target_dir": "results", "base_branch": "main", "owned_by_federated_node": true, "enabled": true};
     target_dir and base_branch are required, the last two are optional.
     """
-    project = Project.get_by_id(project_id)
+    project = require_member(Project.get_by_id(project_id), caller)
     target_dir = normalise_dir(req.target_dir)
     if not target_dir:
         raise InvalidRequest("target_dir is required")
@@ -444,6 +447,7 @@ def patch_project_results_repository(
     off (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
+    require_member(Project.get_by_id(project_id), caller)
     resource = get_for_write(
         db.session, ProjectResultsRepository, {"project_id": project_id, "results_repository_id": repository_id},
         caller, missing=f"Results repository {repository_id} is not assigned to project {project_id}",
@@ -474,6 +478,7 @@ def delete_project_results_repository(project_id: int, repository_id: int, calle
     repository, not the repository itself: a soft delete that also revokes the project resource. A task of the
     project still in flight gets a REVOKED result.
     """
+    require_member(Project.get_by_id(project_id), caller)
     resource = get_for_write(
         db.session, ProjectResultsRepository, {"project_id": project_id, "results_repository_id": repository_id},
         caller, missing=f"Results repository {repository_id} is not assigned to project {project_id}",

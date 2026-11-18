@@ -56,6 +56,20 @@ def get_for_write[M: OwnedMixin](
     return record
 
 
+def require_member[M: OwnedMixin](record: M, caller: Caller) -> M:
+    """
+    For a write under a record that does not change the record itself (a project's datasets, secrets and
+    repositories): a 409 when the record is owned by a group the caller is not in. The caller does not take
+    the record over.
+    """
+    group = record.owner_group
+    if group is not None and group not in caller.groups:
+        raise InvalidRequest(
+            f"{record!r} is owned by {group}: only its members can change what is under it", HTTPStatus.CONFLICT
+        )
+    return record
+
+
 def _locks(model: type[OwnedMixin], fields: set[str] | None) -> bool:
     locked = model.owner_locked_fields
     return fields is None or locked is None or bool(fields & locked)
