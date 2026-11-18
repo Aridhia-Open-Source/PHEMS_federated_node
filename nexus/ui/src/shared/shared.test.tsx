@@ -86,8 +86,8 @@ test("StatusBadge writes states in sentence case", () => {
 });
 
 test("tokenGroups reads the realm roles and the Keycloak groups from the token", () => {
-  const payload = btoa(JSON.stringify({ realm_access: { roles: ["Users", "service-account"] }, groups: ["/ops"] }));
-  expect(tokenGroups(`h.${payload}.s`)).toEqual(new Set(["Users", "service-account", "ops"]));
+  const payload = btoa(JSON.stringify({ realm_access: { roles: ["Users", "service"] }, groups: ["/ops"] }));
+  expect(tokenGroups(`h.${payload}.s`)).toEqual(new Set(["Users", "service", "ops"]));
   expect(tokenGroups(null)).toEqual(new Set());
   expect(tokenGroups("not-a-jwt")).toEqual(new Set());
 });

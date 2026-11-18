@@ -16,7 +16,9 @@ Status: Proposed, 2026-11-17.
 - **nexus-api has a `users` table,** one row per Keycloak identity that has called it. It records identity only; access stays in Keycloak.
 - **Columns:** `id` (the Keycloak user id, the primary key), `username`, `created_at`, `last_seen_at`.
 - **The caller's groups are read from the token:** its realm roles and, when the token has a `groups` claim, its Keycloak groups. `Caller.groups` holds them.
-- **Owner groups are one setting,** `OWNER_GROUPS`: a comma-separated list of group or role names, by default `service-account`, set from the chart value `nexus.api.ownerGroups`. That realm role is defined in the chart's realm (`k8s/federated-node/scripts/realms.json`) and granted in Keycloak like any other role.
+- **Owner groups are one setting,** `OWNER_GROUPS`: a comma-separated list of group or role names, by default `service,admin`, set from the chart value `nexus.api.ownerGroups`. Both are realm roles defined in the chart's realm (`k8s/federated-node/scripts/realms.json`).
+- **There are two owner groups by default.** `service` is held by the nexus operator's Keycloak user. `admin` is held by every Administrator: the Administrator role includes it as a composite (realms.json for a new realm, kc-init migration `m003_admin_owner_group` for an existing one), so no admin is granted it by hand. Records the operator creates are locked to `service`, records an admin creates are locked to `admin`, and neither can change the other's. Users hold no owner group: their records stay open, and an admin may change them (and so takes them over).
+- **A caller's group is the first of `OWNER_GROUPS` it holds.** The operator is an Administrator too, so it holds both; `service` comes first, so its records lock to `service`. Only that group counts as membership: the operator may not change records owned by `admin`, although it holds the role.
 - **The row is upserted on each authenticated call.** `get_caller` upserts it (one `INSERT ... ON CONFLICT DO UPDATE`, committed at once), refreshing `username` and `last_seen_at`; a row seen in the last minute under the same username is left alone. The caller then carries `user`.
 - **The row is never deleted.** Records keep pointing at it after the Keycloak user is gone.
 
@@ -32,7 +34,7 @@ Status: Proposed, 2026-11-17.
 
 ### The superuser releases a record
 
-- **The superuser is a break-glass account,** for when a record owned by a group has to change and the service that owns it cannot do it (it is gone, broken, or wrong). It is a Keycloak user with the `superuser` realm role, defined in the chart's realm next to `service-account`, and with Administrator for the routes' scope.
+- **The superuser is a break-glass account,** for when a record owned by a group has to change and the service that owns it cannot do it (it is gone, broken, or wrong). It is a Keycloak user with the `superuser` realm role, defined in the chart's realm next to `service` and `admin`, and with Administrator for the routes' scope (so the records it creates lock to `admin`).
 - **It is set up like the first user.** The chart value `superuserSecret` names a Secret and the keys of its username and password; kc-init creates the account with both roles on every install and upgrade, create-only, so a password changed in Keycloak is kept. In dev, `mise run init-conf` asks for it and `deploy.sh` writes it into the `keycloak-superuser` Secret.
 - **Each owned record has a release route,** `POST <record path>/release` (for example `POST /global/datasets/{id}/release`, `POST /projects/{id}/secrets/{label}/release`). It sets `owner_group` to null and leaves `owner_id` alone; the record is then open, and changes like any other. Only a caller with the `superuser` role may call it (`superuser_only` in `app/helpers/wrappers.py`); an Administrator without it gets a 403.
 - **Release is the only override.** The superuser changes nothing else through it: to change the record, it (or anyone) uses the normal routes once the record is open. A service that writes the record again takes it back, as for any open record.
@@ -52,9 +54,10 @@ Status: Proposed, 2026-11-17.
 ## Consequences
 
 - Every config record created from now on says who owns it, and the UI can show it.
-- A service account's records cannot drift through the UI or another client; a person who needs to change one does it through the service's source, or is added to the owner group.
+- The operator's records cannot drift through the UI or another client; a person who needs to change one does it through the operator's source, or is added to `service`.
+- The operator cannot overwrite what admins create by hand, and admins cannot overwrite what the operator manages. A user's record is open: an admin may change it.
 - Each authenticated call writes one row. That is one small upsert on a primary key.
-- An admin outside the owner group cannot revoke or delete a record owned by a group. Withdrawing it goes through the service, or through the superuser releasing it first.
+- An admin cannot revoke or delete a record owned by `service`. Withdrawing it goes through the service, or through the superuser releasing it first.
 - The superuser's password is a standing credential that can open any record owned by a group. Its Secret needs the same care as the first user's.
 - A service taking a record over replaces the person who owned it; who owned it before is not kept until there is an audit trail.
 - Records made before this change, and records made by internal paths with no caller, have no owner and are open.
@@ -74,4 +77,5 @@ Status: Proposed, 2026-11-17.
 ## Open questions
 
 - Which fields are owner-controlled: today any change is refused; `owner_locked_fields` and `fields` are there for when that narrows.
-- Whether the Dagster System user should be in an owner group. It holds `System`, not `service-account`, so its writes lock nothing; it creates no config records.
+- Whether the Dagster System user should be in an owner group. It holds `System`, not `service` or `admin`, so its writes lock nothing; it creates no config records.
+- Whether users should have an owner group of their own. Today they have none, so their records stay open to admins.

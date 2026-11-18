@@ -36,7 +36,8 @@
         "composite": true,
         "composites": {
           "realm": [
-            "Users"
+            "Users",
+            "admin"
           ],
           "client": {
             "realm-management": [
@@ -145,8 +146,15 @@
         "attributes": {}
       },
       {
-        "name": "service-account",
-        "description": "Programs, not people: nexus-api records them as services, and only they change the records they own",
+        "name": "service",
+        "description": "Owner group of the nexus operator: only it changes the records it creates",
+        "composite": false,
+        "clientRole": false,
+        "attributes": {}
+      },
+      {
+        "name": "admin",
+        "description": "Owner group of administrators (every Administrator holds it): only administrators change the records they create",
         "composite": false,
         "clientRole": false,
         "attributes": {}

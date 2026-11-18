@@ -1,6 +1,6 @@
 """
 Who owns a record, and who may change it (ADR 0036). The creator owns a record. When the creator is in one
-of OWNER_GROUPS (a service account), the record is locked to that group: only its members may change it,
+of OWNER_GROUPS (`service` for the operator, `admin` for administrators), the record is locked to that group: only its members may change it,
 anyone else gets a 409. A member of an owner group that writes a record takes it over.
 
 The check is explicit: every write route loads its record through get_for_write. Reads use the normal
@@ -89,8 +89,12 @@ def require_members[M: OwnedMixin](records: list[M], caller: Caller, describe: C
 
 
 def _member(group: str | None, caller: Caller) -> bool:
-    """Whether the caller may change a record owned by group (None: no owner group)."""
-    return group is None or group in caller.groups
+    """
+    Whether the caller may change a record owned by group (None: no owner group). Only the caller's own
+    owner group counts, not every one it holds: the operator is an Administrator too, so it holds admin,
+    but its group is service and it may not change admins' records.
+    """
+    return group is None or group == caller.owner_group
 
 
 def _locks(model: type[OwnedMixin], fields: set[str] | None) -> bool:

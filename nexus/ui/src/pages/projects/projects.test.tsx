@@ -104,13 +104,13 @@ test("Global trigger repository: Used by links to the project's resource page", 
 
 test("Projects list: a project owned by a group the viewer is not in has its controls greyed out", async () => {
   const list = fixtures["/projects"];
-  fixtures["/projects"] = () => ({ items: [{ ...project, owner_group: "service-account" }], total: 1, ...page });
+  fixtures["/projects"] = () => ({ items: [{ ...project, owner_group: "service" }], total: 1, ...page });
   try {
     renderAt("/projects", <Projects />, "projects/*");
     const remove = await screen.findByRole("button", { name: "Delete" });
     expect((remove as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole("switch") as HTMLInputElement).disabled).toBe(true);
-    expect(remove.closest("[title]")?.getAttribute("title")).toContain("service-account");
+    expect(remove.closest("[title]")?.getAttribute("title")).toContain("service");
   } finally {
     fixtures["/projects"] = list;
   }

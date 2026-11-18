@@ -20,8 +20,11 @@ nexus:
     url:
     # Keycloak groups or realm roles whose members lock the records they write to that group
     # (ADR 0036): only members may then change them. Passed to nexus-api as OWNER_GROUPS.
+    # A caller's group is the first of these it holds: the operator is an Administrator too, so
+    # `service` comes before `admin`. Every Administrator holds `admin`; users hold neither.
     ownerGroups:
-      - service-account
+      - service
+      - admin
     db:
       name: fn_nexus
       user: fn_nexus

@@ -161,18 +161,18 @@ tests:
     asserts:
       - equal:
           path: data.OWNER_GROUPS
-          value: service-account
+          value: service,admin
 
   - it: takes several owner groups
     template: nexus-api-configmap.yaml
     set:
       nexus:
         api:
-          ownerGroups: [service-account, ops]
+          ownerGroups: [service, ops]
     asserts:
       - equal:
           path: data.OWNER_GROUPS
-          value: service-account,ops
+          value: service,ops
 
   - it: tells Dagster where it is
     template: dagster-env-config.yaml

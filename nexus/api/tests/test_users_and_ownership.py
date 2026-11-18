@@ -1,6 +1,6 @@
 """
 The users table and record ownership (ADR 0036): each authenticated call upserts the caller's row; the creator
-owns a record; a record created by a member of an owner group (OWNER_GROUPS, by default service-account) is
+owns a record; a record created by a member of an owner group (OWNER_GROUPS, by default service, then admin) is
 locked to that group, and every write route loads its record through get_for_write, which refuses anyone else
 with a 409.
 """
@@ -27,7 +27,8 @@ from app.models.trigger_repository import TriggerRepository
 from app.models.user import OwnedMixin, User
 
 PROV = "/global/providers"
-GROUP = "service-account"
+GROUP = "service"
+ADMIN_GROUP = "admin"
 # token -> the Keycloak user it decodes to, and its realm roles
 USERS = {
     "admin_token": {"id": "id-admin", "username": "admin", "roles": ["Administrator"]},
@@ -35,6 +36,10 @@ USERS = {
     "service_token": {"id": "id-svc", "username": "svc", "roles": [GROUP]},
     "other_service_token": {"id": "id-svc2", "username": "svc2", "roles": [GROUP]},
     "superuser_token": {"id": "id-super", "username": "super", "roles": ["Administrator", "superuser"]},
+    # As Keycloak issues them: Administrator includes the admin role, and the operator also holds service
+    "group_admin_token": {"id": "id-gadmin", "username": "gadmin", "roles": ["Administrator", ADMIN_GROUP]},
+    "operator_token": {"id": "id-op", "username": "op", "roles": ["Administrator", ADMIN_GROUP, GROUP]},
+    "user_token": {"id": "id-user", "username": "user", "roles": ["Users"]},
 }
 
 
@@ -137,6 +142,36 @@ def test_a_project_and_its_assignment_are_owned_by_their_creator(client, callers
     assert (response.json()["owner"]["id"], response.json()["owner_group"]) == ("id-svc", GROUP)
     assert Project.get_by_id(project_id).owner_group == GROUP
     assert ProjectDataset.query.filter_by(project_id=project_id).one().owner_id == "id-svc"
+
+
+def test_the_operator_locks_to_service_an_administrator_to_admin_and_a_user_to_nothing(client, callers):
+    """The operator is an Administrator too: the first of OWNER_GROUPS it holds, service, is its group."""
+    by_operator = create_provider(client, "operator_token", "p1")
+    by_admin = create_provider(client, "group_admin_token", "p2")
+    by_user = create_provider(client, "user_token", "p3")
+
+    assert [p["owner_group"] for p in (by_operator, by_admin, by_user)] == [GROUP, ADMIN_GROUP, None]
+
+
+def test_the_operator_and_administrators_cannot_change_each_others_records(client, callers):
+    by_operator = create_provider(client, "operator_token", "p1")
+    by_admin = create_provider(client, "group_admin_token", "p2")
+
+    admin_on_operator = client.patch(f"{PROV}/{by_operator['id']}", json={"name": "x"}, headers=as_("group_admin_token"))
+    operator_on_admin = client.patch(f"{PROV}/{by_admin['id']}", json={"name": "y"}, headers=as_("operator_token"))
+
+    assert (admin_on_operator.status_code, operator_on_admin.status_code) == (409, 409)
+    assert f"owned by {GROUP}" in admin_on_operator.json()["error"]
+    assert f"owned by {ADMIN_GROUP}" in operator_on_admin.json()["error"]
+
+
+def test_an_administrator_may_change_a_users_record_and_takes_it_over(client, callers):
+    provider = create_provider(client, "user_token")
+
+    response = client.patch(f"{PROV}/{provider['id']}", json={"name": "renamed"}, headers=as_("group_admin_token"))
+
+    assert response.status_code == 200
+    assert (response.json()["owner"]["id"], response.json()["owner_group"]) == ("id-gadmin", ADMIN_GROUP)
 
 
 # Changes
