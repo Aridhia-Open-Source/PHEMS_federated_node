@@ -35,7 +35,7 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
 
 ## Dev loop
 
-Run from the repo root. `mise tasks` lists the tasks. First-time setup: `mise run init-conf` creates `.dev.env` and `dev.values.yaml` from the examples and asks for the first Keycloak user; the rest is in `DEPLOYMENT.md` ("Run it locally").
+Run from the repo root. `mise tasks` lists the tasks. First-time setup: `mise run configure` creates `.dev.env` and `dev.values.yaml` from the examples; the first Keycloak user defaults to `admin@fn.local` / `admin` (`--proxy` / `--ca-cert` set up a TLS-intercepting proxy or a private CA, `--no-proxy` / `--no-ca` remove it, see `PROXY_CA_SETUP.md`); the rest is in `DEPLOYMENT.md` ("Run it locally").
 Run `mise run setup` once per checkout (installs the pinned tools and the per-package venvs), and `mise trust` if mise asks.
 
 1. Cluster (human developers only): `mise run cluster up` / `mise run cluster down` (`scripts/cluster.sh`) create or delete the kind cluster `fn` and the local registry at `localhost:5001`. Agents never run these; they work against a cluster that already exists. Run `mise run helm deps` once first (`charts/` is gitignored).
@@ -92,6 +92,7 @@ Tests and lint:
 - pylint config: `nexus/api/pylintrc`, `dagster/pylintrc`; `max-line-length=120`.
 - Python dependencies are pinned with hashes in `requirements.txt`; use `~=` specifiers in `pyproject.toml`.
 - Secrets are Kubernetes Secrets referenced by name from values (e.g. `firstUserSecret`); secret values never go in values files, examples or committed `.env` files. `.dev.env` and `dev.values.yaml` are gitignored.
+- Generated, machine-local files (env, values, fncli contexts, test CAs) live in the repo and are gitignored, in the standard place for their kind (`.generated.env`, `k8s/federated-node/generated.values.yaml`, `bootstrap/`), never under `~/`. The one exception is `~/.fn/data`, the cluster's volume data shared by every worktree.
 - API responses are built through DTOs; state changes go through the transition tables in `nexus/api/app/helpers/state_rules.py` (ADR 0005, a refused move is a 409).
 - nexus-api decides, Dagster carries out decisions (ADR 0021); Dagster and fncli parse API responses into their own models.
 - CI (`.github/workflows/build.yml`) runs pylint, hadolint, helm lint/template/unittest, nexus-api tests, Dagster tests and Keycloak integration tests.

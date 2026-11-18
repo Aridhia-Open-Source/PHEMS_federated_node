@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Load env
-source .dev.env
+source scripts/load_env.sh
+export CUSTOM_CA_FILE   # build_images.sh passes it to image builds
 
 echo "=== Building Dagster and nexus-api images ==="
 scripts/build_images.sh dagster-fn nexus-api-fn

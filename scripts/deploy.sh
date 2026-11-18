@@ -7,7 +7,15 @@ set -euo pipefail
 # (tagged latest) are picked up. There is no separate upgrade script.
 ###############################################################################
 
-source .dev.env
+source scripts/load_env.sh
+export CUSTOM_CA_FILE   # build_images.sh passes it to image builds
+
+# generated.values.yaml (scripts/configure.sh: the chart's proxy and customCA) goes
+# first, so what you set in $VALUES_FILE wins.
+VALUES_ARGS=(-f "$VALUES_FILE")
+if [ -f k8s/federated-node/generated.values.yaml ]; then
+  VALUES_ARGS=(-f generated.values.yaml "${VALUES_ARGS[@]}")
+fi
 
 ./scripts/deploy_owner.sh claim
 
@@ -16,7 +24,7 @@ echo "=== Validating Helm templates ==========================================="
 
 # charts/ is gitignored: build the subcharts so a fresh checkout deploys with no extra step
 mise run helm deps
-(cd k8s/federated-node && helm template "$RELEASE_NAME" . -f "$VALUES_FILE" --namespace "$NAMESPACE" > /dev/null)
+(cd k8s/federated-node && helm template "$RELEASE_NAME" . "${VALUES_ARGS[@]}" --namespace "$NAMESPACE" > /dev/null)
 
 # Host directory backing the cluster's local PVs. cluster.sh bind-mounts it to /data
 # in the kind node, which is what the chart's storage.local.* values point at. Under
@@ -44,6 +52,14 @@ if command -v tilt &> /dev/null; then
     echo "No tilt sessions found"
   fi
 fi
+
+# A Tilt session that ended without `tilt down` leaves that command behind too.
+for d in $(kubectl get deployments -n "$NAMESPACE" -o name 2>/dev/null); do
+  if [ "$(kubectl get "$d" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].command[0]}')" = /tilt-restart-wrapper ]; then
+    echo "Removing Tilt's command from $d"
+    kubectl patch "$d" -n "$NAMESPACE" --type json -p '[{"op":"remove","path":"/spec/template/spec/containers/0/command"}]'
+  fi
+done
 
 echo
 echo "=== Reconciling PersistentVolumes ======================================"
@@ -104,6 +120,10 @@ if [ "${POSTGRES_EXTERNAL:-false}" = "true" ]; then
     --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
 fi
 
+# CUSTOM_CA_FILE (optional): a CA the release trusts for outbound TLS. See custom_ca.sh.
+source ./scripts/custom_ca.sh
+custom_ca_prepare
+
 echo
 echo "=== Deploying Helm Release =============================================="
 
@@ -116,11 +136,11 @@ fi
 cd k8s/federated-node
 
 echo "Helm command:"
-echo "  helm upgrade --install $RELEASE_NAME . -f $VALUES_FILE --timeout 30m --namespace $NAMESPACE --debug"
+echo "  helm upgrade --install $RELEASE_NAME . ${VALUES_ARGS[*]} --timeout 30m --namespace $NAMESPACE --debug"
 echo
 
 helm upgrade --install "$RELEASE_NAME" . \
-  -f "$VALUES_FILE" \
+  "${VALUES_ARGS[@]}" \
   --timeout 30m \
   --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
   --namespace "$NAMESPACE" \

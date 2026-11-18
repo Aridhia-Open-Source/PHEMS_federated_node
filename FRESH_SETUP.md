@@ -129,8 +129,8 @@ Two files, both gitignored. Do this before step 6: `scripts/cluster.sh` and `scr
 
    | Variable | Set it to | Why |
    |---|---|---|
-   | `KEYCLOAK_FIRST_USER_EMAIL` | your email | Your admin login for the API. `deploy.sh` stores it in the `keycloak-first-user` secret |
-   | `KEYCLOAK_FIRST_USER_PASSWORD` | a password you will remember | Same. Quote it if it has special characters, because the file is `source`d by bash |
+   | `KEYCLOAK_FIRST_USER_EMAIL` | `admin@fn.local` (the default), or your email | Your admin login for the API. `deploy.sh` stores it in the `keycloak-first-user` secret |
+   | `KEYCLOAK_FIRST_USER_PASSWORD` | `admin` (the default), or a password you will remember | Same. Quote it if it has special characters, because the file is `source`d by bash |
 
 
    Leave `CLUSTER_NAME=fn`, `NAMESPACE=fn` and `RELEASE_NAME=fn-dev` as they are. They are written into more than this file: the Tiltfile allows only `kind-fn`, the context file names `kind-fn` and the node files name `gitea.fn.svc`, fncli translates only hosts ending in `fn.svc`, `scripts/portfwd.sh` uses `-n fn`, and the values file names `db.fn.svc`. Your own names go in your own files under `bootstrap/` (steps 5, 8 and 9), not here.
