@@ -97,6 +97,11 @@ kubectl create secret generic keycloak-first-user \
   --from-literal=EMAIL="$KEYCLOAK_FIRST_USER_EMAIL" \
   --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
 
+kubectl create secret generic keycloak-superuser \
+  --from-literal=USERNAME="${KEYCLOAK_SUPERUSER_USERNAME:-}" \
+  --from-literal=PASSWORD="${KEYCLOAK_SUPERUSER_PASSWORD:-}" \
+  --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
+
 # An external Postgres has an admin password the chart cannot generate.
 if [ "${POSTGRES_EXTERNAL:-false}" = "true" ]; then
   kubectl create secret generic postgres-superuser \

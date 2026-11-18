@@ -34,12 +34,12 @@ from app.dtos.results_repository import (
 )
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
-from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.ownership import get_for_write, release, set_owner
 from app.helpers.project_state import require_disabled
 from app.helpers.pull_request_fanout import backfill, skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.query_filters import QueryFilters, parse_query_params
-from app.helpers.wrappers import Caller, get_caller
+from app.helpers.wrappers import Caller, get_caller, superuser_only
 from app.models.dataset import Dataset
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
@@ -480,3 +480,64 @@ def delete_project_results_repository(project_id: int, repository_id: int, calle
     )
     resource.soft_delete()
     db.session.commit()
+
+
+@router.post('/{project_id}/release', response_model=ProjectDTO, dependencies=[Depends(superuser_only)])
+def release_project(project_id: int):
+    """
+    POST /projects/<project_id>/release
+    — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+    Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+    Only the project: its project resources keep their owner groups.
+    """
+    return ProjectDTO.from_model(release(db.session, Project, project_id))
+
+
+@router.post(
+    '/{project_id}/datasets/{dataset_id}/release', response_model=ProjectDatasetDTO,
+    dependencies=[Depends(superuser_only)],
+)
+def release_project_dataset(project_id: int, dataset_id: int):
+    """
+    POST /projects/<project_id>/datasets/<dataset_id>/release
+    — releases the project resource from its owner group (owner_group becomes null), so anyone the scope
+    allows may change it.
+    Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+    """
+    return ProjectDatasetDTO.from_model(release(
+        db.session, ProjectDataset, {"project_id": project_id, "dataset_id": dataset_id},
+        missing=f"Dataset {dataset_id} is not assigned to project {project_id}",
+    ))
+
+
+@router.post(
+    '/{project_id}/secrets/{label}/release', response_model=ProjectSecretDTO, dependencies=[Depends(superuser_only)]
+)
+def release_project_secret(project_id: int, label: str):
+    """
+    POST /projects/<project_id>/secrets/<label>/release
+    — releases the project resource from its owner group (owner_group becomes null), so anyone the scope
+    allows may change it.
+    Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+    """
+    return ProjectSecretDTO.from_model(release(
+        db.session, ProjectSecret, {"project_id": project_id, "secret_id": _secret(label).id},
+        missing=f"Secret {label} is not assigned to project {project_id}",
+    ))
+
+
+@router.post(
+    '/{project_id}/repositories/results/{repository_id}/release', response_model=ProjectResultsRepositoryDTO,
+    dependencies=[Depends(superuser_only)],
+)
+def release_project_results_repository(project_id: int, repository_id: int):
+    """
+    POST /projects/<project_id>/repositories/results/<repository_id>/release
+    — releases the project resource from its owner group (owner_group becomes null), so anyone the scope
+    allows may change it.
+    Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+    """
+    return ProjectResultsRepositoryDTO.from_model(release(
+        db.session, ProjectResultsRepository, {"project_id": project_id, "results_repository_id": repository_id},
+        missing=f"Results repository {repository_id} is not assigned to project {project_id}",
+    ))

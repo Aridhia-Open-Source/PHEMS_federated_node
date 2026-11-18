@@ -3,7 +3,7 @@ set -euo pipefail
 
 ###############################################################################
 # First-time dev setup: copies the example config into place (never overwriting
-# a file that exists) and asks for the first Keycloak user if .dev.env has none.
+# a file that exists) and asks for the first Keycloak user and the superuser if .dev.env has none.
 ###############################################################################
 
 cd "$(dirname "$0")/.."
@@ -47,6 +47,22 @@ if grep -qE "^KEYCLOAK_FIRST_USER_PASSWORD=(''|\"\")?$" .dev.env; then
   read -r -s -p "First Keycloak user password: " password
   echo
   set_if_empty KEYCLOAK_FIRST_USER_PASSWORD "$password"
+fi
+
+# A .dev.env made before the superuser existed has no lines for it: they are added empty, then asked for.
+for key in KEYCLOAK_SUPERUSER_USERNAME KEYCLOAK_SUPERUSER_PASSWORD; do
+  grep -qE "^${key}=" .dev.env || echo "${key}=" >> .dev.env
+done
+
+if grep -qE "^KEYCLOAK_SUPERUSER_USERNAME=(''|\"\")?$" .dev.env; then
+  read -r -p "Superuser username (the break-glass account that releases records from their owner group): " username
+  set_if_empty KEYCLOAK_SUPERUSER_USERNAME "$username"
+fi
+
+if grep -qE "^KEYCLOAK_SUPERUSER_PASSWORD=(''|\"\")?$" .dev.env; then
+  read -r -s -p "Superuser password: " password
+  echo
+  set_if_empty KEYCLOAK_SUPERUSER_PASSWORD "$password"
 fi
 
 echo

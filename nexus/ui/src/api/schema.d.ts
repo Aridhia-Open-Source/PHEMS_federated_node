@@ -330,6 +330,98 @@ export interface paths {
         patch: operations["patch_project_results_repository_projects__project_id__repositories_results__repository_id__patch"];
         trace?: never;
     };
+    "/projects/{project_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Project
+         * @description POST /projects/<project_id>/release
+         *     — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         *     Only the project: its project resources keep their owner groups.
+         */
+        post: operations["release_project_projects__project_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/datasets/{dataset_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Project Dataset
+         * @description POST /projects/<project_id>/datasets/<dataset_id>/release
+         *     — releases the project resource from its owner group (owner_group becomes null), so anyone the scope
+         *     allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         */
+        post: operations["release_project_dataset_projects__project_id__datasets__dataset_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/secrets/{label}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Project Secret
+         * @description POST /projects/<project_id>/secrets/<label>/release
+         *     — releases the project resource from its owner group (owner_group becomes null), so anyone the scope
+         *     allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         */
+        post: operations["release_project_secret_projects__project_id__secrets__label__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/repositories/results/{repository_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Project Results Repository
+         * @description POST /projects/<project_id>/repositories/results/<repository_id>/release
+         *     — releases the project resource from its owner group (owner_group becomes null), so anyone the scope
+         *     allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         */
+        post: operations["release_project_results_repository_projects__project_id__repositories_results__repository_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/global/datasets": {
         parameters: {
             query?: never;
@@ -386,6 +478,28 @@ export interface paths {
          *     the tasks that use it fail and nothing of theirs is delivered while it is revoked. It does not change `enabled`.
          */
         patch: operations["patch_dataset_global_datasets__dataset_id__patch"];
+        trace?: never;
+    };
+    "/global/datasets/{dataset_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Dataset
+         * @description POST /global/datasets/<dataset_id>/release
+         *     — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         */
+        post: operations["release_dataset_global_datasets__dataset_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/projects/{project_id}/tasks": {
@@ -918,6 +1032,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/global/repositories/triggers/{repo_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Repository
+         * @description POST /global/repositories/triggers/<repo_id>/release
+         *     — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         */
+        post: operations["release_repository_global_repositories_triggers__repo_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/repositories/triggers": {
         parameters: {
             query?: never;
@@ -1059,6 +1195,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/repositories/triggers/{repo_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Project Trigger Repository
+         * @description POST /projects/<project_id>/repositories/triggers/<repo_id>/release
+         *     — releases the project resource from its owner group (owner_group becomes null), so anyone the scope
+         *     allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         */
+        post: operations["release_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/global/secrets": {
         parameters: {
             query?: never;
@@ -1130,6 +1289,28 @@ export interface paths {
         patch: operations["patch_secret_global_secrets__label__patch"];
         trace?: never;
     };
+    "/global/secrets/{label}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Secret
+         * @description POST /global/secrets/<label>/release
+         *     — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         */
+        post: operations["release_secret_global_secrets__label__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/global/providers": {
         parameters: {
             query?: never;
@@ -1186,6 +1367,28 @@ export interface paths {
          *     change `enabled`: see helpers/task_config.revoked_resources.
          */
         patch: operations["patch_provider_global_providers__provider_id__patch"];
+        trace?: never;
+    };
+    "/global/providers/{provider_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Provider
+         * @description POST /global/providers/<provider_id>/release
+         *     — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         */
+        post: operations["release_provider_global_providers__provider_id__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/global/repositories/results": {
@@ -1266,6 +1469,28 @@ export interface paths {
          *     Responds with token and expires_at (UTC).
          */
         post: operations["post_token_global_repositories_results__repo_id__token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/results/{repo_id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release Repository
+         * @description POST /global/repositories/results/<repo_id>/release
+         *     — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+         *     Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+         */
+        post: operations["release_repository_global_repositories_results__repo_id__release_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3423,6 +3648,133 @@ export interface operations {
             };
         };
     };
+    release_project_projects__project_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_project_dataset_projects__project_id__datasets__dataset_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDatasetDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_project_secret_projects__project_id__secrets__label__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSecretDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_project_results_repository_projects__project_id__repositories_results__repository_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_datasets_global_datasets_get: {
         parameters: {
             query?: {
@@ -3570,6 +3922,37 @@ export interface operations {
                 };
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_dataset_global_datasets__dataset_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -4596,6 +4979,37 @@ export interface operations {
             };
         };
     };
+    release_repository_global_repositories_triggers__repo_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriggerRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_project_trigger_repositories_projects__project_id__repositories_triggers_get: {
         parameters: {
             query?: {
@@ -4912,6 +5326,38 @@ export interface operations {
             };
         };
     };
+    release_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTriggerRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_secrets_global_secrets_get: {
         parameters: {
             query?: never;
@@ -5066,6 +5512,37 @@ export interface operations {
             };
         };
     };
+    release_secret_global_secrets__label__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_providers_global_providers_get: {
         parameters: {
             query?: never;
@@ -5193,6 +5670,37 @@ export interface operations {
                 "application/json": components["schemas"]["GitProviderPatchRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitProviderDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_provider_global_providers__provider_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -5386,6 +5894,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GitTokenDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    release_repository_global_repositories_results__repo_id__release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResultsRepositoryDTO"];
                 };
             };
             /** @description Validation Error */

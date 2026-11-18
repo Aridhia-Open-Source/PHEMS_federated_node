@@ -20,10 +20,10 @@ from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.git_tokens import mint_token, require_token_allowed
-from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.ownership import get_for_write, release, set_owner
 from app.helpers.soft_delete import delete_global
 from app.helpers.task_config import results_resource
-from app.helpers.wrappers import Caller, get_caller, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only, superuser_only
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
@@ -149,3 +149,13 @@ def patch_repository(repo_id: int, req: RepositoryPatchRequest, caller: Caller =
 
     session.commit()
     return ResultsRepositoryDTO.from_model(repo)
+
+
+@router.post('/{repo_id}/release', response_model=ResultsRepositoryDTO, dependencies=[Depends(superuser_only)])
+def release_repository(repo_id: int):
+    """
+    POST /global/repositories/results/<repo_id>/release
+    — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+    Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+    """
+    return ResultsRepositoryDTO.from_model(release(session, ResultsRepository, repo_id))

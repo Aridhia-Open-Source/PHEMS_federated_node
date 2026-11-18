@@ -61,6 +61,15 @@ kubernetesProvider:
       type: Opaque
       data:
         pass: dGVzdA==
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: superuser
+        namespace: federatednode
+      type: Opaque
+      data:
+        USERNAME: dGVzdA==
+        PASSWORD: dGVzdA==
 tests:
   # Mostly to make sure is created
   - it: simulate reuse-values args
@@ -91,3 +100,14 @@ tests:
     asserts:
       - hasDocuments:
           count: 1
+
+  - it: copies the superuser secret into the keycloak namespace
+    template: copy-secrets.yaml
+    set:
+      superuserSecret:
+        name: superuser
+        userKey: USERNAME
+        passKey: PASSWORD
+    asserts:
+      - hasDocuments:
+          count: 2

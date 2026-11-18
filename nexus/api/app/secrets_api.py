@@ -25,8 +25,8 @@ from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
-from app.helpers.ownership import get_for_write, set_owner
-from app.helpers.wrappers import Caller, get_caller
+from app.helpers.ownership import get_for_write, release, set_owner
+from app.helpers.wrappers import Caller, get_caller, superuser_only
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 
@@ -305,3 +305,13 @@ def delete_secret(label: str, force: bool = False, caller: Caller = Depends(get_
         raise
 
     session.commit()
+
+
+@router.post('/{label}/release', response_model=SecretDTO, dependencies=[Depends(superuser_only)])
+def release_secret(label: str):
+    """
+    POST /global/secrets/<label>/release
+    — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+    Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+    """
+    return SecretDTO.from_model(release(session, Secret, {"label": label}, missing=f"Secret {label} does not exist"))
