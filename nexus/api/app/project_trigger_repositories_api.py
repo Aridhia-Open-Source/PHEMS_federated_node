@@ -29,7 +29,7 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, Unauth
 from app.helpers.project_state import require_accepts_tasks
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
-from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.project import Project
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
@@ -39,8 +39,7 @@ from app.models.trigger_repository import TriggerRepository
 from app.models.trigger_state import TriggerState
 
 router = APIRouter(
-    prefix='/projects/{project_id}/repositories/triggers', tags=["project_trigger_repositories"],
-    dependencies=[Depends(require_scope('can_admin_dataset'))]
+    prefix='/projects/{project_id}/repositories/triggers', tags=["project_trigger_repositories"]
 )
 session = db.session
 

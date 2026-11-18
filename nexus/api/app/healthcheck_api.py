@@ -21,7 +21,7 @@ only the network calls run in the threads (a repository's check first gets its t
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
 from app.dtos.healthcheck import (
     DatasetHealthDTO, GitProviderHealthDTO, GlobalHealthDTO, ProjectDatasetHealthDTO, ProjectResultsRepositoryHealthDTO,
@@ -30,7 +30,6 @@ from app.dtos.healthcheck import (
 from app.dtos.project import HealthCheckDTO, ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
 from app.helpers.exceptions import DBRecordNotFoundError
 from app.helpers.git_tokens import missing_credential_keys
-from app.helpers.wrappers import require_scope
 from app.models.dataset import Dataset
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
 from app.models.git_repository import GitRepositoryMixin
@@ -48,7 +47,7 @@ from app.secrets_api import SecretProvider, _get_secret
 
 HEALTHCHECK_MAX_WORKERS = 8
 
-router = APIRouter(tags=["healthcheck"], dependencies=[Depends(require_scope('can_admin_dataset'))])
+router = APIRouter(tags=["healthcheck"])
 
 
 def _trigger_resource(project_id: int, repository_id: int) -> ProjectTriggerRepository:

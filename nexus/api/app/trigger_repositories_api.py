@@ -28,7 +28,7 @@ from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.git_tokens import mint_token, require_token_allowed
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.soft_delete import delete_global
-from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.git_provider import GitProvider
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
@@ -36,8 +36,7 @@ from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
 
 router = APIRouter(
-    prefix='/global/repositories/triggers', tags=["trigger_repositories"],
-    dependencies=[Depends(require_scope('can_admin_dataset'))]
+    prefix='/global/repositories/triggers', tags=["trigger_repositories"]
 )
 session = db.session
 
@@ -133,7 +132,7 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
     return GitTokenDTO(token=token, expires_at=expires_at)
 
 
-@router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])
+@router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_repository(repo_id: int, force: bool = False):
     """
     DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
@@ -142,8 +141,7 @@ def delete_repository(repo_id: int, force: bool = False):
     delete_global(repo, repo.project_assignments, force)
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO)
 def post_repository(body: dict = Body(default_factory=dict)):
     """
     POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
@@ -176,8 +174,7 @@ def post_repository(body: dict = Body(default_factory=dict)):
     return TriggerRepositoryDTO.from_model(repo)
 
 
-@router.patch('/{repo_id}', response_model=TriggerRepositoryDTO,
-              dependencies=[Depends(require_scope('can_do_admin'))])
+@router.patch('/{repo_id}', response_model=TriggerRepositoryDTO)
 def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     PATCH /global/repositories/triggers/<id> — update repository. The tasks created

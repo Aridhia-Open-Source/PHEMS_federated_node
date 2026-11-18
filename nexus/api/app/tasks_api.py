@@ -37,7 +37,7 @@ from app.helpers.state_rules import transition
 from app.helpers.task_config import decide_launch
 from app.helpers.task_resources import create_run_resources, delete_run_resources
 from app.dtos.task_spec import TaskSpecRequest
-from app.helpers.wrappers import Caller, get_caller, require_scope, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only
 from app.dtos.dataset import DatasetDTO
 from app.dtos.base import page_of
 from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskResourcesDTO
@@ -86,7 +86,7 @@ async def raw_body(request: Request) -> str:
     return (await request.body()).decode()
 
 
-@router.get('', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
+@router.get('', response_model=Page[TaskDTO])
 def get_tasks(project_id: int, status: str | None = None):
     """
     GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id
@@ -99,7 +99,7 @@ def get_tasks(project_id: int, status: str | None = None):
     return task_page(query, parse_statuses(status))
 
 
-@all_router.get('', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
+@all_router.get('', response_model=Page[TaskDTO])
 def get_all_tasks(status: str | None = None, project_enabled: str | None = None):
     """
     GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
@@ -137,7 +137,7 @@ def task_page(query, statuses: list[str] | None) -> Page[TaskDTO]:
     return page_of(query.order_by(Task.id), TaskDTO)
 
 
-@router.get('/{task_id}', response_model=TaskDTO, dependencies=[Depends(require_scope('can_exec_task'))])
+@router.get('/{task_id}', response_model=TaskDTO)
 def get_task_id(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/tasks/id endpoint. Gets a single task with status
@@ -154,7 +154,7 @@ def get_task_id(project_id: int, task_id: int, caller: Caller = Depends(get_call
 
 @router.patch(
     '/{task_id}', response_model=TaskDTO,
-    dependencies=[Depends(require_scope('can_admin_dataset')), Depends(system_only)]
+    dependencies=[Depends(system_only)]
 )
 def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=dict)):
     """
@@ -211,7 +211,7 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
     return TaskDTO.from_model(task)
 
 
-@router.post('/{task_id}/retry', response_model=TaskDTO, dependencies=[Depends(require_scope('can_admin_task'))])
+@router.post('/{task_id}/retry', response_model=TaskDTO)
 def retry_task(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
@@ -233,7 +233,7 @@ def retry_task(project_id: int, task_id: int):
     return TaskDTO.from_model(task)
 
 
-@router.post('/{task_id}/cancel', dependencies=[Depends(require_scope('can_admin_task'))])
+@router.post('/{task_id}/cancel')
 def cancel_tasks(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/cancel endpoint. Cancels a task either scheduled or running one
@@ -241,10 +241,7 @@ def cancel_tasks(project_id: int, task_id: int):
     raise NotImplementedException()
 
 
-@router.post(
-    '', status_code=HTTPStatus.CREATED, response_model=TaskCreatedDTO,
-    dependencies=[Depends(require_scope('can_exec_task'))]
-)
+@router.post('', status_code=HTTPStatus.CREATED, response_model=TaskCreatedDTO)
 def post_tasks(
     project_id: int, raw: str = Depends(raw_body), req_body: dict = Body(default_factory=dict),
     caller: Caller = Depends(get_caller)
@@ -292,9 +289,7 @@ def post_tasks(
     }
 
 
-@router.post(
-    '/validate', response_class=PlainTextResponse, dependencies=[Depends(require_scope('can_exec_task'))]
-)
+@router.post('/validate', response_class=PlainTextResponse)
 def post_tasks_validate(project_id: int, req_body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /projects/<project_id>/tasks/validate endpoint.
@@ -308,9 +303,7 @@ def post_tasks_validate(project_id: int, req_body: dict = Body(default_factory=d
     return "Ok"
 
 
-@router.get(
-    '/{task_id}/trigger', response_model=TaskTriggerDTO, dependencies=[Depends(require_scope('can_exec_task'))]
-)
+@router.get('/{task_id}/trigger', response_model=TaskTriggerDTO)
 def get_task_trigger(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/tasks/id/trigger endpoint. The pull request that yielded the task,
@@ -323,7 +316,7 @@ def get_task_trigger(project_id: int, task_id: int, caller: Caller = Depends(get
     return TaskTriggerDTO.from_model(task.trigger)
 
 
-@router.get('/{task_id}/config', response_model=TaskConfigDTO, dependencies=[Depends(require_scope('can_exec_task'))])
+@router.get('/{task_id}/config', response_model=TaskConfigDTO)
 def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created
@@ -347,7 +340,7 @@ def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_
 
 @router.post(
     '/{task_id}/launch', response_model=TaskLaunchDTO,
-    dependencies=[Depends(require_scope('can_admin_dataset')), Depends(system_only)]
+    dependencies=[Depends(system_only)]
 )
 def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
@@ -381,7 +374,7 @@ def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_call
 
 @router.post(
     '/{task_id}/runs/{run_id}/resources', status_code=HTTPStatus.CREATED, response_model=TaskResourcesDTO,
-    dependencies=[Depends(require_scope('can_admin_dataset')), Depends(system_only)]
+    dependencies=[Depends(system_only)]
 )
 def post_run_resources(project_id: int, task_id: int, run_id: str, caller: Caller = Depends(get_caller)):
     """
@@ -399,9 +392,7 @@ def post_run_resources(project_id: int, task_id: int, run_id: str, caller: Calle
     return create_run_resources(task, run_id)
 
 
-@router.get(
-    '/{task_id}/results', response_model=list[PullRequestResultDTO], dependencies=[Depends(require_scope('can_exec_task'))]
-)
+@router.get('/{task_id}/results', response_model=list[PullRequestResultDTO])
 def get_task_results(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/tasks/id/results endpoint. Lists the delivery of the task's results
@@ -412,7 +403,7 @@ def get_task_results(project_id: int, task_id: int, caller: Caller = Depends(get
     return [dump_result(r) for r in task.results]
 
 
-@router.get('/{task_id}/logs', dependencies=[Depends(require_scope('can_exec_task'))])
+@router.get('/{task_id}/logs')
 def get_tasks_logs(project_id: int, task_id: int):
     """
     From a given task, return its logs
@@ -420,7 +411,7 @@ def get_tasks_logs(project_id: int, task_id: int):
     raise NotImplementedException()
 
 
-@router.post('/{task_id}/results/approve', dependencies=[Depends(require_scope('can_admin_task'))])
+@router.post('/{task_id}/results/approve')
 def approve_results(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/results/approve endpoint.
@@ -430,7 +421,7 @@ def approve_results(project_id: int, task_id: int):
     raise NotImplementedException()
 
 
-@router.post('/{task_id}/results/block', dependencies=[Depends(require_scope('can_admin_task'))])
+@router.post('/{task_id}/results/block')
 def block_results(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/results/block endpoint.

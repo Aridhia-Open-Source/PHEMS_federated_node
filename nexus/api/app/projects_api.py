@@ -38,7 +38,7 @@ from app.helpers.project_state import require_disabled
 from app.helpers.pull_request_fanout import backfill, skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
 from app.helpers.query_filters import QueryFilters, parse_query_params
-from app.helpers.wrappers import Caller, get_caller, require_scope
+from app.helpers.wrappers import Caller, get_caller
 from app.models.dataset import Dataset
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
@@ -48,7 +48,7 @@ from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 
 
-router = APIRouter(prefix='/projects', tags=["projects"], dependencies=[Depends(require_scope('can_admin_dataset'))])
+router = APIRouter(prefix='/projects', tags=["projects"])
 
 
 @router.get('', response_model=Page[ProjectDTO])

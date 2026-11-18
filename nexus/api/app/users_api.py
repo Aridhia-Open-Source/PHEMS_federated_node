@@ -2,25 +2,22 @@
 user-related endpoints:
 - GET /global/users
 - POST /global/users
-- PUT /global/users/reset-password
+- PUT /global/users/reset-password (on reset_password_router, which needs no token: the temp-password flow)
 """
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body
 
 from app.dtos.user import NewUserDTO, UserDTO
 from app.helpers.const import PUBLIC_URL
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
-from app.helpers.wrappers import require_scope
 
 router = APIRouter(prefix='/global/users', tags=["users"])
+reset_password_router = APIRouter(prefix='/global/users', tags=["users"])
 
 
-@router.post(
-    '', status_code=HTTPStatus.CREATED, response_model=NewUserDTO,
-    dependencies=[Depends(require_scope('can_do_admin'))]
-)
+@router.post('', status_code=HTTPStatus.CREATED, response_model=NewUserDTO)
 def create_user(data: dict = Body(default_factory=dict)):
     """
     POST /global/users endpoint. Creates a KC user, and sets a temp
@@ -47,7 +44,7 @@ def create_user(data: dict = Body(default_factory=dict)):
     }
 
 
-@router.put('/reset-password', status_code=HTTPStatus.NO_CONTENT)
+@reset_password_router.put('/reset-password', status_code=HTTPStatus.NO_CONTENT)
 def reset_password(body: dict = Body(default_factory=dict)):
     """
     PUT /global/users/reset-password endpoint. Interface to keycloak
@@ -63,7 +60,7 @@ def reset_password(body: dict = Body(default_factory=dict)):
     )
 
 
-@router.get('', response_model=list[UserDTO], dependencies=[Depends(require_scope('can_do_admin'))])
+@router.get('', response_model=list[UserDTO])
 def get_users_list():
     """
     GET /global/users/ endpoint. This is a simplified version
