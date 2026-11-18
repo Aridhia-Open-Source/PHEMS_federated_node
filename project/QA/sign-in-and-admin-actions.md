@@ -15,17 +15,6 @@ Needs: the administrator's login. Never write a password or token into the notes
 - [ ] Pass
 - [ ] Fail — notes:
 
-## The Dagster System user works for the pipeline
-
-1. Run `fncli project-show` and `fncli global-set trigger --enabled true` (both log in as the System user; the second is a change nexus-api does not refuse on a managed node, ADR 0032).
-2. Open `fncli sensor-status` after a few intervals.
-
-- **Expected:** both fncli calls succeed. No sensor tick fails with an authentication error.
-- **Rule:** the Dagster side authenticates to nexus-api with a Keycloak System user ([Authorization detached from DAR, Keycloak and whitelisted images]).
-- **Automated by:** Partly automated: `nexus/api/tests/test_system_user_routes.py` (mocked Keycloak) and every end-to-end run; it misses expiry and refresh (see [failures mid-flow and limits](failures-mid-flow-and-limits.md)).
-- [ ] Pass
-- [ ] Fail — notes:
-
 ## The System user can never revoke or un-revoke
 
 1. Send `PATCH /projects/<pid>/repositories/triggers/<id>` with `{"revoked": true}` using the System user's token. Skip this case if you cannot get that token without reading the Secret that holds it (do not decode it).

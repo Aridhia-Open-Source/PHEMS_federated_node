@@ -69,8 +69,8 @@ Needs: an administrator token. On the dev cluster the node config in `config/` c
 
 ## Assigning a results repository needs the project disabled, and a project has one
 
-1. On an enabled project, `PUT /projects/<pid>/repositories/results/<id>` with `{"target_dir": "<dir>", "base_branch": "main"}`.
-2. `PATCH /projects/<pid>` with `{"enabled": false}`, then repeat the `PUT`, then `PATCH` with `{"enabled": true}`.
+1. On your enabled scratch project (not `fn-dev`), `PUT /projects/<scratch pid>/repositories/results/<id>` with `{"target_dir": "<dir>", "base_branch": "main"}`.
+2. `PATCH /projects/<scratch pid>` with `{"enabled": false}`, then repeat the `PUT`, then `PATCH` with `{"enabled": true}`.
 3. Try to assign a second, different ResultsRepository without unassigning the first.
 4. Change `target_dir` with `PATCH` on the project resource while the project is enabled.
 

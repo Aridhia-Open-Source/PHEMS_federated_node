@@ -2,7 +2,7 @@
 
 The node's config is five kinds of custom resource in the API group `fn.aridhia.com/v1alpha1`: `GitProvider`, `NodeSecret`, `Repository`, `Dataset` and `Project`. The nexus operator (the `nexus-operator` Deployment) syncs each one to its nexus-api record: it creates or adopts the record, sends only what differs, and soft-deletes it when the resource is deleted. A record it manages is changed only through its custom resource: nexus-api refuses anyone else's change to a field the resource declares, and the record's removal, with a 409. These cases check that it does, and that it never does more.
 
-Needs: the dev project applied and synced (see [the index](README.md)), the second project file `config/e2e/qa-two.yaml`, an administrator token for the HTTP checks, and the nexus-api and operator logs (`kubectl logs deploy/nexus-operator -n fn --tail=200`). For anything you make, copy a file from `config/e2e/` to a scratch file outside the repository and give it a scratch name (for example `qa-scratch`); delete it at the end. Never put a Secret value in a scratch file: a NodeSecret only names a Kubernetes Secret.
+Needs: the dev project applied and synced (see [the index](README.md)), the second project file `config/e2e/qa-two.yaml`, an administrator login for the HTTP checks ([Making HTTP calls](README.md#making-http-calls)), and the nexus-api and operator logs (`kubectl logs deploy/nexus-operator -n fn --tail=200`). For anything you make, copy a file from `config/e2e/` to a scratch file outside the repository and give it a scratch name (for example `qa-scratch`); delete it at the end. Never put a Secret value in a scratch file: a NodeSecret only names a Kubernetes Secret.
 
 ## Applying the config creates every record, and status says so
 
@@ -121,7 +121,7 @@ Use an administrator token. Every call below is expected to fail, so nothing nee
 4. In the UI: look at the project's Enabled toggle (list and detail) and its delete button.
 5. Read the state command and `GET` the records again. After a few minutes: `kubectl get events -n fn --field-selector reason=Synced` and the operator log.
 
-- **Expected:** every call in steps 1 to 3 is a 409 whose error names the record as managed by `fn-operator`, lists the refused fields and says to change its custom resource instead (a removal has no fields). Nothing in the records changes, and the operator makes no call for any of it. In the UI the project's Enabled toggle is read-only and its delete button is not shown. Step 5 shows no new `Synced` Event and no change.
+- **Expected:** every call in steps 1 to 3 is a 409 with the error `<record> is owned by <operator's group>: only its members can change it`, for example `<Dataset fn-dev-db> is owned by ...`. Nothing in the records changes, and the operator makes no call for any of it. In the UI the project's Enabled toggle is read-only and its delete button is not shown. Step 5 shows no new `Synced` Event and no change.
 - **Rule:** nexus-api refuses (409) a change to a managed field, or the removal of a managed record, unless the caller is the operator; this replaces putting back drift, so nothing is silently undone ([Declarative node config through an operator]; a refused move is a 409 as in [State transition tables]).
 - **Automated by:** Partly automated: `nexus/api/tests/test_managed.py` (every kind and the project's assignments, against the app with a faked Keycloak token). The end-to-end suites patch the Project for this reason (`patch_project`), but none sends a refused call. Nothing checks the UI or a live node.
 - [ ] Pass
@@ -152,13 +152,13 @@ Use an administrator token. Every call below is expected to fail, so nothing nee
 
 ## A record made in the UI with the same name is adopted
 
-1. Before applying it, make a project `qa-scratch` in the UI (or `POST /projects`) with nothing assigned. Look at its `managed_by` (empty) and `PATCH /projects/<pid>` with `{"enabled": true}` (200: a hand-made record is editable).
+1. Before applying it, make a project `qa-scratch` in the UI (or `POST /projects`) with nothing assigned, and leave it disabled. Look at its `owner_group` (empty) and `PATCH /projects/<pid>` with `{"description": "qa"}` (200: a hand-made record is editable).
 2. Copy `config/e2e/qa-two.yaml`, rename the project `qa-scratch`, and apply it.
-3. `GET /projects` and the project's resources. Compare `nexusId` with the id from step 1. Look at `managed_by`.
+3. `GET /projects` and the project's resources. Compare `nexusId` with the id from step 1. Look at `owner_group`.
 4. `PATCH /projects/<pid>` with `{"enabled": false}`.
 5. Delete the scratch file.
 
-- **Expected:** there is one project `qa-scratch`, with the id from step 1, now with the dataset and repositories of the file and `managed_by` `fn-operator`. No duplicate. The `PATCH` in step 4 is a 409: the operator took the record over by sending every declared field once. Step 5 soft-deletes it.
+- **Expected:** there is one project `qa-scratch`, with the id from step 1, now with the dataset and repositories of the file, enabled, and `owner_group` set to the operator's group. No duplicate. The `PATCH` in step 4 is a 409: the operator took the record over when it first wrote it. Step 5 soft-deletes it.
 - **Rule:** the operator finds a record by its key (name or uri) and adopts it; the id in status is a cache ([Declarative node config through an operator]).
 - **Automated by:** Partly automated: `nexus/operator/tests/test_sync.py` (`test_repository_adopted_and_patched`, `test_provider_made_by_hand_adopted_with_every_declared_field`, `test_project_made_by_hand_marked_by_sending_enabled`) against a fake API, and `nexus/api/tests/test_managed.py` (`test_a_record_made_by_hand_is_editable_until_the_operator_adopts_it`); nothing on a live node.
 - [ ] Pass

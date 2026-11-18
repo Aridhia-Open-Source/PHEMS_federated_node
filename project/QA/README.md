@@ -48,8 +48,18 @@ Which environment the commands are for:
 
 Rules for the notes you keep:
 
-- Never write a token, password or Secret value in a note, a ticket or a log excerpt. Never decode a Secret: to see where one is, list names only (`kubectl get secret -A | grep <name>`). Do not open `.dev.env`. A NodeSecret names its Kubernetes Secret and never holds a value; its status shows `resourceVersion`s only.
+- Never write a token, password or Secret value in a note, a ticket or a log excerpt. Never decode a Secret: to see where one is, list names only (`kubectl get secret -A | grep <name>`). Do not open `.dev.env`. The one exception is `mise run postman` ([Making HTTP calls](#making-http-calls)): it reads the first user's Secret for you; never copy its values anywhere. A NodeSecret names its Kubernetes Secret and never holds a value; its status shows `resourceVersion`s only.
 - Undo every change you make (switches, `target_dir`, tokens) and let all tasks and results settle before the next case: no task `PENDING`, `QUEUED` or `RUNNING`, no result still being delivered.
+
+## Making HTTP calls
+
+Postman, logged in as the administrator, with every nexus-api route ready to send:
+
+1. On the dev cluster, skip this step: the administrator login comes from the first Keycloak user's Secret, and nexus-api from the port-forward on `localhost:5000`. On any other node, write `.postman.env` in the repo root (gitignored) with `baseUrl=` (nexus-api's URL), `username=` and `password=`.
+2. `mise run postman`. It writes `project/QA/postman/fn.local.postman_environment.json` and `fn.local.postman_collection.json` (both gitignored; the environment holds the password).
+3. In Postman, import both files and select the environment **Federated Node**.
+
+Every request then logs in through `POST /login` when it has no token or its token is about to expire, and sends it as the bearer (the script is `project/QA/postman/prerequest.js`). Importing `nexus/api/openapi.json` on its own gives the routes without the login. Path variables (`:project_id` and so on) are empty; the id of a record the operator manages is `kubectl get <kind> <name> -n <namespace> -o jsonpath='{.status.nexusId}'` (namespaces under **Synced** below), for example `kubectl get project fn-dev -n fn -o jsonpath='{.status.nexusId}'`. After nexus-api's routes change, run `mise run postman` again and re-import the collection.
 
 ## Shorthand used in the steps
 

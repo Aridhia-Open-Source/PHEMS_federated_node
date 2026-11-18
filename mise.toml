@@ -108,6 +108,11 @@ kubectl get secret -l federatednode.com/generated-password=true \
   -o go-template='{% raw %}{{range .items}}{{printf "%-26s" .metadata.name}}{{range $k, $v := .data}}{{$k}}={{$v | base64decode}}{{end}}{{"\n"}}{{end}}{% endraw %}'
 '''
 
+[tasks.postman]
+description = "Write a filled Postman environment and collection for nexus-api (project/QA/README.md)"
+quiet = true
+run = "./scripts/postman.sh"
+
 # mise run pip-compile --dir nexus/api [--out requirements-dev.txt] [-- --upgrade]
 [tasks.pip-compile]
 description = "Lock a component's requirements"
