@@ -317,6 +317,35 @@ nodeId: ""
 #           baseBranch: main
 nodeConfig: {}
 
+# External Secrets (ADR 0031): fills the Secrets that nodeConfig's NodeSecrets read (fromSecret) from a secret
+# store, into the operator's namespace (global.namespaces.operator). Needs the External Secrets Operator in the
+# cluster and operator.enabled. Each remote secret holds one value, so one name works in both stores.
+# Where neither store is available, SOPS-encrypted Secrets in the site repository are the fallback.
+externalSecrets:
+  enabled: false
+  # openbao (dev, scripts/openbao.sh) or azureKeyVault (sites)
+  provider: openbao
+  # How often each Secret is read again from the store
+  refreshInterval: 1h
+  # The ServiceAccount the store logs in as. OpenBao: its Kubernetes auth role is bound to this name.
+  # Azure: annotate it with the managed identity, azure.workload.identity/client-id (and /tenant-id).
+  serviceAccount:
+    name: fn-external-secrets
+    annotations: {}
+  openbao:
+    server: http://openbao.openbao.svc:8200
+    # The KV v2 mount
+    path: secret
+    authMountPath: kubernetes
+    role: fn-external-secrets
+  azureKeyVault:
+    vaultUrl: ""
+  # Secret name in the operator namespace -> {key in that Secret: remote secret name}. Remote names are
+  # lower case letters, digits and dashes, which Azure Key Vault and OpenBao both accept.
+  secrets: {}
+  #   fn-trigger-repo-creds:
+  #     TOKEN: fn-trigger-repo-token
+
 tls:
   secretName: &tls tls
 

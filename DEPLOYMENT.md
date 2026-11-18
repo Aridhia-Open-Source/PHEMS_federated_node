@@ -175,6 +175,7 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 | New sibling worktree | `make worktree NAME=wt-foo BRANCH=feature/foo BASE=main` | `mise run worktree --name wt-foo --branch feature/foo --base main` |
 | Push the working tree to the dev Gitea, tag it to start a release | (none) | `mise run mirror-to-gitea --tag v0.0.1-dev` |
 | Flux delivers the node from a test site repository | (none) | `mise run flux up` / `status` / `down` |
+| OpenBao and External Secrets in the dev cluster (deploy runs `up`) | (none) | `mise run openbao up` / `status` / `down` |
 
 `--force-owner` also works on `cluster down`, and `--base` is optional (it defaults to `HEAD`).
 

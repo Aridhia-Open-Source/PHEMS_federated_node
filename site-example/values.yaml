@@ -1,5 +1,6 @@
 # The site's values: k8s/federated-node/dev.example.values.yml with the released images instead of the dev
-# builds, plus a small nodeConfig. No secret values: the dev Secrets already exist in the cluster.
+# builds, plus a small nodeConfig. No secret values: the dev Secrets already exist in the cluster or come from
+# OpenBao through External Secrets.
 #
 # Images: the release workflow pushes them to the kind registry, which the nodes pull from as localhost:5001.
 # No tags: each image takes the chart's appVersion, so bumping the chart version in helmrelease.yaml moves
@@ -95,8 +96,20 @@ operator:
   image: localhost:5001/nexus_operator
   watchNamespaces: [experiments]
 
+# The Secrets that NodeSecrets read, from the site's secret store (ADR 0031): OpenBao here, from
+# scripts/openbao.sh; a site sets provider: azureKeyVault, azureKeyVault.vaultUrl and the workload identity
+# annotations on externalSecrets.serviceAccount. One value per remote secret name.
+externalSecrets:
+  enabled: true
+  secrets:
+    dev-example-creds:
+      TOKEN: dev-example-token
+
 # The node's config as custom resources (ADR 0032); GitOps-Delivery.md adds a project here to show it.
 nodeConfig:
+  secrets:
+    dev-example-creds:
+      fromSecret: {name: dev-example-creds}
   providers:
     - name: gitea-local
       type: gitea

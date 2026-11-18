@@ -106,6 +106,24 @@ Expect:
 
 Then `git revert --no-edit HEAD && git push`. The `Project` resource is gone after the upgrade, and the operator soft-deletes the project in nexus-api.
 
+## Secrets: External Secrets
+
+The site repository holds no secret values. The chart's `externalSecrets` values make an `ExternalSecret` per Secret in `fn-operator`, and the External Secrets Operator fills it from the site's store; a `NodeSecret` with `fromSecret` then hands it to nexus-api. Each remote secret holds one value, named in lower case with dashes, so one name works in both stores:
+
+| Where | Store | `externalSecrets` values |
+|---|---|---|
+| Dev | OpenBao in dev mode, from `scripts/openbao.sh` (`mise run deploy` runs `mise run openbao up`) | `provider: openbao` (the default) |
+| Site | Azure Key Vault, read through workload identity | `provider: azureKeyVault`, `azureKeyVault.vaultUrl`, and `serviceAccount.annotations` with `azure.workload.identity/client-id` |
+
+`site-example/values.yaml` maps `dev-example-creds` (key `TOKEN`) to the OpenBao secret `dev-example-token`:
+
+```bash
+mise run openbao status
+kubectl get nodesecret dev-example-creds -n fn-operator    # Synced true
+```
+
+A rotated value reaches the Secret within `refreshInterval` (1h) and nexus-api at the operator's next sync. Where a site can run neither store, SOPS-encrypted Secrets in the site repository, decrypted by Flux, are the fallback.
+
 ## When an upgrade fails
 
 A failed upgrade is retried twice, then rolled back by Flux to the last good revision (`upgrade.remediation` in `helmrelease.yaml`). In an emergency:

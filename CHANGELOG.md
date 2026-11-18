@@ -1,14 +1,6 @@
 # Releases Changelog
 ## Unreleased
-- Run behind a TLS-intercepting proxy, or with a private CA ([#652](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/652), ADR 0034, `PROXY_CA_SETUP.md`):
-  - `mise run configure` replaces `mise run init-conf`. Every run creates `.dev.env` and `dev.values.yaml` from the examples if they are missing; it no longer asks for the first Keycloak user, which `.dev.env.example` now sets to `admin@fn.local` / `admin`. `--proxy[=URL]` (no value: `HTTPS_PROXY`) and `--ca-cert[=FILE]` (no value: the system CA bundle; alone: a private CA, no proxy) check the proxy and CA, then set up Docker and the tooling; `--no-proxy` and `--no-ca` remove them, and a run that changes one keeps the other. `--devcontainer` is what the dev container runs before its image build. It replaces `scripts/setup-proxy-ca.sh`.
-  - The checks run before anything is written: the CA bundle is PEM, and with a proxy, `registry-1.docker.io`, `pypi.org` and `github.com` verify through it.
-  - It writes only gitignored, generated files: `.generated.env` (`CUSTOM_CA_FILE`, the proxy and CA-bundle variables) and `k8s/federated-node/generated.values.yaml` (the chart's `proxy.*` and `customCA`). They load first, so `.dev.env` and `dev.values.yaml` win.
-  - Image builds get the CA as the BuildKit secret `proxy_ca`; the dev container trusts it.
-  - A `CUSTOM_CA_FILE` set by hand in `.dev.env` no longer reaches the pods: use `mise run configure --ca-cert=FILE`.
-  - Chart: `proxy.*` (the proxy for the pods that call out) and `customCA` (a CA Secret added to the system trust of nexus-api, the Dagster code server and run pods, and Keycloak).
-  - The dev container is built from `.devcontainer/Dockerfile` and trusts the CA; `mise run devcontainer-check` builds and starts it without VS Code.
-  - mitmproxy tests: `scripts/proxy-sim.sh` (dev container, image builds, pulls) and `scripts/proxy-sim-sensors.sh` (the pull request pipeline).
+- Flux delivery in kind from a test site repository, and External Secrets (OpenBao in dev, Azure Key Vault through workload identity at sites) filling the operator namespace's Secrets
 - Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart
 
 ## 1.17.0

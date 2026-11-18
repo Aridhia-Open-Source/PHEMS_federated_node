@@ -1141,6 +1141,118 @@
                 }
             }
         },
+        "externalSecrets": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "External Secrets (ADR 0031): Secrets in the operator namespace filled from OpenBao or Azure Key Vault, one value per remote secret name",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "provider": {
+                    "type": "string",
+                    "enum": [
+                        "openbao",
+                        "azureKeyVault"
+                    ],
+                    "default": "openbao"
+                },
+                "refreshInterval": {
+                    "type": "string",
+                    "default": "1h"
+                },
+                "serviceAccount": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "name"
+                    ],
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "annotations": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "openbao": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "server": {
+                            "type": "string"
+                        },
+                        "path": {
+                            "type": "string"
+                        },
+                        "authMountPath": {
+                            "type": "string"
+                        },
+                        "role": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "azureKeyVault": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "vaultUrl": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "secrets": {
+                    "type": "object",
+                    "description": "Secret name in the operator namespace -> {key in the Secret: remote secret name}",
+                    "additionalProperties": {
+                        "type": "object",
+                        "minProperties": 1,
+                        "additionalProperties": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                        }
+                    }
+                }
+            },
+            "if": {
+                "required": [
+                    "enabled",
+                    "provider"
+                ],
+                "properties": {
+                    "enabled": {
+                        "const": true
+                    },
+                    "provider": {
+                        "const": "azureKeyVault"
+                    }
+                }
+            },
+            "then": {
+                "required": [
+                    "azureKeyVault"
+                ],
+                "properties": {
+                    "azureKeyVault": {
+                        "required": [
+                            "vaultUrl"
+                        ],
+                        "properties": {
+                            "vaultUrl": {
+                                "minLength": 1
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "nodeConfig": {
             "type": "object",
             "additionalProperties": false,

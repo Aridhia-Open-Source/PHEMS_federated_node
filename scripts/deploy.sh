@@ -135,6 +135,11 @@ source ./scripts/custom_ca.sh
 custom_ca_prepare
 
 echo
+echo "=== Secret store ========================================================"
+# The External Secrets Operator's CRDs must exist before the chart renders ExternalSecrets (externalSecrets.enabled)
+./scripts/openbao.sh up
+
+echo
 echo "=== Applying CRDs ======================================================="
 # Helm installs the chart's crds/ on a first install but never upgrades them (ADR 0032). The chart's
 # pre-upgrade hook applies them on upgrade too.

@@ -129,12 +129,18 @@ operator:
   tag: *devTag
   watchNamespaces: [experiments]
 
-# The break-glass superuser, which alone may release a record from its owner group. deploy.sh writes
-# KEYCLOAK_SUPERUSER_USERNAME and KEYCLOAK_SUPERUSER_PASSWORD from .dev.env into this secret.
-superuserSecret:
-  name: keycloak-superuser
-  userKey: USERNAME
-  passKey: PASSWORD
+# External Secrets from OpenBao (ADR 0031): deploy.sh installs and seeds it (scripts/openbao.sh). The example
+# Secret reaches nexus-api through the NodeSecret below, as a site's repository credentials would.
+externalSecrets:
+  enabled: true
+  secrets:
+    dev-example-creds:
+      TOKEN: dev-example-token
+
+nodeConfig:
+  secrets:
+    dev-example-creds:
+      fromSecret: {name: dev-example-creds}
 
 ## Subcharts
 
