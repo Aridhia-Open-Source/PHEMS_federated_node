@@ -15,6 +15,7 @@ from app.helpers.git_uri import normalise_provider_uri, validate_api_uri
 from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import sqla_column
 from app.models.git_provider_type import GitProviderType
+from app.models.user import OwnedMixin
 
 CONNECTION_TIMEOUT = 5
 MAX_MESSAGE_LENGTH = 200
@@ -88,7 +89,7 @@ def _message_of(response) -> str:
     return str(message or response.reason)[:MAX_MESSAGE_LENGTH]
 
 
-class GitProvider(SoftDeleteMixin, db.Model, BaseModel):
+class GitProvider(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     """
     A git host, global: the trigger and results repositories on it refer to it. The uri is
     the host's web address (https://github.com) and the api_uri its API base URL, which the

@@ -15,6 +15,8 @@ import { BackLink } from "../../shared/BackLink";
 import { Healthcheck } from "../../shared/Healthcheck";
 import { Loading } from "../../shared/Loading";
 import { NewButton } from "../../shared/NewButton";
+import { useViewerGroups } from "../../api/auth";
+import { ownedBy } from "../../shared/owned";
 
 const m = shellMessages.pages.datasets;
 
@@ -58,6 +60,7 @@ function useRemove(onDone?: () => void) {
 }
 
 function DatasetList() {
+  const groups = useViewerGroups();
   const [page, setPage] = useState(1);
   const { data } = useQuery({
     queryKey: [...KEY, "list", page],
@@ -78,10 +81,10 @@ function DatasetList() {
           { header: "Type", cell: (d) => d.type },
           { header: "Secret", cell: (d) => d.secret.label },
           { header: "Enabled", cell: (d) => (
-            <EnabledToggle hideLabel enabled={d.enabled} onChange={(enabled) => setEnabled.mutate({ id: d.id, enabled })} />
+            <EnabledToggle ownedBy={ownedBy(d, groups)} hideLabel enabled={d.enabled} onChange={(enabled) => setEnabled.mutate({ id: d.id, enabled })} />
           ) },
           { header: "", cell: (d) => (
-            <DeleteButton what={d.name} allowForce onConfirm={(force) => remove.mutate({ id: d.id, force })} />
+            <DeleteButton ownedBy={ownedBy(d, groups)} what={d.name} allowForce onConfirm={(force) => remove.mutate({ id: d.id, force })} />
           ) },
         ]}
       />
@@ -132,6 +135,7 @@ function DatasetCreate() {
 }
 
 function DatasetDetail() {
+  const groups = useViewerGroups();
   const id = Number(useParams().id);
   const nav = useNavigate();
   const { data } = useQuery({
@@ -153,8 +157,8 @@ function DatasetDetail() {
         title={m.detail(data.name)}
         actions={
           <>
-            <EnabledToggle enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />
-            <DeleteButton what={data.name} allowForce onConfirm={(force) => remove.mutate({ id, force })} />
+            <EnabledToggle ownedBy={ownedBy(data, groups)} enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />
+            <DeleteButton ownedBy={ownedBy(data, groups)} what={data.name} allowForce onConfirm={(force) => remove.mutate({ id, force })} />
           </>
         }
       />

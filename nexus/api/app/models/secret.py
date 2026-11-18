@@ -9,11 +9,12 @@ from app.helpers.kubernetes_names import validate_dns_subdomain
 from app.helpers.soft_delete import SoftDeleteMixin
 from app.models import sqla_column
 from app.models.secret_provider_type import SecretProviderType
+from app.models.user import OwnedMixin
 
 KEY_PREFIX = "fn-secret-"
 
 
-class Secret(SoftDeleteMixin, db.Model, BaseModel):
+class Secret(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     """
     A reference to a secret. The value only ever lives in the secret store that provider
     names; this row records which secrets exist, so one that repositories share cannot be

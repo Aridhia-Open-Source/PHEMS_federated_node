@@ -21,6 +21,7 @@ from app.helpers.soft_delete import SoftDeleteMixin
 from app.helpers.kubernetes import KubernetesClient
 from app.models import sqla_column
 from app.models.git_provider import ConnectionCheck, ConnectionStatus
+from app.models.user import OwnedMixin
 
 logger = logging.getLogger("dataset_model")
 logger.setLevel(logging.INFO)
@@ -30,7 +31,7 @@ CONNECTION_TIMEOUT = 5
 MAX_MESSAGE_LENGTH = 200
 
 
-class Dataset(SoftDeleteMixin, db.Model, BaseModel):
+class Dataset(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     __tablename__ = 'datasets'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)

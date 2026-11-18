@@ -18,3 +18,14 @@ class NewUserDTO(DTO):
     username: str
     tempPassword: str
     info: str
+
+
+class UserRefDTO(DTO):
+    """A nexus-api user as a record names it, as its owner (ADR 0036)."""
+    id: str
+    username: str
+
+    @classmethod
+    def of(cls, user) -> "UserRefDTO | None":
+        """The user as a reference, None for no user."""
+        return None if user is None else cls.model_validate(user)

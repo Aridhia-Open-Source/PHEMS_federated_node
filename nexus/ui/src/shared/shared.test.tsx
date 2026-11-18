@@ -1,5 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { DeleteButton } from "./DeleteButton";
+import { EnabledToggle } from "./EnabledToggle";
+import { RevokeButton } from "./RevokeButton";
+import { ownedBy } from "./owned";
+import { tokenGroups } from "../api/auth";
 import { ResourceTable } from "./ResourceTable";
 import { DtoForm } from "./DtoForm";
 import { StatusBadge } from "./StatusBadge";
@@ -79,4 +83,38 @@ test("StatusBadge writes states in sentence case", () => {
   render(<><StatusBadge status="IN_PROGRESS" /><StatusBadge status="ok" /></>);
   expect(screen.getByText("In progress")).toBeTruthy();
   expect(screen.getByText("OK")).toBeTruthy();
+});
+
+test("tokenGroups reads the realm roles and the Keycloak groups from the token", () => {
+  const payload = btoa(JSON.stringify({ realm_access: { roles: ["Users", "service-account"] }, groups: ["/ops"] }));
+  expect(tokenGroups(`h.${payload}.s`)).toEqual(new Set(["Users", "service-account", "ops"]));
+  expect(tokenGroups(null)).toEqual(new Set());
+  expect(tokenGroups("not-a-jwt")).toEqual(new Set());
+});
+
+test("ownedBy names the owner group only when the viewer is not in it", () => {
+  expect(ownedBy({ owner_group: "svc" }, new Set(["other"]))).toBe("svc");
+  expect(ownedBy({ owner_group: "svc" }, new Set(["svc"]))).toBeNull();
+  expect(ownedBy({ owner_group: null }, new Set())).toBeNull();
+});
+
+test("an owned record's controls are greyed out, with a tooltip naming the owner group", () => {
+  const onConfirm = vi.fn();
+  const onChange = vi.fn();
+  render(
+    <>
+      <DeleteButton what="x" ownedBy="svc" onConfirm={onConfirm} />
+      <RevokeButton revoked what="y" ownedBy="svc" onChange={onChange} />
+      <EnabledToggle enabled ownedBy="svc" onChange={onChange} />
+    </>,
+  );
+  const remove = screen.getByRole("button", { name: "Delete" });
+  const restore = screen.getByRole("button", { name: "Restore" });
+  const toggle = screen.getByRole("switch");
+  for (const control of [remove, restore, toggle]) {
+    expect((control as HTMLButtonElement | HTMLInputElement).disabled).toBe(true);
+    expect(control.closest("[title]")?.getAttribute("title")).toBe("Owned by svc: only its members can change it");
+  }
+  fireEvent.click(remove);
+  expect(screen.queryByRole("alertdialog")).toBeNull();
 });

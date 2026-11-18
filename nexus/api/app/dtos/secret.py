@@ -1,4 +1,5 @@
 from app.dtos.base import DTO, WireDatetime
+from app.dtos.user import UserRefDTO
 from app.models.project_secret import ProjectSecret
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -14,6 +15,9 @@ class SecretDTO(DTO):
     enabled: bool
     created_at: WireDatetime
     updated_at: WireDatetime
+    owner: UserRefDTO | None
+    # The group whose members alone may change it, null when it is open (ADR 0036)
+    owner_group: str | None
 
 
 class ProjectSecretDTO(DTO):
@@ -23,6 +27,9 @@ class ProjectSecretDTO(DTO):
     enabled: bool
     revoked: bool
     active: bool
+    owner: UserRefDTO | None
+    # The group whose members alone may change it, null when it is open (ADR 0036)
+    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: ProjectSecret):
@@ -32,4 +39,6 @@ class ProjectSecretDTO(DTO):
             enabled=obj.enabled,
             revoked=obj.revoked,
             active=obj.active,
+            owner=UserRefDTO.of(obj.owner),
+            owner_group=obj.owner_group,
         )

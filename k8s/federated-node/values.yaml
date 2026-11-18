@@ -18,6 +18,10 @@ nexus:
     # In-cluster URL Dagster, fncli and the smoke tests use to reach the API. Leave empty to
     # derive it from the release namespace (http://nexus-api.<namespace>.svc:<nexus.api.port>).
     url:
+    # Keycloak groups or realm roles whose members lock the records they write to that group
+    # (ADR 0036): only members may then change them. Passed to nexus-api as OWNER_GROUPS.
+    ownerGroups:
+      - service-account
     db:
       name: fn_nexus
       user: fn_nexus

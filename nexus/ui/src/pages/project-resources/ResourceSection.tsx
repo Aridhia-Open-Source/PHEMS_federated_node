@@ -8,6 +8,8 @@ import { DeleteButton } from "../../shared/DeleteButton";
 import { EnabledToggle } from "../../shared/EnabledToggle";
 import type { Flags } from "../../shared/projectResources";
 import { ActivityBadge } from "../../shared/StatusBadge";
+import { useViewerGroups } from "../../api/auth";
+import { ownedBy } from "../../shared/owned";
 
 const m = shellMessages.widgets;
 const t = shellMessages.pages.resources;
@@ -33,6 +35,7 @@ type Props<T extends Flags> = {
 };
 
 export function ResourceSection<T extends Flags>(p: Props<T>) {
+  const groups = useViewerGroups();
   const pickId = useId();
   const [picked, setPicked] = useState("");
   const [missing, setMissing] = useState(false);
@@ -45,11 +48,11 @@ export function ResourceSection<T extends Flags>(p: Props<T>) {
         columns={[
           ...p.columns,
           { header: "Enabled", cell: (r) => (
-            <EnabledToggle hideLabel enabled={r.enabled} onChange={(enabled) => p.onToggle(r, enabled)} />
+            <EnabledToggle ownedBy={ownedBy(r, groups)} hideLabel enabled={r.enabled} onChange={(enabled) => p.onToggle(r, enabled)} />
           ) },
           { header: "Status", cell: (r) => <ActivityBadge flags={r} /> },
           { header: "", cell: (r) => (r.revoked ? null : (
-            <DeleteButton label={m.unassign} description={m.unassignDescription} what={p.name(r)}
+            <DeleteButton ownedBy={ownedBy(r, groups)} label={m.unassign} description={m.unassignDescription} what={p.name(r)}
               onConfirm={() => p.onUnassign(r)} />
           )) },
         ]}

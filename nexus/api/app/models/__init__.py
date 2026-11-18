@@ -112,6 +112,11 @@ class ModelRegistry:
         from app.models.secret import Secret
         return Secret
 
+    @cached_property
+    def User(self):
+        from app.models.user import User
+        return User
+
 
 class SqlaColumn:
     """Factory for standardized column definitions shared across models."""
@@ -142,6 +147,7 @@ __all__ = ['sqla_column', 'SqlaColumn', 'ModelRegistry', 'Models']
 # Force eager import of all models to register them with SQLA before mapper configuration
 # This ensures string-based relationships can be resolved to avoid circular dependencies.
 _ = (
+    Models.User,
     Models.Catalogue,
     Models.Dataset,
     Models.ProjectDataset,
