@@ -2,6 +2,7 @@
 
 import logging
 import time
+from pathlib import Path
 
 from urllib3.util import Retry
 import requests
@@ -238,6 +239,21 @@ class BackendAdapter(OAuthAdapter):
         response = self.login()
         data = response.json()
         self.access_token = data['token']
+
+
+class PasswordFileAdapter(BackendAdapter):
+    """
+    Reads the password from the mounted Secret at every login: a credential rotation patches the Secret,
+    and the next 401 logs in again with the new one, without a restart.
+    """
+
+    def __init__(self, base_url: str, username: str, password_file: str):
+        super().__init__(base_url=base_url, username=username, password="")
+        self.password_file = password_file
+
+    def login(self):
+        self.password = Path(self.password_file).read_text(encoding="utf-8").strip()
+        return super().login()
 
 
 class BackendSession(BaseSession):

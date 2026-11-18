@@ -36,8 +36,9 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0026](../project/decisions/0026-apply-is-additive-delete-is-a-soft-delete.md) | Apply is additive; delete is a soft delete through nexus-api | Never `?force=true`: a resource another project still uses is skipped and reported. |
 | [0027](../project/decisions/0027-bootstrap-files-split-by-stage-of-use.md) | Bootstrap files are split by stage of use, and the node target is separate | Globals, projects and triggers in their own files; the node and defaults in a per-user context file. |
 | [0028](../project/decisions/0028-experiments-own-their-database-seed-image-and-dataset-file.md) | Experiments own their database, seed, image and dataset file | `fncli experiment setup` checks the dataset's names against the chart values before it applies. |
-| [0029](../project/decisions/0029-images-are-built-with-docker-buildx-bake.md) | Images are built with docker buildx bake | One bake file at the root and one per experiment; `mise run images`, `image`, `image-reload`, `images-release`. |
+| [0029](../project/decisions/0029-images-are-built-with-docker-buildx-bake.md) | Images are built with docker buildx bake | One bake file at the root and one per experiment; `mise run images`, `image`, `images-release`. |
 | [0030](../project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md) | fncli demo only walks the pull request process | Setup and cleanup are `apply` and `delete`; the demo checks the node matches first. |
+| [0034](../project/decisions/0034-running-behind-a-tls-intercepting-proxy.md) | Running behind a TLS-intercepting proxy | One script checks the proxy and CA and writes only generated, gitignored env and values files that hand-edited ones override; image builds get the CA as a build secret. |
 | [0036](../project/decisions/0036-users-table-records-who-owns-config.md) | A users table records who owns node config | Identity only, access stays in Keycloak; check the owner-group lock, the explicit loader and its open questions. |
 
 ## Other docs by topic

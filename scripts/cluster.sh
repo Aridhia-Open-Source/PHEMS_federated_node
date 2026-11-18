@@ -14,7 +14,7 @@ COMMAND="${1:-}"
 REMOVE_REGISTRIES="${2:-false}"
 
 # Load env
-source .dev.env
+source scripts/load_env.sh
 
 # The cluster is the one bootstrap/context.yaml points fncli at (node.kube_context is
 # kind-<name>), so the cluster tasks and fncli always agree. The example's until it is copied.
@@ -27,6 +27,10 @@ KIND_CONFIG_FILE=".kind/kind-config.yaml"
 # Host directory backing the cluster's local PVs, bind-mounted to /data in the node.
 # Under $HOME so nothing here needs sudo.
 FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
+
+# Where the pull-through mirrors fetch from.
+DOCKERHUB_UPSTREAM="${DOCKERHUB_UPSTREAM:-https://registry-1.docker.io}"
+GHCR_UPSTREAM="${GHCR_UPSTREAM:-https://ghcr.io}"
 
 # Show usage if no command
 if [ -z "$COMMAND" ] || [ "$COMMAND" != "up" ] && [ "$COMMAND" != "down" ]; then
@@ -64,7 +68,7 @@ if [ "$COMMAND" = "up" ]; then
     docker run \
       -d --restart=always \
       -p "127.0.0.1:5002:5000" \
-      -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
+      -e REGISTRY_PROXY_REMOTEURL="$DOCKERHUB_UPSTREAM" \
       --name proxy-docker-hub-registry \
       registry:2
   else
@@ -77,7 +81,7 @@ if [ "$COMMAND" = "up" ]; then
     docker run \
       -d --restart=always \
       -p "127.0.0.1:5003:5000" \
-      -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
+      -e REGISTRY_PROXY_REMOTEURL="$GHCR_UPSTREAM" \
       --name proxy-ghcr-registry \
       registry:2
   else
@@ -99,7 +103,19 @@ if [ "$COMMAND" = "up" ]; then
     RENDERED_CONFIG="$(mktemp)"
     trap 'rm -f "$RENDERED_CONFIG"' EXIT
     sed "s|__FN_DATA_DIR__|$FN_DATA_DIR|" "$KIND_CONFIG_FILE" > "$RENDERED_CONFIG"
+    # CUSTOM_CA_FILE (optional): mount the CA into the node so containerd trusts it for image pulls.
+    NODE_CA=/usr/local/share/ca-certificates/fn-custom-ca.crt
+    if [ -n "${CUSTOM_CA_FILE:-}" ]; then
+      [ -s "$CUSTOM_CA_FILE" ] || { echo "CUSTOM_CA_FILE=$CUSTOM_CA_FILE is missing or empty" >&2; exit 1; }
+      CA_ABS="$(cd "$(dirname "$CUSTOM_CA_FILE")" && pwd)/$(basename "$CUSTOM_CA_FILE")"
+      awk -v host="$CA_ABS" -v node="$NODE_CA" '{ print } /containerPath: \/data$/ { print "  - hostPath: " host; print "    containerPath: " node; print "    readOnly: true" }' \
+        "$RENDERED_CONFIG" > "$RENDERED_CONFIG.ca" && mv "$RENDERED_CONFIG.ca" "$RENDERED_CONFIG"
+    fi
     kind create cluster --name "$CLUSTER_NAME" --config "$RENDERED_CONFIG"
+    if [ -n "${CUSTOM_CA_FILE:-}" ]; then
+      # Added to the node's system trust, which containerd reads for every registry.
+      docker exec "$CLUSTER_NAME-control-plane" sh -c 'update-ca-certificates && systemctl restart containerd'
+    fi
   fi
 
   # Ensure registries are connected to kind network

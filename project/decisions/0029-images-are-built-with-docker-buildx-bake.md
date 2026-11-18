@@ -15,7 +15,6 @@ Images are `docker buildx bake` targets.
 - **The mise tasks are the interface:**
   - `mise run images`: the `default` group and every experiment's target, pushed.
   - `mise run image --target <target>`: one target, pushed.
-  - `mise run image-reload --target <target>`: push, then roll the deployments.
   - `mise run images-release --tag <tag>`: the `release` group, loaded into the local docker, not pushed.
 - **Tags:** dev images are tagged `latest`; a release passes its own tag (`--tag`). A target may pin its own tag in its bake file. A git SHA tag comes later.
 - `scripts/build_all_images.sh` and `scripts/build_image.sh` are deleted.

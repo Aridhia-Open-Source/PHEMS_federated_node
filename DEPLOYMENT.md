@@ -38,7 +38,7 @@ The local setup is a [kind](https://kind.sigs.k8s.io/) cluster, a local image re
 
 - Docker
 - `kind`, `kubectl`, `helm` (v3), `tilt`, `jq`
-- [mise](https://mise.jdx.dev/): install it and activate it in your shell (`mise run` works without activation; activating adds automatic tool and venv switching on `cd`), then run `mise run setup` (it also installs `fncli`, the ops tool, see [MANAGEMENT.md](MANAGEMENT.md)) and `mise run init-conf`.
+- [mise](https://mise.jdx.dev/): install it and activate it in your shell (`mise run` works without activation; activating adds automatic tool and venv switching on `cd`), then run `mise run setup` (it also installs `fncli`, the ops tool, see [MANAGEMENT.md](MANAGEMENT.md)) and `mise run configure`.
 - Personal overrides go in `mise.local.toml` (gitignored).
 - Or use the dev container instead (see [Dev container](#dev-container) below).
 
@@ -53,7 +53,7 @@ Run these from the repo root.
    cp k8s/federated-node/dev.example.values.yml k8s/federated-node/dev.values.yaml
    ```
 
-2. Edit `.dev.env`. Set `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD`: that is your admin login for the API. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`). The file explains every other variable.
+2. Check `.dev.env`. `KEYCLOAK_FIRST_USER_EMAIL` and `KEYCLOAK_FIRST_USER_PASSWORD` are your admin login for the API, `admin@fn.local` / `admin` unless you change them. `NAMESPACE` must match the `db.host` in `dev.values.yaml` (`db.<namespace>.svc`). The file explains every other variable.
 
 3. Check fncli. `mise run setup` installed it, editable, into `.venv` at the repo root, and `mise run deploy` runs `fncli experiment deploy` from there. To run `fncli` yourself, activate mise in your shell. A new worktree needs its own `mise run setup`. If you installed fncli with pipx before, remove that copy: `pipx uninstall phems`.
 
@@ -146,7 +146,7 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 |---|---|---|
 | List the tasks | `make help` | `mise tasks` |
 | Install the pinned tools and the virtualenvs (fncli, nexus-api, dagster) | (manual) | `mise run setup` |
-| Create `.dev.env` and `dev.values.yaml` | `make init-conf` | `mise run init-conf` |
+| Create `.dev.env` and `dev.values.yaml` | `make init-conf` | `mise run configure` |
 | Lint the Dockerfiles | `make hadolint` | `mise run hadolint` |
 | Lint nexus-api | `make pylint` | `mise run pylint` |
 | Lint Dagster | `make pylint_dagster` | `mise run pylint dagster` |
@@ -161,7 +161,7 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 | ...with extra pip-compile flags | `make pip-compile DIR=nexus/api ARGS="--upgrade"` | `mise run pip-compile --dir nexus/api -- --upgrade` |
 | Build and push every image | `make images` | `mise run images` |
 | Build and push one image | `make image NAME=nexus-api-fn` | `mise run image --target nexus-api-fn` |
-| ...and restart the deployments | `make image-reload NAME=nexus-api-fn` | `mise run image-reload --target nexus-api-fn` |
+| ...and restart the deployments | `make image-reload NAME=nexus-api-fn` | Removed: `mise run image --target nexus-api-fn`, then restart that one deployment (or Tilt, `mise run reload-app`, `mise run deploy`) |
 | Build the release images locally | `make images-release TAG=1.2.3` | `mise run images-release --tag 1.2.3` |
 | Rebuild the Dagster and nexus-api images, restart their pods | `make reload_app` | `mise run reload-app` |
 | Start the kind cluster and registries | `make cluster-up` | `mise run cluster up` |
@@ -175,6 +175,22 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 | New sibling worktree | `make worktree NAME=wt-foo BRANCH=feature/foo BASE=main` | `mise run worktree --name wt-foo --branch feature/foo --base main` |
 
 `--force-owner` also works on `cluster down`, and `--base` is optional (it defaults to `HEAD`).
+
+### Behind a TLS-intercepting proxy
+
+Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `mise run configure --proxy[=URL] [--ca-cert=FILE]` checks the proxy and CA and sets up the machine side (`--ca-cert[=FILE]` alone: a private CA, no proxy). It writes the gitignored `.generated.env` and `k8s/federated-node/generated.values.yaml` (never `.dev.env` or `dev.values.yaml`); the scripts and `mise run` load them before your own files, which win. The setting below is optional dev tooling and does nothing when unset.
+
+- `CUSTOM_CA_FILE=/path/ca.pem` in `.generated.env` (or `.dev.env`), set before `mise run cluster up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in the Secret `fn-custom-ca-dev`. The pods trust it for outbound TLS once `customCA.secretName` names that Secret, which `mise run configure --ca-cert` or `--proxy` writes in `generated.values.yaml`. A `CUSTOM_CA_FILE` you set by hand in `.dev.env` no longer reaches the pods: use `mise run configure --ca-cert=FILE`.
+
+Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `mise run cluster up` starts.
+
+`scripts/proxy-sim.sh` tests this against mitmproxy, on a Docker network whose only way out is the proxy. Each test runs with no CA, a wrong CA and the proxy's CA, and checks that the first two fail with a certificate error and the last passes through the proxy. Nothing in it runs kind.
+
+- `mise run proxy-sim-setup`: builds the dev container image, then runs `mise run setup` in it on a copy of the working tree.
+- `mise run proxy-sim-build`: builds the nexus-api image (`--all` for every image) with the CA as the `proxy_ca` secret.
+- `mise run proxy-sim-pull`: `docker pull` in a stock `docker:dind`.
+
+`--mode none|wrong|right` runs one mode, and `mise run proxy-sim-down` removes it all.
 
 ### One owner at a time
 
@@ -202,10 +218,11 @@ An optional alternative to installing the tools on your machine. Open the repo i
 - Port-forwards from Tilt land on your machine's `localhost` (nexus-api on `localhost:5000` as usual). Run Tilt in one place at a time, or the ports clash.
 - It mounts the checkout's parent folder at the same path as on your machine (and `~/.fn`, the local PV data, likewise). Your Docker resolves volume paths on your machine, so the scripts' `docker run -v "$(pwd)":...` and `FN_DATA_DIR` work unchanged, and the cluster owner recorded inside matches the one recorded outside.
 - Git works in it for the main repo and for worktrees in the same parent folder (the layout `mise run worktree` creates). A worktree elsewhere has no git inside the container, because its `.git` points at a main repo the container cannot see.
-- After changing `.devcontainer/devcontainer.json`, rebuild the container (**Dev Containers: Rebuild Container**).
+- After changing `.devcontainer/devcontainer.json` or `.devcontainer/Dockerfile`, rebuild the container (**Dev Containers: Rebuild Container**).
 - Its venvs live in the container (`/home/vscode/venvs/`), not in the checkout, so they don't clash with yours.
 - Installed tools are kept in the `fn-mise-data` volume, so rebuilds and other worktrees' containers reuse them.
 - The cluster ownership rules apply inside it as well: it's the same cluster.
+- Behind a TLS-inspecting proxy it trusts the CA that `CUSTOM_CA_FILE` in `.dev.env` or `.generated.env` names (see [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md)): before the image is built, `scripts/configure.sh --devcontainer` (the `initializeCommand`) checks the proxy and the CA and copies it to `.devcontainer/proxy-ca.crt`, and the image build adds it to the container's system trust. Rebuild the container after setting the CA up. With no CA nothing changes.
 
 ## Deploy to production
 
@@ -362,6 +379,21 @@ Set `storage.nfs.provisioner` (for example `nfs.csi.k8s.io`) even without that d
 #### TLS
 
 Either create the `tls` secret yourself (step 4), or let cert-manager renew it: `cert-manager.enabled: true` plus `certs.azure.*` or `certs.aws` for DNS-01. For another CA, run cert-manager yourself and point `tls.secretName` at the secret it produces.
+
+#### Custom CA
+
+For outbound TLS to a git host, identity provider or registry signed by a private CA, or behind a TLS-intercepting proxy, put the CA in a Secret and name it:
+
+```bash
+kubectl create secret generic corp-ca -n "$NAMESPACE" --from-file=ca.crt=corp-ca.pem
+```
+
+```yaml
+customCA:
+  secretName: corp-ca     # or customCA.pem: | the PEM, to have the chart render the Secret
+```
+
+The CA is added to the system CAs of nexus-api, the Dagster code server, every Dagster run pod and Keycloak, and certificates are always verified: there is no way to skip verification. The pods restart when the CA changes on `helm upgrade`. A Secret changed outside Helm needs `kubectl rollout restart` on the nexus-api and code server deployments and the Keycloak StatefulSet, or a reloader controller. The chart cannot give the nodes' containerd the CA: if the container registry is behind a private CA, install it on each node. For a dev kind cluster, `CUSTOM_CA_FILE` does this when the cluster is created (`scripts/cluster.sh`). Details, and what is not covered, are in the [chart README](k8s/federated-node/README.md#custom-ca).
 
 #### Databases
 

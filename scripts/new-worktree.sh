@@ -5,6 +5,7 @@ set -euo pipefail
 # New worktree - creates a sibling worktree and copies over the gitignored dev
 # config (.dev.env, k8s/federated-node/dev.values.yaml, ...) that a fresh
 # checkout lacks.
+# <name> is a sibling directory name, or an absolute path.
 # Usage: new-worktree.sh <name> <branch> [<base-ref>]   (or mise run worktree --name <name> --branch <branch> [--base <ref>])
 ###############################################################################
 
@@ -15,7 +16,11 @@ BASE="${3:-HEAD}"
 # Run from the source checkout, the one this script lives in
 cd "$(dirname "$0")/.."
 SRC="$PWD"
-DEST="../$NAME"
+# A bare name is a sibling of this checkout; an absolute path is used as given
+case "$NAME" in
+  /*) DEST="$NAME" ;;
+  *)  DEST="../$NAME" ;;
+esac
 
 if [ -e "$DEST" ]; then
   echo "$DEST already exists" >&2

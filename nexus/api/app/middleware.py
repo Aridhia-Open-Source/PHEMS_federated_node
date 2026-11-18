@@ -93,5 +93,5 @@ class TrailingSlashMiddleware:
         if scope["type"] == "http" and len(scope["path"]) > 1 and scope["path"].endswith("/"):
             scope["path"] = scope["path"][:-1]
             if "raw_path" in scope:
-                scope["raw_path"] = scope["raw_path"].rstrip(b"/")
+                scope["raw_path"] = scope["raw_path"][:-1]
         await self.app(scope, receive, send)

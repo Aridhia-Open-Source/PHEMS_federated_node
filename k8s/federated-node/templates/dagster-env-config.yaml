@@ -24,6 +24,8 @@ data:
   DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.retryIntervalSeconds | quote }}
   DAGSTER_DELIVERY_MAX_ATTEMPTS: {{ .Values.fnDagster.sensors.deliveryMaxAttempts | quote }}
   NEXUS_API_URL: {{ include "nexusApiUrl" . | quote }}
+  # dagster-keycloak-creds, mounted at /etc/secrets/dagster on the code server and run pods.
+  DAGSTER_KC_PASSWORD_FILE: /etc/secrets/dagster/DAGSTER_KC_PASSWORD
   NODE_ID: {{ .Values.nodeId | quote }}
   {{- /*
   Pod securityContext for pipes task pods. Only emitted when set - an unset

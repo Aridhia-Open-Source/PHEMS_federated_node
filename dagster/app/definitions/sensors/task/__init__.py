@@ -19,7 +19,7 @@ from app.definitions.sensors.task.pull_request_sync import (
 )
 from app.definitions.sensors.task.reconcile import task_reconcile_sensor
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
-from app.utils import BackendAdapter, BackendSession
+from app.utils import BackendSession, PasswordFileAdapter
 
 
 @dg.sensor(
@@ -46,10 +46,10 @@ def _record_run_status(context: RunStatusSensorContext):
         return
 
     backend_config = BackendConfig()
-    backend_adapter = BackendAdapter(
+    backend_adapter = PasswordFileAdapter(
         base_url=backend_config.uri,
         username=backend_config.user,
-        password=backend_config.password
+        password_file=backend_config.password_file
     )
     backend_session = BackendSession(adapter=backend_adapter)
     backend_api = BackendAPI(session=backend_session)
