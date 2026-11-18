@@ -87,6 +87,8 @@ class TriggerResourceMachine(RuleBasedStateMachine):
     def __init__(self):
         super().__init__()
         self.scope = request_scope.set("stateful")
+        db.session.remove()  # a machine Hypothesis never tore down can leave its session mid-transaction
+        close_all_sessions()
         Base.metadata.drop_all(engine)  # Hypothesis can build a machine it never tears down: start from empty tables
         Base.metadata.create_all(engine)
         self.tick = 0
@@ -135,7 +137,8 @@ class TriggerResourceMachine(RuleBasedStateMachine):
         return f"/projects/{self.project_id}/repositories/triggers/{self.repo_id}"
 
     def call(self, method: str, url: str, body: dict | None = None):
-        return getattr(self.client, method)(url, json=body, headers=self.headers)
+        kwargs = {} if body is None else {"json": body}
+        return getattr(self.client, method)(url, headers=self.headers, **kwargs)
 
     def call_as_system(self, method: str, url: str, body: dict):
         """The state-machine writes (ingest, task creation, task status) are the system user's."""
