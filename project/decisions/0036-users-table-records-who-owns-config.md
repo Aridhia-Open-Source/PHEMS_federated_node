@@ -43,7 +43,7 @@ Status: Proposed, 2026-11-17.
 - **A project's owner group also controls what is assigned to it.** Adding, changing or removing a project's datasets, secrets, trigger repositories or results repository is a 409 when the project is owned by a group the caller is not in (`require_member(project, caller)`). The caller does not take the project over.
 - **Cascading deletes follow the same rule.** A forced delete of a global resource, a secret's delete and a project's delete check every project resource they would delete (`require_members`); if any is owned by a group the caller is not in, the delete is a 409 naming them and nothing is deleted.
 - **`fields` narrows the lock later.** A route passes the fields it changes; a model lists the fields its owner group locks in `owner_locked_fields`. Both are unset today, so the whole record is locked.
-- **A test lists every PUT, PATCH and DELETE route** as owned or not, and checks each owned one answers a 409 for a record locked to another group. A new write route fails it until it is classed, and an owned one until it uses the loader.
+- **A test lists every POST, PUT, PATCH and DELETE route** as owned, create (no owner to check yet) or unowned. It checks each owned one answers a 409 for a record owned by another group and leaves the record unchanged, and each release route a 403 for anyone but the superuser. A new write route fails it until it is classed, and an owned one until it uses the loader.
 
 ### The pattern for nexus-owned tables
 
