@@ -33,6 +33,7 @@ Status: Proposed, 2026-11-17.
 ### The check is an explicit loader
 
 - **Every write route loads its record through `get_for_write(session, model, ident, caller, fields=None)`** (`app/helpers/ownership.py`). It finds the record by primary key or by columns (404 if missing, or None for a PUT that creates it), refuses with a 409 when the record is locked to a group the caller is not in, and lets an owner-group member take the record over. Reads keep the normal lookups.
+- **A project's owner group also controls what is assigned to it.** Adding, changing or removing a project's datasets, secrets, trigger repositories or results repository is a 409 when the project is owned by a group the caller is not in (`require_member(project, caller)`). The caller does not take the project over.
 - **Cascading deletes follow the same rule.** A forced delete of a global resource, a secret's delete and a project's delete check every project resource they would delete (`require_members`); if any is owned by a group the caller is not in, the delete is a 409 naming them and nothing is deleted.
 - **`fields` narrows the lock later.** A route passes the fields it changes; a model lists the fields its owner group locks in `owner_locked_fields`. Both are unset today, so the whole record is locked.
 - **A test lists every PUT, PATCH and DELETE route** as owned or not, and checks each owned one answers a 409 for a record locked to another group. A new write route fails it until it is classed, and an owned one until it uses the loader.
@@ -65,6 +66,5 @@ Status: Proposed, 2026-11-17.
 
 - A Super Administrator override (for example, to revoke in an emergency, or to take a record over) may come later. It is not built.
 - Which fields are owner-controlled: today any change is refused; `owner_locked_fields` and `fields` are there for when that narrows.
-- Whether a write to a project's sub-resource (a project secret, an assignment) should also be refused when the project itself is locked.
 - Whether the Dagster System user should be in an owner group. It holds `System`, not `service-account`, so its writes lock nothing; it creates no config records.
 - Whether a service should be able to hand a record back to people (unlock it).

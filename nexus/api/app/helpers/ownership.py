@@ -57,6 +57,20 @@ def get_for_write[M: OwnedMixin](
     return record
 
 
+def require_member[M: OwnedMixin](record: M, caller: Caller) -> M:
+    """
+    For a write under a record that does not change the record itself (a project's datasets, secrets and
+    repositories): a 409 when the record is owned by a group the caller is not in. The caller does not take
+    the record over.
+    """
+    group = record.owner_group
+    if not _member(group, caller):
+        raise InvalidRequest(
+            f"{record!r} is owned by {group}: only its members can change what is under it", HTTPStatus.CONFLICT
+        )
+    return record
+
+
 def require_members[M: OwnedMixin](records: list[M], caller: Caller, describe: Callable[[M], dict]) -> None:
     """
     For a delete that cascades to records it did not load through get_for_write (the project resources

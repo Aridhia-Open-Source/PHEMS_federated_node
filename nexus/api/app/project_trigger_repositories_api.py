@@ -29,7 +29,7 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, Unauth
 from app.helpers.project_state import require_accepts_tasks
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
-from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.ownership import get_for_write, require_member, set_owner
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.project import Project
 from app.models.project_trigger_repository import ProjectTriggerRepository
@@ -93,7 +93,7 @@ def put_project_trigger_repository(
     Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir and
     base_branch are required, enabled is optional and defaults to true.
     """
-    project = Project.get_by_id(project_id)
+    project = require_member(Project.get_by_id(project_id), caller)
     repo = TriggerRepository.get_by_id(repo_id)
     watch_dir = normalise_dir(req.watch_dir)
     assignment = get_for_write(
@@ -152,6 +152,7 @@ def patch_project_trigger_repository(
     (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
+    require_member(Project.get_by_id(project_id), caller)
     assignment = get_for_write(
         session, ProjectTriggerRepository, {"project_id": project_id, "trigger_repository_id": repo_id}, caller,
         missing=f"Trigger repository {repo_id} is not assigned to project {project_id}",
@@ -191,6 +192,7 @@ def delete_project_trigger_repository(project_id: int, repo_id: int, caller: Cal
     DELETE /projects/<project_id>/repositories/triggers/<repo_id> — unassigns the
     repository, not the repository itself: a soft delete that also revokes the project resource.
     """
+    require_member(Project.get_by_id(project_id), caller)
     assignment = get_for_write(
         session, ProjectTriggerRepository, {"project_id": project_id, "trigger_repository_id": repo_id}, caller,
         missing=f"Trigger repository {repo_id} is not assigned to project {project_id}",
