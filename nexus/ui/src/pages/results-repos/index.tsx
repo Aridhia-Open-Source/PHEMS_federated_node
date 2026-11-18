@@ -16,6 +16,8 @@ import { Healthcheck } from "../../shared/Healthcheck";
 import { Loading } from "../../shared/Loading";
 import { NewButton } from "../../shared/NewButton";
 import { StatusBadge } from "../../shared/StatusBadge";
+import { useViewerGroups } from "../../api/auth";
+import { ownedBy } from "../../shared/owned";
 
 const m = shellMessages.pages.resultsRepos;
 
@@ -83,6 +85,7 @@ function useRepoActions(afterDelete?: () => void) {
 }
 
 function RepoList() {
+  const groups = useViewerGroups();
   const { data } = useQuery({
     queryKey: KEY,
     queryFn: () => call(api.GET("/global/repositories/results")),
@@ -99,14 +102,14 @@ function RepoList() {
           { header: "Provider", cell: (r) => r.provider.name },
           { header: "Secret", cell: (r) => r.secret.label },
           { header: "Enabled", cell: (r) => (
-            <EnabledToggle hideLabel enabled={r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id, enabled })} />
+            <EnabledToggle ownedBy={ownedBy(r, groups)} hideLabel enabled={r.enabled} onChange={(enabled) => setEnabled.mutate({ id: r.id, enabled })} />
           ) },
           { header: "Revoked", cell: (r) => (r.revoked ? <StatusBadge status="revoked" /> : null) },
           { header: "", cell: (r) => (
             <span className="flex gap-2">
-              <RevokeButton revoked={r.revoked} what={r.repo_path}
+              <RevokeButton ownedBy={ownedBy(r, groups)} revoked={r.revoked} what={r.repo_path}
                 onChange={(revoked) => revoke.mutate({ id: r.id, revoked })} />
-              <DeleteButton what={r.repo_path} allowForce onConfirm={(force) => remove.mutate({ id: r.id, force })} />
+              <DeleteButton ownedBy={ownedBy(r, groups)} what={r.repo_path} allowForce onConfirm={(force) => remove.mutate({ id: r.id, force })} />
             </span>
           ) },
         ]}
@@ -148,6 +151,7 @@ function RepoCreate() {
 }
 
 function RepoDetail() {
+  const groups = useViewerGroups();
   const id = Number(useParams().id);
   const nav = useNavigate();
   const qc = useQueryClient();
@@ -183,17 +187,17 @@ function RepoDetail() {
         title={m.detail(data.repo_path)}
         actions={
           <>
-            <EnabledToggle enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />
-            <RevokeButton revoked={data.revoked} what={data.repo_path}
+            <EnabledToggle ownedBy={ownedBy(data, groups)} enabled={data.enabled} onChange={(enabled) => setEnabled.mutate({ id, enabled })} />
+            <RevokeButton ownedBy={ownedBy(data, groups)} revoked={data.revoked} what={data.repo_path}
               onChange={(revoked) => revoke.mutate({ id, revoked })} />
-            <DeleteButton what={data.repo_path} allowForce
+            <DeleteButton ownedBy={ownedBy(data, groups)} what={data.repo_path} allowForce
               onConfirm={(force) => remove.mutate({ id, force })} />
           </>
         }
       />
       <Json value={data} />
       <SectionHeading>{shellMessages.pages.edit}</SectionHeading>
-      <DtoForm key={JSON.stringify(data)} fields={fields} submitLabel="Update" busy={update.isPending}
+      <DtoForm ownedBy={ownedBy(data, groups)} key={JSON.stringify(data)} fields={fields} submitLabel="Update" busy={update.isPending}
         initial={{
           provider_id: data.provider ? providerOption(data.provider) : "",
           secret_label: data.secret.label,

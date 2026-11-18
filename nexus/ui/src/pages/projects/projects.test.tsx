@@ -101,3 +101,17 @@ test("Global trigger repository: Used by links to the project's resource page", 
   const project = await screen.findByText("p1");
   expect(project.closest("a")?.getAttribute("href")).toBe("/projects/1/resources/triggers/5");
 });
+
+test("Projects list: a project owned by a group the viewer is not in has its controls greyed out", async () => {
+  const list = fixtures["/projects"];
+  fixtures["/projects"] = () => ({ items: [{ ...project, owner_group: "service-account" }], total: 1, ...page });
+  try {
+    renderAt("/projects", <Projects />, "projects/*");
+    const remove = await screen.findByRole("button", { name: "Delete" });
+    expect((remove as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("switch") as HTMLInputElement).disabled).toBe(true);
+    expect(remove.closest("[title]")?.getAttribute("title")).toContain("service-account");
+  } finally {
+    fixtures["/projects"] = list;
+  }
+});
