@@ -1148,6 +1148,205 @@
         }
       }
     },
+    "/projects/{project_id}/release": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Release Project",
+        "description": "POST /projects/<project_id>/release\n\u2014 releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).\nOnly the project: its project resources keep their owner groups.",
+        "operationId": "release_project_projects__project_id__release_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/datasets/{dataset_id}/release": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Release Project Dataset",
+        "description": "POST /projects/<project_id>/datasets/<dataset_id>/release\n\u2014 releases the project resource from its owner group (owner_group becomes null), so anyone the scope\nallows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).",
+        "operationId": "release_project_dataset_projects__project_id__datasets__dataset_id__release_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDatasetDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/secrets/{label}/release": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Release Project Secret",
+        "description": "POST /projects/<project_id>/secrets/<label>/release\n\u2014 releases the project resource from its owner group (owner_group becomes null), so anyone the scope\nallows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).",
+        "operationId": "release_project_secret_projects__project_id__secrets__label__release_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSecretDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/repositories/results/{repository_id}/release": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Release Project Results Repository",
+        "description": "POST /projects/<project_id>/repositories/results/<repository_id>/release\n\u2014 releases the project resource from its owner group (owner_group becomes null), so anyone the scope\nallows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).",
+        "operationId": "release_project_results_repository_projects__project_id__repositories_results__repository_id__release_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repository Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResultsRepositoryDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/global/datasets": {
       "get": {
         "tags": [
@@ -1365,6 +1564,49 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/datasets/{dataset_id}/release": {
+      "post": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Release Dataset",
+        "description": "POST /global/datasets/<dataset_id>/release\n\u2014 releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).",
+        "operationId": "release_dataset_global_datasets__dataset_id__release_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2980,6 +3222,49 @@
         }
       }
     },
+    "/global/repositories/triggers/{repo_id}/release": {
+      "post": {
+        "tags": [
+          "trigger_repositories"
+        ],
+        "summary": "Release Repository",
+        "description": "POST /global/repositories/triggers/<repo_id>/release\n\u2014 releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).",
+        "operationId": "release_repository_global_repositories_triggers__repo_id__release_post",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerRepositoryDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/repositories/triggers": {
       "get": {
         "tags": [
@@ -3550,6 +3835,58 @@
         }
       }
     },
+    "/projects/{project_id}/repositories/triggers/{repo_id}/release": {
+      "post": {
+        "tags": [
+          "project_trigger_repositories"
+        ],
+        "summary": "Release Project Trigger Repository",
+        "description": "POST /projects/<project_id>/repositories/triggers/<repo_id>/release\n\u2014 releases the project resource from its owner group (owner_group becomes null), so anyone the scope\nallows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).",
+        "operationId": "release_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__release_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTriggerRepositoryDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/global/secrets": {
       "get": {
         "tags": [
@@ -3756,6 +4093,49 @@
         }
       }
     },
+    "/global/secrets/{label}/release": {
+      "post": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Release Secret",
+        "description": "POST /global/secrets/<label>/release\n\u2014 releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).",
+        "operationId": "release_secret_global_secrets__label__release_post",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/global/providers": {
       "get": {
         "tags": [
@@ -3936,6 +4316,49 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/providers/{provider_id}/release": {
+      "post": {
+        "tags": [
+          "git_providers"
+        ],
+        "summary": "Release Provider",
+        "description": "POST /global/providers/<provider_id>/release\n\u2014 releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).",
+        "operationId": "release_provider_global_providers__provider_id__release_post",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitProviderDTO"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -4189,6 +4612,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GitTokenDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/repositories/results/{repo_id}/release": {
+      "post": {
+        "tags": [
+          "results_repositories"
+        ],
+        "summary": "Release Repository",
+        "description": "POST /global/repositories/results/<repo_id>/release\n\u2014 releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.\nSuperuser only: an Administrator without the superuser role gets a 403 (ADR 0036).",
+        "operationId": "release_repository_global_repositories_results__repo_id__release_post",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultsRepositoryDTO"
                 }
               }
             }
