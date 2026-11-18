@@ -41,7 +41,7 @@ Status: Proposed, 2026-11-17.
 
 - **Every write route loads its record through `get_for_write(session, model, ident, caller, fields=None)`** (`app/helpers/ownership.py`). It finds the record by primary key or by columns (404 if missing, or None for a PUT that creates it), refuses with a 409 when the record is locked to a group the caller is not in, and lets an owner-group member take the record over. Reads keep the normal lookups.
 - **`fields` narrows the lock later.** A route passes the fields it changes; a model lists the fields its owner group locks in `owner_locked_fields`. Both are unset today, so the whole record is locked.
-- **A test lists every PUT, PATCH and DELETE route** as owned or not, and checks each owned one answers a 409 for a record locked to another group. A new write route fails it until it is classed, and an owned one until it uses the loader.
+- **A test lists every POST, PUT, PATCH and DELETE route** as owned, create (no owner to check yet) or unowned. It checks each owned one answers a 409 for a record owned by another group and leaves the record unchanged, and each release route a 403 for anyone but the superuser. A new write route fails it until it is classed, and an owned one until it uses the loader.
 
 ### The pattern for nexus-owned tables
 

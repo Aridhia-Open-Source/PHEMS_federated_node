@@ -223,31 +223,70 @@ def test_the_lock_can_be_narrowed_to_some_fields(client, git_provider, monkeypat
 
 # Every write route on an owned record goes through get_for_write
 
+# (method, path): the body sent, and the model and field of the record that a refused call must leave unchanged
 OWNED_WRITE_ROUTES = {
-    ("PATCH", "/global/providers/{provider_id}"): {"name": "renamed"},
-    ("DELETE", "/global/providers/{provider_id}"): None,
-    ("PATCH", "/global/secrets/{label}"): {"enabled": False},
-    ("DELETE", "/global/secrets/{label}"): None,
-    ("PATCH", "/global/repositories/triggers/{repo_id}"): {"enabled": False},
-    ("DELETE", "/global/repositories/triggers/{repo_id}"): None,
-    ("PATCH", "/global/repositories/results/{repo_id}"): {"enabled": False},
-    ("DELETE", "/global/repositories/results/{repo_id}"): None,
-    ("PATCH", "/global/datasets/{dataset_id}"): {"enabled": False},
-    ("DELETE", "/global/datasets/{dataset_id}"): None,
-    ("PATCH", "/projects/{project_id}"): {"enabled": False},
-    ("DELETE", "/projects/{project_id}"): None,
-    ("PUT", "/projects/{project_id}/datasets/{dataset_id}"): {},
-    ("PATCH", "/projects/{project_id}/datasets/{dataset_id}"): {"enabled": False},
-    ("DELETE", "/projects/{project_id}/datasets/{dataset_id}"): None,
-    ("PUT", "/projects/{project_id}/secrets/{label}"): {},
-    ("PATCH", "/projects/{project_id}/secrets/{label}"): {"enabled": False},
-    ("DELETE", "/projects/{project_id}/secrets/{label}"): None,
-    ("PUT", "/projects/{project_id}/repositories/triggers/{repo_id}"): {"watch_dir": "t", "base_branch": "main"},
-    ("PATCH", "/projects/{project_id}/repositories/triggers/{repo_id}"): {"enabled": False},
-    ("DELETE", "/projects/{project_id}/repositories/triggers/{repo_id}"): None,
-    ("PUT", "/projects/{project_id}/repositories/results/{repository_id}"): {"target_dir": "r", "base_branch": "main"},
-    ("PATCH", "/projects/{project_id}/repositories/results/{repository_id}"): {"enabled": False},
-    ("DELETE", "/projects/{project_id}/repositories/results/{repository_id}"): None,
+    ("PATCH", "/global/providers/{provider_id}"): ({"name": "renamed"}, GitProvider, "name"),
+    ("DELETE", "/global/providers/{provider_id}"): (None, GitProvider, "deleted_at"),
+    ("PATCH", "/global/secrets/{label}"): ({"enabled": False}, Secret, "enabled"),
+    ("DELETE", "/global/secrets/{label}"): (None, Secret, "deleted_at"),
+    ("PATCH", "/global/repositories/triggers/{repo_id}"): ({"enabled": False}, TriggerRepository, "enabled"),
+    ("DELETE", "/global/repositories/triggers/{repo_id}"): (None, TriggerRepository, "deleted_at"),
+    ("PATCH", "/global/repositories/results/{repo_id}"): ({"enabled": False}, ResultsRepository, "enabled"),
+    ("DELETE", "/global/repositories/results/{repo_id}"): (None, ResultsRepository, "deleted_at"),
+    ("PATCH", "/global/datasets/{dataset_id}"): ({"enabled": False}, Dataset, "enabled"),
+    ("DELETE", "/global/datasets/{dataset_id}"): (None, Dataset, "deleted_at"),
+    ("PATCH", "/projects/{project_id}"): ({"enabled": False}, Project, "enabled"),
+    ("DELETE", "/projects/{project_id}"): (None, Project, "deleted_at"),
+    ("PUT", "/projects/{project_id}/datasets/{dataset_id}"): ({}, ProjectDataset, "owner_id"),
+    ("PATCH", "/projects/{project_id}/datasets/{dataset_id}"): ({"enabled": False}, ProjectDataset, "enabled"),
+    ("DELETE", "/projects/{project_id}/datasets/{dataset_id}"): (None, ProjectDataset, "deleted_at"),
+    ("PUT", "/projects/{project_id}/secrets/{label}"): ({}, ProjectSecret, "owner_id"),
+    ("PATCH", "/projects/{project_id}/secrets/{label}"): ({"enabled": False}, ProjectSecret, "enabled"),
+    ("DELETE", "/projects/{project_id}/secrets/{label}"): (None, ProjectSecret, "deleted_at"),
+    ("PUT", "/projects/{project_id}/repositories/triggers/{repo_id}"): (
+        {"watch_dir": "t", "base_branch": "main"}, ProjectTriggerRepository, "watch_dir"
+    ),
+    ("PATCH", "/projects/{project_id}/repositories/triggers/{repo_id}"): (
+        {"enabled": False}, ProjectTriggerRepository, "enabled"
+    ),
+    ("DELETE", "/projects/{project_id}/repositories/triggers/{repo_id}"): (
+        None, ProjectTriggerRepository, "deleted_at"
+    ),
+    ("PUT", "/projects/{project_id}/repositories/results/{repository_id}"): (
+        {"target_dir": "r", "base_branch": "main"}, ProjectResultsRepository, "target_dir"
+    ),
+    ("PATCH", "/projects/{project_id}/repositories/results/{repository_id}"): (
+        {"enabled": False}, ProjectResultsRepository, "enabled"
+    ),
+    ("DELETE", "/projects/{project_id}/repositories/results/{repository_id}"): (
+        None, ProjectResultsRepository, "deleted_at"
+    ),
+    # The superuser's release routes, tested below: anyone else gets a 403
+    ("POST", "/global/providers/{provider_id}/release"): (None, GitProvider, "owner_group"),
+    ("POST", "/global/secrets/{label}/release"): (None, Secret, "owner_group"),
+    ("POST", "/global/repositories/triggers/{repo_id}/release"): (None, TriggerRepository, "owner_group"),
+    ("POST", "/global/repositories/results/{repo_id}/release"): (None, ResultsRepository, "owner_group"),
+    ("POST", "/global/datasets/{dataset_id}/release"): (None, Dataset, "owner_group"),
+    ("POST", "/projects/{project_id}/release"): (None, Project, "owner_group"),
+    ("POST", "/projects/{project_id}/datasets/{dataset_id}/release"): (None, ProjectDataset, "owner_group"),
+    ("POST", "/projects/{project_id}/secrets/{label}/release"): (None, ProjectSecret, "owner_group"),
+    ("POST", "/projects/{project_id}/repositories/triggers/{repo_id}/release"): (
+        None, ProjectTriggerRepository, "owner_group"
+    ),
+    ("POST", "/projects/{project_id}/repositories/results/{repository_id}/release"): (
+        None, ProjectResultsRepository, "owner_group"
+    ),
+}
+RELEASE_ROUTES = [route for route in OWNED_WRITE_ROUTES if route[1].endswith("/release")]
+CHANGE_ROUTES = [route for route in OWNED_WRITE_ROUTES if route not in RELEASE_ROUTES]
+# Routes that create an owned record: there is no owner to check yet, the caller becomes it
+CREATE_ROUTES = {
+    ("POST", "/global/providers"),
+    ("POST", "/global/secrets"),
+    ("POST", "/global/repositories/triggers"),
+    ("POST", "/global/repositories/results"),
+    ("POST", "/global/datasets"),
+    ("POST", "/projects"),
 }
 # Write routes on records that have no owner
 UNOWNED_WRITE_ROUTES = {
@@ -257,16 +296,32 @@ UNOWNED_WRITE_ROUTES = {
     ("PATCH", "/projects/{project_id}/results/{result_id}"),
     ("PATCH", "/projects/{project_id}/tasks/{task_id}"),
     ("PUT", "/global/users/reset-password"),
+    ("POST", "/login"),
+    ("POST", "/refresh_token"),
+    ("POST", "/global/users"),
+    ("POST", "/global/repositories/triggers/{repo_id}/pull_requests"),
+    ("POST", "/global/repositories/triggers/{repo_id}/token"),
+    ("POST", "/global/repositories/results/{repo_id}/token"),
+    ("POST", "/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests/{number}/task"),
+    ("POST", "/projects/{project_id}/results"),
+    ("POST", "/projects/{project_id}/tasks"),
+    ("POST", "/projects/{project_id}/tasks/validate"),
+    ("POST", "/projects/{project_id}/tasks/{task_id}/retry"),
+    ("POST", "/projects/{project_id}/tasks/{task_id}/cancel"),
+    ("POST", "/projects/{project_id}/tasks/{task_id}/launch"),
+    ("POST", "/projects/{project_id}/tasks/{task_id}/runs/{run_id}/resources"),
+    ("POST", "/projects/{project_id}/tasks/{task_id}/results/approve"),
+    ("POST", "/projects/{project_id}/tasks/{task_id}/results/block"),
 }
 
 
-def test_every_write_route_is_classed_as_owned_or_not():
-    """A new PUT, PATCH or DELETE route has to be added to one of the two lists, and tested if owned."""
+def test_every_write_route_is_classed_as_owned_create_or_unowned():
+    """A new POST, PUT, PATCH or DELETE route has to be added to one of the three lists, and tested if owned."""
     routes = {
         (method.upper(), path) for path, operations in create_app().openapi()["paths"].items()
-        for method in operations if method in ("put", "patch", "delete")
+        for method in operations if method in ("post", "put", "patch", "delete")
     }
-    assert routes == set(OWNED_WRITE_ROUTES) | UNOWNED_WRITE_ROUTES
+    assert routes == set(OWNED_WRITE_ROUTES) | CREATE_ROUTES | UNOWNED_WRITE_ROUTES
 
 
 @pytest.fixture
@@ -274,7 +329,7 @@ def every_owned_record(
     client, project, global_secret, global_dataset, global_trigger_repo, global_results_repo,
     assigned_dataset, assigned_secret, assigned_trigger_repo, assigned_results_repo,
 ) -> dict:
-    """One of each owned record, all locked to GROUP; the path parameters that address them."""
+    """One of each owned record, all owned by GROUP; the path parameters that address them."""
     for model in OwnedMixin.__subclasses__():
         db.session.query(model).update({"owner_group": GROUP})
     db.session.commit()
@@ -286,51 +341,50 @@ def every_owned_record(
     }
 
 
-@pytest.mark.parametrize("method,path", list(OWNED_WRITE_ROUTES), ids=[f"{m} {p}" for m, p in OWNED_WRITE_ROUTES])
-def test_a_write_to_a_record_locked_to_another_group_is_a_409(client, callers, every_owned_record, method, path):
-    params = dict(every_owned_record)
+def _url(path: str, params: dict) -> str:
+    """The path with its parameters; repo_id under /global/repositories/results/ is the results repository."""
     if path.startswith("/global/repositories/results/"):
-        params["repo_id"] = params["results_repo_id"]
-    body = OWNED_WRITE_ROUTES[(method, path)]
+        params = {**params, "repo_id": params["results_repo_id"]}
+    return path.format(**params)
 
-    response = client.request(method, path.format(**params), json=body, headers=as_("admin_token"))
+
+def _field(model, field: str) -> dict:
+    """The field of every row of the model, deleted ones too, read fresh from the database."""
+    db.session.expire_all()
+    return {row.id: getattr(row, field) for row in db.session.query(model).execution_options(include_deleted=True)}
+
+
+@pytest.mark.parametrize("method,path", CHANGE_ROUTES, ids=[f"{m} {p}" for m, p in CHANGE_ROUTES])
+def test_a_write_to_a_record_owned_by_another_group_is_a_409_and_changes_nothing(
+    client, callers, every_owned_record, method, path
+):
+    body, model, field = OWNED_WRITE_ROUTES[(method, path)]
+    before = _field(model, field)
+    assert before
+
+    response = client.request(method, _url(path, every_owned_record), json=body, headers=as_("admin_token"))
 
     assert response.status_code == 409, response.json()
     assert f"owned by {GROUP}" in response.json()["error"]
+    assert _field(model, field) == before
 
 
 # The superuser releases a record from its owner group
 
-RELEASE_ROUTES = {
-    "/global/providers/{provider_id}/release": GitProvider,
-    "/global/secrets/{label}/release": Secret,
-    "/global/repositories/triggers/{repo_id}/release": TriggerRepository,
-    "/global/repositories/results/{results_repo_id}/release": ResultsRepository,
-    "/global/datasets/{dataset_id}/release": Dataset,
-    "/projects/{project_id}/release": Project,
-    "/projects/{project_id}/datasets/{dataset_id}/release": ProjectDataset,
-    "/projects/{project_id}/secrets/{label}/release": ProjectSecret,
-    "/projects/{project_id}/repositories/triggers/{repo_id}/release": ProjectTriggerRepository,
-    "/projects/{project_id}/repositories/results/{repository_id}/release": ProjectResultsRepository,
-}
-
-
-@pytest.mark.parametrize("path", list(RELEASE_ROUTES))
-def test_only_the_superuser_releases_a_record_from_its_owner_group(client, callers, every_owned_record, path):
-    model = RELEASE_ROUTES[path]
-    url = path.format(**every_owned_record)
+@pytest.mark.parametrize("method,path", RELEASE_ROUTES, ids=[p for _, p in RELEASE_ROUTES])
+def test_only_the_superuser_releases_a_record_from_its_owner_group(client, callers, every_owned_record, method, path):
+    _, model, _ = OWNED_WRITE_ROUTES[(method, path)]
+    url = _url(path, every_owned_record)
 
     refused = client.post(url, headers=as_("admin_token"))
-    db.session.expire_all()
     assert refused.status_code == 403, refused.json()
-    assert {record.owner_group for record in db.session.query(model)} == {GROUP}
+    assert set(_field(model, "owner_group").values()) == {GROUP}
 
     released = client.post(url, headers=as_("superuser_token"))
     assert released.status_code == 200, released.json()
     assert released.json()["owner_group"] is None
-    db.session.expire_all()
     # Only the record addressed: every other stays owned by its group
-    assert [record.owner_group for record in db.session.query(model)].count(None) == 1
+    assert list(_field(model, "owner_group").values()).count(None) == 1
 
 
 def test_a_released_record_is_open_to_anyone(client, callers):
