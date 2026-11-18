@@ -244,7 +244,7 @@ def test_the_example_trigger_files_are_spec_files():
         trigger = json.loads(path.read_text())
         assert list(trigger) == ["spec"] and trigger["spec"]["image"] == "localhost:5001/demo-fn:latest", path
     failing = json.loads((REPO_ROOT / "triggers" / "examples" / "demo-failing.json").read_text())
-    assert failing["spec"]["env"] == {"PYPIPES_EXIT_CODE": "1"}
+    assert failing["spec"]["env"] == {"DEMO_FORCE_EXIT_CODE": "1"}
 
 
 def test_the_database_is_read_from_values_yaml_and_the_schemas_from_dataset_yaml():

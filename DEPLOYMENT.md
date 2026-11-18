@@ -161,7 +161,7 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 | ...with extra pip-compile flags | `make pip-compile DIR=nexus/api ARGS="--upgrade"` | `mise run pip-compile --dir nexus/api -- --upgrade` |
 | Build and push every image | `make images` | `mise run images` |
 | Build and push one image | `make image NAME=nexus-api-fn` | `mise run image --target nexus-api-fn` |
-| ...and restart the deployments | `make image-reload NAME=nexus-api-fn` | `mise run image-reload --target nexus-api-fn` |
+| ...and restart the deployments | `make image-reload NAME=nexus-api-fn` | Removed: `mise run image --target nexus-api-fn`, then restart that one deployment (or Tilt, `mise run reload-app`, `mise run deploy`) |
 | Build the release images locally | `make images-release TAG=1.2.3` | `mise run images-release --tag 1.2.3` |
 | Rebuild the Dagster and nexus-api images, restart their pods | `make reload_app` | `mise run reload-app` |
 | Start the kind cluster and registries | `make cluster-up` | `mise run cluster up` |

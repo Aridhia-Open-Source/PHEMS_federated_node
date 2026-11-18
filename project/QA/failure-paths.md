@@ -45,7 +45,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 
 ## A failing task ends `FAILED`, has no result, and stays failed
 
-1. `fncli open-pr --kind failing --merge` (a valid spec whose task exits non-zero; it needs the run image to honour `PYPIPES_EXIT_CODE`).
+1. `fncli open-pr --kind failing --merge` (a valid spec whose task exits non-zero; it needs the run image to honour `DEMO_FORCE_EXIT_CODE`).
 2. Watch the task. Wait twelve intervals.
 3. Look for a result and for a second task or run for the same pull request.
 

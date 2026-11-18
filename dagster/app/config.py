@@ -21,7 +21,7 @@ class EnvConfig(BaseSettings):
 class BackendConfig(EnvConfig):
     uri: str = Field(default="", alias="NEXUS_API_URL")
     user: str = Field(default="", alias="DAGSTER_KC_USER")
-    password: str = Field(default="", alias="DAGSTER_KC_PASSWORD")
+    password_file: str = Field(default="", alias="DAGSTER_KC_PASSWORD_FILE")
 
 
 class SensorStatusConfig(EnvConfig):

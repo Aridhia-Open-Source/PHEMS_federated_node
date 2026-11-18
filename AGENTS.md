@@ -27,8 +27,7 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
 - `dagster/fncli/` - `fncli`, the dev/ops CLI (ADR 0018); commands in `cmds/`, e2e suites in `tests/e2e/`.
 - `k8s/federated-node/` - the Helm chart: `templates/`, `values.yaml`, `values.schema.json`, `dev.example.values.yml`, helm-unittest suites in `tests/`.
 - `build/` - images for Keycloak, `kc-init`, an Alpine helper, and the helm-unittest runner.
-- `pypipes/` - a small task image (`pypipes-fn`) used by fncli and the e2e suites.
-- `experiments/` - real experiment projects and their chart, driven by `fncli experiment` (see `experiments/README.md`).
+- `experiments/` - real experiment projects and their chart, driven by `fncli experiment` (see `experiments/README.md`); `demo` is the small task image (`demo-fn`) fncli and the e2e suites use.
 - `scripts/` - cluster, deploy, build, lint, pip-compile and test helpers (wrapped by the mise tasks in `mise.toml`).
 - `Tiltfile`, `tilt/`, `.tilt/` - the Tilt dev loop (ADR 0020); `docker-bake.hcl` - image build targets.
 - `project/decisions/` - ADRs; `docs/` - architecture docs (`docs/architecture/`) and JSON schemas (`docs/schemas/`).
@@ -67,7 +66,7 @@ Testing rule: first run only the unit tests for the files or package you changed
 Images:
 
 - `mise run images` - build every dev image with `docker buildx bake` (`scripts/build_images.sh`), tagged `latest`, pushed to `localhost:5001`.
-- `mise run image --target nexus-api-fn` - one bake target; `mise run image-reload --target <target>` also restarts deployments.
+- `mise run image --target nexus-api-fn` - one bake target. To pick it up, restart just that deployment, or use Tilt live reload or `mise run reload-app` (nexus-api and Dagster).
 - `mise run images-release --tag x.y.z` - build the release images locally.
 
 Dependencies (Python):

@@ -9,6 +9,7 @@
   - Chart: `proxy.*` (the proxy for the pods that call out) and `customCA` (a CA Secret added to the system trust of nexus-api, the Dagster code server and run pods, and Keycloak).
   - The dev container is built from `.devcontainer/Dockerfile` and trusts the CA; `mise run devcontainer-check` builds and starts it without VS Code.
   - mitmproxy tests: `scripts/proxy-sim.sh` (dev container, image builds, pulls) and `scripts/proxy-sim-sensors.sh` (the pull request pipeline).
+- Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart
 
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller

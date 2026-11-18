@@ -128,11 +128,6 @@ description = "Build and push one image, e.g. --target nexus-api-fn"
 usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
 run = 'scripts/build_images.sh "$usage_target"'
 
-[tasks.image-reload]
-description = "Build and push one image, then restart the deployments"
-usage = 'flag "--target <target>" required=#true help="docker-bake.hcl target"'
-run = 'scripts/build_images.sh "$usage_target" && kubectl rollout restart deployment'
-
 # The ghcr.io images the release publishes, tagged and loaded into the local docker, not pushed
 [tasks.images-release]
 description = "Build the release images into the local docker"
@@ -214,7 +209,7 @@ run = "./scripts/deploy_owner.sh show"
 description = "New sibling worktree with the dev config"
 quiet = true
 usage = '''
-flag "--name <name>" required=#true help="Directory name of the new sibling worktree"
+flag "--name <name>" required=#true help="Sibling directory name, or an absolute path, for the new worktree"
 flag "--branch <branch>" required=#true help="Branch to create"
 flag "--base <ref>" help="Base ref (default HEAD)"
 '''

@@ -466,11 +466,28 @@ dagster:
         envConfigMaps:
           - name: dagster-env-config
 
-        envSecrets:
+        # The Keycloak password is a mounted file read at every login (DAGSTER_KC_PASSWORD_FILE in
+        # dagster-env-config), so a credential rotation reaches a running run. Mount the whole
+        # secret as a directory: a subPath mount never refreshes. Only the user comes in as env.
+        volumes:
           - name: dagster-keycloak-creds
+            secret:
+              secretName: dagster-keycloak-creds
+        volumeMounts:
+          - name: dagster-keycloak-creds
+            mountPath: /etc/secrets/dagster
+            readOnly: true
+        runK8sConfig:
+          containerConfig:
+            env:
+              - name: DAGSTER_KC_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: dagster-keycloak-creds
+                    key: DAGSTER_KC_USER
 
-        # No volumes or volumeMounts on purpose: they would reach every run, and a run tag
-        # only adds to them. The sensors tag the runs that need the artifacts volume
+        # No artifacts volume here on purpose: it would reach every run, and a run tag
+        # only adds to it. The sensors tag the runs that need the artifacts volume
         # (artifacts_volume_tags), from fnDagster.artifactsPvcName and artifactMountPath: a task's run
         # gets the whole volume, a delivery run only its task run's folder, read-only.
 
