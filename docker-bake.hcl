@@ -12,8 +12,8 @@ variable "TAG" {
   default = "latest"
 }
 
-# Where the release targets push: ghcr.io, or another registry (the kind registry in dev)
-# (RELEASE_REGISTRY=kind-registry:5000).
+# Where the release targets push: ghcr.io, or the kind registry when the Gitea release workflow runs
+# (RELEASE_REGISTRY=kind-registry:5000, see .gitea/workflows/release.yml).
 variable "RELEASE_REGISTRY" {
   default = "ghcr.io/aridhia-open-source"
 }

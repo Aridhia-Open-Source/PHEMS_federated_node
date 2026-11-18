@@ -1,0 +1,12 @@
+# The chart the release workflow publishes. Flux's source-controller is a pod, so it reaches the kind
+# registry as kind-registry:5000 (localhost:5001 is the host's name for it), over plain HTTP.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: fn-charts
+  namespace: fn
+spec:
+  type: oci
+  url: oci://kind-registry:5000/charts
+  insecure: true
+  interval: 1m

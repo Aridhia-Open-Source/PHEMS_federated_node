@@ -1,0 +1,104 @@
+# The site's values: k8s/federated-node/dev.example.values.yml with the released images instead of the dev
+# builds, plus a small nodeConfig. No secret values: the dev Secrets already exist in the cluster.
+#
+# Images: the release workflow pushes them to the kind registry, which the nodes pull from as localhost:5001.
+# No tags: each image takes the chart's appVersion, so bumping the chart version in helmrelease.yaml moves
+# the images with it.
+
+local_development: true
+create_db_deployment: true
+
+taskNetworkPolicy:
+  datasetEgress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: experiments
+          podSelector:
+            matchLabels:
+              app: experiments-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+
+host: phems-federatednode.net
+nodeId: dev-node
+
+db:
+  host: &dbHost db.fn.svc
+
+storage:
+  capacity: 1Gi
+  local:
+    dbpath: /data/db
+    artifacts: /data/dagster/artifacts
+
+nexus:
+  api:
+    image: localhost:5001/nexus_api
+  ui:
+    enabled: true
+    devServer: false                   # the release builds nginx, not the Vite dev server
+    image: localhost:5001/federated_node_nexus_ui
+
+alpine:
+  image: localhost:5001/alpine
+
+keycloak:
+  image: localhost:5001/federated_keycloak
+  initializer:
+    image: localhost:5001/keycloak_initializer
+
+integrations:
+  domains:
+    - http://localhost:8088
+    - https://phems-federatednode.net
+
+firstUserSecret:
+  name: keycloak-first-user
+  passKey: PASSWORD
+  firstName: Dev
+  lastName: User
+  # Overridden by the keycloak-first-user Secret's EMAIL (helmrelease.yaml valuesFrom); here for the schema
+  email: dev.user+admin@example.org
+
+fnDagster:
+  image: localhost:5001/dagster_fn
+  createDB: true
+  sensors:
+    minIntervalSeconds: 5
+    retryIntervalSeconds: 10
+
+dagster:
+  enabled: true
+  postgresql:
+    postgresqlHost: *dbHost
+
+gitea:
+  enabled: true
+  admin:
+    user: gitea_admin
+    email: admin@example.com
+    secret:
+      name: gitea-admin
+      key: password
+  # Kept on, so the node can still build its next release after Flux takes it over
+  actions:
+    enabled: true
+    runner:
+      enabled: true
+
+# The operator syncs the node's config custom resources into nexus-api (ADR 0032). It runs in fn-operator,
+# where nodeConfig below is rendered, and also watches experiments, where the dev dataset lives, as the dev values do.
+operator:
+  enabled: true
+  image: localhost:5001/nexus_operator
+  watchNamespaces: [experiments]
+
+# The node's config as custom resources (ADR 0032); GitOps-Delivery.md adds a project here to show it.
+nodeConfig:
+  providers:
+    - name: gitea-local
+      type: gitea
+      uri: http://gitea.fn.svc:4000
+      apiUri: http://gitea.fn.svc:4000/api/v1
