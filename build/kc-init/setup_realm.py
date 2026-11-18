@@ -141,7 +141,8 @@ def ensure_realm_accounts(admin_token:str):
 
     # The nexus operator's user (ADR 0032): Administrator, not System, so it may change node config
     # but not call the system-only routes. Its password follows operator-keycloak-creds, like Dagster's.
-    # It also has service-account, an owner group (ADR 0036): what it writes is locked to that group.
+    # It also has service, its owner group (ADR 0036): what it writes is locked to service. As an Administrator
+    # it holds admin too, but service comes first in OWNER_GROUPS, so service is its group.
     if settings.operator_kc_user and settings.operator_kc_password and settings.operator_kc_email:
         logger.info("Creating the nexus operator user")
         operator_id = create_user(
@@ -155,7 +156,7 @@ def ensure_realm_accounts(admin_token:str):
             reset_password_if_exists=True
         )
         assign_role(
-            "service-account", get_role("service-account", admin_token), admin_token,
+            "service", get_role("service", admin_token), admin_token,
             settings.keycloak_realm, operator_id
         )
 
@@ -231,7 +232,7 @@ def setup_keycloak():
     else:
         logger.info("keycloak.manageRealm is false, skipping realm configuration")
 
-    # After the realm configuration, so a role realms.json added (service-account) exists on an upgrade
+    # After the realm configuration, so a role realms.json added (service) exists on an upgrade
     ensure_realm_accounts(admin_token)
 
     # Always last: on the bootstrap path this deletes the credential the run authenticated with.

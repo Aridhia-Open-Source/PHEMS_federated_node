@@ -43,7 +43,7 @@ Status: Proposed, 2026-11-11.
 
 ### Managed records
 
-- **Record ownership ([0036](0036-users-table-records-who-owns-config.md)) does this.** The operator's user has the `service-account` role, one of nexus-api's owner groups, so every record it creates or writes is locked to that group (`owner_group`), assignments included.
+- **Record ownership ([0036](0036-users-table-records-who-owns-config.md)) does this.** The operator's user has the `service` role, one of nexus-api's owner groups, so every record it creates or writes is locked to `service` (`owner_group`), assignments included. Records an administrator creates by hand are locked to `admin`, so the operator cannot change them either.
 - **Anyone outside the group gets a 409** on any change to the record, its removal or its revoke, the same convention as a refused state move ([0005](0005-state-transition-tables.md)). The UI shows such records read-only.
 - **This replaces putting back drift.** A locked record cannot drift, so no timer reverts API or UI edits, and an edit is never silently undone.
 
@@ -60,7 +60,7 @@ Status: Proposed, 2026-11-11.
 
 ### Auth and trust
 
-- **The operator has its own identity.** It logs in to nexus-api as its own Keycloak user, `fn-operator`, made by kc-init with a generated password that is rotated like Dagster's. It holds the Administrator role, not `System`, plus `service-account` (its owner group, above): it may change node config, and may not call the system-only routes (git tokens, task state). It never uses a person's login. nexus-api's `/login` is a password grant today; a Keycloak service client (client credentials) and a role narrower than Administrator come later.
+- **The operator has its own identity.** It logs in to nexus-api as its own Keycloak user, `fn-operator`, made by kc-init with a generated password that is rotated like Dagster's. It holds the Administrator role, not `System`, plus `service` (its owner group, above; it also holds `admin` as an Administrator, but `service` comes first): it may change node config, and may not call the system-only routes (git tokens, task state). It never uses a person's login. nexus-api's `/login` is a password grant today; a Keycloak service client (client credentials) and a role narrower than Administrator come later.
 - **Whoever can change the custom resources changes node config.** Two controls: review on the site repository (with Flux, a merge is the approval), and Kubernetes RBAC, where only Flux's ServiceAccount (and admins, for emergencies) may edit these kinds.
 - **Changes are attributed in git and in Kubernetes, not yet in nexus-api.** nexus-api keeps no audit record today. Each sync writes a Kubernetes Event and a log line with the commit Flux annotated on the resource; the site repository's history is the record of who approved it. An audit record in nexus-api is a later change.
 - **Calls go through the API,** so its auth and rules apply to every change.

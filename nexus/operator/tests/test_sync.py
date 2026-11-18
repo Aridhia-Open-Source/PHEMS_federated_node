@@ -15,11 +15,11 @@ def record(**fields):
 @pytest.fixture
 def api():
     api = MagicMock()
-    api.get_secrets.return_value = [{"label": "creds", "owner_group": "service-account"}]
+    api.get_secrets.return_value = [{"label": "creds", "owner_group": "service"}]
     api.get_git_providers.return_value = [
         record(
             id=1, name="github", type="github", uri="https://github.com", api_uri="https://api.github.com",
-            owner_group="service-account",
+            owner_group="service",
         ),
     ]
     return api
@@ -100,7 +100,7 @@ def test_repository_waits_for_its_provider_and_secret(api):
 
 
 def test_repository_adopted_and_patched(api):
-    api.find_results_repository.return_value = record(id=3, provider=record(id=1), secret=record(label="old"), owner_group="service-account")
+    api.find_results_repository.return_value = record(id=3, provider=record(id=1), secret=record(label="old"), owner_group="service")
     result = sync.sync_repository(api, "r", {"type": "results", "uri": "https://github.com/org/out", "secret": "creds"})
     api.patch_results_repository.assert_called_once_with(3, {"secret_label": "creds"})
     assert (result.nexus_id, result.changed) == (3, True)
@@ -137,7 +137,7 @@ def test_new_project_created_disabled_then_enabled_last(api):
     api.find_trigger_repository.return_value = trigger
     api.find_results_repository.return_value = results
     api.find_project.return_value = None
-    api.get_or_create_project.return_value = record(id=9, enabled=False, owner_group="service-account")
+    api.get_or_create_project.return_value = record(id=9, enabled=False, owner_group="service")
     api.get_project_datasets.return_value = []
     api.get_project_trigger_repositories.return_value = []
     api.get_project_results_repositories.return_value = []
@@ -155,7 +155,7 @@ def test_live_project_only_patched_where_it_differs(api):
     api.find_dataset.return_value = record(id=4)
     api.find_trigger_repository.return_value = record(id=2)
     api.find_results_repository.return_value = record(id=3)
-    api.find_project.return_value = record(id=9, enabled=True, owner_group="service-account")
+    api.find_project.return_value = record(id=9, enabled=True, owner_group="service")
     api.get_project_datasets.return_value = [record(dataset=record(id=4))]
     api.get_project_trigger_repositories.return_value = [
         record(trigger_repository=record(id=2), watch_dir="specs", base_branch="dev", enabled=True),
@@ -177,7 +177,7 @@ def test_live_project_disabled_to_change_its_results_repository(api):
     api.find_dataset.return_value = record(id=4)
     api.find_trigger_repository.return_value = record(id=2)
     api.find_results_repository.return_value = record(id=5)
-    api.find_project.return_value = record(id=9, enabled=True, owner_group="service-account")
+    api.find_project.return_value = record(id=9, enabled=True, owner_group="service")
     api.get_project_datasets.return_value = [record(dataset=record(id=4))]
     api.get_project_trigger_repositories.return_value = [
         record(trigger_repository=record(id=2), watch_dir="specs", base_branch="main", enabled=True),
@@ -203,7 +203,7 @@ def test_project_enabled_with_backfill_only_when_it_was_disabled(api):
     api.find_dataset.return_value = record(id=4)
     api.find_trigger_repository.return_value = record(id=2)
     api.find_results_repository.return_value = record(id=5)
-    api.find_project.return_value = record(id=9, enabled=False, owner_group="service-account")
+    api.find_project.return_value = record(id=9, enabled=False, owner_group="service")
     api.get_project_datasets.return_value = [record(dataset=record(id=4))]
     api.get_project_trigger_repositories.return_value = [
         record(trigger_repository=record(id=2), watch_dir="specs", base_branch="main", enabled=True),
@@ -217,7 +217,7 @@ def test_project_enabled_with_backfill_only_when_it_was_disabled(api):
 
     # Live, and disabled only to swap its results repository: the re-enable never backfills
     api.patch_project.reset_mock()
-    api.find_project.return_value = record(id=9, enabled=True, owner_group="service-account")
+    api.find_project.return_value = record(id=9, enabled=True, owner_group="service")
     api.get_project_results_repositories.return_value = [
         record(results_repository=record(id=3), target_dir="results", base_branch="main", enabled=True),
     ]
@@ -248,7 +248,7 @@ def test_live_project_unassigns_what_the_spec_dropped(api):
     api.find_dataset.return_value = record(id=4)
     api.find_trigger_repository.return_value = record(id=2)
     api.find_results_repository.return_value = record(id=3)
-    api.find_project.return_value = record(id=9, enabled=True, owner_group="service-account")
+    api.find_project.return_value = record(id=9, enabled=True, owner_group="service")
     api.get_project_datasets.return_value = [record(dataset=record(id=4)), record(dataset=record(id=6))]
     api.get_project_trigger_repositories.return_value = [
         record(trigger_repository=record(id=2), watch_dir="specs", base_branch="main", enabled=True),
