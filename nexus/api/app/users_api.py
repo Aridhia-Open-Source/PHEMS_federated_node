@@ -18,10 +18,6 @@ router = APIRouter(prefix='/global/users', tags=["users"])
 
 
 @router.post(
-    '/', status_code=HTTPStatus.CREATED, response_model=NewUserDTO,
-    dependencies=[Depends(require_scope('can_do_admin'))]
-)
-@router.post(
     '', status_code=HTTPStatus.CREATED, response_model=NewUserDTO,
     dependencies=[Depends(require_scope('can_do_admin'))]
 )
@@ -67,7 +63,6 @@ def reset_password(body: dict = Body(default_factory=dict)):
     )
 
 
-@router.get('/', response_model=list[UserDTO], dependencies=[Depends(require_scope('can_do_admin'))])
 @router.get('', response_model=list[UserDTO], dependencies=[Depends(require_scope('can_do_admin'))])
 def get_users_list():
     """

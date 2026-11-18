@@ -86,7 +86,6 @@ async def raw_body(request: Request) -> str:
     return (await request.body()).decode()
 
 
-@router.get('/', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
 @router.get('', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
 def get_tasks(project_id: int, status: str | None = None):
     """
@@ -100,7 +99,6 @@ def get_tasks(project_id: int, status: str | None = None):
     return task_page(query, parse_statuses(status))
 
 
-@all_router.get('/', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
 @all_router.get('', response_model=Page[TaskDTO], dependencies=[Depends(require_scope('can_admin_task'))])
 def get_all_tasks(status: str | None = None, project_enabled: str | None = None):
     """
@@ -243,10 +241,6 @@ def cancel_tasks(project_id: int, task_id: int):
     raise NotImplementedException()
 
 
-@router.post(
-    '/', status_code=HTTPStatus.CREATED, response_model=TaskCreatedDTO,
-    dependencies=[Depends(require_scope('can_exec_task'))]
-)
 @router.post(
     '', status_code=HTTPStatus.CREATED, response_model=TaskCreatedDTO,
     dependencies=[Depends(require_scope('can_exec_task'))]

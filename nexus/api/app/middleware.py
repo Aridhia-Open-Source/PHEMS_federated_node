@@ -81,3 +81,17 @@ class JsonObjectBodyMiddleware:
             return {"type": "http.request", "body": body, "more_body": False}
 
         await self.app(scope, replay, send)
+
+
+class TrailingSlashMiddleware:
+    """Routes are declared without a trailing slash; a request that has one reaches the same route, no redirect."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and len(scope["path"]) > 1 and scope["path"].endswith("/"):
+            scope["path"] = scope["path"][:-1]
+            if "raw_path" in scope:
+                scope["raw_path"] = scope["raw_path"][:-1]
+        await self.app(scope, receive, send)
