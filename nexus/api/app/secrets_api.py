@@ -25,7 +25,8 @@ from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.kubernetes import KubernetesClient
 from app.helpers.kubernetes_names import validate_secret_key
-from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.ownership import get_for_write, require_members, set_owner
+from app.helpers.soft_delete import describe_project
 from app.helpers.wrappers import Caller, get_caller
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
@@ -285,6 +286,8 @@ def delete_secret(label: str, force: bool = False, caller: Caller = Depends(get_
             f"{', '.join(name for name, _ in enabled)}. Disable them first or delete with ?force=true",
             code=HTTPStatus.CONFLICT
         )
+
+    require_members(secret.project_assignments, caller, describe_project)
 
     # Staged, not committed: if the store delete fails the row has to come back, and a
     # rollback after a commit is a no-op.

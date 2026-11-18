@@ -139,7 +139,7 @@ def delete_repository(repo_id: int, force: bool = False, caller: Caller = Depend
     DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
     """
     repo = get_for_write(session, TriggerRepository, repo_id, caller)
-    delete_global(repo, repo.project_assignments, force)
+    delete_global(repo, repo.project_assignments, force, caller)
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO)
