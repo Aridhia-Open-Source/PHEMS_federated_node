@@ -1168,10 +1168,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#node-files" class="md-nav__link">
+  <a href="#node-config" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Node files
+        Node config
       
     </span>
   </a>
@@ -1195,10 +1195,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#diff-apply-delete" class="md-nav__link">
+  <a href="#kubectl-apply-delete-and-gitea-setup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        diff, apply, delete
+        kubectl apply, delete and gitea setup
       
     </span>
   </a>
@@ -1420,10 +1420,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#node-files" class="md-nav__link">
+  <a href="#node-config" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Node files
+        Node config
       
     </span>
   </a>
@@ -1447,10 +1447,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#diff-apply-delete" class="md-nav__link">
+  <a href="#kubectl-apply-delete-and-gitea-setup" class="md-nav__link">
     <span class="md-ellipsis">
       
-        diff, apply, delete
+        kubectl apply, delete and gitea setup
       
     </span>
   </a>
@@ -1533,8 +1533,8 @@
 
 
 <h1 id="using-fncli">Using fncli<a class="headerlink" href="#using-fncli" title="Permanent link">&para;</a></h1>
-<p><code>fncli</code> is the command-line tool of the Federated Node repository. It sets a development node up from a few YAML files, asks the node to run a task, and checks what happened. This page explains the files and the commands.</p>
-<p><strong>It is a development and demo tool.</strong> Its setup commands assume the local development cluster, with Gitea as the git host and Tilt's port-forwards. On a real node, set the git provider, repositories and secrets up with the API (<a href="../Set-Up-A-Project/">Set up a project</a>). Using <code>fncli apply</code> or <code>delete</code> on a node you care about needs a decision of its own, and <code>delete --all</code> must never be run against one.</p>
+<p><code>fncli</code> is the command-line tool of the Federated Node repository. It makes the Gitea repositories and credentials a development node needs, asks the node to run a task, and checks what happened. The node's own configuration is Kubernetes resources that you apply with <code>kubectl</code>. This page explains the files and the commands.</p>
+<p><strong>It is a development and demo tool.</strong> Its setup commands assume the local development cluster, with Gitea as the git host and Tilt's port-forwards. On a real node, set the git provider, repositories and secrets up with the API (<a href="../Set-Up-A-Project/">Set up a project</a>) or the chart values. Using <code>kubectl apply</code> or <code>delete</code> of the dev files in <code>config/</code> on a node you care about needs a decision of its own.</p>
 <p>To install it and run the demo from nothing, see <a href="../Run-Locally/">Run locally</a>.</p>
 <h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
 <p>From the repo root, with <a href="https://mise.jdx.dev/">mise</a> installed.</p>
@@ -1544,7 +1544,7 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <p><code>mise run setup</code> installs fncli, editable, into <code>.venv</code> at the repo root. With <a href="https://mise.jdx.dev/getting-started.html#activate-mise">mise activated in your shell</a>, <code>fncli</code> is on your <code>PATH</code> anywhere in the repo. The install belongs to that checkout, so a worktree needs its own <code>mise run setup</code>. If <code>fncli</code> fails with <code>No module named 'fncli'</code>, or lacks a command, run <code>mise run setup</code> again from the checkout you want. If you installed fncli with pipx before, remove that copy: <code>pipx uninstall phems</code>.</p>
 <p><code>fncli --help</code> lists the commands. fncli reads cluster secrets from the <strong>current kubectl context</strong>, so check <code>kubectl config current-context</code> is the cluster you mean.</p>
 <h2 id="the-files">The files<a class="headerlink" href="#the-files" title="Permanent link">&para;</a></h2>
-<p>Three kinds of file drive fncli. <strong>None holds a secret value</strong>, so they are safe to commit.</p>
+<p>Three kinds of file drive the dev setup. <strong>None holds a secret value</strong>, so they are safe to commit.</p>
 <table>
 <thead>
 <tr>
@@ -1560,13 +1560,8 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <td>No: gitignored. <code>bootstrap/examples/context.yaml</code> is the example</td>
 </tr>
 <tr>
-<td><code>bootstrap/globals*.yaml</code></td>
-<td>The global resources: git providers, secrets, repositories</td>
-<td>Yes</td>
-</tr>
-<tr>
-<td><code>bootstrap/projects/&lt;name&gt;.yaml</code></td>
-<td>One project, and what it is assigned</td>
+<td><code>config/*.yaml</code>, <code>config/*/*.yaml</code></td>
+<td>The node config: git providers, secrets, repositories, datasets and projects, as Kubernetes resources (<code>kubectl apply -f</code>)</td>
 <td>Yes</td>
 </tr>
 <tr>
@@ -1575,13 +1570,13 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <td>Yes</td>
 </tr>
 <tr>
-<td><code>experiments/&lt;name&gt;/dataset.yaml</code></td>
-<td>An experiment's dataset and its secret</td>
+<td><code>experiments/&lt;name&gt;/values.yaml</code></td>
+<td>An experiment's database, and (rendered by the chart) its dataset and its secret</td>
 <td>Yes</td>
 </tr>
 </tbody>
 </table>
-<p>The files are split by who writes them and when. The node is chosen apart from the content, so the same globals and project files serve the demo, the end-to-end tests and your own node.</p>
+<p>The files are split by who writes them and when. The node fncli talks to is chosen apart from the node config, so the same files serve the demo, the end-to-end tests and your own node.</p>
 <h3 id="the-context-file">The context file<a class="headerlink" href="#the-context-file" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><span class="nt">node</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:5000</span><span class="w">          </span><span class="c1"># nexus-api (the Tilt port-forward)</span>
@@ -1597,34 +1592,37 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <li>Every command <strong>refuses to run when kubectl's current context differs from <code>node.kube_context</code></strong>. The context file is the one authority for the target.</li>
 <li><code>FNCLI_DEFAULT_PROJECT</code> and <code>FNCLI_DEFAULT_TRIGGER_TYPE</code> in the shell win over <code>defaults:</code>, and a flag wins over both. A command that uses a default says so on its first line.</li>
 </ul>
-<h3 id="node-files">Node files<a class="headerlink" href="#node-files" title="Permanent link">&para;</a></h3>
-<p>A node file lists any of the providers, secrets, repositories, datasets and projects of a node. The global resources go in one file and a project in another. A project file is only its name and what it is assigned, <strong>by name</strong>:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># bootstrap/examples/projects/demo-gitea.yaml</span>
-<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<span class="nt">projects</span><span class="p">:</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">demo-gitea</span>
-<span class="w">    </span><span class="nt">datasets</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">demo-db</span><span class="p p-Indicator">]</span><span class="w">                  </span><span class="c1"># on the node already</span>
-<span class="w">    </span><span class="nt">repositories</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">triggers</span><span class="p">:</span>
-<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://gitea.fn.svc:4000/gitea_admin/demo-trigger-repo</span>
-<span class="w">          </span><span class="nt">watch_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">specs/</span>
-<span class="w">          </span><span class="nt">base_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
-<span class="w">      </span><span class="nt">results</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://gitea.fn.svc:4000/gitea_admin/demo-results-repo</span>
-<span class="w">        </span><span class="nt">target_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">results/</span>
-<span class="w">        </span><span class="nt">base_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<h3 id="node-config">Node config<a class="headerlink" href="#node-config" title="Permanent link">&para;</a></h3>
+<p>The node's providers, secrets, repositories, datasets and projects are Kubernetes custom resources (group <code>fn.aridhia.com/v1alpha1</code>: GitProvider, NodeSecret, Repository, Dataset, Project) in <code>config/</code>. You apply them with <code>kubectl</code>, and the nexus operator syncs them to nexus-api. A project names what it is assigned, <strong>by name</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># config/demo.yaml (the project)</span>
+<span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fn.aridhia.com/v1alpha1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Project</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">demo-gitea</span>
+<span class="w">  </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fn-operator</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">datasets</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">demo-db</span><span class="p p-Indicator">]</span><span class="w">                  </span><span class="c1"># the experiments chart's</span>
+<span class="w">  </span><span class="nt">repositories</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">triggers</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://gitea.fn.svc:4000/gitea_admin/demo-trigger-repo</span>
+<span class="w">        </span><span class="nt">watchDir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">specs/</span>
+<span class="w">        </span><span class="nt">baseBranch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">    </span><span class="nt">results</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://gitea.fn.svc:4000/gitea_admin/demo-results-repo</span>
+<span class="w">      </span><span class="nt">targetDir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">results/</span>
+<span class="w">      </span><span class="nt">baseBranch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 </code></pre></div>
 <ul>
-<li><strong>The keys are the backend's own unique fields</strong>, so a file holds no ids: provider uri, repository uri, secret label, dataset name, project name.</li>
-<li><strong>Where a value comes from.</strong> A secret's values say where fncli reads them at apply time: <code>env</code>, <code>file</code>, <code>k8s_secret</code>, <code>gitea_oauth</code> (fncli makes and authorises an OAuth app in Gitea) or <code>generate</code> (a random value, for stand-in credentials only). A bare string where a reference is expected is rejected, so a file can never hold a secret.</li>
-<li><strong>References across files resolve against the node.</strong> A project may name a repository, dataset or secret that is in another file, as long as it is on the node when <code>diff</code> reads it. One that is in neither blocks the row that names it ("not in the file or on the node"), and <code>apply</code> leaves that row alone.</li>
-<li><code>-f</code> takes a path, or one relative to the nearest <code>bootstrap/</code> directory, so <code>-f examples/globals-gitea.yaml</code> works from anywhere in the repo.</li>
-<li>Names may use only lowercase letters, digits, <code>-</code> and <code>.</code>, because they become secret labels.</li>
+<li><strong>The keys are the backend's own unique fields</strong>, so a file holds no ids: provider uri, repository uri, secret name, dataset name, project name.</li>
+<li><strong>A secret's values come from a Kubernetes Secret.</strong> A NodeSecret names it (<code>fromSecret</code>) or points at keys of other Secrets, so a file can never hold a secret value. <code>fncli gitea setup</code> makes the Secret for a Gitea repository; for a GitHub App you run <code>kubectl create secret</code> (<a href="../Run-Locally/">Run locally</a>).</li>
+<li><strong>The operator reports in each resource's status.</strong> <code>kubectl get fn -n fn-operator</code> shows Synced and a Message, for example a Secret or dataset that is not there yet.</li>
+<li>Names may use only lowercase letters, digits, <code>-</code> and <code>.</code>.</li>
 </ul>
+<p>The format, the operator and more examples are in <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0032-declarative-node-config-through-an-operator.md">ADR 0032</a>.</p>
 <h3 id="trigger-files">Trigger files<a class="headerlink" href="#trigger-files" title="Permanent link">&para;</a></h3>
 <p>A trigger file is the JSON that asks the node to run a task: <code>{"spec": {"image": "...", "env": {...}}}</code>. It is the same task spec a researcher adds in a pull request (<a href="../Researcher-Guide/">Researcher guide</a>). A path, or one relative to <code>triggers/</code>, works. The repo has <code>triggers/examples/demo.json</code>, and <code>demo-failing.json</code>, whose task fails on purpose.</p>
-<h2 id="diff-apply-delete">diff, apply, delete<a class="headerlink" href="#diff-apply-delete" title="Permanent link">&para;</a></h2>
-<p>These work in the style of kubectl.</p>
+<h2 id="kubectl-apply-delete-and-gitea-setup">kubectl apply, delete and gitea setup<a class="headerlink" href="#kubectl-apply-delete-and-gitea-setup" title="Permanent link">&para;</a></h2>
+<p>The node config is applied in the style of kubectl, because it is kubectl.</p>
 <table>
 <thead>
 <tr>
@@ -1634,29 +1632,36 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 </thead>
 <tbody>
 <tr>
-<td><code>fncli diff -f FILE</code></td>
-<td>Prints one row per entity: <code>+</code> create, <code>~</code> change, <code>=</code> unchanged, <code>!</code> needs a confirmation, <code>x</code> blocked. Changes nothing. A secret to be created lists where each value is read from and whether it can be</td>
+<td><code>fncli gitea setup -f FILE [--rotate NODESECRET]</code></td>
+<td>Creates the Gitea repositories of the file's Repository resources and, for each NodeSecret they name, a Gitea OAuth app named after it. Writes <code>CLIENT_ID</code>, <code>CLIENT_SECRET</code> and <code>REFRESH_TOKEN</code> into the Kubernetes Secret the NodeSecret's <code>fromSecret</code> names</td>
 </tr>
 <tr>
-<td><code>fncli apply -f FILE [-y] [--rotate LABEL]</code></td>
-<td>Prints that plan, asks, then does it in dependency order: secrets, providers, Gitea repositories (if the file has a <code>gitea:</code> section), repositories, datasets, projects. A project is created disabled and enabled last</td>
+<td><code>kubectl apply -f config/</code></td>
+<td>The operator syncs each resource to nexus-api, in dependency order. A project is created disabled and enabled last</td>
 </tr>
 <tr>
-<td><code>fncli delete -f FILE [--all] [-y]</code></td>
-<td>Deletes the file's projects. With <code>--all</code>, also its repositories, datasets, secrets (with their stored values) and providers</td>
+<td><code>kubectl get fn -n fn-operator</code></td>
+<td>Each resource's Synced and Message</td>
+</tr>
+<tr>
+<td><code>kubectl diff -f FILE</code></td>
+<td>What an apply would change</td>
+</tr>
+<tr>
+<td><code>kubectl delete -f FILE</code></td>
+<td>Soft-deletes the resources' records</td>
 </tr>
 </tbody>
 </table>
 <p>How they behave:</p>
 <ul>
-<li><strong>Apply is additive.</strong> It creates and updates, and never deletes. Taking an entry out of a file changes nothing on the node.</li>
-<li><strong>Apply is repeatable.</strong> A second apply of an unchanged file changes nothing, and a failed one can be run again. It stops at the first backend error and says what was done and what was not.</li>
-<li><strong>Secrets are create-only.</strong> An existing secret is left alone. <code>--rotate LABEL</code> rewrites all its keys, and authorises a Gitea OAuth app again. A secret edited elsewhere is not noticed until <code>--rotate</code>.</li>
-<li><strong>Changes only touch what differs.</strong> An assignment that exists is changed with a <code>PATCH</code> of the fields that differ, so a repeated apply does not re-enable what you switched off.</li>
-<li><strong>Disruptive changes are marked.</strong> A dataset's host, port, type or schemas, and a results repository's <code>target_dir</code> or <code>base_branch</code>, are pinned into each task when it is created, so changing them fails earlier tasks. Assigning a results repository to a live project needs the project disabled, so apply asks first.</li>
-<li><strong>Delete is a soft delete</strong> through the API's <code>DELETE</code> routes, never with <code>?force=true</code>. It works in reverse order: what uses a thing goes before the thing. What another project outside the file still uses is <strong>skipped</strong>, with the backend's reason, and delete exits 1. A provider that other repositories are on is kept.</li>
-<li><strong>Gitea repositories and OAuth apps are left in place</strong>, and fncli never creates or deletes GitHub repositories, tokens or Apps.</li>
-<li>Applying a file again after <code>delete</code> recreates everything cleanly: a deleted name is free again. When projects share globals, delete the second project's file first, then the first with <code>--all</code>.</li>
+<li><strong>Run <code>fncli gitea setup</code> first.</strong> A NodeSecret whose Secret does not exist yet stays unsynced until it does.</li>
+<li><strong>Secrets are create-only.</strong> A Secret that exists is kept. <code>--rotate NODESECRET</code> writes it again, and authorises the Gitea OAuth app again.</li>
+<li><strong>Apply is repeatable.</strong> The operator creates what is missing and changes only what differs, so a second apply of an unchanged file changes nothing.</li>
+<li><strong>Disruptive changes are marked.</strong> A dataset's host, port, type or schemas, and a results repository's <code>targetDir</code> or <code>baseBranch</code>, are pinned into each task when it is created, so changing them fails earlier tasks.</li>
+<li><strong>Delete is a soft delete</strong> through the API's <code>DELETE</code> routes, never with <code>?force=true</code>. What another project outside the file still uses is kept: the resource stays <code>Terminating</code>, with the backend's reason in its Message, until that project is deleted. A provider that other repositories are on is kept.</li>
+<li><strong>Gitea repositories, OAuth apps and Kubernetes Secrets are left in place</strong>, and fncli never creates or deletes GitHub repositories, tokens or Apps.</li>
+<li>Applying a file again after <code>kubectl delete</code> recreates everything cleanly: a deleted name is free again. When projects share resources, delete the second project's file first, then the first.</li>
 </ul>
 <h2 id="trigger-a-task">Trigger a task<a class="headerlink" href="#trigger-a-task" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>fncli<span class="w"> </span>trigger<span class="w"> </span>--pr<span class="w"> </span>--merge<span class="w"> </span>--watch<span class="w"> </span>examples/demo.json
@@ -1664,12 +1669,12 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <p><code>fncli trigger FILE</code> asks the node to run a task with a trigger file. With <code>--pr</code> it adds the file on a new branch, under the watch directory of the project's trigger repository, and opens a pull request (taken from the project's record in the node, not from any env). With <code>--merge</code> it merges the pull request, which is what the sensors pick up, and with <code>--watch</code> it follows the pull request, its task and its run, and exits 1 on a rejection or a failed run.</p>
 <p>The project and the way default to the context's <code>defaults</code>. <code>--api</code> is reserved for sending the same file to the task API, and says it is not built yet. On GitHub, the pull requests into the trigger repository are the researcher's work, so they use <code>RESEARCHER_GIT_TOKEN</code>, or the token of <code>gh auth login</code>. On Gitea they use the admin login.</p>
 <h2 id="demo">demo<a class="headerlink" href="#demo" title="Permanent link">&para;</a></h2>
-<p><code>fncli demo -f PROJECT_FILE [TRIGGER]</code> shows the pull request process on a node that <code>apply</code> has already set up. It <strong>creates and deletes nothing</strong>.</p>
+<p><code>fncli demo [TRIGGER] [--project NAME]</code> shows the pull request process on a node where <code>kubectl apply</code> has already set up the project. It <strong>creates and deletes nothing</strong>.</p>
 <ol>
-<li>It builds the plan <code>diff</code> prints for the project file. If anything would change, it stops with exit 1 and lists the rows. Nothing is applied for you.</li>
+<li>It reads the project's Project resource. If the operator has not synced it, it stops with exit 1 and shows the operator's message. Nothing is applied for you.</li>
 <li>Then it checks the dataset and the git host, walks a pull request into the trigger repository, the task it becomes and the results pull request, then checks the whole project. Before each step it says what the step does, shows the equivalent fncli command, and asks.</li>
 </ol>
-<p>The flow is <code>apply</code> the globals, <code>apply</code> the project, <code>demo</code> as often as you like, then <code>delete</code>. <a href="../Run-Locally/#7-the-gitea-demo">Run locally</a> walks it.</p>
+<p>The flow is <code>fncli gitea setup -f config/gitea.yaml -f config/demo.yaml</code>, <code>kubectl apply -f config/</code>, <code>demo</code> as often as you like, then <code>kubectl delete -f config/demo.yaml</code>. <a href="../Run-Locally/#7-the-gitea-demo">Run locally</a> walks it.</p>
 <h2 id="sensors-and-checks">Sensors and checks<a class="headerlink" href="#sensors-and-checks" title="Permanent link">&para;</a></h2>
 <p>These act on the project in your context's defaults (or <code>--project NAME</code>), and talk only to nexus-api and Dagster. They are written for the development cluster.</p>
 <table>
@@ -1714,11 +1719,11 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 </tr>
 </tbody>
 </table>
-<p><code>KIND</code> is <code>trigger</code>, <code>results</code>, <code>dataset</code> or <code>secret</code>. The <code>--revoked</code> options also need the <code>keycloak-first-user</code> secret that <code>mise run deploy</code> creates, so on a real node revoke through the API instead.</p>
+<p><code>KIND</code> is <code>trigger</code>, <code>results</code>, <code>dataset</code> or <code>secret</code>. The <code>--revoked</code> options need an Administrator login (<code>FN_USERNAME</code>).</p>
 <h2 id="experiments">Experiments<a class="headerlink" href="#experiments" title="Permanent link">&para;</a></h2>
 <p><code>fncli experiment</code> runs a real experiment image against the development node: see <a href="../Experiments/">Experiments</a>.</p>
 <h2 id="more-detail">More detail<a class="headerlink" href="#more-detail" title="Permanent link">&para;</a></h2>
-<p>The repo's <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/dagster/fncli/README.md">fncli README</a> has every command and option. The design is in the decision records <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0025-fncli-bootstrap-files-diff-apply-delete.md">0025</a> to <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md">0030</a>.</p>
+<p>The repo's <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/dagster/fncli/README.md">fncli README</a> has every command and option. The design is in the decision records <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0032-declarative-node-config-through-an-operator.md">0032</a> (node config as Kubernetes resources) and, for history, <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0025-fncli-bootstrap-files-diff-apply-delete.md">0025</a> to <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md">0030</a>.</p>
 
 
 

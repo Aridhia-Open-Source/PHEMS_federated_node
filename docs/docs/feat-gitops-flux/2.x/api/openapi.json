@@ -229,107 +229,6 @@
         }
       }
     },
-    "/projects/": {
-      "get": {
-        "tags": [
-          "projects"
-        ],
-        "summary": "List Projects",
-        "description": "GET /projects endpoint.",
-        "operationId": "list_projects_projects__get",
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Page number",
-              "default": 1,
-              "title": "Page"
-            },
-            "description": "Page number"
-          },
-          {
-            "name": "size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "description": "Page size",
-              "default": 50,
-              "title": "Size"
-            },
-            "description": "Page size"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_ProjectDTO_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "projects"
-        ],
-        "summary": "Create Project",
-        "description": "POST /projects endpoint.",
-        "operationId": "create_project_projects__post",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectCreatedDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/projects/{project_id}": {
       "get": {
         "tags": [
@@ -1351,108 +1250,6 @@
         }
       }
     },
-    "/global/datasets/": {
-      "get": {
-        "tags": [
-          "datasets"
-        ],
-        "summary": "Get Datasets",
-        "description": "GET /global/datasets/ endpoint. Returns a list of all datasets",
-        "operationId": "get_datasets_global_datasets__get",
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Page number",
-              "default": 1,
-              "title": "Page"
-            },
-            "description": "Page number"
-          },
-          {
-            "name": "size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "description": "Page size",
-              "default": 50,
-              "title": "Size"
-            },
-            "description": "Page size"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_DatasetDTO_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "datasets"
-        ],
-        "summary": "Post Datasets",
-        "description": "POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name\nalready taken (case-insensitive) is a 409. A disabled secret_label is a 400",
-        "operationId": "post_datasets_global_datasets__post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DatasetDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/global/datasets/{dataset_id}": {
       "get": {
         "tags": [
@@ -1684,144 +1481,6 @@
         "summary": "Post Tasks",
         "description": "POST /projects/<project_id>/tasks endpoint. Creates a new task from API request",
         "operationId": "post_tasks_projects__project_id__tasks_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Req Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TaskCreatedDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/projects/{project_id}/tasks/": {
-      "get": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "Get Tasks",
-        "description": "GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id\nQuery params:\n    - page, size: see fastapi-pagination\n    - status: filter by task status (optional)",
-        "operationId": "get_tasks_projects__project_id__tasks__get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Page number",
-              "default": 1,
-              "title": "Page"
-            },
-            "description": "Page number"
-          },
-          {
-            "name": "size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "description": "Page size",
-              "default": 50,
-              "title": "Size"
-            },
-            "description": "Page size"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_TaskDTO_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "Post Tasks",
-        "description": "POST /projects/<project_id>/tasks endpoint. Creates a new task from API request",
-        "operationId": "post_tasks_projects__project_id__tasks__post",
         "parameters": [
           {
             "name": "project_id",
@@ -2816,6 +2475,42 @@
         }
       }
     },
+    "/global/users/reset-password": {
+      "put": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Reset Password",
+        "description": "PUT /global/users/reset-password endpoint. Interface to keycloak\n    API, so we can change the credentials and make sure\n    there are no pending action to undertake",
+        "operationId": "reset_password_global_users_reset_password_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/global/users": {
       "get": {
         "tags": [
@@ -2869,109 +2564,6 @@
                 }
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/users/": {
-      "get": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Get Users List",
-        "description": "GET /global/users/ endpoint. This is a simplified version\nof what keycloak returns as a user list.",
-        "operationId": "get_users_list_global_users__get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/UserDTO"
-                  },
-                  "type": "array",
-                  "title": "Response Get Users List Global Users  Get"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Create User",
-        "description": "POST /global/users endpoint. Creates a KC user, and sets a temp\n    password for them.",
-        "operationId": "create_user_global_users__post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Data"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NewUserDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/users/reset-password": {
-      "put": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Reset Password",
-        "description": "PUT /global/users/reset-password endpoint. Interface to keycloak\n    API, so we can change the credentials and make sure\n    there are no pending action to undertake",
-        "operationId": "reset_password_global_users_reset_password_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -3040,95 +2632,6 @@
         "summary": "Post Repository",
         "description": "POST /global/repositories/triggers/ \u2014 create a new repository, assigned to no project yet.",
         "operationId": "post_repository_global_repositories_triggers_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TriggerRepositoryDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/repositories/triggers/": {
-      "get": {
-        "tags": [
-          "trigger_repositories"
-        ],
-        "summary": "Get Repositories",
-        "description": "GET /global/repositories/triggers/ \u2014 list the repositories. With ?pollable=true only the enabled and\nnot revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project\nresources say: that is what Dagster polls.",
-        "operationId": "get_repositories_global_repositories_triggers__get",
-        "parameters": [
-          {
-            "name": "pollable",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Pollable"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TriggerRepositoryDTO"
-                  },
-                  "title": "Response Get Repositories Global Repositories Triggers  Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "trigger_repositories"
-        ],
-        "summary": "Post Repository",
-        "description": "POST /global/repositories/triggers/ \u2014 create a new repository, assigned to no project yet.",
-        "operationId": "post_repository_global_repositories_triggers__post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -4114,73 +3617,6 @@
         }
       }
     },
-    "/global/secrets/": {
-      "get": {
-        "tags": [
-          "secrets"
-        ],
-        "summary": "Get Secrets",
-        "description": "GET /global/secrets \u2014 list the secrets. The values are never returned.",
-        "operationId": "get_secrets_global_secrets__get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SecretDTO"
-                  },
-                  "type": "array",
-                  "title": "Response Get Secrets Global Secrets  Get"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "secrets"
-        ],
-        "summary": "Post Secret",
-        "description": "POST /global/secrets \u2014 create the secret in its store and the reference to it. The label is\nunique across the node; the secret is stored under the generated key\n\"fn-secret-<label>\", which is fixed from then on. Admin only.\nBody: {\"label\": \"...\", \"description\": \"...\", \"provider\": \"K8S\", \"values\": {\"KEY\": \"value\", ...}, \"enabled\": true}\nThe description and enabled are optional.",
-        "operationId": "post_secret_global_secrets__post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SecretDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/global/secrets/{label}": {
       "get": {
         "tags": [
@@ -4386,72 +3822,6 @@
         }
       }
     },
-    "/global/providers/": {
-      "get": {
-        "tags": [
-          "git_providers"
-        ],
-        "summary": "Get Providers",
-        "description": "GET /global/providers/ \u2014 list the providers",
-        "operationId": "get_providers_global_providers__get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GitProviderDTO"
-                  },
-                  "type": "array",
-                  "title": "Response Get Providers Global Providers  Get"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "git_providers"
-        ],
-        "summary": "Post Provider",
-        "description": "POST /global/providers/ \u2014 create a provider. The name and the uri are unique (409).\nBody: {\"name\": \"...\", \"type\": \"github\", \"uri\": \"https://github.com\", \"api_uri\": \"https://api.github.com\",\n\"enabled\": true}. enabled is optional.",
-        "operationId": "post_provider_global_providers__post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GitProviderRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GitProviderDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/global/providers/{provider_id}": {
       "get": {
         "tags": [
@@ -4612,72 +3982,6 @@
         "summary": "Post Repository",
         "description": "POST /global/repositories/results/ \u2014 create a new repository, assigned to no project yet. project_id\nand target_dir are not accepted, results repositories are global: assign one with\nPUT /projects/<id>/repositories/results/<repository id>",
         "operationId": "post_repository_global_repositories_results_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RepositoryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResultsRepositoryDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/repositories/results/": {
-      "get": {
-        "tags": [
-          "results_repositories"
-        ],
-        "summary": "Get Repositories",
-        "description": "GET /global/repositories/results/ \u2014 list the repositories",
-        "operationId": "get_repositories_global_repositories_results__get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ResultsRepositoryDTO"
-                  },
-                  "type": "array",
-                  "title": "Response Get Repositories Global Repositories Results  Get"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "results_repositories"
-        ],
-        "summary": "Post Repository",
-        "description": "POST /global/repositories/results/ \u2014 create a new repository, assigned to no project yet. project_id\nand target_dir are not accepted, results repositories are global: assign one with\nPUT /projects/<id>/repositories/results/<repository id>",
-        "operationId": "post_repository_global_repositories_results__post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5648,99 +4952,6 @@
           }
         }
       }
-    },
-    "/tasks/": {
-      "get": {
-        "tags": [
-          "tasks"
-        ],
-        "summary": "Get All Tasks",
-        "description": "GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of\nGET /projects/<project_id>/tasks. Query params:\n    - page, size: as the project's list\n    - status: one or more task statuses, comma separated (optional)\n    - project_enabled: \"true\" keeps the tasks of enabled projects, as GET /projects?enabled=true\n      lists them. A revoked project is still enabled, so its tasks stay.",
-        "operationId": "get_all_tasks_tasks__get",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "name": "project_enabled",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Project Enabled"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Page number",
-              "default": 1,
-              "title": "Page"
-            },
-            "description": "Page number"
-          },
-          {
-            "name": "size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "description": "Page size",
-              "default": 50,
-              "title": "Size"
-            },
-            "description": "Page size"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Page_TaskDTO_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -5854,6 +5065,27 @@
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5872,7 +5104,9 @@
           "created_at",
           "updated_at",
           "slug",
-          "url"
+          "url",
+          "owner",
+          "owner_group"
         ],
         "title": "DatasetDTO"
       },
@@ -5960,6 +5194,27 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5972,7 +5227,9 @@
           "enabled",
           "revoked",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "owner",
+          "owner_group"
         ],
         "title": "GitProviderDTO"
       },
@@ -6641,6 +5898,27 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6652,7 +5930,9 @@
           "revoked",
           "default_dataset_id",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectDTO"
       },
@@ -6676,6 +5956,27 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6684,7 +5985,9 @@
           "dataset",
           "enabled",
           "revoked",
-          "active"
+          "active",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectDatasetDTO",
         "description": "A project's resource for a global dataset, the dataset nested. Addressed by the dataset's id."
@@ -6833,6 +6136,27 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6844,7 +6168,9 @@
           "owned_by_federated_node",
           "enabled",
           "revoked",
-          "active"
+          "active",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectResultsRepositoryDTO",
         "description": "A project's resource for a global results repository, the repository nested. Addressed by the repository's id."
@@ -7012,6 +6338,27 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7020,7 +6367,9 @@
           "secret",
           "enabled",
           "revoked",
-          "active"
+          "active",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectSecretDTO",
         "description": "A project's resource for a global secret, the reference nested. Addressed by the secret's label. Never carries values."
@@ -7104,6 +6453,27 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7117,7 +6487,9 @@
           "pr_count",
           "enabled",
           "revoked",
-          "active"
+          "active",
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectTriggerRepositoryDTO",
         "description": "A project's resource for a global trigger repository, the repository nested. Addressed by the repository's id."
@@ -7737,6 +7109,27 @@
           "revoked": {
             "type": "boolean",
             "title": "Revoked"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7747,7 +7140,9 @@
           "provider",
           "secret",
           "enabled",
-          "revoked"
+          "revoked",
+          "owner",
+          "owner_group"
         ],
         "title": "ResultsRepositoryDTO"
       },
@@ -7843,6 +7238,27 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7855,7 +7271,9 @@
           "namespace",
           "enabled",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "owner",
+          "owner_group"
         ],
         "title": "SecretDTO"
       },
@@ -8485,6 +7903,27 @@
           "pr_cursor": {
             "type": "string",
             "title": "Pr Cursor"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -8496,7 +7935,9 @@
           "secret",
           "enabled",
           "revoked",
-          "pr_cursor"
+          "pr_cursor",
+          "owner",
+          "owner_group"
         ],
         "title": "TriggerRepositoryDTO"
       },
@@ -8565,6 +8006,25 @@
         ],
         "title": "UserDTO",
         "description": "A simplified Keycloak user, as listed. firstName and lastName are Keycloak's names."
+      },
+      "UserRefDTO": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username"
+        ],
+        "title": "UserRefDTO",
+        "description": "A nexus-api user as a record names it, as its owner (ADR 0036)."
       },
       "ValidationError": {
         "properties": {

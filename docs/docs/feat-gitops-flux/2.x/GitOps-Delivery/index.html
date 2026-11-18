@@ -1267,6 +1267,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#secrets-external-secrets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secrets: External Secrets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-an-upgrade-fails" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1435,6 +1446,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#secrets-external-secrets" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secrets: External Secrets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#when-an-upgrade-fails" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1509,6 +1531,7 @@
 <ul>
 <li>A dev node from a fresh <code>mise run deploy</code>, owned by your worktree (<code>mise run deploy-owner</code>). Its values must have <code>gitea.actions.enabled</code> and <code>gitea.actions.runner.enabled</code> true, as <code>dev.example.values.yml</code> does.</li>
 <li><code>mise run setup</code> has installed the pinned <code>flux</code> CLI.</li>
+<li>The port-forwards, in another shell: <code>mise run portfwd</code>. Not <code>tilt up</code>, which redeploys the dev images over Flux's release. The URLs below use them (Gitea on <code>localhost:4000</code>).</li>
 </ul>
 <h2 id="1-publish-two-releases">1. Publish two releases<a class="headerlink" href="#1-publish-two-releases" title="Permanent link">&para;</a></h2>
 <p>Two builds of one commit, so going back and forth between them never meets an incompatible migration:</p>
@@ -1544,7 +1567,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>http://localhost:5001/v2/n
 </code></pre></div>
 <p>Expect a further revision at <code>0.0.1-dev</code>. Flux upgrades to the reverted version; it is not a <code>helm rollback</code>, so the history keeps both moves. Reverting the chart does not revert the database: this works because both builds have the same migrations.</p>
 <h2 id="5-config-add-a-project-then-remove-it">5. Config: add a project, then remove it<a class="headerlink" href="#5-config-add-a-project-then-remove-it" title="Permanent link">&para;</a></h2>
-<p>This needs the operator (PR #656): add <code>operator.enabled: true</code> to <code>values.yaml</code> first, and push. The project names repositories and a dataset that must already be in nexus-api, here the e2e ones.</p>
+<p>The site's values turn on the operator, which syncs these resources into nexus-api. The project names repositories and a dataset that must already be in nexus-api, here the e2e ones.</p>
 <p>Add to <code>nodeConfig</code> in <code>values.yaml</code>, then commit and push:</p>
 <div class="highlight"><pre><span></span><code><span class="w">  </span><span class="nt">projects</span><span class="p">:</span>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitops-demo</span>
@@ -1558,10 +1581,38 @@ curl<span class="w"> </span>-s<span class="w"> </span>http://localhost:5001/v2/n
 <p>Expect:</p>
 <ul>
 <li><code>values.yaml</code> becomes a new ConfigMap and Flux upgrades the release at once.</li>
-<li><code>kubectl get fn -n fn</code> lists the <code>Project</code> <code>gitops-demo</code> with <code>Synced</code> true.</li>
+<li><code>kubectl get fn -n fn-operator</code> lists the <code>Project</code> <code>gitops-demo</code> with <code>Synced</code> true.</li>
 <li>The project is in nexus-api (the UI at <code>http://localhost:8088</code>, or <code>GET /projects</code>).</li>
 </ul>
 <p>Then <code>git revert --no-edit HEAD &amp;&amp; git push</code>. The <code>Project</code> resource is gone after the upgrade, and the operator soft-deletes the project in nexus-api.</p>
+<h2 id="secrets-external-secrets">Secrets: External Secrets<a class="headerlink" href="#secrets-external-secrets" title="Permanent link">&para;</a></h2>
+<p>The site repository holds no secret values. The chart's <code>externalSecrets</code> values make an <code>ExternalSecret</code> per Secret in <code>fn-operator</code>, and the External Secrets Operator fills it from the site's store; a <code>NodeSecret</code> with <code>fromSecret</code> then hands it to nexus-api. Each remote secret holds one value, named in lower case with dashes, so one name works in both stores:</p>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Store</th>
+<th><code>externalSecrets</code> values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dev</td>
+<td>OpenBao in dev mode, from <code>scripts/openbao.sh</code> (<code>mise run deploy</code> runs <code>mise run openbao up</code>)</td>
+<td><code>provider: openbao</code> (the default)</td>
+</tr>
+<tr>
+<td>Site</td>
+<td>Azure Key Vault, read through workload identity</td>
+<td><code>provider: azureKeyVault</code>, <code>azureKeyVault.vaultUrl</code>, and <code>serviceAccount.annotations</code> with <code>azure.workload.identity/client-id</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>site-example/values.yaml</code> maps <code>dev-example-creds</code> (key <code>TOKEN</code>) to the OpenBao secret <code>dev-example-token</code>:</p>
+<div class="highlight"><pre><span></span><code>mise<span class="w"> </span>run<span class="w"> </span>openbao<span class="w"> </span>status
+kubectl<span class="w"> </span>get<span class="w"> </span>nodesecret<span class="w"> </span>dev-example-creds<span class="w"> </span>-n<span class="w"> </span>fn-operator<span class="w">    </span><span class="c1"># Synced true</span>
+</code></pre></div>
+<p>A rotated value reaches the Secret within <code>refreshInterval</code> (1h) and nexus-api at the operator's next sync. Where a site can run neither store, SOPS-encrypted Secrets in the site repository, decrypted by Flux, are the fallback.</p>
 <h2 id="when-an-upgrade-fails">When an upgrade fails<a class="headerlink" href="#when-an-upgrade-fails" title="Permanent link">&para;</a></h2>
 <p>A failed upgrade is retried twice, then rolled back by Flux to the last good revision (<code>upgrade.remediation</code> in <code>helmrelease.yaml</code>). In an emergency:</p>
 <div class="highlight"><pre><span></span><code>flux<span class="w"> </span><span class="nb">suspend</span><span class="w"> </span>hr<span class="w"> </span>federated-node<span class="w"> </span>-n<span class="w"> </span>fn
