@@ -7,7 +7,8 @@ its source Secret changed.
 A record is found by its natural key (name, label or uri) and adopted; the resource's status.nexusId is a cache.
 The operator is in an owner group (ADR 0036): nexus-api locks what it creates or writes to that group, and refuses
 anyone else's change, so it cannot drift. A record made by hand that already matches is left as it is; the first
-write it needs takes it over.
+write it needs takes it over if it is open (made by a user). One an administrator made is locked to admin: a 409
+until the superuser releases it.
 A dependency that is not in nexus-api yet raises kopf.TemporaryError naming it, and the resource is retried.
 
 Spec fields are the CRDs' (camelCase); the API's are snake_case.
