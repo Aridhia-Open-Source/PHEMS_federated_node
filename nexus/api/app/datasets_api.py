@@ -122,7 +122,7 @@ def delete_dataset(dataset_id: int, force: bool = False, caller: Caller = Depend
         other datasets may share it. Admin only.
     """
     ds = get_for_write(session, Dataset, dataset_id, caller)
-    delete_global(ds, ds.project_assignments, force)
+    delete_global(ds, ds.project_assignments, force, caller)
 
 
 @router.patch('/{dataset_id}', response_model=DatasetDTO)

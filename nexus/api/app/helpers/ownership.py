@@ -6,6 +6,7 @@ anyone else gets a 409. A member of an owner group that writes a record takes it
 The check is explicit: every write route loads its record through get_for_write. Reads use the normal
 lookups.
 """
+from collections.abc import Callable
 from http import HTTPStatus
 
 from sqlalchemy.orm import Session
@@ -45,7 +46,7 @@ def get_for_write[M: OwnedMixin](
         raise DBRecordNotFoundError(missing or f"{model.__name__.capitalize()} with id {ident} does not exist")
 
     group = record.owner_group
-    member = group is None or group in caller.groups
+    member = _member(group, caller)
     if not member and _locks(model, fields):
         raise InvalidRequest(
             f"{record!r} is owned by {group}: only its members can change it", HTTPStatus.CONFLICT
@@ -63,11 +64,33 @@ def require_member[M: OwnedMixin](record: M, caller: Caller) -> M:
     the record over.
     """
     group = record.owner_group
-    if group is not None and group not in caller.groups:
+    if not _member(group, caller):
         raise InvalidRequest(
             f"{record!r} is owned by {group}: only its members can change what is under it", HTTPStatus.CONFLICT
         )
     return record
+
+
+def require_members[M: OwnedMixin](records: list[M], caller: Caller, describe: Callable[[M], dict]) -> None:
+    """
+    For a delete that cascades to records it did not load through get_for_write (the project resources
+    under a dataset, repository, secret or project): a 409 naming each record owned by a group the caller
+    is not in, described by describe, before anything is changed. The same rule as get_for_write for a
+    write to the whole record.
+    """
+    refused = [record for record in records if not _member(record.owner_group, caller)]
+    if refused:
+        error = InvalidRequest(
+            f"{len(refused)} record(s) it would delete are owned by a group you are not in: nothing was deleted",
+            HTTPStatus.CONFLICT,
+        )
+        error.extra_fields = [{**describe(record), "owner_group": record.owner_group} for record in refused]
+        raise error
+
+
+def _member(group: str | None, caller: Caller) -> bool:
+    """Whether the caller may change a record owned by group (None: no owner group)."""
+    return group is None or group in caller.groups
 
 
 def _locks(model: type[OwnedMixin], fields: set[str] | None) -> bool:
