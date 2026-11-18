@@ -417,6 +417,29 @@
                 }
             }
         },
+        "superuserSecret": {
+            "type": "object",
+            "description": "The break-glass superuser account (ADR 0036), created by kc-init with the superuser realm role",
+            "required": [
+                "name",
+                "userKey",
+                "passKey"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The secret name that holds the superuser's username and password"
+                },
+                "userKey": {
+                    "type": "string",
+                    "description": "The key holding the username"
+                },
+                "passKey": {
+                    "type": "string",
+                    "description": "The key holding the password"
+                }
+            }
+        },
         "federatedNode": {
             "type": "object"
         },

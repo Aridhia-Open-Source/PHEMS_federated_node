@@ -26,6 +26,9 @@ class Settings:
   first_user_email:str = ""
   first_user_first_name:str = ""
   first_user_last_name:str = ""
+  # The break-glass account with the superuser realm role (superuserSecret), see ADR 0036
+  superuser_username:str = ""
+  superuser_pass:str = ""
   dagster_kc_user:str = ""
   dagster_kc_email:str = ""
   manage_realm:bool = True

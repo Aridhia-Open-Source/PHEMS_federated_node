@@ -19,9 +19,9 @@ from app.dtos.base import page_of
 from app.dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.ownership import get_for_write, release, set_owner
 from app.helpers.soft_delete import delete_global
-from app.helpers.wrappers import Caller, get_caller
+from app.helpers.wrappers import Caller, get_caller, superuser_only
 from app.models.dataset import Dataset
 from app.models.extras.catalogue import Catalogue
 from app.models.extras.dictionary import Dictionary
@@ -170,3 +170,13 @@ def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), call
 
     session.commit()
     return DatasetDTO.from_model(ds)
+
+
+@router.post('/{dataset_id}/release', response_model=DatasetDTO, dependencies=[Depends(superuser_only)])
+def release_dataset(dataset_id: int):
+    """
+    POST /global/datasets/<dataset_id>/release
+    — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+    Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+    """
+    return DatasetDTO.from_model(release(session, Dataset, dataset_id))

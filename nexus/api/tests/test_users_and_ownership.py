@@ -14,9 +14,16 @@ from app.helpers.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.ownership import get_for_write
 from app.helpers.wrappers import token_groups
+from app.models.dataset import Dataset
 from app.models.git_provider import GitProvider
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
+from app.models.project_results_repository import ProjectResultsRepository
+from app.models.project_secret import ProjectSecret
+from app.models.project_trigger_repository import ProjectTriggerRepository
+from app.models.results_repository import ResultsRepository
+from app.models.secret import Secret
+from app.models.trigger_repository import TriggerRepository
 from app.models.user import OwnedMixin, User
 
 PROV = "/global/providers"
@@ -27,6 +34,7 @@ USERS = {
     "person_token": {"id": "id-person", "username": "person", "roles": ["Administrator"]},
     "service_token": {"id": "id-svc", "username": "svc", "roles": [GROUP]},
     "other_service_token": {"id": "id-svc2", "username": "svc2", "roles": [GROUP]},
+    "superuser_token": {"id": "id-super", "username": "super", "roles": ["Administrator", "superuser"]},
 }
 
 
@@ -289,3 +297,48 @@ def test_a_write_to_a_record_locked_to_another_group_is_a_409(client, callers, e
 
     assert response.status_code == 409, response.json()
     assert f"owned by {GROUP}" in response.json()["error"]
+
+
+# The superuser releases a record from its owner group
+
+RELEASE_ROUTES = {
+    "/global/providers/{provider_id}/release": GitProvider,
+    "/global/secrets/{label}/release": Secret,
+    "/global/repositories/triggers/{repo_id}/release": TriggerRepository,
+    "/global/repositories/results/{results_repo_id}/release": ResultsRepository,
+    "/global/datasets/{dataset_id}/release": Dataset,
+    "/projects/{project_id}/release": Project,
+    "/projects/{project_id}/datasets/{dataset_id}/release": ProjectDataset,
+    "/projects/{project_id}/secrets/{label}/release": ProjectSecret,
+    "/projects/{project_id}/repositories/triggers/{repo_id}/release": ProjectTriggerRepository,
+    "/projects/{project_id}/repositories/results/{repository_id}/release": ProjectResultsRepository,
+}
+
+
+@pytest.mark.parametrize("path", list(RELEASE_ROUTES))
+def test_only_the_superuser_releases_a_record_from_its_owner_group(client, callers, every_owned_record, path):
+    model = RELEASE_ROUTES[path]
+    url = path.format(**every_owned_record)
+
+    refused = client.post(url, headers=as_("admin_token"))
+    db.session.expire_all()
+    assert refused.status_code == 403, refused.json()
+    assert {record.owner_group for record in db.session.query(model)} == {GROUP}
+
+    released = client.post(url, headers=as_("superuser_token"))
+    assert released.status_code == 200, released.json()
+    assert released.json()["owner_group"] is None
+    db.session.expire_all()
+    # Only the record addressed: every other stays owned by its group
+    assert [record.owner_group for record in db.session.query(model)].count(None) == 1
+
+
+def test_a_released_record_is_open_to_anyone(client, callers):
+    provider = create_provider(client, "service_token")
+    client.post(f"{PROV}/{provider['id']}/release", headers=as_("superuser_token"))
+
+    response = client.patch(f"{PROV}/{provider['id']}", json={"name": "renamed"}, headers=as_("admin_token"))
+
+    assert response.status_code == 200, response.json()
+    assert (response.json()["owner"]["id"], response.json()["owner_group"]) == ("id-svc", None)
+

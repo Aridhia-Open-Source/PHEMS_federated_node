@@ -29,8 +29,8 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, Unauth
 from app.helpers.project_state import require_accepts_tasks
 from app.helpers.pull_request_fanout import skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
-from app.helpers.ownership import get_for_write, require_member, set_owner
-from app.helpers.wrappers import Caller, get_caller, system_only
+from app.helpers.ownership import get_for_write, release, require_member, set_owner
+from app.helpers.wrappers import Caller, get_caller, system_only, superuser_only
 from app.models.project import Project
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
@@ -319,3 +319,19 @@ def post_task(
         return TaskDTO.from_model(task)
     response.status_code = HTTPStatus.CREATED
     return TaskDTO.from_model(task)
+
+
+@router.post(
+    '/{repo_id}/release', response_model=ProjectTriggerRepositoryDTO, dependencies=[Depends(superuser_only)]
+)
+def release_project_trigger_repository(project_id: int, repo_id: int):
+    """
+    POST /projects/<project_id>/repositories/triggers/<repo_id>/release
+    — releases the project resource from its owner group (owner_group becomes null), so anyone the scope
+    allows may change it.
+    Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+    """
+    return ProjectTriggerRepositoryDTO.from_model(release(
+        session, ProjectTriggerRepository, {"project_id": project_id, "trigger_repository_id": repo_id},
+        missing=f"Trigger repository {repo_id} is not assigned to project {project_id}",
+    ))

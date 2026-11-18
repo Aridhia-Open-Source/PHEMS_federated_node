@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from fastapi import Depends, Request
 
-from app.helpers.const import OWNER_GROUPS
+from app.helpers.const import OWNER_GROUPS, SUPERUSER_ROLE
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.models.user import User
@@ -86,3 +86,12 @@ def system_only(caller: Caller = Depends(get_caller)) -> Caller:
         raise UnauthorizedError("Only the system user can change this state.")
     return caller
 
+
+def superuser_only(caller: Caller = Depends(get_caller)) -> Caller:
+    """
+    Only a caller with the superuser realm role, the break-glass account (ADR 0036), may call it. An
+    Administrator without it gets a 403. Goes next to the router's require_scope.
+    """
+    if SUPERUSER_ROLE not in caller.groups:
+        raise UnauthorizedError("Only the superuser can release a record from its owner group.")
+    return caller

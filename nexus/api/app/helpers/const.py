@@ -39,6 +39,8 @@ SECRETS_NAMESPACE = os.getenv("SECRETS_NAMESPACE")
 QUARANTINE_NAMESPACE = os.getenv("QUARANTINE_NAMESPACE", "fn-quarantine")
 # The Keycloak groups or realm roles whose records only their members may change (ADR 0036), comma separated
 OWNER_GROUPS = [g.strip() for g in os.getenv("OWNER_GROUPS", "service-account").split(",") if g.strip()]
+# The realm role of the break-glass account, the only caller that may release a record from its owner group
+SUPERUSER_ROLE = "superuser"
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
 DAGSTER_WEBSERVER_URI = os.getenv("DAGSTER_WEBSERVER_URI")
 

@@ -26,10 +26,10 @@ from app.dtos.trigger_repository import (
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.git_tokens import mint_token, require_token_allowed
-from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.ownership import get_for_write, release, set_owner
 from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.helpers.soft_delete import delete_global
-from app.helpers.wrappers import Caller, get_caller, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only, superuser_only
 from app.models.git_provider import GitProvider
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
@@ -227,3 +227,13 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
 
     session.commit()
     return TriggerRepositoryDTO.from_model(repo)
+
+
+@router.post('/{repo_id}/release', response_model=TriggerRepositoryDTO, dependencies=[Depends(superuser_only)])
+def release_repository(repo_id: int):
+    """
+    POST /global/repositories/triggers/<repo_id>/release
+    — releases it from its owner group (owner_group becomes null), so anyone the scope allows may change it.
+    Superuser only: an Administrator without the superuser role gets a 403 (ADR 0036).
+    """
+    return TriggerRepositoryDTO.from_model(release(session, TriggerRepository, repo_id))

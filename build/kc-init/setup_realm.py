@@ -14,7 +14,7 @@ from kubernetes.watch import Watch
 from kubernetes.client.exceptions import ApiException
 
 from common import (
-    create_user, delete_bootstrap_user,
+    assign_role, create_user, delete_bootstrap_user, get_role,
     login, health_check, set_token_exchange_for_global_client,
     setup_master_user, create_system_user,
     set_global_client_secret, partial_import
@@ -140,6 +140,22 @@ def ensure_realm_accounts(admin_token:str):
         )
 
 
+def ensure_superuser(admin_token:str):
+    """
+    The superuser, if chosen (superuserSecret): an Administrator that also holds the superuser realm role, the
+    only caller that may release a record from its owner group (ADR 0036). Create-only, like the first user.
+    Runs after partial_import, which adds the superuser role to a realm that predates it.
+    """
+    if not settings.superuser_username:
+        return
+    superuser_id = create_user(
+        settings.superuser_username, settings.superuser_pass,
+        f"{settings.superuser_username}@phems.local", "Super", "User", "Administrator",
+        admin_token=admin_token
+    )
+    assign_role("superuser", get_role("superuser", admin_token), admin_token, settings.keycloak_realm, superuser_id)
+
+
 def sweep_bootstrap_users():
     """
     Delete the bootstrap admin, whether this run authenticated as it or not.
@@ -196,6 +212,8 @@ def setup_keycloak():
         set_token_exchange_for_global_client(admin_token)
     else:
         logger.info("keycloak.manageRealm is false, skipping realm configuration")
+
+    ensure_superuser(admin_token)
 
     # Always last: on the bootstrap path this deletes the credential the run authenticated with.
     sweep_bootstrap_users()

@@ -96,3 +96,17 @@ def _member(group: str | None, caller: Caller) -> bool:
 def _locks(model: type[OwnedMixin], fields: set[str] | None) -> bool:
     locked = model.owner_locked_fields
     return fields is None or locked is None or bool(fields & locked)
+
+
+def release[M: OwnedMixin](session: Session, model: type[M], ident: int | dict, missing: str | None = None) -> M:
+    """
+    Releases a record from its owner group, so anyone the route's scope allows may change it again, and
+    commits. The owner stays. For the superuser's release routes, which depend on superuser_only.
+    """
+    criteria = ident if isinstance(ident, dict) else {"id": ident}
+    record = session.query(model).filter_by(**criteria).one_or_none()
+    if record is None:
+        raise DBRecordNotFoundError(missing or f"{model.__name__.capitalize()} with id {ident} does not exist")
+    record.owner_group = None
+    session.commit()
+    return record

@@ -227,6 +227,14 @@ taskCompute:
   # lastName:
   # email:
 
+# The break-glass superuser (ADR 0036): an Administrator that also holds the superuser realm role, the only
+# account that may release a record from its owner group. Created on install and upgrade when set; its
+# username and password are read from the Secret.
+# superuserSecret:
+  # name:
+  # userKey:
+  # passKey:
+
 federatedNode:
   resources:
     requests:

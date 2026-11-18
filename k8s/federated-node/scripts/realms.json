@@ -150,6 +150,13 @@
         "composite": false,
         "clientRole": false,
         "attributes": {}
+      },
+      {
+        "name": "superuser",
+        "description": "The break-glass account: the only caller that may release a record from its owner group",
+        "composite": false,
+        "clientRole": false,
+        "attributes": {}
       }
     ]
   },
