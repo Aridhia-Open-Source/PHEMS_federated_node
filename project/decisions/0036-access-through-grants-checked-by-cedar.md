@@ -94,7 +94,7 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
 
   Every action, reads included, is checked.
 - **People own what they create.** On create, nexus-api adds an `owner` grant for the creating user, in the same transaction as the record. Records the operator creates are owned by `role:Service` instead, so a rotated or second operator account still owns them.
-- **Operator records can be assigned by admins.** A record created by `Service` also gets an `assign` grant for `role:Administrator`, so any admin can add it to their projects without being able to change it. Its owner can remove that grant, for example from a sensitive dataset, and grant `assign` to chosen admins or groups instead.
+- **Global records can be assigned by any admin.** Every global record also gets an `assign` grant for `role:Administrator` on create, whoever made it, so any admin can add it to their projects without being able to change it. Its owner can remove that grant, for example from a sensitive dataset, and grant `assign` to chosen admins or groups instead.
 - **`Global` is the container for global records,** as a project is for project records. Creating a global record (a dataset, git provider, secret, trigger or results repository, or a project) needs `write` on `Global`. The baseline migration gives `role:Administrator` and `role:Service` `owner` on `Global`, so any admin or the operator can create them; a `write` grant on `Global` scopes that to another group later. `Global` is not a table: its grants use `object_type = 'Global'`, `object_id = 0`.
 - **On delete,** the record's grants go too.
 - **Through routes on each owned record:**
