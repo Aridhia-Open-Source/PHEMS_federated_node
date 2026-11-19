@@ -29,7 +29,7 @@ This design answers each point:
 | Legacy | Here |
 |---|---|
 | Keycloak calls on every request | none; the token is checked locally and grants are one query |
-| record guessed from URL or body | each route receives its record through the `authorized(...)` check |
+| record guessed from URL or body | each route receives its record through its `Access` check |
 | client header picks the access request | the grant names the user; nothing is read from headers |
 | rules in code and Keycloak config | one Cedar policy file, validated and tested |
 | two stores without a transaction | grants are rows in the record's own transaction |
@@ -128,39 +128,38 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
 
 ### The check
 
-- **Every write route gets its record through a FastAPI dependency that checks it** (`app/helpers/authz.py`):
+- **Every write route declares an `Access` dependency** (`app/helpers/authz.py`), with keyword arguments only:
 
   ```python
+  class Action(StrEnum):
+      READ = "read"
+      WRITE = "write"
+      EXECUTE = "execute"
+      UNCHECKED = "unchecked"   # no record check; the route has no record
+
   @router.patch("/{dataset_id}")
-  def patch_dataset(dataset: Dataset = Depends(authorized(Dataset, "write"))):
+  def patch_dataset(dataset: Dataset = Depends(Access(model=Dataset, action=Action.WRITE))):
+
+  # gets a token; no record yet
+  @router.post("/login", dependencies=[Depends(Access(action=Action.UNCHECKED))])
+  def login(body: LoginBody):
   ```
 
-  The route only receives the record through the check, so it cannot use one unchecked. A deny is a 409 naming the owner. The dependency:
+  `Access` takes keyword arguments only, and raises at import if `model` is missing for a checked action or given with `Action.UNCHECKED`. Every `Action` except `UNCHECKED` must exist in the Cedar schema, checked at startup. An unchecked route gives its reason in a comment above it.
+- **A checked route only receives its record through the check,** so it cannot use one unchecked. A deny is a 409 naming the owner. `Access`:
   1. loads the record from the path (404 if missing);
   2. reads the caller from the token: user id, node role, groups;
   3. loads the caller's grants on the record (one query on `grants` matching the user, role or groups), as one expiry per relation;
   4. builds the Cedar request: the user with its role and groups as parents, the record, and `context` with the grants and the time;
   5. returns the record if Cedar allows, and raises otherwise.
 
-  Code that is not a route (cascades, the grants routes) calls the same check as `can(caller, action, record)`.
+  An unchecked route needs no token from `Access`. Code that is not a route (cascades, the grants routes) calls the same check as `can(caller, action, record)`.
 - **Creates check their parent.** A record that does not exist yet is checked through the record it is created under:
   - project-level creates (a project's secret, trigger repository or results repository) need `write` on the project;
-  - global creates (datasets, git providers, secrets, trigger and results repositories, projects) need `write` on the one `Node` record, `authorized(Node, "write")`. The `Node` record's `owner` grants go to `role:Administrator` and `role:Service`, written by the baseline migration.
+  - global creates (datasets, git providers, secrets, trigger and results repositories, projects) need `write` on the one `Node` record, `Access(model=Node, action=Action.WRITE)`. The `Node` record's `owner` grants go to `role:Administrator` and `role:Service`, written by the baseline migration.
 
   Who may create global config is then a grant and a Cedar rule, not only a Keycloak scope.
-- **Deny by default, checked at startup.** `create_app` walks every POST, PUT, PATCH and DELETE route and refuses to start if one has neither an `authorized(...)` dependency nor an entry in `UNCHECKED_WRITES`, as `OPEN_ROUTERS` does for scopes today:
-
-  ```python
-  # Write routes with no record to check. Keep this list short; each needs a reason.
-  UNCHECKED_WRITES = {
-      main.login,                      # gets a token, no record yet
-      main.refresh_token,              # same
-      users_api.reset_password,        # a user swaps their own temporary password
-      dagster_api.update_task_state,   # Dagster writes pipeline state under its own role
-  }
-  ```
-
-  A forgotten check stops nexus-api from starting, so it fails every test run and every deploy, not only one test.
+- **Deny by default, checked at startup.** `create_app` walks every POST, PUT, PATCH and DELETE route and refuses to start if one has no `Access` dependency, as `OPEN_ROUTERS` does for scopes today. A forgotten check stops nexus-api from starting, so it fails every test run and every deploy, not only one test. Today's unchecked writes are login, token refresh, a user's own password reset, and Dagster's pipeline state writes; a snapshot test lists them, so a new one shows up in review.
 - **A project's rights cover its assignments.** Adding or removing a project's datasets, secrets, trigger repositories or results repository needs `write` on the project and on the global resource.
 - **Cascading deletes check every record they would delete;** if the caller may not write one, nothing is deleted.
 - **Scopes stay coarse.** A route still requires its token scope first; the record check comes after.
