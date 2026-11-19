@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from fastapi import Depends, Request
 
-from app.helpers.const import OPERATOR_KC_USER
+from app.helpers.const import OWNER_GROUPS, SUPERUSER_ROLE
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.models.user import User
@@ -21,10 +21,8 @@ logger.setLevel(logging.INFO)
 class Caller:
     token: str
     user_id: str
-    username: str
     is_admin: bool
     is_system: bool
-    is_operator: bool
     kc_client: Keycloak
     # The caller's realm roles and Keycloak groups, from the token
     groups: frozenset[str]
@@ -63,10 +61,8 @@ def get_caller(request: Request) -> Caller:
     return Caller(
         token=token,
         user_id=user["id"],
-        username=token_info['username'],
         is_admin=kc_client.is_user_admin(token),
         is_system=kc_client.is_system_user(token),
-        is_operator=token_info['username'] == OPERATOR_KC_USER,
         kc_client=kc_client,
         groups=groups,
         user=User.seen(user["id"], user["username"]),

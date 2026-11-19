@@ -76,10 +76,9 @@ function SecretList() {
           { header: "Description", cell: (s) => s.description },
           { header: "Key", cell: (s) => s.key },
           { header: "Enabled", cell: (s) => (
-            <EnabledToggle hideLabel enabled={s.enabled} readOnly={s.owner_group != null}
-              onChange={(enabled) => setEnabled.mutate({ label: s.label, enabled })} />
+            <EnabledToggle ownedBy={ownedBy(s, groups)} hideLabel enabled={s.enabled} onChange={(enabled) => setEnabled.mutate({ label: s.label, enabled })} />
           ) },
-          { header: "", cell: (s) => s.owner_group == null && <DeleteButton what={s.label} onConfirm={() => remove.mutate(s.label)} /> },
+          { header: "", cell: (s) => <DeleteButton ownedBy={ownedBy(s, groups)} what={s.label} onConfirm={() => remove.mutate(s.label)} /> },
         ]}
       />
     </section>
@@ -131,12 +130,8 @@ function SecretDetail() {
       <BackLink to=".." what={m.back} />
       <PageHeader title={m.detail(label)} />
       <Json value={data} />
-      {data.owner_group == null && (
-        <>
-          <SectionHeading>{m.setValues}</SectionHeading>
-          <DtoForm fields={editFields} submitLabel="Update" busy={update.isPending} onSubmit={(b) => update.mutate(b)} />
-        </>
-      )}
+      <SectionHeading>{m.setValues}</SectionHeading>
+      <DtoForm ownedBy={ownedBy(data, groups)} fields={editFields} submitLabel="Update" busy={update.isPending} onSubmit={(b) => update.mutate(b)} />
       <Healthcheck query={health} />
       <SecretUsedBy label={label} />
     </section>

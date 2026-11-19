@@ -19,7 +19,7 @@ from app.dtos.base import page_of
 from app.dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.managed import DATASET, guard
+from app.helpers.ownership import get_for_write, release, set_owner
 from app.helpers.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller, superuser_only
 from app.models.dataset import Dataset
@@ -67,10 +67,7 @@ def _reject_taken_name(name: str, own_id: int | None = None):
         raise InvalidRequest(f"Dataset {name} already exists", HTTPStatus.CONFLICT)
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=DatasetDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
-@router.post('', status_code=HTTPStatus.CREATED, response_model=DatasetDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post('', status_code=HTTPStatus.CREATED, response_model=DatasetDTO)
 def post_datasets(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
@@ -86,7 +83,7 @@ def post_datasets(body: dict = Body(default_factory=dict), caller: Caller = Depe
         cata_body = req.catalogue
         dict_body = req.dictionaries
         dataset = Dataset(secret_id=secret.id, **fields)
-        guard(dataset, caller)
+        set_owner(dataset, caller)
 
         dataset.add(commit=False)
         if cata_body:
@@ -117,17 +114,15 @@ def get_dataset(dataset_id: int):
     return DatasetDTO.from_model(ds)
 
 
-@router.delete('/{dataset_id}', status_code=HTTPStatus.NO_CONTENT,
-               dependencies=[Depends(require_scope('can_do_admin'))])
+@router.delete('/{dataset_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_dataset(dataset_id: int, force: bool = False, caller: Caller = Depends(get_caller)):
     """
     DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
         unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
         other datasets may share it. Admin only.
     """
-    ds = Dataset.get_by_id(dataset_id)
-    guard(ds, caller)
-    delete_global(ds, ds.project_assignments, force)
+    ds = get_for_write(session, Dataset, dataset_id, caller)
+    delete_global(ds, ds.project_assignments, force, caller)
 
 
 @router.patch('/{dataset_id}', response_model=DatasetDTO)

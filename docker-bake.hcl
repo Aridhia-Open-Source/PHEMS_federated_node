@@ -47,6 +47,7 @@ group "release" {
     "release-dagster",
     "release-nexus-api",
     "release-nexus-ui",
+    "release-nexus-operator",
   ]
 }
 
@@ -127,5 +128,5 @@ target "release-nexus-ui" {
 
 target "release-nexus-operator" {
   inherits = ["nexus-operator-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/nexus_operator:${TAG}"]
+  tags     = ["${RELEASE_REGISTRY}/nexus_operator:${TAG}"]
 }

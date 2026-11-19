@@ -280,10 +280,6 @@ host: &host
 # keep it, results already delivered carry the old one.
 nodeId: ""
 
-# The operator that syncs the node config custom resources into nexus-api (ADR 0032)
-operator:
-  enabled: false
-
 # The node's config, rendered as custom resources (GitProvider, NodeSecret, Repository, Dataset, Project) in the
 # operator namespace (global.namespaces.operator) for the operator to sync (ADR 0032). No secret values here: a
 # secret names the Kubernetes Secret, in the operator namespace, its values are in. Example:
@@ -582,6 +578,7 @@ dagster:
 # The Kopf operator (nexus/operator): applies the fn.aridhia.com custom resources to nexus-api (ADR 0032).
 # operator.enabled turns it on (off by default).
 operator:
+  enabled: false
   image: ghcr.io/aridhia-open-source/nexus_operator
   tag:
   # Namespaces watched besides its own (global.namespaces.operator; dev adds experiments). The operator

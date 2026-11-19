@@ -133,20 +133,16 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
     return GitTokenDTO(token=token, expires_at=expires_at)
 
 
-@router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT, dependencies=[Depends(require_scope('can_do_admin'))])
+@router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_repository(repo_id: int, force: bool = False, caller: Caller = Depends(get_caller)):
     """
     DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
     """
-    repo = TriggerRepository.get_by_id(repo_id)
-    guard(repo, caller)
-    delete_global(repo, repo.project_assignments, force)
+    repo = get_for_write(session, TriggerRepository, repo_id, caller)
+    delete_global(repo, repo.project_assignments, force, caller)
 
 
-@router.post('/', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
-@router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO,
-             dependencies=[Depends(require_scope('can_do_admin'))])
+@router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO)
 def post_repository(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
@@ -174,7 +170,7 @@ def post_repository(body: dict = Body(default_factory=dict), caller: Caller = De
         raise InvalidRequest(
             f"Trigger repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT
         )
-    guard(repo, caller)
+    set_owner(repo, caller)
     repo.add()
 
     return TriggerRepositoryDTO.from_model(repo)

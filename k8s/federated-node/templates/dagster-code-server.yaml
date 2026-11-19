@@ -120,6 +120,22 @@ spec:
                 secretKeyRef:
                   name: dagster-keycloak-creds
                   key: DAGSTER_KC_USER
+            {{- if include "fn.customCA.enabled" . }}
+            {{- include "fn.customCA.env" . | nindent 12 }}
+            {{- end }}
+            {{- if include "fn.proxy.enabled" . }}
+            {{- include "fn.proxy.env" . | nindent 12 }}
+            {{- end }}
+            {{- if or (include "fn.customCA.enabled" .) (include "fn.proxy.enabled" .) }}
+            {{- /* What the K8sRunLauncher applies to every run pod launched from this
+                   code location. DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT is how the
+                   dagster-user-deployments chart sets `dagster api grpc --container-context`;
+                   newer dagster reads DAGSTER_CONTAINER_CONTEXT. */}}
+            - name: DAGSTER_CLI_API_GRPC_CONTAINER_CONTEXT
+              value: {{ include "fn.runContainerContext" (dict "ctx" . "image" $image) | quote }}
+            - name: DAGSTER_CONTAINER_CONTEXT
+              value: {{ include "fn.runContainerContext" (dict "ctx" . "image" $image) | quote }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: dagster-env-config
@@ -127,6 +143,9 @@ spec:
             - name: dagster-keycloak-creds
               mountPath: /etc/secrets/dagster
               readOnly: true
+            {{- if include "fn.customCA.enabled" . }}
+            {{- include "fn.customCA.volumeMounts" . | nindent 12 }}
+            {{- end }}
           {{- with ((.Values.fnDagster).codeServer).resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -149,4 +168,7 @@ spec:
         - name: dagster-keycloak-creds
           secret:
             secretName: dagster-keycloak-creds
+        {{- if include "fn.customCA.enabled" . }}
+        {{- include "fn.customCA.volumes" . | nindent 8 }}
+        {{- end }}
 {{- end }}

@@ -43,8 +43,6 @@ OWNER_GROUPS = [g.strip() for g in os.getenv("OWNER_GROUPS", "service,admin").sp
 SUPERUSER_ROLE = "superuser"
 TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
 DAGSTER_WEBSERVER_URI = os.getenv("DAGSTER_WEBSERVER_URI")
-# The nexus operator's Keycloak user: only its calls may change the fields of a record it manages (ADR 0032)
-OPERATOR_KC_USER = os.getenv("OPERATOR_KC_USER", "fn-operator")
 
 # Pod resource validation constants
 CPU_RESOURCE_REGEX = r'^(\d+m|\d+(\.\d+)?)$'

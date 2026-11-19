@@ -7576,7 +7576,17 @@
             "type": "boolean",
             "title": "Revoked"
           },
-          "managed_by": {
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner_group": {
             "anyOf": [
               {
                 "type": "string"
@@ -7585,7 +7595,7 @@
                 "type": "null"
               }
             ],
-            "title": "Managed By"
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7597,7 +7607,8 @@
           "secret",
           "enabled",
           "revoked",
-          "managed_by"
+          "owner",
+          "owner_group"
         ],
         "title": "ResultsRepositoryDTO"
       },

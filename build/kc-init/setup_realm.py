@@ -17,7 +17,7 @@ from common import (
     assign_role, create_user, delete_bootstrap_user, get_role,
     login, health_check, set_token_exchange_for_global_client,
     setup_master_user, create_system_user,
-    set_global_client_secret, partial_import, assign_role, get_role
+    set_global_client_secret, partial_import
 )
 from migrations import run_migrations
 from settings import settings
@@ -234,6 +234,7 @@ def setup_keycloak():
 
     # After the realm configuration, so a role realms.json added (service) exists on an upgrade
     ensure_realm_accounts(admin_token)
+    ensure_superuser(admin_token)
 
     # Always last: on the bootstrap path this deletes the credential the run authenticated with.
     sweep_bootstrap_users()

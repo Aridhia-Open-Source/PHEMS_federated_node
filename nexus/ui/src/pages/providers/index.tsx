@@ -81,10 +81,9 @@ function ProviderList() {
           { header: "URI", cell: (p) => p.uri },
           { header: "API URI", cell: (p) => p.api_uri },
           { header: "Enabled", cell: (p) => (
-            <EnabledToggle hideLabel enabled={p.enabled} readOnly={p.owner_group != null}
-              onChange={(enabled) => setEnabled.mutate({ id: p.id, enabled })} />
+            <EnabledToggle ownedBy={ownedBy(p, groups)} hideLabel enabled={p.enabled} onChange={(enabled) => setEnabled.mutate({ id: p.id, enabled })} />
           ) },
-          { header: "", cell: (p) => p.owner_group == null && <DeleteButton what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
+          { header: "", cell: (p) => <DeleteButton ownedBy={ownedBy(p, groups)} what={p.name} onConfirm={() => remove.mutate(p.id)} /> },
         ]}
       />
     </section>
@@ -139,28 +138,18 @@ function ProviderDetail() {
     enabled: false,
   });
   if (!data) return <Loading />;
-  // A record locked to an owner group (the operator) is changed only by its members (ADR 0036)
-  const locked = data.owner_group != null;
   return (
     <section>
       <BackLink to=".." what={m.back} />
       <PageHeader title={m.detail(data.name)} />
       <Json value={data} />
-      {!locked && (
-        <>
-          <SectionHeading>{shellMessages.pages.edit}</SectionHeading>
-          <DtoForm key={data.updated_at} fields={editFields} initial={data} submitLabel="Update"
-            busy={update.isPending} onSubmit={(b) => update.mutate(b)} />
-        </>
-      )}
+      <SectionHeading>{shellMessages.pages.edit}</SectionHeading>
+      <DtoForm ownedBy={ownedBy(data, groups)} key={data.updated_at} fields={editFields} initial={data} submitLabel="Update"
+        busy={update.isPending} onSubmit={(b) => update.mutate(b)} />
       <Healthcheck query={health} />
       <ProviderUsedBy id={id} />
-      {!locked && (
-        <>
-          <SectionHeading>{shellMessages.pages.delete}</SectionHeading>
-          <DeleteButton what={data.name} onConfirm={() => remove.mutate()} />
-        </>
-      )}
+      <SectionHeading>{shellMessages.pages.delete}</SectionHeading>
+      <DeleteButton ownedBy={ownedBy(data, groups)} what={data.name} onConfirm={() => remove.mutate()} />
     </section>
   );
 }

@@ -2555,8 +2555,9 @@ export interface components {
             enabled: boolean;
             /** Revoked */
             revoked: boolean;
-            /** Managed By */
-            managed_by: string | null;
+            owner: components["schemas"]["UserRefDTO"] | null;
+            /** Owner Group */
+            owner_group: string | null;
         };
         /** ResultsRepositoryHealthDTO */
         ResultsRepositoryHealthDTO: {

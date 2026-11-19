@@ -1112,7 +1112,7 @@
         },
         "operator": {
             "type": "object",
-            "description": "The operator that syncs the node config custom resources into nexus-api (ADR 0032)",
+            "description": "The Kopf operator that applies the fn.aridhia.com custom resources to nexus-api (ADR 0032).",
             "properties": {
                 "enabled": {
                     "type": "boolean",

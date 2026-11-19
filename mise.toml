@@ -11,6 +11,8 @@ kind = "0.33.0"
 kubectl = "1.37.2"
 helm = "3.22.1"
 tilt = "0.37.8"
+# scripts/devcontainer_check.sh: builds and starts the dev container without VS Code
+"npm:@devcontainers/cli" = "0.90.0"
 
 [env]
 # .generated.env (scripts/configure.sh --proxy / --ca-cert) first, so .dev.env wins
@@ -180,6 +182,42 @@ run = "./scripts/teardown.sh"
 [tasks.portfwd]
 description = "Port-forward the node's services (when Tilt is not running)"
 run = "./scripts/portfwd.sh"
+
+# Tests behind a TLS-intercepting proxy (mitmproxy), see scripts/proxy-sim.sh. Each test runs
+# with no CA, a wrong CA and the proxy's CA (or one of them with --mode), and checks the results.
+[tasks.proxy-sim-up]
+description = "Start the proxy simulation: mitmproxy and a network with no route out"
+run = "./scripts/proxy-sim.sh up"
+
+[tasks.proxy-sim-setup]
+description = "Proxy simulation: build the dev container image and run mise run setup in it"
+usage = 'flag "--mode <mode>" help="none, wrong or right (default: all three)"'
+run = './scripts/proxy-sim.sh setup ${usage_mode:+"$usage_mode"}'
+
+[tasks.proxy-sim-build]
+description = "Proxy simulation: build the nexus-api image through the proxy"
+usage = '''
+flag "--mode <mode>" help="none, wrong or right (default: all three)"
+flag "--all" help="Every image, not only nexus-api"
+'''
+run = 'env ${usage_all:+ALL=1} ./scripts/proxy-sim.sh build ${usage_mode:+"$usage_mode"}'
+
+[tasks.proxy-sim-pull]
+description = "Proxy simulation: docker pull in a stock docker:dind"
+usage = '''
+flag "--mode <mode>" help="none, wrong or right (default: all three)"
+flag "--image <image>" help="Image to pull (default ghcr.io/jqlang/jq:latest)"
+'''
+run = 'env ${usage_image:+IMAGE="$usage_image"} ./scripts/proxy-sim.sh pull ${usage_mode:+"$usage_mode"}'
+
+[tasks.proxy-sim-shell]
+description = "Proxy simulation: a shell in the last setup test's container"
+raw = true
+run = "./scripts/proxy-sim.sh shell"
+
+[tasks.proxy-sim-down]
+description = "Remove the proxy simulation"
+run = "./scripts/proxy-sim.sh down"
 
 [tasks.deploy-owner]
 description = "Show which worktree owns the dev cluster"

@@ -114,7 +114,8 @@ DAGSTER_BUILD_IGNORE = [
   '**/*.egg-info',
 ]
 # docker_build has no named build context, so the Dagster image is a custom build
-DAGSTER_BUILD_CMD = 'docker buildx build --load --build-context nexus-client=nexus/client -t {ref} dagster'
+DAGSTER_BUILD_CMD = ' '.join(
+  ['docker buildx build --load --build-context nexus-client=nexus/client'] + BUILD_SECRET + ['-t {ref} dagster'])
 
 # The image has no ENTRYPOINT or CMD: the chart passes the whole gRPC command as the
 # container args (templates/dagster-code-server.yaml). With an empty entrypoint Tilt's

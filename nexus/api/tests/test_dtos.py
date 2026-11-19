@@ -16,8 +16,8 @@ WIRE_DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
 class TestProjectDTO:
     def test_fields(self, project):
         assert set(ProjectDTO.from_model(project).dump()) == {
-            "id", "name", "description", "default_dataset_id", "enabled", "revoked", "managed_by",
-            "created_at", "updated_at",
+            "id", "name", "description", "default_dataset_id", "enabled", "revoked",
+            "created_at", "updated_at", "owner", "owner_group",
         }
 
     def test_values(self, project):
@@ -49,7 +49,7 @@ class TestDatasetDTO:
         assert set(DatasetDTO.from_model(dataset).dump()) == {
             "id", "secret", "name", "host", "port", "read_schema", "write_schema", "type",
             "extra_connection_args", "created_at", "updated_at", "slug", "url", "enabled",
-            "revoked", "managed_by",
+            "revoked", "owner", "owner_group",
         }
 
     def test_never_exposes_credentials(self, dataset):

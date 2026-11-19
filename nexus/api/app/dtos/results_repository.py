@@ -16,8 +16,9 @@ class ResultsRepositoryDTO(DTO):
     secret: SecretDTO
     enabled: bool
     revoked: bool
-    # The nexus operator's user when its custom resource declares the record (ADR 0032)
-    managed_by: str | None
+    owner: UserRefDTO | None
+    # The group whose members alone may change it, null when it is open (ADR 0036)
+    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: ResultsRepository):
@@ -29,7 +30,8 @@ class ResultsRepositoryDTO(DTO):
             secret=SecretDTO.from_model(obj.secret),
             enabled=obj.enabled,
             revoked=obj.revoked,
-            managed_by=obj.managed_by,
+            owner=UserRefDTO.of(obj.owner),
+            owner_group=obj.owner_group,
         )
 
 

@@ -81,7 +81,7 @@ def list_project_trigger_repositories(project_id: int, active: str = ''):
 @router.put('/{repo_id}', response_model=ProjectTriggerRepositoryDTO)
 def put_project_trigger_repository(
     project_id: int, repo_id: int, response: Response, req: ProjectTriggerRepositoryRequest,
-    caller: Caller = Depends(get_caller),
+    caller: Caller = Depends(get_caller)
 ):
     """
     PUT /projects/<project_id>/repositories/triggers/<repo_id> — assigns a global trigger
@@ -93,7 +93,7 @@ def put_project_trigger_repository(
     Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir and
     base_branch are required, enabled is optional and defaults to true.
     """
-    project = Project.get_by_id(project_id)
+    project = require_member(Project.get_by_id(project_id), caller)
     repo = TriggerRepository.get_by_id(repo_id)
     watch_dir = normalise_dir(req.watch_dir)
     assignment = get_for_write(
@@ -192,8 +192,11 @@ def delete_project_trigger_repository(project_id: int, repo_id: int, caller: Cal
     DELETE /projects/<project_id>/repositories/triggers/<repo_id> — unassigns the
     repository, not the repository itself: a soft delete that also revokes the project resource.
     """
-    assignment = _assignment(project_id, repo_id)
-    guard(assignment.project, caller)
+    require_member(Project.get_by_id(project_id), caller)
+    assignment = get_for_write(
+        session, ProjectTriggerRepository, {"project_id": project_id, "trigger_repository_id": repo_id}, caller,
+        missing=f"Trigger repository {repo_id} is not assigned to project {project_id}",
+    )
     assignment.soft_delete()
     session.commit()
 
