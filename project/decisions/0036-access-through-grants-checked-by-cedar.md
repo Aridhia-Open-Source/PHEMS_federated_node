@@ -135,7 +135,11 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
 - **A project's rights cover its assignments.** Adding or removing a project's datasets, secrets, trigger repositories or results repository needs `write` on the project and on the global resource.
 - **Cascading deletes check every record they would delete;** if the caller may not write one, nothing is deleted.
 - **Scopes stay coarse.** A route still requires its token scope first.
-- **`execute` is checked for tasks requested through the API.** Tasks started by merged pull requests are not checked; the repository and the pull request review are the gate there.
+- **`execute` is checked for tasks requested through the API.** Tasks started by merged pull requests are not checked, for now:
+  - nexus-api cannot tell who raised or merged a pull request until a hospital links GitHub or Azure identities to Keycloak, and most sites have not yet;
+  - it is not settled whether the raiser or the merger should need `execute`; if it is the merger, the right to merge already is the permission.
+
+  The trigger repository's permissions and the pull request review are the gate there.
 - **A test lists every POST, PUT, PATCH and DELETE route** as owned, create or unowned, and checks each owned route answers a 409 to a caller without the grant and leaves the record unchanged. A new write route fails it until it is classed.
 
 ### With Flux and the operator
