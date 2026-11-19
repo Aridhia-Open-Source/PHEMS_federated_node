@@ -9,8 +9,32 @@ Status: Proposed, 2026-11-19.
 - **Some config is managed by a program.** The operator applies node config from files ([0032](0032-declarative-node-config-through-an-operator.md)); an edit by someone else is drift it has to fight.
 - **Projects have members with different rights.** An admin sets up a study: global resources, projects, then users who mostly read, some who write and some who run tasks. People join and leave, and their rights change.
 - **Approved data access requests are coming back with the task API trigger.** A data custodian approves a researcher to run tasks on a project until a date, and may revoke it.
-- **The legacy `develop` backend kept access in Keycloak Authorization Services:** a Keycloak resource, policy and permission per dataset, and a Keycloak client and user per data access request with token exchange. Every create, rename and delete made several Keycloak admin calls with no shared transaction; a failure left Keycloak and the database apart, and deletes left resources behind.
+- **The legacy `develop` backend kept access in Keycloak Authorization Services** (below).
 - **A record's rules belong to nexus-api** ([0021](0021-nexus-api-owns-the-record-and-the-rules.md)).
+
+### Why the legacy design falls short
+
+`develop` stored a Keycloak resource, policy and permission per dataset, a Keycloak client and user per data access request, and checked every call in the `@auth` decorator (`webserver/app/helpers/wrappers.py`):
+
+- **Up to five Keycloak calls per request:** a user lookup, an admin check, a role check, a token exchange and the permission check, plus one more lookup in `@audit`. Keycloak being slow or down stopped every call.
+- **The record checked was guessed, not loaded.** The decorator took the dataset from the URL arguments, then replaced it with any `dataset_id` or `dataset_name` found anywhere in the JSON body, nested keys included. `PATCH /datasets/5` with `{"catalogue": {"dataset_id": 7}}` was checked against dataset 7 and edited dataset 5. Only admins and the system account held `can_admin_dataset`, so it gave nobody extra access, but the record checked was not always the record changed. With no dataset found, it checked a generic `endpoints` resource, which was the scope alone.
+- **The client chose the access request:** a `project-name` header picked which data access request, and which token exchange, applied.
+- **Rules were split and hidden.** Role names hard-coded in the decorator skipped checks; the rest sat in Keycloak configuration that `realms.json` did not fully apply, so nobody could read the rules in one place.
+- **Two stores, no transaction.** Creating a dataset made several Keycloak admin calls before the database commit; a failure part way left Keycloak and the database apart. Deleting a dataset never removed its Keycloak resource, and a rename patched one resource per access request in a loop.
+- **Only datasets had per-record rules.** Projects, secrets and repositories had none.
+- **Revoking lagged** until tokens already issued expired.
+
+This design answers each point:
+
+| Legacy | Here |
+|---|---|
+| Keycloak calls on every request | none; the token is checked locally and grants are one query |
+| record guessed from URL or body | each route loads its record and passes it to `can()` |
+| client header picks the access request | the grant names the user; nothing is read from headers |
+| rules in code and Keycloak config | one Cedar policy file, validated and tested |
+| two stores without a transaction | grants are rows in the record's own transaction |
+| datasets only | every owned record type |
+| revoke waits for token expiry | deleting a grant applies at once |
 
 ## Decision
 
@@ -114,6 +138,19 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
 - **`execute` is checked for tasks requested through the API.** Tasks started by merged pull requests are not checked; the repository and the pull request review are the gate there.
 - **A test lists every POST, PUT, PATCH and DELETE route** as owned, create or unowned, and checks each owned route answers a 409 to a caller without the grant and leaves the record unchanged. A new write route fails it until it is classed.
 
+### With Flux and the operator
+
+The site's git repository already drives the node: Flux deploys the chart ([0031](0031-gitops-delivery-with-helm-and-flux.md)) and the operator applies node config through nexus-api ([0032](0032-declarative-node-config-through-an-operator.md)). Access fits the same flow:
+
+- **Policies from git.** A site's extra `.cedar` files are chart values in its Flux repository, changed by PR. Flux rolls them out; nexus-api validates them at startup, so a bad policy fails the rollout and the previous pods keep serving.
+- **Config owned by the operator.** The operator calls nexus-api as `Service`, so every record it applies gets an `owner` grant for `Service`. A UI edit by an admin is a 409: the records cannot drift from git. Changing one means a PR to the site repository, or the superuser claiming it when the operator is broken.
+- **Standing access from git.** An operator resource can declare who may use it, for example a Project with `access: [{group: uc1-team, relation: read}]`. The operator reconciles that list through the `/grants` routes; the grants it makes are owned through `Service` like the record, and removing a line from git removes the grant.
+- **Groups, not users, in git.** Git names groups (`uc1-team`); membership stays in Keycloak or the hospital's directory, so no Keycloak user ids are committed.
+- **Decisions on the day stay at runtime.** Approving a data access request, with its expiry, is a grant made through the API, not a PR. Its `created_by` and the audit trail record who approved it.
+- **Rules versioned with the node.** `policy_versions` records the hash of the policies each pod started with, so any decision can be traced to the commit that set the rules.
+
+The operator's `access` list is designed when the operator work resumes; nothing here depends on it.
+
 ### An example
 
 - Dana (`Administrator`) creates project 3: grant `Project 3, owner, role Administrator`.
@@ -149,4 +186,4 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
 - Who may create groups and grant to them, and whether nexus-api should manage Keycloak group membership through its own routes.
 - Whether sites may add `permit` rules or only `forbid` rules.
 - When reads start to check `read`.
-- How the operator declares grants (deferred until the operator work resumes).
+- The shape of the operator's `access` list, and whether UI grants and git grants may sit on the same record.
