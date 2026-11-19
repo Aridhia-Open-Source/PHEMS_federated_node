@@ -13,3 +13,7 @@ services:
     volumes:
       # test_enum_drift.py parses the nexus-api enums, which live outside this build context
       - ../nexus/api/app/models:/opt/dagster/nexus/api/app/models:ro
+      # fncli's tests check the committed experiment, bootstrap and trigger files at the repo root
+      - ../experiments:/opt/dagster/experiments:ro
+      - ../bootstrap:/opt/dagster/bootstrap:ro
+      - ../triggers:/opt/dagster/triggers:ro
