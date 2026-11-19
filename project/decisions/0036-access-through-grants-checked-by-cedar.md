@@ -76,7 +76,8 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
   ```
 
   `object_type`, `relation` and `subject_type` are checked against fixed lists. `object_id` has no foreign key, since it points at many tables; deleting a record deletes its grants in the same transaction.
-- **Each owned model declares `authz_type`** (`authz_type = "Dataset"`), stored in grants and used in the policies. It is never derived from the class or table name, so renaming either breaks nothing. `OwnedMixin` fails at import if a model leaves it out.
+- **Grants sit on projects and global records only.** A project is a set of resources with one set of permissions: its secrets, trigger and results repositories and assignments have no grants of their own, and every check on them is a check on the project. Each of those resources still records `created_by`.
+- **Each model with grants declares `authz_type`** (`authz_type = "Dataset"`), stored in grants and used in the policies. It is never derived from the class or table name, so renaming either breaks nothing. `OwnedMixin` fails at import if a model leaves it out.
 - **`policy_versions`:** the hash and contents of the policy files nexus-api started with, one row per new hash, for audit.
 - **Record tables get no new columns.**
 
@@ -93,11 +94,11 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
   | `read` | read it |
 
   Every action, reads included, is checked.
-- **People own what they create.** On create, nexus-api adds an `owner` grant for the creating user, in the same transaction as the record. Records the operator creates are owned by `role:Service` instead, so a rotated or second operator account still owns them.
+- **People own what they create.** On creating a project or a global record, nexus-api adds an `owner` grant for the creating user, in the same transaction as the record. Records the operator creates are owned by `role:Service` instead, so a rotated or second operator account still owns them.
 - **Global records can be assigned by any admin.** Every global record also gets an `assign` grant for `role:Administrator` on create, whoever made it, so any admin can add it to their projects without being able to change it. Its owner can remove that grant, for example from a sensitive dataset, and grant `assign` to chosen admins or groups instead.
 - **`Global` is the container for global records,** as a project is for project records. Creating a global record (a dataset, git provider, secret, trigger or results repository, or a project) needs `write` on `Global`. The baseline migration gives `role:Administrator` and `role:Service` `owner` on `Global`, so any admin or the operator can create them; a `write` grant on `Global` scopes that to another group later. `Global` is not a table: its grants use `object_type = 'Global'`, `object_id = 0`.
 - **On delete,** the record's grants go too.
-- **Through routes on each owned record:**
+- **Through routes on each project and global record:**
   - `GET <record path>/grants` lists them;
   - `POST <record path>/grants` adds one (`relation`, `subject_type`, `subject_id`, `expires_at`);
   - `DELETE <record path>/grants/{id}` removes one.
@@ -177,7 +178,7 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
 
   An unchecked route needs no token from `Access`. Code that is not a route (cascades, the grants routes) calls the same check as `can(caller, action, record)`.
 - **Creates check their parent.** A record that does not exist yet is checked through the record it is created under:
-  - project-level creates (a project's secret, trigger repository or results repository) need `write` on the project;
+  - creates inside a project (a project's secret, trigger repository or results repository) need `write` on the project, and so do changes and deletes of them: `Access(model=Project, action=Action.WRITE)`;
   - global creates (datasets, git providers, secrets, trigger and results repositories, projects) need `write` on `Global`, `Access(model=Global, action=Action.WRITE)`.
 
   Who may create global records is then a grant and a Cedar rule, as for projects, not only a Keycloak scope.
