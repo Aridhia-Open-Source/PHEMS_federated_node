@@ -66,7 +66,7 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
     id            serial pk
     object_type   text        -- the model's authz_type: 'Project', 'Dataset', ...
     object_id     int
-    relation      text        -- 'owner' | 'read' | 'write' | 'execute'
+    relation      text        -- 'owner' | 'read' | 'write' | 'execute' | 'assign'
     subject_type  text        -- 'user' | 'group' | 'role'
     subject_id    text        -- Keycloak user id, group path or role name
     expires_at    timestamptz null
@@ -82,16 +82,28 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
 
 ### Where grants come from
 
-- **On create,** nexus-api adds an `owner` grant for the creator's node role, in the same transaction as the record.
-- **The `Node` record** stands for the node itself, the parent of every global record. The baseline migration gives `role:Administrator` and `role:Service` its `owner` grant, so they may create global config; a `write` grant on it lets another role or group do the same.
+- **What each relation allows:**
+
+  | Relation | Allows |
+  |---|---|
+  | `owner` | everything, including managing the record's grants |
+  | `write` | change or delete it; read it |
+  | `execute` | run tasks with it; read it |
+  | `assign` | add it to a project (a project assignment) without changing it; read it |
+  | `read` | read it |
+
+  Every action, reads included, is checked.
+- **People own what they create.** On create, nexus-api adds an `owner` grant for the creating user, in the same transaction as the record. Records the operator creates are owned by `role:Service` instead, so a rotated or second operator account still owns them.
+- **Operator records can be assigned by admins.** A record created by `Service` also gets an `assign` grant for `role:Administrator`, so any admin can add it to their projects without being able to change it. Its owner can remove that grant, for example from a sensitive dataset, and grant `assign` to chosen admins or groups instead.
+- **`Global` is the container for global records,** as a project is for project records. Creating a global record (a dataset, git provider, secret, trigger or results repository, or a project) needs `write` on `Global`. The baseline migration gives `role:Administrator` and `role:Service` `owner` on `Global`, so any admin or the operator can create them; a `write` grant on `Global` scopes that to another group later. `Global` is not a table: its grants use `object_type = 'Global'`, `object_id = 0`.
 - **On delete,** the record's grants go too.
 - **Through routes on each owned record:**
   - `GET <record path>/grants` lists them;
   - `POST <record path>/grants` adds one (`relation`, `subject_type`, `subject_id`, `expires_at`);
   - `DELETE <record path>/grants/{id}` removes one.
 
-  The record's owner, or `SuperUser`, may add or remove `read`, `write` and `execute` grants.
-- **Claiming:** `PUT <record path>/owner`, with no body, replaces the `owner` grant with the caller's node role. Only a higher role may claim: `SuperUser` any record, `Administrator` and `Service` records owned by `Users`.
+  Only the record's owner, or `SuperUser`, may add or remove its grants. Assigning users and groups to a project is the owning admin's job; a user with `write` cannot grant access to others.
+- **Claiming:** `PUT <record path>/owner`, with no body, makes the caller the owner. Only `SuperUser` may claim, for example when the owning admin has left. Handing a record to a named user or group (the same route with a body) comes later.
 - **Approving a data access request** adds an `execute` grant with an expiry; revoking deletes it.
 - **Nobody writes the table directly.**
 
@@ -106,13 +118,22 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
   permit (principal, action, resource)
   when { context.grants has owner && context.grants.owner > context.now };
 
-  // read, write and execute grants each allow their own action, until they expire.
-  permit (principal, action == Action::"read", resource)
-  when { context.grants has read && context.grants.read > context.now };
+  // write, execute and assign each allow their own action, until they expire.
   permit (principal, action == Action::"write", resource)
   when { context.grants has write && context.grants.write > context.now };
   permit (principal, action == Action::"execute", resource)
   when { context.grants has execute && context.grants.execute > context.now };
+  permit (principal, action == Action::"assign", resource)
+  when { context.grants has assign && context.grants.assign > context.now };
+
+  // Any current grant lets you read the record.
+  permit (principal, action == Action::"read", resource)
+  when {
+    (context.grants has read && context.grants.read > context.now) ||
+    (context.grants has write && context.grants.write > context.now) ||
+    (context.grants has execute && context.grants.execute > context.now) ||
+    (context.grants has assign && context.grants.assign > context.now)
+  };
 
   // SuperUser may do anything.
   permit (principal in Role::"SuperUser", action, resource);
@@ -135,6 +156,7 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
       READ = "read"
       WRITE = "write"
       EXECUTE = "execute"
+      ASSIGN = "assign"
       UNCHECKED = "unchecked"   # no record check; the route has no record
 
   @router.patch("/{dataset_id}")
@@ -156,11 +178,12 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
   An unchecked route needs no token from `Access`. Code that is not a route (cascades, the grants routes) calls the same check as `can(caller, action, record)`.
 - **Creates check their parent.** A record that does not exist yet is checked through the record it is created under:
   - project-level creates (a project's secret, trigger repository or results repository) need `write` on the project;
-  - global creates (datasets, git providers, secrets, trigger and results repositories, projects) need `write` on the one `Node` record, `Access(model=Node, action=Action.WRITE)`. The `Node` record's `owner` grants go to `role:Administrator` and `role:Service`, written by the baseline migration.
+  - global creates (datasets, git providers, secrets, trigger and results repositories, projects) need `write` on `Global`, `Access(model=Global, action=Action.WRITE)`.
 
-  Who may create global config is then a grant and a Cedar rule, not only a Keycloak scope.
-- **Deny by default, checked at startup.** `create_app` walks every POST, PUT, PATCH and DELETE route and refuses to start if one has no `Access` dependency, as `OPEN_ROUTERS` does for scopes today. A forgotten check stops nexus-api from starting, so it fails every test run and every deploy, not only one test. Today's unchecked writes are login, token refresh, a user's own password reset, and Dagster's pipeline state writes; a snapshot test lists them, so a new one shows up in review.
-- **A project's rights cover its assignments.** Adding or removing a project's datasets, secrets, trigger repositories or results repository needs `write` on the project and on the global resource.
+  Who may create global records is then a grant and a Cedar rule, as for projects, not only a Keycloak scope.
+- **Deny by default, checked at startup.** `create_app` walks every route, reads included, and refuses to start if one has no `Access` dependency, as `OPEN_ROUTERS` does for scopes today. A forgotten check stops nexus-api from starting, so it fails every test run and every deploy, not only one test. Today's unchecked routes are the health checks, login, token refresh, a user's own password reset, and Dagster's pipeline state writes; a snapshot test lists them, so a new one shows up in review.
+- **Assigning needs both sides.** Adding or removing a project's datasets, secrets, trigger repositories or results repository needs `write` on the project (through `Access`) and `assign` on the global record (through `can()`).
+- **Lists show only what the caller may read.** List routes filter their query by the caller's grants (a join on `grants` for the user, role or groups), then Cedar checks each row; `SuperUser` sees everything.
 - **Cascading deletes check every record they would delete;** if the caller may not write one, nothing is deleted.
 - **Scopes stay coarse.** A route still requires its token scope first; the record check comes after.
 - **`execute` is checked for tasks requested through the API.** Tasks started by merged pull requests are not checked, for now:
@@ -185,10 +208,12 @@ The operator's `access` list is designed when the operator work resumes; nothing
 
 ### An example
 
-- Dana (`Administrator`) creates project 3: grant `Project 3, owner, role Administrator`.
+- The operator creates dataset 12: grants `Dataset 12, owner, role Service` and `Dataset 12, assign, role Administrator`.
+- Dana (`Administrator`) creates project 3: grant `Project 3, owner, user dana`.
+- Dana adds dataset 12 to project 3: allowed (`write` on the project, `assign` on the dataset). She renames dataset 12: denied, it is the operator's.
 - In Keycloak she adds Alice and Bob to group `uc1-team`. In nexus-api she grants `uc1-team` `read`, Alice `write`, and Bob `execute` until 2027-03-01.
-- Alice edits project 3: allowed. Bob edits it: denied. Bob runs a task: allowed, until March.
-- Dana removes Alice from `uc1-team`: Alice loses `read` when her token next refreshes, and keeps her own `write` grant.
+- Alice edits project 3: allowed. Bob edits it: denied. Bob runs a task: allowed, until March. Alice tries to grant access to someone: denied, only Dana owns it.
+- Dana removes Alice from `uc1-team`: Alice keeps her own `write` grant, which also lets her read.
 
 ## Consequences
 
@@ -199,7 +224,7 @@ The operator's `access` list is designed when the operator work resumes; nothing
 - Each write makes one small query on `grants` and one in-process Cedar call.
 - Group membership changes in Keycloak are outside nexus-api's audit trail.
 - `cedarpy` is a thin community wrapper over Cedar's Rust core; it is pinned, and forked if it stalls.
-- Records made before this change, and by internal paths with no caller, have no grants; only `SuperUser` may change them until someone claims them.
+- Records made before this change, and by internal paths with no caller, have no grants; only `SuperUser` may read or change them until it claims them.
 - The owner-group pieces go: `owner_group`, `OWNER_GROUPS` and the chart's `ownerGroups`, `owner_group_of`, the `admin` role and the release route.
 
 ## Alternatives considered
@@ -259,5 +284,4 @@ The cost is one dependency (`cedarpy`, no transitive dependencies, a prebuilt wh
 
 - Who may create groups and grant to them, and whether nexus-api should manage Keycloak group membership through its own routes.
 - Whether sites may add `permit` rules or only `forbid` rules.
-- When reads start to check `read`.
 - The shape of the operator's `access` list, and whether UI grants and git grants may sit on the same record.
