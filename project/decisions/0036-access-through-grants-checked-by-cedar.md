@@ -29,7 +29,7 @@ This design answers each point:
 | Legacy | Here |
 |---|---|
 | Keycloak calls on every request | none; the token is checked locally and grants are one query |
-| record guessed from URL or body | each route loads its record and passes it to `can()` |
+| record guessed from URL or body | each route receives its record through the `authorized(...)` check |
 | client header picks the access request | the grant names the user; nothing is read from headers |
 | rules in code and Keycloak config | one Cedar policy file, validated and tested |
 | two stores without a transaction | grants are rows in the record's own transaction |
@@ -83,6 +83,7 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
 ### Where grants come from
 
 - **On create,** nexus-api adds an `owner` grant for the creator's node role, in the same transaction as the record.
+- **The `Node` record** stands for the node itself, the parent of every global record. The baseline migration gives `role:Administrator` and `role:Service` its `owner` grant, so they may create global config; a `write` grant on it lets another role or group do the same.
 - **On delete,** the record's grants go too.
 - **Through routes on each owned record:**
   - `GET <record path>/grants` lists them;
@@ -127,20 +128,48 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
 
 ### The check
 
-- **Every write route calls `can(caller, action, record)`** (`app/helpers/authz.py`); a deny is a 409 naming the owner. It:
-  1. reads the caller from the token: user id, node role, groups;
-  2. loads the caller's grants on the record (one query on `grants` matching the user, role or groups), as one expiry per relation;
-  3. builds the Cedar request: the user with its role and groups as parents, the record, and `context` with the grants and the time;
-  4. returns Cedar's decision.
+- **Every write route gets its record through a FastAPI dependency that checks it** (`app/helpers/authz.py`):
+
+  ```python
+  @router.patch("/{dataset_id}")
+  def patch_dataset(dataset: Dataset = Depends(authorized(Dataset, "write"))):
+  ```
+
+  The route only receives the record through the check, so it cannot use one unchecked. A deny is a 409 naming the owner. The dependency:
+  1. loads the record from the path (404 if missing);
+  2. reads the caller from the token: user id, node role, groups;
+  3. loads the caller's grants on the record (one query on `grants` matching the user, role or groups), as one expiry per relation;
+  4. builds the Cedar request: the user with its role and groups as parents, the record, and `context` with the grants and the time;
+  5. returns the record if Cedar allows, and raises otherwise.
+
+  Code that is not a route (cascades, the grants routes) calls the same check as `can(caller, action, record)`.
+- **Creates check their parent.** A record that does not exist yet is checked through the record it is created under:
+  - project-level creates (a project's secret, trigger repository or results repository) need `write` on the project;
+  - global creates (datasets, git providers, secrets, trigger and results repositories, projects) need `write` on the one `Node` record, `authorized(Node, "write")`. The `Node` record's `owner` grants go to `role:Administrator` and `role:Service`, written by the baseline migration.
+
+  Who may create global config is then a grant and a Cedar rule, not only a Keycloak scope.
+- **Deny by default, checked at startup.** `create_app` walks every POST, PUT, PATCH and DELETE route and refuses to start if one has neither an `authorized(...)` dependency nor an entry in `UNCHECKED_WRITES`, as `OPEN_ROUTERS` does for scopes today:
+
+  ```python
+  # Write routes with no record to check. Keep this list short; each needs a reason.
+  UNCHECKED_WRITES = {
+      main.login,                      # gets a token, no record yet
+      main.refresh_token,              # same
+      users_api.reset_password,        # a user swaps their own temporary password
+      dagster_api.update_task_state,   # Dagster writes pipeline state under its own role
+  }
+  ```
+
+  A forgotten check stops nexus-api from starting, so it fails every test run and every deploy, not only one test.
 - **A project's rights cover its assignments.** Adding or removing a project's datasets, secrets, trigger repositories or results repository needs `write` on the project and on the global resource.
 - **Cascading deletes check every record they would delete;** if the caller may not write one, nothing is deleted.
-- **Scopes stay coarse.** A route still requires its token scope first.
+- **Scopes stay coarse.** A route still requires its token scope first; the record check comes after.
 - **`execute` is checked for tasks requested through the API.** Tasks started by merged pull requests are not checked, for now:
   - nexus-api cannot tell who raised or merged a pull request until a hospital links GitHub or Azure identities to Keycloak, and most sites have not yet;
   - it is not settled whether the raiser or the merger should need `execute`; if it is the merger, the right to merge already is the permission.
 
   The trigger repository's permissions and the pull request review are the gate there.
-- **A test lists every POST, PUT, PATCH and DELETE route** as owned, create or unowned, and checks each owned route answers a 409 to a caller without the grant and leaves the record unchanged. A new write route fails it until it is classed.
+- **A test walks every checked write route** and checks it answers a 409 to a caller without the grant and leaves the record unchanged.
 
 ### With Flux and the operator
 
