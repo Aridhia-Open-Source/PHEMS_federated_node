@@ -176,13 +176,55 @@ The operator's `access` list is designed when the operator work resumes; nothing
 
 ## Alternatives considered
 
-- **Keycloak Authorization Services, as in `develop`:** every record change needs several Keycloak admin calls with no shared transaction, so Keycloak and the database drift; revoking lags until tokens expire; tests need a running Keycloak; and a client per access request scales badly.
+### Keycloak holding all access
+
+Keycloak Authorization Services can hold per-record access: a resource per record, user and time policies on it, and permissions, checked by the protection API or an authorization token. Done properly (a user policy with an expiry on the dataset's resource, not a client per access request as `develop` did), it is an intended Keycloak pattern.
+
+| | Keycloak holds all access | This design |
+|---|---|---|
+| Where a grant lives | Keycloak resource, policy and permission | a row in nexus-api's database |
+| Writing a grant | several Keycloak admin calls, no shared transaction with the record | one insert in the record's transaction |
+| Renaming or deleting a record | Keycloak updated too, or left behind | grants go with the record |
+| Revoking | minutes with short tokens and ended sessions; instant only with a Keycloak call per request | instant |
+| Keycloak down | no writes, and no checks if checked per request | sign-in only; checks are local |
+| Who can change access | anyone with the Keycloak console, outside nexus-api's audit trail | nexus-api routes only, with `created_by` |
+| Tests | need a running Keycloak | unit tests and policy cases |
+| Other services checking access | yes, from the token or Keycloak | through nexus-api |
+| Familiar to hospital IT | yes, Keycloak is | Keycloak for sign-in; Cedar is new |
+
+Keycloak alone wins on familiarity and on other services checking access directly. Neither is needed today: nexus-api is the only service that decides ([0021](0021-nexus-api-owns-the-record-and-the-rules.md)). It loses on keeping two stores in step, which is where `develop` failed.
+
+### Grants without Cedar
+
+The same `grants` table with the rules written in Python (`if relation == "owner" or ...`) works, and installs nothing. Cedar is chosen because:
+
+- **Deny by default:** nothing is allowed unless a `permit` matches; a forgotten branch in Python allows by accident.
+- **Order does not matter:** a `forbid` always beats a `permit`; in Python a deny check below an early `return True` never runs.
+- **One readable file:** the rules sit in one place a reviewer or a hospital's security team can sign off, instead of spreading into routes as `if caller.is_admin`.
+- **Typos fail:** the schema rejects an unknown action, attribute or type in CI and at startup; in Python `"excute"` silently never matches.
+- **A tested engine:** Cedar's evaluator has machine-checked proofs and is fuzz-tested against them; our tests cover our data, not the evaluator.
+- **Sites can extend it:** a site adds a `.cedar` file through chart values; with Python rules a site would fork the code.
+
+The cost is one dependency (`cedarpy`, no transitive dependencies, a prebuilt wheel) and building Cedar's input for each check.
+
+### Why Cedar over the other engines
+
+| Option | Runs in nexus-api | Standard rules format | Data in one place | Main reason not |
+|---|---|---|---|---|
+| **Cedar** | yes | yes | yes | small Python wrapper (pinned, forkable) |
+| Open Policy Agent (Rego) | no, sidecar | yes, CNCF graduated | yes | extra container; Rego is hard to read |
+| Cerbos | no, sidecar (in-process is paid) | yes, YAML | yes | extra container |
+| Casbin | yes | no, Casbin-only | yes | generic table, rules held in memory |
+| OpenFGA / SpiceDB | no, service | yes | no, second store | extra service, two places to keep in step |
+| Keycloak Authorization Services | no, remote | yes | no, second store | see above |
+| Oso (Polar) | was | yes | yes | open-source library dropped in 2023; now a paid service |
+| Google CEL | yes | yes, expressions only | yes | no policy structure, schema or tests; we would build them. The fallback if Cedar is ruled out |
+
+### Other alternatives
+
 - **Owner groups from a configured `ownerGroups` list (the previous version of this ADR):** one lock per record, no per-user rights and no expiry.
 - **Unix-like owner, group and mode columns on each record:** simple, but one group per record, mode bits that do not map to other engines, and access lists needed as soon as two groups need different rights.
-- **Our own rules dict in Python:** less to install, but not a standard format, and sites cannot read or extend it.
-- **Casbin (in-process):** maintained, but its generic `casbin_rule` table loses typed columns and audit fields unless we write an adapter, and it keeps every rule in memory, needing a watcher across replicas.
-- **OpenFGA (a Zanzibar-style service):** a strong fit for many services or nested sharing, but another service per node and the same two-place problem as Keycloak. Grants map one to one to its tuples, so moving later is open.
-- **Open Policy Agent or Cerbos:** standard policy files, but each runs as a sidecar or service, and Rego is hard to read.
+- **Moving to OpenFGA later:** a strong fit if several services need access decisions or sharing nests deeply. Grants map one to one to its tuples, so the move stays open.
 - **Cedar policy templates for grants:** Cedar's native way, but a template link cannot carry an expiry, and a plain table is easier to query and report on.
 
 ## Open questions
