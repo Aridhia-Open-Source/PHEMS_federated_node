@@ -39,10 +39,11 @@ def fake_response(status_code, body=None, reason="Reason"):
 def test_create_get_and_list(client, admin_headers):
     created = client.post(PROV, json=body(uri="https://GitHub.com/"), headers=admin_headers)
     assert created.status_code == 201, created.json()
-    assert set(created.json()) == {"id", "name", "type", "uri", "api_uri", "enabled", "revoked", "created_at", "updated_at"}
-    assert created.json() | {"id": None, "created_at": None, "updated_at": None} == {
-        **body(), "id": None, "enabled": True, "revoked": False, "created_at": None, "updated_at": None
-    }  # the uri is kept normalised
+    assert set(created.json()) == {
+        "id", "name", "type", "uri", "api_uri", "enabled", "revoked", "created_at", "updated_at", "owner", "owner_group",
+    }
+    volatile = {"id": None, "created_at": None, "updated_at": None, "owner": None, "owner_group": None}
+    assert created.json() | volatile == {**body(), "enabled": True, "revoked": False, **volatile}  # the uri is kept normalised
 
     mirror = client.post(PROV, json=body(
         name="gitea", type="gitea", uri="http://gitea:4000", api_uri="http://gitea:4000/api/v1", enabled=False,

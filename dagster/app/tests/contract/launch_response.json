@@ -7,6 +7,8 @@
     "host": "example.com",
     "id": 1,
     "name": "globalds",
+    "owner": null,
+    "owner_group": null,
     "port": 5432,
     "read_schema": null,
     "revoked": false,
@@ -18,6 +20,8 @@
       "key": "fn-secret-test-creds",
       "label": "test-creds",
       "namespace": null,
+      "owner": null,
+      "owner_group": null,
       "provider": "K8S",
       "updated_at": "2026-10-19 21:33:02"
     },

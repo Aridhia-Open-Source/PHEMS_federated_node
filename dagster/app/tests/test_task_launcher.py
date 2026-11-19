@@ -39,7 +39,8 @@ def project(id=1, enabled=True):
 def task(id=9, project_id=1, attempt=1, dataset_id=7, **spec):
     return Task(
         id=id, name="t", spec={"image": "ghcr.io/o/i:1", "dataset_id": dataset_id, "env": {"K": "v"}, **spec},
-        attempt=attempt, requested_by="u", project_id=project_id, trigger_id=4, status="PENDING",
+        attempt=attempt, requested_by="u", project_id=project_id, project_name=f"proj{project_id}", trigger_id=4,
+        status="PENDING",
     )
 
 

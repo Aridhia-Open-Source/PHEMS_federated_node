@@ -39,7 +39,7 @@ def expected(**op_config):
 def test_build_run_config():
     spec = TaskSpec(image="a/b:1", dataset_id=1, env={"K": "v"})
 
-    assert build_run_config(spec, DATASET) == expected(env={"K": "v"}, docker_image="a/b:1")
+    assert build_run_config(spec, DATASET) == expected(env={"K": "v"}, compute={}, docker_image="a/b:1")
 
 
 def test_the_specs_config_is_in_the_run_config():
@@ -70,7 +70,7 @@ def test_a_task_without_a_dataset_has_no_dataset_in_its_run_config():
 
     config = build_run_config(spec, None)
 
-    assert config == {"ops": {"k8s_pipes_op": {"config": {"env": {}, "docker_image": "a/b:1"}}}}
+    assert config == {"ops": {"k8s_pipes_op": {"config": {"env": {}, "compute": {}, "docker_image": "a/b:1"}}}}
     assert dg.validate_run_config(k8s_pipes_job, config)
 
 

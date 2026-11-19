@@ -584,7 +584,8 @@ def test_unusable_dataset_rejects_the_pr(client, admin_headers, system_headers, 
     json.dumps({"spec": {"image": "i:1"}, "extra": 1}),
     "not json at all",
     '{"spec": "a string"}',
-    json.dumps({"spec": {"image": "i:1"}, "metadata": {"blob": "x" * (70 * 1024)}}),   # over the size limit
+    # over the size limit; a short id, as a 70 KB test name hides the rest of the CI log
+    pytest.param(json.dumps({"spec": {"image": "i:1"}, "metadata": {"blob": "x" * (70 * 1024)}}), id="over-size-limit"),
 ])
 def test_bad_spec_rejects_the_pr(client, admin_headers, system_headers, pr_trigger, raw):
     r = post_task(client, system_headers, pr_trigger, raw)
