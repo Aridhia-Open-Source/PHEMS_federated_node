@@ -14,7 +14,7 @@ tests:
           value: post-install,post-upgrade
         documentSelector:
           path: metadata.name
-          value: backend-db-init
+          value: nexus-db-init
       # Stable names: before-hook-creation removes the previous Job, so the pod
       # template hash is no longer needed in the name.
       - equal:
@@ -22,7 +22,7 @@ tests:
           value: before-hook-creation
         documentSelector:
           path: metadata.name
-          value: backend-db-init
+          value: nexus-db-init
 
   - it: runs before the release for an external Postgres, so nothing has to wait
     values:
@@ -33,7 +33,7 @@ tests:
           value: pre-install,pre-upgrade
         documentSelector:
           path: metadata.name
-          value: backend-db-init
+          value: nexus-db-init
       - equal:
           path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
@@ -62,7 +62,7 @@ tests:
           value: value
         documentSelector:
           path: metadata.name
-          value: backend-db-init
+          value: nexus-db-init
 
   - it: passes passwords to psql as variables rather than interpolating them
     values:
@@ -73,10 +73,10 @@ tests:
           pattern: '--set=pw="\$ROLE_PASSWORD_0"'
         documentSelector:
           path: metadata.name
-          value: backend-db-init
+          value: nexus-db-init
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: "format\\('CREATE ROLE %I LOGIN PASSWORD %L', :'role', :'pw'\\)"
         documentSelector:
           path: metadata.name
-          value: backend-db-init
+          value: nexus-db-init

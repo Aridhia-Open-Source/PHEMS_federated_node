@@ -12,7 +12,7 @@ TEST_SECRET_LABEL="testing-${HASH_RAND}"
 echo "Dataset Test: ${TEST_DB_NAME}"
 echo "Test User email: ${TEST_USER_EMAIL}"
 
-TOKEN=$(curl "${BACKEND_URL}/login" \
+TOKEN=$(curl "${NEXUS_API_URL}/login" \
     --silent \
     --fail-with-body \
     --header "Content-Type: application/x-www-form-urlencoded" \
@@ -22,15 +22,7 @@ TOKEN=$(curl "${BACKEND_URL}/login" \
 
 test_dataset_list(){
     printf "[test]\t### Test Fetch Dataset list ###\n\n"
-    curl "${BACKEND_URL}/global/datasets" \
-        --silent \
-        --fail-with-body \
-        --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
-}
-
-test_whitelisted_images_list() {
-    printf "[test]\t### Test Fetch Whitelisted Images list ###\n\n"
-    curl "${BACKEND_URL}/global/whitelisted_images" \
+    curl "${NEXUS_API_URL}/global/datasets" \
         --silent \
         --fail-with-body \
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
@@ -38,7 +30,7 @@ test_whitelisted_images_list() {
 
 test_create_user() {
     printf "[test]\t### Test Create User ###\n\n"
-    USER_TEMP=$(curl "${BACKEND_URL}/global/users" \
+    USER_TEMP=$(curl "${NEXUS_API_URL}/global/users" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/json" \
@@ -49,7 +41,7 @@ test_create_user() {
         }"| jq -r -e '.tempPassword')
 
     printf "[test]\t\tResetting pass\n"
-    curl --request PUT "${BACKEND_URL}/global/users/reset-password" \
+    curl --request PUT "${NEXUS_API_URL}/global/users/reset-password" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/json" \
@@ -62,7 +54,7 @@ test_create_user() {
     # If the login is too fast, it will tend to fail
     sleep .5
     printf "[test]\t\tLogin new creds\n"
-    curl "${BACKEND_URL}/login" \
+    curl "${NEXUS_API_URL}/login" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/x-www-form-urlencoded" \
@@ -73,7 +65,7 @@ test_create_user() {
 test_create_dataset() {
     printf "[test]\t### Test create Dataset ###\n\n"
 
-    curl "${BACKEND_URL}/global/secrets" \
+    curl "${NEXUS_API_URL}/global/secrets" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/json" \
@@ -84,7 +76,7 @@ test_create_dataset() {
             \"values\": {\"USERNAME\": \"user\", \"PASSWORD\": \"password1\"}
         }" > /dev/null 2>&1
 
-    DS_ID=$(curl "${BACKEND_URL}/global/datasets/" \
+    DS_ID=$(curl "${NEXUS_API_URL}/global/datasets/" \
         --silent \
         --fail-with-body \
         --header "Content-Type: application/json" \
@@ -101,7 +93,7 @@ test_create_dataset() {
 test_dar() {
     # TODO(DAR): POST /datasets/token_transfer was removed, DAR is disconnected for now
     printf "[test]\t### Test DAR process ###\n\n"
-    USER_TOKEN=$(curl "${BACKEND_URL}/datasets/token_transfer" \
+    USER_TOKEN=$(curl "${NEXUS_API_URL}/datasets/token_transfer" \
         --silent \
         --fail-with-body \
         --header 'Content-Type: application/json' \
@@ -119,7 +111,7 @@ test_dar() {
         }" | jq -r -e '.token')
 
     printf "[test]\t\ttry access dataset info\n"
-    curl "${BACKEND_URL}/global/datasets/${DS_ID}" \
+    curl "${NEXUS_API_URL}/global/datasets/${DS_ID}" \
         --silent \
         --fail-with-body \
         --header "project-name: project" \
@@ -130,10 +122,6 @@ exit_code=0
 
 if ! test_dataset_list; then
     printf "[ERROR]\tFailed fetching dataset list test\n"
-    exit_code=1
-fi
-if ! test_whitelisted_images_list; then
-    printf "[ERROR]\tFailed fetching whitelisted images list test\n"
     exit_code=1
 fi
 if ! test_create_user; then
@@ -184,10 +172,10 @@ if [ -n "$CLIENT_ID" ]; then
 fi
 
 printf "[cleanup]\tRemoving test db entry\n"
-# PGHOST/PGPORT/BACKEND_DB_USER/BACKEND_DB_NAME are what backend-configmap publishes.
+# PGHOST/PGPORT/NEXUS_DB_USER/NEXUS_DB_NAME are what nexus-api-configmap publishes.
 # This used to hardcode `-h db` and read PGUSER/PGDATABASE, which nothing exports - so
 # with `set -e` above, the whole test pod died here before it could report success.
-psql -h "$PGHOST" -p "$PGPORT" -U "$BACKEND_DB_USER" -d "$BACKEND_DB_NAME" \
+psql -h "$PGHOST" -p "$PGPORT" -U "$NEXUS_DB_USER" -d "$NEXUS_DB_NAME" \
   -c "DELETE FROM datasets WHERE name = '${TEST_DB_NAME}'; DELETE FROM secrets WHERE label = '${TEST_SECRET_LABEL}';" > /dev/null 2>&1
 
 if [ $exit_code -gt 0 ]; then

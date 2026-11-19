@@ -16,6 +16,8 @@ class Task(BaseModel):
     updated_at: str | None = None
     requested_by: str
     project_id: int
+    project_name: str
+    dataset_name: str | None = None
     trigger_id: int
     executor_run_id: str | None = None
     exit_code: int | None = None

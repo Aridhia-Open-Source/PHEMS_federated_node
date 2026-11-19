@@ -97,7 +97,7 @@ RESULTS_REPOSITORY = {
     "enabled": True,
 }
 RESULTS_ASSIGNMENT = {
-    "id": 5, "project_id": 7, "results_repository": RESULTS_REPOSITORY, "target_dir": "results",
+    "id": 5, "project_id": 7, "results_repository": RESULTS_REPOSITORY, "target_dir": "results", "base_branch": "main",
     "owned_by_federated_node": True, "enabled": True, "revoked": False, "active": True,
 }
 
@@ -130,7 +130,7 @@ class TestResultsRepositories:
     def test_assign_reuses_the_projects_assignment(self, api, session):
         session.get.return_value = response([RESULTS_ASSIGNMENT])
 
-        assert api.get_or_assign_results_repository(7, ResultsRepository(**RESULTS_REPOSITORY), "results").id == 5
+        assert api.get_or_assign_results_repository(7, ResultsRepository(**RESULTS_REPOSITORY), "results", "main").id == 5
         assert session.get.call_args.args == ("/projects/7/repositories/results",)
         session.post.assert_not_called()
 
@@ -139,9 +139,9 @@ class TestResultsRepositories:
         session.put.return_value = response(RESULTS_ASSIGNMENT)
         repository = ResultsRepository(**RESULTS_REPOSITORY)
 
-        assert api.get_or_assign_results_repository(7, repository, "results").project_id == 7
+        assert api.get_or_assign_results_repository(7, repository, "results", "main").project_id == 7
         assert session.put.call_args.args == ("/projects/7/repositories/results/2",)
-        assert session.put.call_args.kwargs["json"] == {"target_dir": "results"}
+        assert session.put.call_args.kwargs["json"] == {"target_dir": "results", "base_branch": "main"}
 
 
 class TestGitProviders:
@@ -247,3 +247,10 @@ def test_get_task_results_lists_the_tasks_deliveries(api, session):
 
     session.get.assert_called_once_with("/projects/1/tasks/9/results")
     assert [(r.id, r.step, r.state, r.commit_sha) for r in results] == [(4, "OPENED", "DELIVERED", "abc")]
+
+
+def test_get_sensor_status_reads_the_sensor_from_nexus_api(api, session):
+    session.get.return_value = response({"name": "s", "status": "STOPPED", "last_tick": None, "error": False})
+
+    assert api.get_sensor_status("s") == "STOPPED"
+    session.get.assert_called_once_with("/dagster/sensors/s")

@@ -12,6 +12,7 @@ db:
     key: value
     name: local-db
 host: test.aridhiatest.net
+nodeId: test-node
 traefik:
   enabled: true
 integrations:

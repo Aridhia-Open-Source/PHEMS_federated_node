@@ -59,10 +59,10 @@ jobs:
 
           if [[ -n "${APP_VERSION}" ]]; then
             sed -i "s/^appVersion: .*/appVersion: \"${APP_VERSION}\"/" Chart.yaml
-            sed -i "s/version = .*/version = \"${APP_VERSION}\"/" ../../webserver/pyproject.toml
+            sed -i "s/version = .*/version = \"${APP_VERSION}\"/" ../../nexus/api/pyproject.toml
           fi
           cat Chart.yaml
-          grep version ../../webserver/pyproject.toml
+          grep version ../../nexus/api/pyproject.toml
       - name: Update SubCharts Version
         env:
           CERTMANAGER_VERSION: ${{ inputs.certManager }}

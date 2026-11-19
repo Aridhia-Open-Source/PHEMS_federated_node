@@ -21,17 +21,17 @@ flowchart TD
     H -->|"PATCH /projects/{project_id}/tasks/id"| T[Task status mirrors the run]
     G -->|"run SUCCESS"| J[task_results_delivery_sensor]
     J -->|"RunRequest deliver/task/attempt"| K[deliver_results_job]
-    K -->|"zip, spec.json, metadata.json pushed to a branch"| L[result PUSHED]
-    K -->|"PR from branch into default branch"| M[result OPENED]
-    M --> N[results_pull_request_sync_sensor]
-    L --> N
+    K -->|"zip, spec.json, run.json pushed to a branch"| L["result PUSHED, state DELIVERED"]
+    L --> N[results_pull_request_sync_sensor]
+    N -->|"open_results_pull_request_job (while the sensor runs)"| M[result OPENED]
+    M --> N
     N -->|"sync_results_pull_requests_job"| O{provider state}
     O -->|merged| Q([result MERGED])
     O -->|closed| R([result CLOSED])
     O -->|open| M
 ```
 
-All sensors are STOPPED by default and started by the operator, `fncli start-sensor --group all`, in any order (the reconcile sensor repairs a task status a run-status sensor missed; [0014](../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md)). The delivery job only runs after a task run succeeds; a failed delivery is relaunched by `results_delivery_retry_sensor`. Run keys carry a retry slot (`DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS`, default 60 s), so a failed run is retried at most once per interval; see [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
+All sensors are STOPPED by default and started by the operator, `fncli start-sensor --group all`, in any order (the reconcile sensor repairs a task status a run-status sensor missed; [0014](../../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md)). The delivery job only runs after a task run succeeds and stops at the push; a failed delivery is relaunched by `results_delivery_retry_sensor`. The results pull request is opened by `results_pull_request_sync_sensor`; a node that wants push-only stops that sensor and the result stays `PUSHED` (a result is always a pull request result, the sensor only pauses that step, and the results PR is the review gate). Run keys carry a retry slot (`DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS`, default 60 s), so a failed run is retried at most once per interval; see [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
 
 ## Global resources and assignments
 
@@ -63,7 +63,7 @@ sequenceDiagram
     participant DG as Dagster (daemon + run pods)
     participant K8s as Kubernetes
 
-    Dev->>CLI: setup-project
+    Dev->>CLI: apply -f examples/globals-e2e.yaml -y, then apply -f examples/projects/e2e.yaml -y
     CLI->>BE: create project, then the global secrets, trigger and results repository, dataset
     CLI->>BE: assign the repositories and dataset to the project
     CLI->>Git: create repos and tokens (Gitea, via localhost:4000)
@@ -86,12 +86,15 @@ sequenceDiagram
     DG->>BE: POST pull request task (YIELDED) or PATCH REJECTED
     DG->>BE: GET /tasks, the PENDING tasks of enabled projects
     DG->>BE: get the project's dataset assignment, must be active
+    DG->>BE: POST the run's Secret and ConfigMap (the backend makes them, returns their names)
     DG->>K8s: k8s_pipes_job starts the task pod
-    DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS
+    DG->>BE: PATCH task QUEUED, RUNNING, SUCCESS (the backend deletes the run's Secret and ConfigMap on SUCCESS, FAILED or CANCELED)
     DG->>BE: POST /projects/<id>/results (task, global results repository id)
-    DG->>Git: clone results repository, push branch with results.zip, spec.json, metadata.json
-    DG->>BE: PATCH result PUSHED, then OPENED (number, url)
-    DG->>Git: open PR from branch
+    DG->>Git: clone results repository, push branch with results.zip, spec.json, run.json
+    DG->>BE: PATCH result PUSHED, state DELIVERED
+    DG->>Git: list the results repository's PRs (sync sensor), none for the branch
+    DG->>Git: open PR from branch (open_results_pull_request_job)
+    DG->>BE: PATCH result OPENED (number, url)
     Dev->>CLI: merge-results-pr
     CLI->>Git: merge results PR
     DG->>Git: get PR state (sync sensor)
@@ -110,7 +113,7 @@ flowchart LR
     end
     subgraph Kind["kind cluster kind-fn"]
         subgraph FNNS["namespace fn"]
-            BE["Backend (Flask, port 5000)"]
+            BE["nexus-api (FastAPI, port 5000)"]
             DB[(Postgres db)]
             GITEA["Gitea service gitea.fn.svc:4000"]
             DWS[Dagster webserver]
@@ -167,7 +170,8 @@ The 12 sensors have `default_status=STOPPED` (`fnDagster.sensors.initialStatus`)
 | `task_queued_sensor`, `task_started_sensor`, `task_success_sensor`, `task_failure_sensor`, `task_canceled_sensor` | run-status sensors on `k8s_pipes_job` | runs tagged `trigger=task` | `PATCH /tasks/<id>` status, run id, times | `sensors/task/run_status.py` |
 | `task_results_delivery_sensor` | run-status sensor (SUCCESS) on `k8s_pipes_job` | succeeded task runs | `deliver_results_job`, key `deliver/<task>/<attempt>`, tags `trigger=delivery`, `delivery_task_id` | `sensors/task/delivery.py` |
 | `results_delivery_retry_sensor` | sensor | results in state FAILED at a non-final step, project resource active, fewer than `DAGSTER_DELIVERY_MAX_ATTEMPTS` (5) attempts | `deliver_results_job`, key `deliver-retry/<result>/<slot>`, same tags as the delivery sensor, unless one is in flight | `sensors/task/delivery.py` |
-| `deliver_results_job` | job (run pod) | artifacts volume, task, the project's results repository assignment | branch, results PR, result PUSHED then OPENED | `delivery/results.py`, `git_push.py` |
-| `results_pull_request_sync_sensor` | sensor | results PUSHED or OPENED (inactive assignments still resolve) | `sync_results_pull_requests_job` unless in flight | `sensors/task/pull_request_sync.py` |
-| `sync_results_pull_requests_job` | job | provider PR state | result OPENED, MERGED or CLOSED, number, url, merge fields | `sensors/task/pull_request_sync.py` |
+| `deliver_results_job` | job (run pod) | artifacts volume, task, the project's results repository assignment | pushed branch, result PUSHED with state DELIVERED (no pull request) | `delivery/results.py`, `git_push.py` |
+| `results_pull_request_sync_sensor` | sensor | results PUSHED or OPENED (inactive assignments still resolve), and one list of the provider's pull requests per results repository | `open_results_pull_request_job` per PUSHED result with no pull request, `sync_results_pull_requests_job` per result whose pull request exists and differs, unless in flight | `sensors/task/pull_request_sync.py` |
+| `open_results_pull_request_job` | job | the result, its branch and the task's pinned base branch (run config) | results PR, result OPENED, number, url | `sensors/task/pull_request_sync.py` |
+| `sync_results_pull_requests_job` | job | the patch the sensor found (run config) | result OPENED, MERGED or CLOSED, number, url, merge fields | `sensors/task/pull_request_sync.py` |
 | `noop_job` | job | nothing | smoke test of the code location and run launcher | `definitions/jobs.py` |

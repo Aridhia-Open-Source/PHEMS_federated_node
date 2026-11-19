@@ -7,10 +7,10 @@
 curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
 
 # 2. Start cluster + registries
-make cluster up
+mise run cluster up
 
 # 3. Deploy Helm (one time)
-make deploy
+mise run deploy
 
 # 4. Start Tilt
 tilt up
@@ -21,14 +21,14 @@ tilt up
 ### Watch for changes automatically
 
 Once everything is deployed, Tilt automatically watches and reloads:
-- `webserver/app/` → Webserver code changes (instant reload)
-- `webserver/requirements.txt`, `setup.py`, `alembic.ini` → Full rebuild
+- `nexus/api/app/` → nexus-api code changes (instant reload)
+- `nexus/api/requirements.txt`, `setup.py`, `alembic.ini` → Full rebuild
 - `dagster/app/` → User code changes (the process restarts, then `dagster-reload` makes sure the Dagster code location is loaded again; if it logs an error, look at the code server pod log)
 - `dagster/fncli/`, tests and docs → no rebuild
 - `dagster/requirements.txt`, `setup.py` → Full rebuild
 
 ### Access services
-- **Backend API docs**: http://localhost:5000/docs
+- **nexus-api docs**: http://localhost:5000/docs
 - **Dagster UI**: http://localhost:3000
 - **Tilt Dashboard**: http://localhost:10350
 
@@ -40,14 +40,14 @@ The `dagster-reload` resource prints this list in the Tilt log once the Dagster 
 tilt open
 
 # Or from command line
-kubectl logs -f deployment/backend -n fn
+kubectl logs -f deployment/nexus-api -n fn
 kubectl logs -f deployment/fn-dev-dagster-daemon -n fn
 kubectl logs -f deployment/fn-dev-dagster-user-deployments-dagster-fn -n fn
 ```
 
 ### Force rebuild a service
 ```bash
-tilt trigger backend
+tilt trigger nexus-api
 tilt trigger fn-dev-dagster-user-deployments-dagster-fn
 ```
 
@@ -55,27 +55,27 @@ tilt trigger fn-dev-dagster-user-deployments-dagster-fn
 
 | Task | Command |
 |------|---------|
-| Start cluster (one time) | `make cluster up` |
-| Deploy Helm (one time) | `make deploy` |
-| Show who owns the dev cluster | `make deploy-owner` |
-| Start Tilt | `tilt up` or `make tilt-up` |
-| Stop Tilt | `tilt down` or `make tilt-down` |
-| View dashboard | `tilt open` or `make tilt-open` |
-| View logs | `tilt logs` or `make tilt-logs` |
+| Start cluster (one time) | `mise run cluster up` |
+| Deploy Helm (one time) | `mise run deploy` |
+| Show who owns the dev cluster | `mise run deploy-owner` |
+| Start Tilt | `tilt up` |
+| Stop Tilt | `tilt down` |
+| View dashboard | `tilt open` |
+| View logs | `tilt logs` |
 | Rebuild specific service | `tilt trigger <resource-name>` |
 | Restart specific pod | `kubectl rollout restart deployment/<name> -n fn` |
 | Check resource status | `kubectl get all -n fn` |
 
 ## Dev cluster ownership
 
-The single dev cluster is owned by one worktree at a time. `make deploy` and `make upgrade` claim it (recorded in the `fn-dev-owner` ConfigMap in `default`) and `make teardown` releases it. A deploy from another worktree fails while it is owned; tear down from the owner, or rerun with `FORCE_OWNER=1` to take it over. `DEPLOY_BY` overrides the recorded user (default `$USER`). `make deploy-owner` shows the current owner.
+The single dev cluster is owned by one worktree at a time. `mise run deploy` claims it (recorded in the `fn-dev-owner` ConfigMap in `default`) and `mise run teardown` releases it. A deploy from another worktree fails while it is owned; tear down from the owner, or rerun with `mise run deploy --force-owner` to take it over. `DEPLOY_BY` overrides the recorded user (default `$USER`). `mise run deploy-owner` shows the current owner.
 
 ## Troubleshooting
 
 ### Resources not deploying?
-Make sure you've run `make deploy` before starting Tilt:
+Make sure you've run `mise run deploy` before starting Tilt:
 ```bash
-make deploy
+mise run deploy
 kubectl get all -n fn
 ```
 
@@ -100,27 +100,27 @@ netstat -tlnp | grep 5000  # Should show tilt process
 ### Need to reset everything?
 ```bash
 tilt down
-make cluster down
-make cluster up
-make deploy
+mise run cluster down
+mise run cluster up
+mise run deploy
 tilt up
 ```
 
 ## File Change Examples
 
-### Example 1: Update webserver code
+### Example 1: Update nexus-api code
 ```bash
-# Edit webserver/app/routes.py
-vi webserver/app/routes.py
+# Edit nexus/api/app/routes.py
+vi nexus/api/app/routes.py
 
-# Tilt detects change, syncs file, Flask auto-reloads
+# Tilt detects change, syncs file, FastAPI auto-reloads
 # Instantly see change at http://localhost:5000
 ```
 
-### Example 2: Add Python dependency to webserver
+### Example 2: Add Python dependency to nexus-api
 ```bash
-# Add to webserver/requirements.txt
-echo "new-package==1.0.0" >> webserver/requirements.txt
+# Add to nexus/api/requirements.txt
+echo "new-package==1.0.0" >> nexus/api/requirements.txt
 
 # Tilt detects change, rebuilds image, restarts pod
 # Takes ~30 seconds depending on package size
@@ -137,8 +137,8 @@ vi dagster/app/definitions/jobs.py
 
 ## Important Paths
 
-- **Webserver app**: `webserver/app/` → `/webserver/app/` in container
-- **Webserver migrations**: `webserver/migrations/` → Rebuilds image if changed
+- **nexus-api app**: `nexus/api/app/` → `/nexus/api/app/` in container
+- **nexus-api migrations**: `nexus/api/migrations/` → Rebuilds image if changed
 - **Dagster app**: `dagster/app/` → `/opt/dagster/home/app/` in container
 - **Both registries**: `localhost:5001` (push and pull)
 - **Kubectl namespace**: `fn` (set in .dev.env)

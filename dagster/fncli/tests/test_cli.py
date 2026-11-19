@@ -1,18 +1,17 @@
+import os
+
 import click
+from click.testing import CliRunner
 
 from fncli.cli import cli
-from fncli.cmds import common
+from fncli.cmds import common, state
 
 EXPECTED_COMMANDS = {
-    "hello-world", "demo", "experiment",
-    "setup-project", "open-pr", "teardown-project", "setup-backend", "teardown-backend",
-    "setup-gitea", "teardown-gitea", "verify-project", "verify-repo",
-    "init-backend-project", "delete-backend-project", "project-healthcheck",
-    "init-gitea-repo", "delete-gitea-repo", "init-backend-trigger-repo",
-    "init-backend-results-repo", "delete-backend-trigger-repo", "delete-backend-results-repo", "delete-backend-provider",
-    "init-git-secret", "init-dataset-secret", "init-backend-secret", "verify-git-secret",
-    "delete-secret", "delete-gitea-token",
-    "init-backend-dataset", "delete-backend-dataset",
+    "hello-world", "demo", "experiment", "diff", "apply", "delete", "plan",
+    "open-pr", "trigger", "verify-project", "verify-repo", "verify-git-secret", "delete-gitea-token", "project-healthcheck",
+    "project-show", "project-set", "resource-set", "global-set", "secret-set",
+    "simulate-setup", "simulate-run", "simulate-check", "simulate-teardown",
+    "start-sensor", "stop-sensor", "sensor-status",
     "create-gitea-branch", "commit-gitea-file", "create-gitea-pr", "merge-gitea-pr", "merge-results-pr",
 }
 
@@ -21,8 +20,8 @@ def test_every_expected_command_is_registered():
     assert EXPECTED_COMMANDS <= set(cli.commands)
 
 
-def test_there_are_49_commands():
-    assert len(cli.commands) == 49
+def test_there_are_31_commands():
+    assert len(cli.commands) == 31
 
 
 def test_every_command_has_help_text():
@@ -35,7 +34,18 @@ def test_the_group_is_a_click_group():
 
 def test_entity_configs_name_the_two_gitea_repos():
     assert set(common.ENTITY_CONFIGS) == {"trigger", "results"}
-    assert set(common.SECRET_CONFIGS) == {"trigger", "results", "dataset"}
+    assert set(state.SECRET_ENTITIES) == {"trigger", "results", "dataset"}
+
+
+def test_every_step_command_takes_the_context_and_the_project():
+    steps = [
+        "open-pr", "verify-project", "verify-repo", "verify-git-secret", "delete-gitea-token", "project-healthcheck",
+        "project-show", "project-set", "resource-set", "global-set", "secret-set",
+        "create-gitea-branch", "commit-gitea-file", "create-gitea-pr", "merge-gitea-pr", "merge-results-pr",
+    ]
+
+    for name in steps:
+        assert {"context", "project"} <= {param.name for param in cli.commands[name].params}, name
 
 
 def test_entity_option_offers_the_entity_configs_and_defaults_to_trigger():
@@ -51,3 +61,24 @@ def test_each_entity_has_its_own_token_name_and_scope():
     assert trigger.token_scope == "read:repository"
     assert results.token_scope == "write:repository"
     assert trigger.model_fields["token_name"].default != results.model_fields["token_name"].default
+
+
+def test_env_file_option_wins_over_dev_env_and_the_shell(tmp_path, monkeypatch):
+    (tmp_path / ".dev.env").write_text("FNCLI_TEST_VALUE=dev\n")
+    (tmp_path / ".other.env").write_text("FNCLI_TEST_VALUE=other\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("FNCLI_TEST_VALUE", "shell")
+
+    result = CliRunner().invoke(cli, ["--env-file", ".other.env", "hello-world"])
+
+    assert result.exit_code == 0, result.output
+    assert os.environ["FNCLI_TEST_VALUE"] == "other"
+
+
+def test_a_missing_env_file_is_a_clean_error(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = CliRunner().invoke(cli, ["--env-file", ".nope.env", "hello-world"])
+
+    assert result.exit_code == 1
+    assert ".nope.env not found" in result.output

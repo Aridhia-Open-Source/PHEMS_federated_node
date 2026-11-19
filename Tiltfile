@@ -1,22 +1,28 @@
 # Tilt configuration for federated_node development
 # Manages image builds and live reloads for:
-# - Webserver (Flask backend)
+# - nexus-api
 # - Dagster user code
 # - Dagster daemon and webserver
 
 #
 # Prerequisites:
-# - Kind cluster running (make cluster up)
-# - Helm deployed (make deploy)
+# - Kind cluster running (mise run cluster up)
+# - Helm deployed (mise run deploy)
 # Then: tilt up
 
 load('ext://restart_process', 'docker_build_with_restart')
 load('ext://dotenv', 'dotenv')
 
-# Load environment config from .dev.env
+# Load environment config: .generated.env (scripts/configure.sh) first, so .dev.env wins
+if os.path.exists('.generated.env'):
+  dotenv('.generated.env')
 dotenv('.dev.env')
 
 DOCKER_REGISTRY = 'localhost:5001'
+
+# CUSTOM_CA_FILE (optional): given to image builds as the BuildKit secret proxy_ca.
+CA_FILE = os.getenv('CUSTOM_CA_FILE', '')
+BUILD_SECRET = ['--secret', 'id=proxy_ca,src=' + os.path.abspath(CA_FILE)] if CA_FILE else []
 NAMESPACE = os.getenv('NAMESPACE', 'fn')
 RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
 # The code server is part of the Federated Node chart (templates/dagster-code-server.yaml),
@@ -33,10 +39,10 @@ DEV_URLS = []
 # Allow Tilt to control what K8s cluster to deploy to
 allow_k8s_contexts('kind-fn')
 
-# K8s resources are managed by Helm via `make deploy`. Tilt needs to know about
+# K8s resources are managed by Helm via `mise run deploy`. Tilt needs to know about
 # them to inject the restart wrapper.
 k8s_yaml(local(
-  'python3 scripts/tilt_manifests.py {ns} backend {dagster}'.format(
+  'python3 scripts/tilt_manifests.py {ns} nexus-api {dagster} nexus-ui'.format(
     ns=NAMESPACE,
     dagster=DAGSTER_DEPLOYMENT,
   ),
@@ -44,15 +50,16 @@ k8s_yaml(local(
 ))
 
 # ==============================================================================
-# WEBSERVER BACKEND
+# NEXUS API (nexus/api)
 # ==============================================================================
 # Image ref has NO tag: Tilt assigns its own tag and injects it into the
-# deployment, matching by the tag-stripped name.
+# deployment, matching by the tag-stripped name. uvicorn --reload picks up synced code itself.
 docker_build_with_restart(
-  '{}/webserver-fn'.format(DOCKER_REGISTRY),
-  'webserver',
+  '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
+  'nexus/api',
+  extra_flags=BUILD_SECRET,
   entrypoint=[
-    'python', '-m', 'flask', 'run',
+    'uvicorn', '--factory', 'app:create_app', '--reload',
     '--host=0.0.0.0', '--port=5000',
   ],
   only=[
@@ -64,12 +71,12 @@ docker_build_with_restart(
   live_update=[
     # Dependency / packaging changes => full rebuild
     fall_back_on([
-      'webserver/requirements.txt',
-      'webserver/alembic.ini',
-      'webserver/migrations',
+      'nexus/api/requirements.txt',
+      'nexus/api/alembic.ini',
+      'nexus/api/migrations',
     ]),
     # Python code changes => sync into the running container
-    sync('webserver/app', '/webserver/app'),
+    sync('nexus/api/app', '/nexus/app'),
   ],
 )
 
@@ -96,6 +103,7 @@ DAGSTER_IMAGE_FILES = [
 docker_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
   'dagster',
+  extra_flags=BUILD_SECRET,
   entrypoint=[],
   only=DAGSTER_IMAGE_FILES,
   # Test edits and pytest runs don't rebuild or restart the code server
@@ -116,7 +124,8 @@ docker_build_with_restart(
 # Run pods always pull, so the next run picks it up.
 local_resource(
   'dagster-run-image',
-  cmd='docker build dagster -t {img} && docker push {img}'.format(
+  cmd='docker build dagster {secret} -t {img} && docker push {img}'.format(
+    secret=' '.join(BUILD_SECRET),
     img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
   ),
   # Only what the code server and run pods use. The docs, fncli, CI and lint files next to it don't.
@@ -126,12 +135,30 @@ local_resource(
 )
 
 # ==============================================================================
+# NEXUS ADMIN UI
+# ==============================================================================
+# The chart runs the Vite dev server when nexus.ui.devServer is true (dev.values.yaml).
+# Tilt builds that dev image and syncs nexus/ui into it; Vite hot-reloads the page.
+docker_build(
+  '{}/nexus-ui-dev-fn'.format(DOCKER_REGISTRY),
+  'nexus/ui',
+  target='dev',
+  ignore=['node_modules', 'dist'],
+  live_update=[
+    fall_back_on(['nexus/ui/package.json', 'nexus/ui/package-lock.json']),
+    sync('nexus/ui', '/app'),
+  ],
+)
+k8s_resource('nexus-ui', port_forwards=['8088:5173'], labels=['dev'])
+DEV_URLS.append(('nexus UI', 'http://localhost:8088/nexus-ui/'))
+
+# ==============================================================================
 # STATUS HELPERS
 # ==============================================================================
 
-# Expose the backend locally
-k8s_resource('backend', port_forwards=['5000:5000'])
-DEV_URLS.append(('Backend API docs', 'http://localhost:5000/docs'))
+# Expose nexus-api locally
+k8s_resource('nexus-api', port_forwards=['5000:5000'])
+DEV_URLS.append(('nexus-api docs', 'http://localhost:5000/docs'))
 
 # kubectl port-forward exits when one of its connections breaks, and Tilt does not start
 # a serve_cmd again once it has exited. Loop, so a dead forward comes back after a second.
@@ -164,11 +191,20 @@ local_resource(
 DEV_URLS.append(('Gitea', 'http://localhost:4000'))
 
 # The experiments chart's database, in its own namespace and release rather than the node's.
-# Waits quietly until `fncli experiment up` has created it.
+# Waits quietly until `fncli experiment deploy` (run by `mise run deploy`) has created it.
 local_resource(
   'db-datasets-port-forward',
   serve_cmd='while true; do kubectl get svc db-datasets -n experiments >/dev/null 2>&1 && ' +
             'kubectl port-forward svc/db-datasets -n experiments 5433:5432; sleep 5; done',
+  labels=['infrastructure'],
+)
+
+# `mise run deploy` installs it; rerun this after adding an experiment to experiments/
+local_resource(
+  'experiments-deploy',
+  cmd='fncli experiment deploy',
+  trigger_mode=TRIGGER_MODE_MANUAL,
+  auto_init=False,
   labels=['infrastructure'],
 )
 
@@ -181,14 +217,14 @@ DEV_URLS.append(('Keycloak', 'http://localhost:8080'))
 
 local_resource(
   'deployment-check',
-  cmd='kubectl get deployment backend -n {ns} >/dev/null 2>&1 && echo "OK: deployments ready" || echo "MISSING: run make deploy"'.format(ns=NAMESPACE),
+  cmd='kubectl get deployment nexus-api -n {ns} >/dev/null 2>&1 && echo "OK: deployments ready" || echo "MISSING: run mise run deploy"'.format(ns=NAMESPACE),
   trigger_mode=TRIGGER_MODE_MANUAL,
   labels=['infrastructure'],
 )
 
 local_resource(
   'helm-status',
-  cmd='helm status {rel} -n {ns} >/dev/null 2>&1 && echo "OK: helm release {rel} deployed" || echo "MISSING: run make deploy"'.format(rel=RELEASE_NAME, ns=NAMESPACE),
+  cmd='helm status {rel} -n {ns} >/dev/null 2>&1 && echo "OK: helm release {rel} deployed" || echo "MISSING: run mise run deploy"'.format(rel=RELEASE_NAME, ns=NAMESPACE),
   trigger_mode=TRIGGER_MODE_MANUAL,
   labels=['infrastructure'],
 )

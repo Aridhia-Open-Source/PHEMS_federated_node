@@ -6,7 +6,7 @@ Sensor `results_delivery_retry_sensor` (`ResultsDeliveryRetrySensor`) and the jo
 
 ## 1. Purpose
 
-Relaunches `deliver_results_job` for each result whose delivery failed and may still work. The job zips the task's artifacts, pushes them to a branch of the project's results repository and opens a pull request into its default branch.
+Relaunches `deliver_results_job` for each result whose delivery failed and may still work. The job zips the task's artifacts and pushes them to a branch of the project's results repository. Delivery stops there: the result is `PUSHED` and `DELIVERED`, and `results_pull_request_sync_sensor` opens the pull request ([results PR sync](results-pr-sync.md)). A node that wants push-only stops that sensor: the results stay `PUSHED`.
 
 ## 2. When it runs
 
@@ -20,10 +20,10 @@ Relaunches `deliver_results_job` for each result whose delivery failed and may s
 | Who | Call | Filter or note |
 |---|---|---|
 | sensor | `GET /projects` | All projects, disabled and revoked ones too. |
-| sensor | `GET /projects/{id}/results` | `state=FAILED`, `active_resource=true` (the ProjectResultsRepository is enabled and not revoked, and its ResultsRepository and GitProvider are enabled and not revoked). The sensor then keeps results whose `step` is not final (`OPENED`, `MERGED`, `CLOSED`, `REVOKED`, `STALE`) and whose `attempts` is below the maximum. |
+| sensor | `GET /projects/{id}/results` | `state=FAILED`, `active_resource=true` (the ProjectResultsRepository is enabled and not revoked, and its ResultsRepository and GitProvider are enabled and not revoked). The sensor then keeps results whose `step` is not final (`PUSHED`, `OPENED`, `MERGED`, `CLOSED`, `REVOKED`, `STALE`) and whose `attempts` is below the maximum. |
 | sensor | `GET /projects/{id}/tasks/{task}` | The task's `executor_run_id`: the folder of its artifacts. |
 | job | task, its pinned config, `POST /projects/{id}/results`, `GET /global/repositories/results/{id}`, the task's trigger | The pinned `config_snapshot` gives the results repository and `target_dir`, because the project's resource may be deleted by now. |
-| job | git provider | Clone, push, find or open the pull request, with the ResultsRepository's secret. |
+| job | git provider | Clone and push, with the ResultsRepository's secret. It opens no pull request. |
 
 It considers every project, the ProjectResultsRepository that its results were delivered to (only active ones are retried), and the GlobalResource ResultsRepository through it. It does not look at the project's `enabled` or `revoked`.
 
@@ -57,7 +57,7 @@ flowchart TD
     B -->|"404 or 409"| S1(["Log and end: final, nothing retries"])
     B --> C{"Result step and state"}
     C -->|"REVOKED or STALE"| S2(["Log and end: never delivered, final"])
-    C -->|"OPENED, MERGED, CLOSED"| S3(["Already delivered: end"])
+    C -->|"PUSHED, OPENED, MERGED, CLOSED"| S3(["Already delivered: end"])
     C -->|"FAILED, error: results resource switched off, attempts 0"| S4["PATCH attempts +1 and end. The retry sensor delivers once the project resource is active."]
     C -->|otherwise| D["GET the ResultsRepository. A 404 or 409 ends it."]
     D --> E["If the state is FAILED: PATCH state IN_PROGRESS"]
@@ -65,16 +65,12 @@ flowchart TD
     F --> G["Clone the results repository with its secret's token"]
     G --> H{"Branch already on the remote?"}
     H -->|yes| K
-    H -->|no| I["Zip the artifacts of run_id, check the size cap, write spec.json and metadata.json, commit, push"]
-    I --> K["PATCH step PUSHED, branch, commit_sha"]
-    K --> L["Find the branch's pull request, or open one into the default branch"]
-    L --> M["PATCH step OPENED, MERGED or CLOSED, state DELIVERED, number, url, attempts +1, error cleared"]
+    H -->|no| I["Zip the artifacts of run_id, check the size cap, write spec.json and run.json, commit, push"]
+    I --> K["PATCH step PUSHED, state DELIVERED, branch, commit_sha, attempts 0, error cleared"]
     F -->|"any error"| ERR
     G -->|"any error"| ERR
     I -->|"any error"| ERR
-    K -->|"any error"| ERR
-    L -->|"any error"| ERR
-    M -->|"any error"| ERR["PATCH state FAILED, attempts +1, error text. Raise: the run fails."]
+    K -->|"any error"| ERR["PATCH state FAILED, attempts +1, error text. Raise: the run fails."]
 ```
 
 ## 5. What it produces
@@ -87,15 +83,16 @@ flowchart TD
 | Run config | `deliver_results: {project_id, task_id, run_id}`, with the task's `executor_run_id` as `run_id` |
 | Skip | `SkipReason("No failed deliveries to retry.")` |
 
-What the job writes: the result (`POST /projects/{id}/results`, then `PATCH` per step) and a branch `<target_dir>/<trigger repository name>/<pull request number>/<task id>-<first 7 characters of the merge sha>` holding `results.zip`, `spec.json` and `metadata.json`, and a pull request from it into the default branch. The zip is capped by `RESULTS_MAX_ZIP_BYTES` (10 MiB by default). The job never changes the task's status.
+What the job writes: the result (`POST /projects/{id}/results`, then `PATCH`) and a branch `<target_dir>/<trigger repository name>/<pull request number>/<task id>-<first 7 characters of the merge sha>` holding `results.zip`, `spec.json` (the pull request's spec file, byte for byte) and `run.json` (node, project, trigger, task and delivery details; `node.id` is the chart's `nodeId`, passed as `NODE_ID`). The zip is capped by `RESULTS_MAX_ZIP_BYTES` (10 MiB by default). The job never changes the task's status.
 
 ## 6. Retries and failure handling
 
 - The sensor relaunches a FAILED result whose step is not final, whose project resource is active and whose `attempts` is below the maximum. Every try, failed or not, adds one to `attempts`.
-- The job resumes. A branch already on the remote is not pushed again, its pull request is looked up before one is opened, and a pull request merged or closed meanwhile is recorded as such.
+- The job resumes. A branch already on the remote is not pushed again.
 - After the maximum the result stays FAILED. It is retried only by hand: reset `attempts` with a PATCH, or run `deliver_results_job` again.
 - A failure inside the job is written on the result (`FAILED`, the error text, one more attempt, the step left where it was) and raised, so the run fails visibly.
-- Final, never retried: a 404 or 409 from the backend (the project, task or repository is gone, or the task is not yet `SUCCESS`: logged, the run ends and nothing retries it); a result at `REVOKED` or `STALE`; a result at `OPENED`, `MERGED` or `CLOSED`.
+- A failure to open the pull request is not a delivery failure: the result stays `DELIVERED` at `PUSHED`, so this sensor never sees it. The results PR sensor retries it ([results PR sync](results-pr-sync.md)).
+- Final, never retried: a 404 or 409 from the backend (the project, task or repository is gone, or the task is not yet `SUCCESS`: logged, the run ends and nothing retries it); a result at `REVOKED` or `STALE`; a result at `PUSHED`, `OPENED`, `MERGED` or `CLOSED`.
 - A task pinned without a results repository fails the run before any result exists, so nothing retries it.
 - A delivery with a run queued or started is skipped, whichever sensor launched it. A failing check of one result is logged and the others still launch. The tick fails only when nothing launched.
 

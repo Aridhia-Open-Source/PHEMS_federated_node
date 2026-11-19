@@ -7,7 +7,7 @@ the old password is still baked into it and a newly generated one will not authe
 The data and the secret are one unit - keep both or neither:
 
   * start clean: delete the PersistentVolumeClaim and wipe storage.local.dbpath
-    (`make teardown` locally), then install again; or
+    (`mise run teardown` locally), then install again; or
 
   * restore the old secret:
       kubectl create secret generic {{ .Values.db.secret.name }} -n {{ .Release.Namespace }} \

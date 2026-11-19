@@ -1,6 +1,6 @@
 # Task and result state machines
 
-Three things only move one way: a trigger (`UNKNOWN` to `YIELDED` or `REJECTED`, both final), a task (`PENDING`, `QUEUED`, `RUNNING`, then `SUCCESS`, `FAILED` or `CANCELED`, all final) and a result's step (`UNKNOWN`, `PUSHED`, `OPENED`, then `MERGED`, `CLOSED`, `REVOKED` or `STALE`, all final and of equal rank). A result's state (`IN_PROGRESS`, `DELIVERED`, `FAILED`) is separate, so a failure never loses how far delivery got. The webserver refuses any other move with a 409, so a late or racing write cannot undo a final state. The task's status and the delivery are independent: a task is `SUCCESS` whether or not its results were delivered.
+Three things only move one way: a trigger (`UNKNOWN` to `YIELDED` or `REJECTED`, both final), a task (`PENDING`, `QUEUED`, `RUNNING`, then `SUCCESS`, `FAILED` or `CANCELED`, all final) and a result's step (`UNKNOWN`, `PUSHED`, `OPENED`, then `MERGED`, `CLOSED`, `REVOKED` or `STALE`, all final and of equal rank). A result's state (`IN_PROGRESS`, `DELIVERED`, `FAILED`) is separate, so a failure never loses how far delivery got. nexus-api refuses any other move with a 409, so a late or racing write cannot undo a final state. The task's status and the delivery are independent: a task is `SUCCESS` whether or not its results were delivered.
 
 The unit tests check every pair. These cases check the live pipeline: the sensors that write the states, the retries, and the reconcile sensor that repairs a missed event. Retrying a task is on hold for the beta ([permissions and out of scope](permissions-and-out-of-scope.md)).
 
@@ -14,7 +14,7 @@ Needs: the dev project with sensors running; an administrator token for the API 
 
 - **Expected:** steps 1 and 2 are 409 and the task is unchanged. Step 3 is 400. The pull request stays `YIELDED` whatever the task's status.
 - **Rule:** the task table is forward only; the only way out of a final status is a retry ([State transition tables for triggers, tasks and result steps; 409 on a refused move]).
-- **Automated by:** Automated: `webserver/tests/test_state_rules.py`, `webserver/tests/test_pull_requests_and_tasks.py` (`test_finished_tasks_cannot_change_status`, `test_bad_task_patches_are_400_and_change_nothing`, `test_patching_a_pr_task_status_leaves_the_trigger_yielded`). Real sensors racing the API are not tested.
+- **Automated by:** Automated: `nexus/api/tests/test_state_rules.py`, `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_finished_tasks_cannot_change_status`, `test_bad_task_patches_are_400_and_change_nothing`, `test_patching_a_pr_task_status_leaves_the_trigger_yielded`). Real sensors racing the API are not tested.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -27,7 +27,7 @@ Needs: the dev project with sensors running; an administrator token for the API 
 
 - **Expected:** steps 1 to 3 are 409 and nothing changes. Step 4 is 400 (a cause is required for `REJECTED`).
 - **Rule:** `YIELDED` and `REJECTED` have no moves; a task is made only from an `UNKNOWN` trigger of an active project resource ([State transition tables for triggers, tasks and result steps; 409 on a refused move]).
-- **Automated by:** Automated: `webserver/tests/test_state_rules.py`, `webserver/tests/test_pull_requests_and_tasks.py` (`test_patch_state_unknown_to_yielded_is_final`, `test_rejected_trigger_cannot_go_back_to_unknown`, `test_only_unknown_triggers_of_an_active_resource_get_a_task`). It misses a live node.
+- **Automated by:** Automated: `nexus/api/tests/test_state_rules.py`, `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_patch_state_unknown_to_yielded_is_final`, `test_rejected_trigger_cannot_go_back_to_unknown`, `test_only_unknown_triggers_of_an_active_resource_get_a_task`). It misses a live node.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -40,7 +40,7 @@ Needs: the dev project with sensors running; an administrator token for the API 
 
 - **Expected:** steps 1 to 3 are 409 and nothing changes. Step 4 is accepted and the step is unchanged (a failure sets the state, not the step).
 - **Rule:** the step is forward only; `MERGED`, `CLOSED`, `REVOKED` and `STALE` are final and of equal rank; the state is separate ([Polymorphic Result, PullRequestResult, a forward-only step and a separate state]; [State transition tables for triggers, tasks and result steps; 409 on a refused move]).
-- **Automated by:** Automated: `webserver/tests/test_state_rules.py`, `webserver/tests/test_results_and_delivery.py` (`test_step_is_forward_only`, `test_patching_a_result_to_failed_leaves_its_step_alone`). A late delivery retry racing the sync sensor cannot be timed by hand.
+- **Automated by:** Automated: `nexus/api/tests/test_state_rules.py`, `nexus/api/tests/test_results_and_delivery.py` (`test_step_is_forward_only`, `test_patching_a_result_to_failed_leaves_its_step_alone`). A late delivery retry racing the sync sensor cannot be timed by hand.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -75,9 +75,9 @@ fncli stops the reconcile sensor together with the run-status sensors (`--group 
 1. Merge a watched pull request with a task that takes long enough. In the Dagster UI terminate its `k8s_pipes_job` run.
 2. Watch the task for several intervals.
 
-- **Expected:** the task goes `CANCELED` and stays there; no result is made; the pull request stays `YIELDED`. The webserver has no cancel route of its own (cancel is not implemented there).
+- **Expected:** the task goes `CANCELED` and stays there; no result is made; the pull request stays `YIELDED`. nexus-api has no cancel route of its own (cancel is not implemented there).
 - **Rule:** the task status mirrors the run's; `CANCELED` is final ([Task status is written by the run-status sensors and the reconcile sensor]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_task_run_status_sensor.py` (the mapping, including canceled); `webserver/tests/test_pull_requests_and_tasks.py` (`test_cancel_is_not_implemented_and_leaves_the_task_alone`). No test cancels a live run.
+- **Automated by:** Partly automated: `dagster/app/tests/test_task_run_status_sensor.py` (the mapping, including canceled); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_cancel_is_not_implemented_and_leaves_the_task_alone`). No test cancels a live run.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -99,7 +99,7 @@ Takes several retry intervals (60 seconds each by default; five attempts by defa
 
 1. Merge a watched pull request. While the task runs: `fncli delete-gitea-token --entity results` (the results token is lost).
 2. Wait for the result. Watch `fncli project-show` results and the Dagster UI for `deliver-retry` runs, for at least six retry intervals. Note `attempts` (`GET /projects/<pid>/results/<id>`).
-3. `fncli init-git-secret --entity results` and `fncli verify-git-secret --entity results`. Wait three more intervals.
+3. `fncli apply -f examples/globals-e2e.yaml --rotate results -y` and `fncli verify-git-secret --entity results`. Wait three more intervals.
 
 - **Expected:** the result is `FAILED` with an error each attempt, its step unchanged, `attempts` going up by one per try, one try per retry interval at most. After the maximum (five by default) the sensor stops launching. The task stays `SUCCESS`. After step 3 the result is still not delivered on its own: it stays `FAILED` until `attempts` is reset by hand (`PATCH` the result) or the delivery job is run again. Nothing alerts anyone.
 - **Rule:** a delivery with the maximum failed attempts is not retried; it stays `FAILED` until relaunched by hand ([Run keys, retries and the results pull request sync]). The missing alert is an open question in [Enabled, revoked and soft delete].
@@ -109,7 +109,7 @@ Takes several retry intervals (60 seconds each by default; five attempts by defa
 
 ## A delivery recovers if the token is restored within the attempts
 
-1. As in the previous case, but restore the token (`fncli init-git-secret --entity results`) after the first or second failed attempt.
+1. As in the previous case, but restore the token (`fncli apply -f examples/globals-e2e.yaml --rotate results -y`) after the first or second failed attempt.
 
 - **Expected:** the next retry delivers: the branch is pushed, the pull request opened, step `OPENED`, state `DELIVERED`, `error` cleared, `attempts` counted. Exactly one results pull request.
 - **Rule:** the retry resumes from the step reached and clears the error on success ([Results delivered as a pushed branch plus a results pull request]; [Run keys, retries and the results pull request sync]).

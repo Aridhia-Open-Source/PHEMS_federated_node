@@ -11,7 +11,7 @@ Needs: the administrator's login. Never write a password or token into the notes
 
 - **Expected:** both return 200 and a list. No Secret value is in the response.
 - **Rule:** creating GlobalResources and writing their flags needs the admin role ([Global resources and project resources]).
-- **Automated by:** Partly automated: the failure suite logs in as the first Keycloak user before it starts (`dagster/fncli/tests/e2e/test_failure_paths.py`, the admin login check). The webserver tests mock Keycloak, so real logins are not covered elsewhere.
+- **Automated by:** Partly automated: the failure suite logs in as the first Keycloak user before it starts (`dagster/fncli/tests/e2e/test_failure_paths.py`, the admin login check). nexus-api tests mock Keycloak, so real logins are not covered elsewhere.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -21,8 +21,8 @@ Needs: the administrator's login. Never write a password or token into the notes
 2. Open `fncli sensor-status` after a few intervals.
 
 - **Expected:** both fncli calls succeed. No sensor tick fails with an authentication error.
-- **Rule:** the Dagster side authenticates to the backend with a Keycloak System user ([Authorization detached from DAR, Keycloak and whitelisted images]).
-- **Automated by:** Partly automated: `webserver/tests/test_system_user_routes.py` (mocked Keycloak) and every end-to-end run; it misses expiry and refresh (see [failures mid-flow and limits](failures-mid-flow-and-limits.md)).
+- **Rule:** the Dagster side authenticates to nexus-api with a Keycloak System user ([Authorization detached from DAR, Keycloak and whitelisted images]).
+- **Automated by:** Partly automated: `nexus/api/tests/test_system_user_routes.py` (mocked Keycloak) and every end-to-end run; it misses expiry and refresh (see [failures mid-flow and limits](failures-mid-flow-and-limits.md)).
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -33,7 +33,7 @@ Needs: the administrator's login. Never write a password or token into the notes
 
 - **Expected:** step 1 is refused with 403 and nothing changes. Step 2 returns 200 both ways.
 - **Rule:** `revoked` is set only by administrators; the pipeline's System user can never revoke ([Enabled, revoked and soft delete]).
-- **Automated by:** Partly automated: `webserver/tests/test_system_user_routes.py`, `dagster/fncli/tests/test_state.py` (which login each command uses) and the end-to-end revoke groups. The tests mock the role check.
+- **Automated by:** Partly automated: `nexus/api/tests/test_system_user_routes.py`, `dagster/fncli/tests/test_state.py` (which login each command uses) and the end-to-end revoke groups. The tests mock the role check.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -45,7 +45,7 @@ Needs a Keycloak user without the Administrator role. If there is none, mark Not
 
 - **Expected:** both are refused (403). Record what a normal user can read, for the follow-up work.
 - **Rule:** `revoked` needs the Administrator role on every route that has it; global writes need the admin scope ([docs/architecture/revoke-and-enabled.md#who-may-do-what]).
-- **Automated by:** Partly automated: `webserver/tests/test_trigger_repositories_and_resources.py` (`test_revoke_admin_only`) and `webserver/tests/test_global_resources.py` (non-admin refused on the write routes). The mocked Keycloak lets a non-admin token through every scope except `revoked`, so scopes are not tested for real.
+- **Automated by:** Partly automated: `nexus/api/tests/test_trigger_repositories_and_resources.py` (`test_revoke_admin_only`) and `nexus/api/tests/test_global_resources.py` (non-admin refused on the write routes). The mocked Keycloak lets a non-admin token through every scope except `revoked`, so scopes are not tested for real.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -56,7 +56,7 @@ Needs a Keycloak user without the Administrator role. If there is none, mark Not
 
 - **Expected:** 400 each time, and nothing is created or changed.
 - **Rule:** `revoked` is the controller's flag, set only by an admin `PATCH` ([Global resources and project resources]).
-- **Automated by:** Automated: `webserver/tests/test_create_refuses_revoked.py` for the create routes (it misses real roles, since Keycloak is mocked). The PUT case is a rule in the decision; check it by hand.
+- **Automated by:** Automated: `nexus/api/tests/test_create_refuses_revoked.py` for the create routes (it misses real roles, since Keycloak is mocked). The PUT case is a rule in the decision; check it by hand.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -66,7 +66,7 @@ Needs a Keycloak user without the Administrator role. If there is none, mark Not
 
 - **Expected:** 401 or 403, and no data.
 - **Rule:** every caller goes through the plain authorization check, a valid token and the endpoint's scope ([Authorization detached from DAR, Keycloak and whitelisted images]). The password reset route is the one known exception (check).
-- **Automated by:** Partly automated: `webserver/tests/test_all_tasks_list.py` (`test_unauthenticated_is_refused`) and `webserver/tests/test_task_launch.py`; they use the mocked Keycloak.
+- **Automated by:** Partly automated: `nexus/api/tests/test_all_tasks_list.py` (`test_unauthenticated_is_refused`) and `nexus/api/tests/test_task_launch.py`; they use the mocked Keycloak.
 - [ ] Pass
 - [ ] Fail — notes:
 

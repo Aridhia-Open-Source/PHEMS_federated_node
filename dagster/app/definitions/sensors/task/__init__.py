@@ -13,12 +13,13 @@ from app.definitions.sensors.task.delivery import (
 )
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
 from app.definitions.sensors.task.pull_request_sync import (
+    open_results_pull_request_job,
     results_pull_request_sync_sensor,
     sync_results_pull_requests_job,
 )
 from app.definitions.sensors.task.reconcile import task_reconcile_sensor
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
-from app.utils import BackendAdapter, BackendSession
+from app.utils import BackendSession, PasswordFileAdapter
 
 
 @dg.sensor(
@@ -41,14 +42,14 @@ def task_launcher_sensor(context: OpExecCtx):
 
 def _record_run_status(context: RunStatusSensorContext):
     """Record the status of a task run on its task."""
-    if context.dagster_run.tags.get("trigger") != "task":
+    if context.dagster_run.tags.get("fn/trigger") != "task":
         return
 
     backend_config = BackendConfig()
-    backend_adapter = BackendAdapter(
+    backend_adapter = PasswordFileAdapter(
         base_url=backend_config.uri,
         username=backend_config.user,
-        password=backend_config.password
+        password_file=backend_config.password_file
     )
     backend_session = BackendSession(adapter=backend_adapter)
     backend_api = BackendAPI(session=backend_session)
@@ -124,4 +125,4 @@ SENSORS = [
     results_pull_request_sync_sensor,
 ]
 
-JOBS = [deliver_results_job, sync_results_pull_requests_job]
+JOBS = [deliver_results_job, sync_results_pull_requests_job, open_results_pull_request_job]

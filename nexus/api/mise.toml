@@ -1,0 +1,6 @@
+# nexus/api requires Python >= 3.13 (pyproject.toml, Dockerfile)
+[tools]
+python = "3.13"
+
+[env]
+_.python.venv = { path = ".venv", create = true }

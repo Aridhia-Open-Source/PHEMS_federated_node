@@ -181,7 +181,7 @@ initiated by an authenticated user:
 - *3* The job’s pod will have the 2 storage environments mounted. It
   fetches the tasks result folder and zips it.
 
-- *4* The webserver reads the zip contents from the live job pod and
+- *4* nexus-api reads the zip contents from the live job pod and
   saves it in its own storage account environment.
 
 - *5* The resulting archive is returned to the end user

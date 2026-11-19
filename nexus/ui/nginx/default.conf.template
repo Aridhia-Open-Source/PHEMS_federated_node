@@ -1,0 +1,21 @@
+server {
+    listen 8080;
+    root /usr/share/nginx/html;
+
+    # /nexus-ui/api/<path> -> ${NEXUS_API_URL}/<path>
+    location /nexus-ui/api/ {
+        proxy_pass ${NEXUS_API_URL}/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 50m;
+    }
+
+    location /nexus-ui/ {
+        try_files $uri $uri/ /nexus-ui/index.html;
+    }
+
+    location = /healthz {
+        return 200 "ok";
+    }
+}

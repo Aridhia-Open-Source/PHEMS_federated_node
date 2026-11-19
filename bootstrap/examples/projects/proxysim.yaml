@@ -1,0 +1,16 @@
+# The project of scripts/proxy-sim-sensors.sh, and what it is assigned: the repositories are in globals-proxysim.yaml, the
+# dataset demo-db is the demo experiment's (fncli experiment setup demo). Apply the globals first.
+version: 1
+
+projects:
+  - name: proxysim
+    datasets: [demo-db]
+    repositories:
+      triggers:
+        - repository: https://gitea.proxysim.test/gitea_admin/proxysim-trigger
+          watch_dir: specs/
+          base_branch: main
+      results:
+        repository: https://gitea.proxysim.test/gitea_admin/proxysim-results
+        target_dir: results/
+        base_branch: main

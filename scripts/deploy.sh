@@ -2,17 +2,29 @@
 set -euo pipefail
 
 ###############################################################################
-# Helm Deployment - Sets up namespaces, secrets, and deploys Helm release
+# Helm Deployment - Sets up namespaces, secrets, and deploys Helm release.
+# Safe to rerun: it upgrades the release and restarts the app pods, so new images
+# (tagged latest) are picked up. There is no separate upgrade script.
 ###############################################################################
 
-source .dev.env
+source scripts/load_env.sh
+export CUSTOM_CA_FILE   # build_images.sh passes it to image builds
+
+# generated.values.yaml (scripts/configure.sh: the chart's proxy and customCA) goes
+# first, so what you set in $VALUES_FILE wins.
+VALUES_ARGS=(-f "$VALUES_FILE")
+if [ -f k8s/federated-node/generated.values.yaml ]; then
+  VALUES_ARGS=(-f generated.values.yaml "${VALUES_ARGS[@]}")
+fi
 
 ./scripts/deploy_owner.sh claim
 
 echo
 echo "=== Validating Helm templates ==========================================="
 
-(cd k8s/federated-node && helm template "$RELEASE_NAME" . -f "$VALUES_FILE" --namespace "$NAMESPACE" > /dev/null)
+# charts/ is gitignored: build the subcharts so a fresh checkout deploys with no extra step
+mise run helm deps
+(cd k8s/federated-node && helm template "$RELEASE_NAME" . "${VALUES_ARGS[@]}" --namespace "$NAMESPACE" > /dev/null)
 
 # Host directory backing the cluster's local PVs. cluster.sh bind-mounts it to /data
 # in the kind node, which is what the chart's storage.local.* values point at. Under
@@ -28,20 +40,32 @@ HOST_MOUNT_PATHS=(
 echo
 echo "=== Terminating tilt sessions =================================================="
 
+# Tilt injects a `command` the chart does not manage, so Helm's three-way merge keeps it
+# while resetting the image, and the pod then dies on a missing /tilt-restart-wrapper.
+
 if command -v tilt &> /dev/null; then
-  if pgrep -f "tilt serve" > /dev/null; then
+  if pgrep -f "tilt up" > /dev/null; then
     tilt down
+    pkill -f "tilt up"
     echo "Terminated tilt session"
   else
     echo "No tilt sessions found"
   fi
 fi
 
+# A Tilt session that ended without `tilt down` leaves that command behind too.
+for d in $(kubectl get deployments -n "$NAMESPACE" -o name 2>/dev/null); do
+  if [ "$(kubectl get "$d" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].command[0]}')" = /tilt-restart-wrapper ]; then
+    echo "Removing Tilt's command from $d"
+    kubectl patch "$d" -n "$NAMESPACE" --type json -p '[{"op":"remove","path":"/spec/template/spec/containers/0/command"}]'
+  fi
+done
+
 echo
 echo "=== Reconciling PersistentVolumes ======================================"
 
 if [ ! -d "$FN_DATA_DIR" ]; then
-  echo "$FN_DATA_DIR does not exist - run ./scripts/cluster.sh up first, since the"
+  echo "$FN_DATA_DIR does not exist - run mise run cluster up first, since the"
   echo "bind mount into the kind node is set when the cluster is created." >&2
   exit 1
 fi
@@ -56,7 +80,7 @@ for path in "${HOST_MOUNT_PATHS[@]}"; do
   # 0700 - Postgres refuses to start on a group- or world-accessible data directory - so on
   # any later run this chmod is both impossible (the directory now belongs to uid 70 and we
   # are not root) and wrong (it would put PGDATA back into a state Postgres rejects). Under
-  # `set -e` that failure aborted the deploy, so `make deploy` only ever worked once per
+  # `set -e` that failure aborted the deploy, so `mise run deploy` only ever worked once per
   # fresh data directory.
   #
   # Tested with -O rather than emptiness: a 0700 directory owned by another uid is one we
@@ -71,7 +95,7 @@ done
 echo
 echo "=== Building Docker Images(s) ========================================"
 
-./scripts/build_all_images.sh $DOCKER_TAG
+scripts/build_images.sh
 
 echo
 echo "=== Creating Namespace ==================================================="
@@ -96,26 +120,53 @@ if [ "${POSTGRES_EXTERNAL:-false}" = "true" ]; then
     --dry-run=client -o yaml -n "$NAMESPACE" | kubectl apply -f - -n "$NAMESPACE"
 fi
 
+# CUSTOM_CA_FILE (optional): a CA the release trusts for outbound TLS. See custom_ca.sh.
+source ./scripts/custom_ca.sh
+custom_ca_prepare
+
 echo
 echo "=== Deploying Helm Release =============================================="
 
+# A first deploy has no pods running old images, so only a rerun needs the restart below.
+RELEASE_EXISTS=false
+if helm status "$RELEASE_NAME" --namespace "$NAMESPACE" > /dev/null 2>&1; then
+  RELEASE_EXISTS=true
+fi
+
 cd k8s/federated-node
 
-echo "Helm install command:"
-echo "  helm install $RELEASE_NAME . -f $VALUES_FILE --timeout 10m --namespace $NAMESPACE --debug"
+echo "Helm command:"
+echo "  helm upgrade --install $RELEASE_NAME . ${VALUES_ARGS[*]} --timeout 30m --namespace $NAMESPACE --debug"
 echo
 
-helm install "$RELEASE_NAME" . \
-  -f "$VALUES_FILE" \
-  --timeout 10m \
+helm upgrade --install "$RELEASE_NAME" . \
+  "${VALUES_ARGS[@]}" \
+  --timeout 30m \
   --set "firstUserSecret.email=$KEYCLOAK_FIRST_USER_EMAIL" \
   --namespace "$NAMESPACE" \
   --debug
 
 cd - > /dev/null
 
+# The image tag is latest, so Helm sees no change: restart the app deployments to pick up
+# a new build. Only these, not Keycloak and the Postgres instances too.
+if [ "$RELEASE_EXISTS" = "true" ]; then
+  echo
+  echo "=== Restarting the app deployments ======================================"
+  kubectl rollout restart -n "$NAMESPACE" \
+    deployment/nexus-api \
+    "deployment/${RELEASE_NAME}-${DAGSTER_USER_DEPLOYMENT:-dagster-fn}" \
+    "deployment/${RELEASE_NAME}-dagster-daemon" \
+    "deployment/${RELEASE_NAME}-dagster-webserver"
+fi
+
 kubectl config set-context \
   --current --namespace="$NAMESPACE"
+
+echo
+echo "=== Experiments Release ================================================="
+# The demo and experiment databases, in their own release so they outlive a teardown
+fncli experiment deploy
 
 echo
 echo "=== Helm Deployment Complete ==========================================="

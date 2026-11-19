@@ -1,0 +1,33 @@
+# Global resources for the demo on an existing GitHub repo, replacing .demo-github.env.example: the provider, the
+# secret and the repo. The demo's project is in projects/demo-github.yaml. fncli never creates or deletes GitHub repos
+# or tokens. No secret values: each says where it is read from.
+#   fncli apply -f examples/globals-github.yaml
+#   fncli apply -f examples/projects/demo-github.yaml
+#   fncli demo -f examples/projects/demo-github.yaml
+#   fncli delete -f examples/projects/demo-github.yaml; fncli delete -f examples/globals-github.yaml --all   (clean up)
+# The node mints its tokens from the GitHub App in SETUP_GIT_APPS.md. GH_APP_ID and GH_INSTALLATION_ID come from the
+# context's env_file (bootstrap/context.yaml); keep the App's private key in the file named below. The demo's own pull
+# requests into the trigger repo use RESEARCHER_GIT_TOKEN, or else the token of `gh auth login`.
+# Copy a file to your own name (bootstrap/globals.yaml) to change it: your own files are gitignored.
+version: 1
+
+providers:
+  - type: github
+    uri: https://github.com                        # api_uri defaults to https://api.github.com
+
+secrets:
+  phems-sandbox-creds:                             # shared by the trigger and the results repository
+    values:
+      APP_ID:          {env: GH_APP_ID}
+      INSTALLATION_ID: {env: GH_INSTALLATION_ID}
+      PRIVATE_KEY:     {file: ~/.config/phems/phems-sandbox.private-key.pem}
+
+# One repo is both the trigger repo and the results repo: the sensor only picks up PRs that change files
+# under the watch dir, so the results PRs are not seen as triggers.
+repositories:
+  triggers:
+    - uri: "https://github.com/Aridhia-Open-Source/phems-sandbox"
+      secret: phems-sandbox-creds
+  results:
+    - uri: "https://github.com/Aridhia-Open-Source/phems-sandbox"
+      secret: phems-sandbox-creds

@@ -3,7 +3,12 @@ from typing import cast
 
 from kubernetes import client
 from kubernetes.client import V1Secret
-from kubernetes.config import load_kube_config
+from kubernetes.config import list_kube_config_contexts, load_kube_config
+
+
+def current_context() -> str:
+    """The name of the kubectl context that cluster secrets are read from"""
+    return list_kube_config_contexts()[1]["name"]
 
 
 def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
@@ -14,6 +19,12 @@ def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
     if secret.data is None:
         raise ValueError(f"Secret {secret_name} has no data")
     return base64.b64decode(secret.data[key].encode()).decode()
+
+
+def remove_k8s_secret_keys(secret_name: str, namespace: str, keys: list[str]):
+    """Remove keys from a Kubernetes secret and leave the others as they are."""
+    load_kube_config()
+    client.CoreV1Api().patch_namespaced_secret(secret_name, namespace, {"data": {key: None for key in keys}})
 
 
 CODE_SERVER_CONTAINER = "dagster-code-server"

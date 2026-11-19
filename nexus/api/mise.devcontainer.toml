@@ -1,0 +1,2 @@
+[env]
+_.python.venv = { path = "/home/vscode/venvs/nexus-api", create = true }

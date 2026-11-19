@@ -1,6 +1,6 @@
 # Entities and state machines
 
-The final backend schema (`webserver/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0004](../../project/decisions/0004-polymorphic-result-and-forward-only-state.md), [0005](../../project/decisions/0005-state-transition-tables.md) (the state tables behind the three diagrams below), [0006](../../project/decisions/0006-global-resources-and-project-resources.md), [0008](../../project/decisions/0008-enabled-revoked-and-soft-delete.md), [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
+The final backend schema (`nexus/api/migrations/versions/001_baseline.py`), the two inheritance trees, and the three state machines. Decisions: [0001](../../project/decisions/0001-polymorphic-triggers.md), [0003](../../project/decisions/0003-task-status-written-by-run-status-sensors.md), [0004](../../project/decisions/0004-polymorphic-result-and-forward-only-state.md), [0005](../../project/decisions/0005-state-transition-tables.md) (the state tables behind the three diagrams below), [0006](../../project/decisions/0006-global-resources-and-project-resources.md), [0008](../../project/decisions/0008-enabled-revoked-and-soft-delete.md), [0011](../../project/decisions/0011-pull-requests-stored-once-fan-out-and-cursors.md) (pull requests and cursors), [0015](../../project/decisions/0015-run-keys-retries-and-results-pr-sync.md).
 
 Not drawn: `audit`, `registries`, `whitelisted_images`, `catalogues`, `dictionaries`, `dars` (disconnected, [0017](../../project/decisions/0017-authorization-detached-from-dar-and-keycloak.md)) and `results_backends` (present in the baseline, unused by the pipeline).
 
@@ -146,6 +146,10 @@ erDiagram
         string image
         int dataset_id FK "optional"
         json env
+        json compute "CPU and memory requests and limits the spec gave"
+        json tags "copied onto the run"
+        json config "optional, the file the task reads"
+        json metadata "optional, the client's own"
     }
     results {
         int id PK
@@ -292,12 +296,12 @@ The run-status sensors write the status, the reconcile sensor repairs one they m
 stateDiagram-v2
     [*] --> UNKNOWN : POST /projects/<id>/results (idempotent)
     UNKNOWN --> PUSHED : branch pushed (delivery job)
-    PUSHED --> OPENED : results PR opened (delivery job)
-    PUSHED --> OPENED : PR found by branch (sync sensor)
+    PUSHED --> OPENED : results PR opened (results PR sensor)
+    PUSHED --> OPENED : PR found by branch (results PR sensor)
     OPENED --> MERGED : PR merged (sync sensor)
     OPENED --> CLOSED : PR closed unmerged (sync sensor)
-    PUSHED --> MERGED : delivery found its PR already merged
-    PUSHED --> CLOSED : delivery found its PR already closed
+    PUSHED --> MERGED : sensor found its PR already merged
+    PUSHED --> CLOSED : sensor found its PR already closed
     [*] --> REVOKED : POST /projects/<id>/results when something the task uses is revoked or deleted
     UNKNOWN --> REVOKED : the same POST again, something is revoked by now
     PUSHED --> REVOKED : the same POST again, something is revoked by now
@@ -308,4 +312,4 @@ stateDiagram-v2
     STALE --> [*]
 ```
 
-Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED = REVOKED = STALE`. A PATCH to the same step is accepted; to an earlier step, or out of `MERGED`, `CLOSED`, `REVOKED` or `STALE`, is a 409. The step is ordered by `RESULT_ORDER`. `state` (`IN_PROGRESS`, `DELIVERED`, `FAILED`) is a separate column with no move table. A failed delivery leaves the step, sets state `FAILED` and records `error` and `attempts`.
+Forward only: `UNKNOWN < PUSHED < OPENED < MERGED = CLOSED = REVOKED = STALE`. A PATCH to the same step is accepted; to an earlier step, or out of `MERGED`, `CLOSED`, `REVOKED` or `STALE`, is a 409. The step is ordered by `RESULT_ORDER`. `state` (`IN_PROGRESS`, `DELIVERED`, `FAILED`) is a separate column with no move table. A failed push leaves the step, sets state `FAILED` and records `error` and `attempts`. A push sets `PUSHED` with state `DELIVERED`; a failed opening of the results PR records `error` and `attempts` and leaves the state `DELIVERED`. With the results PR sensor stopped (push-only) a result stays at `PUSHED`.

@@ -11,7 +11,7 @@ Two flags control what a project, a GlobalResource or a ProjectResource may do. 
 |---|---|---|
 | Meaning | Switched off for now | Access withdrawn |
 | Effect | Stops new work. Work in flight finishes. Waiting work resumes when switched back on (a Dataset is the exception, see the table below) | Blocks the work. A result recorded while the revoke holds is never delivered |
-| Who sets it | Project routes: the `can_admin_dataset` scope. GlobalResource routes: the admin scope | Administrators only (`PATCH`, field `revoked`; 403 otherwise). The pipeline's System user can never set it |
+| Who sets it | Project and GlobalResource routes: the admin scope (`can_do_admin`) | Administrators only (`PATCH`, field `revoked`; 403 otherwise). The pipeline's System user can never set it |
 | Undo | `PATCH {"enabled": true}` | `PATCH {"revoked": false}` |
 
 Revoke never changes `enabled`, and un-revoke never re-enables. A result already `REVOKED` stays final. A task that failed needs a manual retry (`POST /projects/<pid>/tasks/<id>/retry`).
@@ -27,7 +27,7 @@ Revoke never changes `enabled`, and un-revoke never re-enables. A result already
 
 A TriggerRepository or ResultsRepository is **active** when it is enabled and not revoked and so is its GitProvider. A ProjectResource is **active** when that holds for its GlobalResource and the ProjectResource itself is enabled and not revoked. A `ProjectTriggerRepository` accepts triggers only if its project is also enabled and not revoked. GlobalResource flags are read live, so they apply to ProjectResources created later too.
 
-"Active" is the usable-now test. The blocked test (`revoked_resources` in `webserver/app/helpers/task_config.py`) looks only at `revoked` and `deleted_at`, never at `enabled`.
+"Active" is the usable-now test. The blocked test (`revoked_resources` in `nexus/api/app/helpers/task_config.py`) looks only at `revoked` and `deleted_at`, never at `enabled`.
 
 ## May a waiting task launch?
 

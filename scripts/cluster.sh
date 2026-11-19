@@ -14,14 +14,23 @@ COMMAND="${1:-}"
 REMOVE_REGISTRIES="${2:-false}"
 
 # Load env
-source .dev.env
+source scripts/load_env.sh
 
-CLUSTER_NAME="${CLUSTER_NAME:-fn}"
+# The cluster is the one bootstrap/context.yaml points fncli at (node.kube_context is
+# kind-<name>), so the cluster tasks and fncli always agree. The example's until it is copied.
+CONTEXT_FILE=bootstrap/context.yaml
+[ -f "$CONTEXT_FILE" ] || CONTEXT_FILE=bootstrap/examples/context.yaml
+KUBE_CONTEXT="$(sed -n 's/^ *kube_context: *\([^ #]*\).*/\1/p' "$CONTEXT_FILE")"
+CLUSTER_NAME="${KUBE_CONTEXT#kind-}"
 KIND_CONFIG_FILE=".kind/kind-config.yaml"
 
 # Host directory backing the cluster's local PVs, bind-mounted to /data in the node.
 # Under $HOME so nothing here needs sudo.
 FN_DATA_DIR="${FN_DATA_DIR:-$HOME/.fn/data}"
+
+# Where the pull-through mirrors fetch from.
+DOCKERHUB_UPSTREAM="${DOCKERHUB_UPSTREAM:-https://registry-1.docker.io}"
+GHCR_UPSTREAM="${GHCR_UPSTREAM:-https://ghcr.io}"
 
 # Show usage if no command
 if [ -z "$COMMAND" ] || [ "$COMMAND" != "up" ] && [ "$COMMAND" != "down" ]; then
@@ -59,7 +68,7 @@ if [ "$COMMAND" = "up" ]; then
     docker run \
       -d --restart=always \
       -p "127.0.0.1:5002:5000" \
-      -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
+      -e REGISTRY_PROXY_REMOTEURL="$DOCKERHUB_UPSTREAM" \
       --name proxy-docker-hub-registry \
       registry:2
   else
@@ -72,7 +81,7 @@ if [ "$COMMAND" = "up" ]; then
     docker run \
       -d --restart=always \
       -p "127.0.0.1:5003:5000" \
-      -e REGISTRY_PROXY_REMOTEURL=https://ghcr.io \
+      -e REGISTRY_PROXY_REMOTEURL="$GHCR_UPSTREAM" \
       --name proxy-ghcr-registry \
       registry:2
   else
@@ -94,7 +103,19 @@ if [ "$COMMAND" = "up" ]; then
     RENDERED_CONFIG="$(mktemp)"
     trap 'rm -f "$RENDERED_CONFIG"' EXIT
     sed "s|__FN_DATA_DIR__|$FN_DATA_DIR|" "$KIND_CONFIG_FILE" > "$RENDERED_CONFIG"
+    # CUSTOM_CA_FILE (optional): mount the CA into the node so containerd trusts it for image pulls.
+    NODE_CA=/usr/local/share/ca-certificates/fn-custom-ca.crt
+    if [ -n "${CUSTOM_CA_FILE:-}" ]; then
+      [ -s "$CUSTOM_CA_FILE" ] || { echo "CUSTOM_CA_FILE=$CUSTOM_CA_FILE is missing or empty" >&2; exit 1; }
+      CA_ABS="$(cd "$(dirname "$CUSTOM_CA_FILE")" && pwd)/$(basename "$CUSTOM_CA_FILE")"
+      awk -v host="$CA_ABS" -v node="$NODE_CA" '{ print } /containerPath: \/data$/ { print "  - hostPath: " host; print "    containerPath: " node; print "    readOnly: true" }' \
+        "$RENDERED_CONFIG" > "$RENDERED_CONFIG.ca" && mv "$RENDERED_CONFIG.ca" "$RENDERED_CONFIG"
+    fi
     kind create cluster --name "$CLUSTER_NAME" --config "$RENDERED_CONFIG"
+    if [ -n "${CUSTOM_CA_FILE:-}" ]; then
+      # Added to the node's system trust, which containerd reads for every registry.
+      docker exec "$CLUSTER_NAME-control-plane" sh -c 'update-ca-certificates && systemctl restart containerd'
+    fi
   fi
 
   # Ensure registries are connected to kind network
@@ -120,7 +141,7 @@ if [ "$COMMAND" = "up" ]; then
   echo
   echo "Next steps:"
   echo "  1. Create namespace: kubectl create namespace $NAMESPACE"
-  echo "  2. Deploy Helm: ./scripts/deploy.sh"
+  echo "  2. Deploy Helm: mise run deploy"
   echo "  3. Or use Tilt: tilt up"
   echo
 
@@ -129,9 +150,22 @@ if [ "$COMMAND" = "up" ]; then
 # DOWN - Tear down cluster
 ###############################################################################
 elif [ "$COMMAND" = "down" ]; then
+  # Refuse to delete a cluster another worktree owns (skipped when no cluster is reachable).
+  kubectl cluster-info >/dev/null 2>&1 && ./scripts/deploy_owner.sh check
+
   echo
   echo "=== Deleting Kind Cluster ==============================================="
   kind delete cluster --name "$CLUSTER_NAME" || true
+
+  echo
+  # The chart-generated password secrets die with the cluster, so the database files under
+  # $FN_DATA_DIR must too: Postgres keeps the password it was first initialised with, and the
+  # next `up` would make new secrets that no longer match. Deleted through Docker because the
+  # files belong to the containers' uids (postgres is 70), so the host user cannot remove them
+  # without sudo; Docker access is what kind needs anyway.
+  echo "=== Wiping Local PV Data ================================================"
+  [ -d "$FN_DATA_DIR" ] && docker run --rm -v "$FN_DATA_DIR":/host busybox:1.36 sh -c 'rm -rf /host/* /host/.[!.]*'
+  echo "Wiped $FN_DATA_DIR"
 
   echo
   if [ "$REMOVE_REGISTRIES" = "--remove-registries" ]; then
@@ -157,7 +191,7 @@ elif [ "$COMMAND" = "down" ]; then
     docker ps 2>/dev/null | grep -E "kind-registry|proxy.*registry" || echo "No registries found"
     echo
     echo "To remove registries, run:"
-    echo "  ./scripts/cluster.sh down --remove-registries"
+    echo "  mise run cluster down --remove-registries"
   fi
 
   echo
@@ -165,8 +199,8 @@ elif [ "$COMMAND" = "down" ]; then
   echo "Kind cluster '$CLUSTER_NAME' deleted"
   echo
   echo "To restart:"
-  echo "  make cluster up                            # Just cluster + registries"
-  echo "  make deploy                                # Full deployment with Helm"
+  echo "  mise run cluster up                       # Just cluster + registries"
+  echo "  mise run deploy                          # Full deployment with Helm"
   echo "  tilt up                                    # Start Tilt dev environment"
   echo
 fi

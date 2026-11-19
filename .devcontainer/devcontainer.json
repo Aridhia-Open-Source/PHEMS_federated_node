@@ -1,0 +1,55 @@
+{
+  // Dev tools in a container; Docker and the kind cluster stay on the host.
+  // Builds and `kind` use the host's Docker socket, kubectl and Tilt use the host's
+  // kubeconfig, and host networking keeps the port-forwards on localhost.
+  "name": "Federated Node",
+  // The image (mise, build packages, the proxy CA) is the Dockerfile. The Docker feature stays
+  // a feature: it also gives the vscode user access to the host's Docker socket.
+  "build": { "dockerfile": "Dockerfile" },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "runArgs": ["--network=host"],
+  // The checkout's parent folder at its host path: the host's Docker resolves volume paths
+  // (`docker run -v "$(pwd)":...`) on the host, and a worktree's .git points at the main repo
+  // by its host path, so the main repo and its sibling worktrees must be visible where they are
+  "workspaceMount": "source=${localWorkspaceFolder}/..,target=${localWorkspaceFolder}/..,type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  // Runs on the host before the build: creates ~/.fn/data (a bind mount fails when its source is
+  // missing), then scripts/configure.sh --devcontainer checks the proxy and the CA bundle
+  // that CUSTOM_CA_FILE names (.dev.env, else .generated.env) and copies it to
+  // .devcontainer/proxy-ca.crt for the Dockerfile, which trusts it when the image is built
+  // (an empty file when there is no CA).
+  // See PROXY_CA_SETUP.md
+  "initializeCommand": "mkdir -p \"$HOME/.fn/data\" && bash \"${localWorkspaceFolder}/scripts/configure.sh\" --devcontainer",
+  "mounts": [
+    // Host kubeconfig, read-only and read live: a recreated cluster works without a restart
+    "source=${localEnv:HOME}/.kube,target=/home/vscode/.kube-host,type=bind,readonly",
+    // Installed tools survive rebuilds and are shared by every worktree's container
+    "source=fn-mise-data,target=/home/vscode/.local/share/mise,type=volume",
+    // Local PV data at its host path, for the same reason as the checkout
+    "source=${localEnv:HOME}/.fn,target=${localEnv:HOME}/.fn,type=bind"
+  ],
+  // Venvs go to the container's home (mise.devcontainer.toml), not the shared checkout
+  "containerEnv": {
+    "MISE_ENV": "devcontainer",
+    "FN_DATA_DIR": "${localEnv:HOME}/.fn/data",
+    // The system bundle, which the Dockerfile adds the proxy CA to. Python (requests) and
+    // Node use their own bundles otherwise. Without a CA this is the stock system bundle.
+    "SSL_CERT_FILE": "/etc/ssl/certs/ca-certificates.crt",
+    "REQUESTS_CA_BUNDLE": "/etc/ssl/certs/ca-certificates.crt",
+    "NODE_EXTRA_CA_CERTS": "/etc/ssl/certs/ca-certificates.crt",
+    // The container's overlay (fn as kind-fn's namespace, and any changes made here) comes first,
+    // the host kubeconfig supplies the clusters and credentials
+    "KUBECONFIG": "/home/vscode/.kube/overlay:/home/vscode/.kube-host/config"
+  },
+  // mise's tools on PATH for non-interactive shells too
+  "remoteEnv": { "PATH": "/home/vscode/.local/share/mise/shims:${containerEnv:PATH}" },
+  "remoteUser": "vscode",
+  "postCreateCommand": "mise trust --all && mise run setup",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-kubernetes-tools.vscode-kubernetes-tools"]
+    }
+  }
+}

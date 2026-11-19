@@ -1,0 +1,10 @@
+{
+  "spec": {
+    "image": "localhost:5001/attacker-fn:latest",
+    "env": {},
+    "compute": {
+      "limits": {"cpu": "500m", "memory": "256Mi"},
+      "requests": {"cpu": "100m", "memory": "64Mi"}
+    }
+  }
+}

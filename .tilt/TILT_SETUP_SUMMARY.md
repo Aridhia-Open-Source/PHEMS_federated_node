@@ -11,7 +11,7 @@ A complete local development environment for the federated_node project that rep
 vi dagster/app/definitions/jobs.py
 
 # Manually rebuild
-./scripts/build_image.sh dagster v40
+TAG=v40 docker buildx bake -f docker-bake.hcl dagster-fn --push
 
 # Manually restart
 kubectl rollout restart deployment/fn-dev-dagster-user-deployments-dagster-fn -n fn
@@ -37,10 +37,10 @@ vi dagster/app/definitions/jobs.py
 
 ```bash
 # 1. Start cluster + registries
-make cluster up
+mise run cluster up
 
 # 2. Deploy Helm (one time)
-make deploy
+mise run deploy
 
 # 3. Start Tilt
 tilt up
@@ -54,7 +54,7 @@ Tilt manages:
 
 | Component | Image | Behavior |
 |-----------|-------|----------|
-| **Webserver** | `localhost:5001/webserver-fn:v40` | Flask on port 5000; instant reload for `.py` changes |
+| **nexus-api** | `localhost:5001/nexus-api-fn:v40` | FastAPI on port 5000; instant reload for `.py` changes |
 | **Dagster User Code** | `localhost:5001/dagster-fn:v40` | Instant reload for `.py` changes |
 | **Dagster Daemon** | Same image | Uses user code from above |
 | **Dagster UI** | Same image | Uses user code from above; port 3000 |
@@ -66,9 +66,9 @@ Tilt manages:
 
 ### File Changes
 
-1. **Python code** (`webserver/app/` or `dagster/app/`)
+1. **Python code** (`nexus/api/app/` or `dagster/app/`)
    - Tilt syncs file directly into running container
-   - App auto-reloads (Flask, Dagster)
+   - App auto-reloads (FastAPI, Dagster)
    - Result: instant feedback (~1 sec)
 
 2. **Dependencies** (`requirements.txt`, `setup.py`)
@@ -117,22 +117,22 @@ federated_node/
 └── ...code
 ```
 
-## Makefile Integration
+## mise Integration
 
 ```bash
 # Cluster management
-make cluster up              # Start Kind + registries
-make cluster down            # Stop Kind, keep registries
-make cluster down --remove-registries  # Full cleanup
+mise run cluster up              # Start Kind + registries
+mise run cluster down            # Stop Kind, keep registries
+mise run cluster down --remove-registries  # Full cleanup
 
 # Helm deployment (one time)
-make deploy             # Deploy all K8s resources + Helm release
+mise run deploy             # Deploy all K8s resources + Helm release
 
 # Tilt development
-make tilt-up                 # Start Tilt
-make tilt-down               # Stop Tilt
-make tilt-open               # Open dashboard
-make tilt-logs               # View logs
+tilt up                      # Start Tilt
+tilt down                    # Stop Tilt
+tilt open                    # Open dashboard
+tilt logs                    # View logs
 ```
 
 ## Access Points
@@ -141,7 +141,7 @@ Once everything is running:
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| Webserver API | http://localhost:5000 | Flask REST API |
+| nexus-api | http://localhost:5000 | FastAPI REST API |
 | Dagster UI | http://localhost:3000 | Orchestration UI |
 | Tilt Dashboard | http://localhost:10350 | Monitoring all services |
 
@@ -164,14 +164,14 @@ Once everything is running:
 - `scripts/deploy.sh` — Helm deployment (called by Tilt)
 - `.tilt/TILT.md`, `.tilt/TILT_QUICKSTART.md`, `.tilt/TILT_SETUP_SUMMARY.md` — Documentation
 
-### Makefile Additions
+### mise Additions
 
-- `make cluster up/down` — Manage Kind cluster
-- `make tilt-up/down` — Manage Tilt
+- `mise run cluster up` / `mise run cluster down` — Manage Kind cluster
+- `tilt up` / `tilt down` — Manage Tilt
 
 ### No Changes Needed To
 
-- `webserver/` code — Works as-is
+- `nexus/api/` code — Works as-is
 - `dagster/` code — Works as-is
 - `k8s/` Helm charts — Works as-is
 - `deploy.sh` — Still available for non-Tilt deployment
@@ -198,13 +198,13 @@ Once everything is running:
 - You're actively developing and testing code
 - You want instant feedback on changes
 - You want visibility into all services at once
-- You're iterating on Dagster jobs, Flask routes, etc.
+- You're iterating on Dagster jobs, FastAPI routes, etc.
 
 ## Next Steps
 
 1. Read `.tilt/TILT_QUICKSTART.md` for quick reference
-2. Run `make cluster up` to start the cluster
-3. Run `make deploy` to deploy (one time)
+2. Run `mise run cluster up` to start the cluster
+3. Run `mise run deploy` to deploy (one time)
 4. Run `tilt up` to start developing
 5. Read `.tilt/TILT.md` for detailed documentation
 6. Edit code and watch changes happen instantly!
@@ -214,7 +214,7 @@ Once everything is running:
 **Resources not deploying?**
 Make sure Helm was deployed:
 ```bash
-make deploy
+mise run deploy
 kubectl get all -n fn
 ```
 
@@ -226,9 +226,9 @@ kubectl get all -n fn
 **Need to reset?**
 ```bash
 tilt down
-make cluster down
-make cluster up
-make deploy
+mise run cluster down
+mise run cluster up
+mise run deploy
 tilt up
 ```
 

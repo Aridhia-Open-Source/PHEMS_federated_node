@@ -55,16 +55,23 @@ class TestPullRequests:
         assert api.get_pull_request("org/repo", 5) == {"number": 5}
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls/5")
 
-    def test_closed_prs_of_any_base_branch_are_listed_newest_update_first(self, api, client):
+    def test_prs_of_any_base_branch_are_listed_newest_update_first(self, api, client):
         client.request.return_value = response([])
 
-        api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
+        api.get_pulls("org/repo", "2026-01-01T00:00:00Z", state="closed", merged_only=True)
 
         assert client.request.call_args.args == ("GET", "repos/org/repo/pulls")
         assert client.request.call_args.kwargs["params"] == {
             "state": "closed", "sort": "updated", "direction": "desc",
             "per_page": 100, "page": 1,
         }
+
+    def test_the_state_defaults_to_all(self, api, client):
+        client.request.return_value = response([])
+
+        api.get_pulls("org/repo", "2026-01-01T00:00:00Z")
+
+        assert client.request.call_args.kwargs["params"]["state"] == "all"
 
     def test_only_prs_merged_after_the_cursor_are_returned(self, api, client):
         client.request.return_value = response([
@@ -74,7 +81,7 @@ class TestPullRequests:
             merged_pr(1, "2026-01-01T00:00:00Z", updated_at="2026-04-01T00:00:00Z"),
         ])
 
-        result = api.get_new_merged_pulls("org/repo", "2026-01-15T00:00:00Z")
+        result = api.get_pulls("org/repo", "2026-01-15T00:00:00Z", state="closed", merged_only=True)
 
         assert [p["number"] for p in result] == [3, 2]
 
@@ -83,24 +90,46 @@ class TestPullRequests:
             merged_pr(1, "2026-01-01T00:00:00Z", updated_at="2026-02-01T00:00:00Z"),
         ])
 
-        assert api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z") == []
+        assert api.get_pulls("org/repo", "2026-01-01T00:00:00Z", state="closed", merged_only=True) == []
 
-    def test_closed_but_unmerged_prs_are_dropped(self, api, client):
+    def test_closed_but_unmerged_prs_are_dropped_when_only_merged_are_wanted(self, api, client):
         client.request.return_value = response([
             merged_pr(2, None, updated_at="2026-03-01T00:00:00Z"),
             merged_pr(1, "2026-02-01T00:00:00Z"),
         ])
 
-        result = api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
+        result = api.get_pulls("org/repo", "2026-01-01T00:00:00Z", state="closed", merged_only=True)
 
         assert [p["number"] for p in result] == [1]
+
+    def test_every_pr_updated_after_since_is_returned_without_merged_only(self, api, client):
+        client.request.return_value = response([
+            merged_pr(3, None, updated_at="2026-03-01T00:00:00Z"),  # open
+            merged_pr(2, "2026-02-01T00:00:00Z"),
+            merged_pr(1, None, updated_at="2026-01-10T00:00:00Z"),  # closed unmerged, updated before since
+        ])
+
+        result = api.get_pulls("org/repo", "2026-01-15T00:00:00Z")
+
+        assert [p["number"] for p in result] == [3, 2]
+        assert client.request.call_count == 1
 
     def test_a_pr_updated_before_the_cursor_ends_the_listing(self, api, client):
         full = [merged_pr(i, "2026-02-01T00:00:00Z") for i in range(99)]
         full.append(merged_pr(99, "2025-12-01T00:00:00Z"))
         client.request.return_value = response(full)
 
-        result = api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
+        result = api.get_pulls("org/repo", "2026-01-01T00:00:00Z", state="closed", merged_only=True)
+
+        assert len(result) == 99
+        assert client.request.call_count == 1
+
+    def test_a_pr_updated_before_since_ends_an_unfiltered_listing(self, api, client):
+        full = [merged_pr(i, None, updated_at="2026-02-01T00:00:00Z") for i in range(99)]
+        full.append(merged_pr(99, None, updated_at="2025-12-01T00:00:00Z"))
+        client.request.return_value = response(full)
+
+        result = api.get_pulls("org/repo", "2026-01-01T00:00:00Z")
 
         assert len(result) == 99
         assert client.request.call_count == 1
@@ -109,7 +138,7 @@ class TestPullRequests:
         full = [merged_pr(i, "2026-02-01T00:00:00Z") for i in range(100)]
         client.request.side_effect = [response(full), response([merged_pr(200, "2026-02-01T00:00:00Z")])]
 
-        result = api.get_new_merged_pulls("org/repo", "2026-01-01T00:00:00Z")
+        result = api.get_pulls("org/repo", "2026-01-01T00:00:00Z", state="closed", merged_only=True)
 
         assert len(result) == 101
         assert client.request.call_count == 2
@@ -150,19 +179,3 @@ class TestWrites:
         assert client.request.call_args.kwargs["json"] == {
             "title": "t", "body": "b", "head": "results/pr-5", "base": "main",
         }
-
-
-class TestBranchPullRequests:
-    def test_find_returns_the_first_pr_of_the_branch(self, api, client):
-        client.request.return_value = response([{"number": 7}, {"number": 3}])
-
-        assert api.find_pull_request_by_branch("org/repo", "feature", "main") == {"number": 7}
-        assert client.request.call_args.args == ("GET", "repos/org/repo/pulls")
-        assert client.request.call_args.kwargs["params"] == {
-            "head": "org:feature", "base": "main", "state": "all",
-        }
-
-    def test_find_returns_none_without_one(self, api, client):
-        client.request.return_value = response([])
-
-        assert api.find_pull_request_by_branch("org/repo", "feature", "main") is None

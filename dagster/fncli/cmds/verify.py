@@ -1,22 +1,18 @@
 """
-verify-project: a read-only check of the test project, as a report. The backend's
+verify-project: a read-only check of a project, as a report. The backend's
 healthcheck does the repo and token checks (it reaches each repo with its stored token), so
-this adds only what the healthcheck leaves out: the dataset. Nothing is created or changed.
+this adds only what the healthcheck leaves out: the project's datasets. Nothing is created or changed.
 """
 
 from dataclasses import dataclass
 
 import click
 
-from fncli.cmds.common import (
-    DagsterConfig,
-    DatasetConfig,
-    ProjectConfig,
-    TriggerRepoConfig,
-    build_backend_api,
-    to_host_url,
-)
+from fncli.cmds.common import DagsterConfig, build_backend_api, to_host_url
+from fncli.cmds.nodefile import context_option, step_project_option, step_target
 from fncli.cmds.project import find_project
+from fncli.cmds.repository import step_repo_config
+from fncli.cmds.sensor import RESULTS_PR_SYNC_SENSOR
 from app.models import TriggerState
 from fncli.sensors import DagsterAPI
 
@@ -32,8 +28,20 @@ RUN_TO_TASK_STATUS = {
     "CANCELED": "CANCELED",
 }
 TASK_JOB = "k8s_pipes_job"
-# The delivery steps past PUSHED: its results PR is opened.
+# The delivery steps past PUSHED: its results PR is opened (by the results PR sensor).
 PAST_PUSHED = ["OPENED", "MERGED", "CLOSED"]
+
+
+def is_push_only(backend_api) -> bool:
+    """Whether the node is push-only: the results PR sensor is stopped, so no results PR is opened."""
+    return backend_api.get_sensor_status(RESULTS_PR_SYNC_SENSOR) == "STOPPED"
+
+
+def delivered(result, push_only: bool) -> bool:
+    """A result is delivered once its results PR is opened, or, if the node is push-only, once it is pushed."""
+    if result.step in PAST_PUSHED:
+        return True
+    return push_only and result.step == "PUSHED" and result.state == "DELIVERED"
 
 
 class Report:
@@ -114,19 +122,14 @@ def record_repo_health(report: Report, kind: str, repo: dict):
     )
 
 
-def verify_project(report: Report, config: ProjectConfig, dataset_config: DatasetConfig):
-    backend_api = report.check("Backend login: POST /login", lambda: build_backend_api(config))
-    if backend_api is None:
-        report.skip("everything else", "no backend login")
-        return
-
+def verify_project(report: Report, project_name: str, backend_api):
     project = report.check(
         "Project exists: GET /projects",
-        lambda: require(backend_api.find_project(config.project_name), config.project_name),
+        lambda: require(backend_api.find_project(project_name), project_name),
         lambda p: f"id {p.id}",
     )
     if project is None:
-        report.skip("everything else", "no project, run setup-project first")
+        report.skip("everything else", "no project, run fncli apply first")
         return
 
     health = report.check(
@@ -146,18 +149,17 @@ def verify_project(report: Report, config: ProjectConfig, dataset_config: Datase
         else:
             record_repo_health(report, "Results", health["results_repository"])
 
-    assignment = report.check(
-        f"Dataset assigned: GET /projects/{project.id}/datasets ({dataset_config.dataset_name})",
-        lambda: require(
-            backend_api.find_project_dataset(dataset_config.dataset_name, project.id),
-            dataset_config.dataset_name,
-        ),
-        lambda a: f"id {a.dataset.id}, active {a.active}",
+    assignments = report.check(
+        f"Datasets assigned: GET /projects/{project.id}/datasets",
+        lambda: backend_api.get_project_datasets(project.id),
+        lambda found: ", ".join(f"{a.dataset.name} (id {a.dataset.id}, active {a.active})" for a in found) or "none",
     )
-    if assignment is not None:
+    if assignments is not None and not assignments:
+        report.record(False, "A dataset is assigned", "none on the project")
+    for assignment in assignments or []:
         dataset = assignment.dataset
         report.check(
-            f"Dataset fetch: GET /global/datasets/{dataset.id}", lambda: backend_api.get_dataset(dataset.id)
+            f"Dataset fetch: GET /global/datasets/{dataset.id} ({dataset.name})", lambda: backend_api.get_dataset(dataset.id)
         )
         report.check(
             f"Dataset secret exists: GET /global/secrets/{dataset.secret.label}",
@@ -197,7 +199,7 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         lambda t: f"{t.status}, attempt {t.attempt}",
     )
     run = report.check(
-        f"Task {pr.task_id} has a Dagster run: runs tagged task_id={pr.task_id}",
+        f"Task {pr.task_id} has a Dagster run: runs tagged fn/task_id={pr.task_id}",
         lambda: require(dagster_api.get_task_run(pr.task_id), "run"),
         lambda r: f"{r['runId']}, {r['status']}",
     )
@@ -220,9 +222,9 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
         f"task {task.executor_run_id}, run {run['runId']}",
     )
     report.record(
-        str(task.attempt) == tags.get("attempt"),
+        str(task.attempt) == tags.get("fn/attempt"),
         "Task attempt matches the run's attempt tag",
-        f"task {task.attempt}, run {tags.get('attempt')}",
+        f"task {task.attempt}, run {tags.get('fn/attempt')}",
     )
     if expected != "QUEUED":
         report.record(task.started_at is not None, "Task has started_at", str(task.started_at))
@@ -235,8 +237,9 @@ def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links
 
 def verify_delivery(report: Report, backend_api, project_id: int, task_id: int):
     """
-    A succeeded task's results are delivered: one result, past PUSHED (OPENED, MERGED or
-    CLOSED), with a commit and a results PR.
+    A succeeded task's results are delivered: one result with a commit, past PUSHED (its results PR
+    opened by the results PR sensor: OPENED, MERGED or CLOSED, with a number and url). With that sensor
+    stopped (a push-only node) a result is delivered at PUSHED and has no results PR.
     """
     results = report.check(
         f"Task {task_id} has one results delivery: GET /projects/{project_id}/tasks/{task_id}/results",
@@ -245,12 +248,15 @@ def verify_delivery(report: Report, backend_api, project_id: int, task_id: int):
     )
     if results is None:
         return
+    push_only = is_push_only(backend_api)
     report.record(
-        results.step in PAST_PUSHED,
-        "Results PR was opened",
+        delivered(results, push_only),
+        "Results were pushed (push-only)" if push_only else "Results PR was opened",
         f"{results.step}, {results.state}" + (f": {results.error}" if results.error else ""),
     )
     report.record(results.commit_sha is not None, "Delivery has a commit_sha", str(results.commit_sha))
+    if push_only:
+        return
     report.record(
         results.number is not None and results.url is not None,
         "Delivery has a results PR",
@@ -293,9 +299,11 @@ def verify_repo(
 
 @click.command("verify-repo")
 @click.option("--tail", type=int, default=None, help="Only check the last N PRs, by number. Default: all.")
-def verify_repo_command(tail):
-    """Check, read-only, that every merged PR of the trigger repo ran in Dagster and the backend agrees. Exits 1 on a failure."""
-    config = TriggerRepoConfig()
+@context_option
+@step_project_option
+def verify_repo_command(tail, context, project):
+    """Check, read-only, that every merged PR of the project's trigger repo ran in Dagster and the backend agrees. Exits 1 on a failure."""
+    config = step_repo_config("trigger", context, project)
     backend_api = build_backend_api(config)
     project = find_project(config, backend_api)
     repo = backend_api.find_repository(config.repo_uri, project.id)
@@ -306,10 +314,13 @@ def verify_repo_command(tail):
 
 
 @click.command("verify-project")
-def verify_project_command():
-    """Check, read-only, the test project: its healthcheck and its dataset. Exits 1 on a failure."""
+@context_option
+@step_project_option
+def verify_project_command(context, project):
+    """Check, read-only, a project: its healthcheck and its datasets. Exits 1 on a failure."""
+    name, backend_api = step_target(context, project)
     report = Report()
-    verify_project(report, ProjectConfig(), DatasetConfig())
+    verify_project(report, name, backend_api)
     report.echo()
     if report.failed:
         raise click.exceptions.Exit(1)

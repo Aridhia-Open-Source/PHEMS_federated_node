@@ -137,7 +137,7 @@ def sensor_context():
 
 
 # ---------------------------------------------------------------------------
-# Webserver API mock helpers
+# nexus-api mock helpers
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
@@ -155,7 +155,7 @@ def make_response(body, status_code=200):
 
 
 @pytest.fixture
-def webserver_repos_response(mock_repos):
+def nexus_repos_response(mock_repos):
     return make_response(mock_repos)
 
 
@@ -232,3 +232,10 @@ def non_github_run():
 @pytest.fixture
 def success_event():
     return make_success_event()
+
+
+@pytest.fixture
+def artifacts_env(monkeypatch):
+    """The artifacts volume as the chart sets it in the environment."""
+    monkeypatch.setenv("DAGSTER_ARTIFACTS_PVC_NAME", "artifacts-pvc")
+    monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/mnt/dagster/artifacts")

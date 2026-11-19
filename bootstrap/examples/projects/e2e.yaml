@@ -1,0 +1,17 @@
+# The dev project the end-to-end suites use, on the global resources of globals-e2e.yaml (apply that first).
+#   fncli apply -f examples/projects/e2e.yaml
+#   fncli delete -f examples/projects/e2e.yaml
+version: 1
+
+projects:
+  - name: fn-dev
+    datasets: [dev-dataset]
+    repositories:
+      triggers:
+        - repository: http://gitea.fn.svc:4000/gitea_admin/fn-trigger-repo
+          watch_dir: specs/
+          base_branch: main
+      results:
+        repository: http://gitea.fn.svc:4000/gitea_admin/fn-results-repo
+        target_dir: results/
+        base_branch: main

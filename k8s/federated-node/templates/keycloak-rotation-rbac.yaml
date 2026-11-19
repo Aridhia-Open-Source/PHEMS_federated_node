@@ -6,26 +6,36 @@ metadata:
   namespace: {{ include "kc_namespace" . }}
   labels:
     {{ include "defaultLabels" . }}
+{{- /*
+  The rotation job only patches the two credential Secrets, in the namespaces that hold a copy
+  (the same list as KC_SECRET_NAMESPACES and DAGSTER_SECRET_NAMESPACES in the CronJob). So a Role
+  in each of those, limited to those names and to patch.
+*/}}
+{{- range (list .Release.Namespace (include "kc_namespace" .) | uniq) }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: {{ .Release.Name }}-keycloak-credential-rotator
+  name: {{ $.Release.Name }}-keycloak-credential-rotator
+  namespace: {{ . }}
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
-  verbs: ["get", "list", "create", "patch", "delete"]
+  resourceNames: ["kc-secrets"{{ if $.Values.dagster.enabled }}, "dagster-keycloak-creds"{{ end }}]
+  verbs: ["patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: {{ .Release.Name }}-keycloak-credential-rotator
+  name: {{ $.Release.Name }}-keycloak-credential-rotator
+  namespace: {{ . }}
 subjects:
   - kind: ServiceAccount
     name: keycloak-credential-rotator
-    namespace: {{ include "kc_namespace" . }}
+    namespace: {{ include "kc_namespace" $ }}
 roleRef:
-  kind: ClusterRole
-  name: {{ .Release.Name }}-keycloak-credential-rotator
+  kind: Role
+  name: {{ $.Release.Name }}-keycloak-credential-rotator
   apiGroup: rbac.authorization.k8s.io
+{{- end }}
 {{- end }}

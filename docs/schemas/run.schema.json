@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "RunNode": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "The node (hospital) that ran the task, the chart's nodeId",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "RunNode",
+      "type": "object"
+    },
+    "RunProject": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "nexus-api's id of the task's project",
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "description": "The project's name",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "RunProject",
+      "type": "object"
+    },
+    "RunResults": {
+      "additionalProperties": false,
+      "properties": {
+        "zip_size_bytes": {
+          "description": "The size of results.zip",
+          "title": "Zip Size Bytes",
+          "type": "integer"
+        },
+        "file_count": {
+          "description": "How many files results.zip holds",
+          "title": "File Count",
+          "type": "integer"
+        },
+        "delivered_at": {
+          "description": "When the results were pushed, in UTC (YYYY-MM-DDTHH:MM:SSZ)",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "title": "Delivered At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "zip_size_bytes",
+        "file_count",
+        "delivered_at"
+      ],
+      "title": "RunResults",
+      "type": "object"
+    },
+    "RunTask": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "nexus-api's id of the task",
+          "title": "Id",
+          "type": "integer"
+        },
+        "name": {
+          "description": "The task's name",
+          "title": "Name",
+          "type": "string"
+        },
+        "executor_id": {
+          "description": "The Dagster run id that ran the task",
+          "title": "Executor Id",
+          "type": "string"
+        },
+        "dataset": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The dataset the task ran against, null when it used none",
+          "title": "Dataset"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "executor_id",
+        "dataset"
+      ],
+      "title": "RunTask",
+      "type": "object"
+    },
+    "RunTrigger": {
+      "additionalProperties": false,
+      "properties": {
+        "repository_uri": {
+          "description": "The trigger repository the pull request was merged in",
+          "title": "Repository Uri",
+          "type": "string"
+        },
+        "pr_number": {
+          "description": "The merged pull request's number",
+          "title": "Pr Number",
+          "type": "integer"
+        },
+        "merge_commit_sha": {
+          "description": "The pull request's merge commit, whose spec file the task ran",
+          "title": "Merge Commit Sha",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository_uri",
+        "pr_number",
+        "merge_commit_sha"
+      ],
+      "title": "RunTrigger",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "run.json: the node's record of one task run, delivered next to results.zip and spec.json\nin the results repository.",
+  "properties": {
+    "node": {
+      "$ref": "#/$defs/RunNode"
+    },
+    "project": {
+      "$ref": "#/$defs/RunProject"
+    },
+    "trigger": {
+      "$ref": "#/$defs/RunTrigger"
+    },
+    "task": {
+      "$ref": "#/$defs/RunTask"
+    },
+    "results": {
+      "$ref": "#/$defs/RunResults"
+    }
+  },
+  "required": [
+    "node",
+    "project",
+    "trigger",
+    "task",
+    "results"
+  ],
+  "title": "RunRecord",
+  "type": "object"
+}

@@ -103,6 +103,13 @@ spec:
           value: "false"
         - name: ROOT_URL
           value: "http://gitea.{{ .Release.Namespace }}.svc:4000"
+        # The image's entrypoint writes GITEA__section__KEY into app.ini on every start, an existing one included
+        - name: GITEA__oauth2__ENABLED
+          value: {{ .Values.gitea.oauth2.enabled | quote }}
+        - name: GITEA__oauth2__ACCESS_TOKEN_EXPIRATION_TIME
+          value: {{ .Values.gitea.oauth2.accessTokenExpirationTime | quote }}
+        - name: GITEA__oauth2__INVALIDATE_REFRESH_TOKENS
+          value: {{ .Values.gitea.oauth2.invalidateRefreshTokens | quote }}
         volumeMounts:
         - name: gitea-data
           mountPath: /data

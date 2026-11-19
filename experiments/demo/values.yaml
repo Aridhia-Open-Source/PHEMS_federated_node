@@ -1,0 +1,10 @@
+# The demo database in the experiments chart: a tiny no-op dataset, no image. The name is also
+# the dataset's name in the node, whose secret label is <name>-dataset-creds - a DNS name, so
+# '-' rather than '_'.
+dbs:
+  demo:
+    name: demo-db
+    user: demo_user
+    secret:
+      name: db-datasets-demo
+      key: password

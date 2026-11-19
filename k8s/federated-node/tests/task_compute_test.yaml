@@ -1,0 +1,125 @@
+suite: Task compute
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+tests:
+  - it: gives the task namespace a LimitRange with the default requests and limits and the max
+    template: task-limit-range.yaml
+    asserts:
+      - isKind:
+          of: LimitRange
+      - equal:
+          path: metadata.namespace
+          value: tasks
+      - equal:
+          path: spec.limits[0].type
+          value: Container
+      - equal:
+          path: spec.limits[0].default
+          value:
+            cpu: "2"
+            memory: 4Gi
+      - equal:
+          path: spec.limits[0].defaultRequest
+          value:
+            cpu: 500m
+            memory: 1Gi
+      - equal:
+          path: spec.limits[0].max
+          value:
+            cpu: "4"
+            memory: 16Gi
+
+  - it: follows the taskCompute values and the tasks namespace
+    template: task-limit-range.yaml
+    set:
+      global:
+        namespaces:
+          tasks: analysis
+      taskCompute:
+        default:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 2Gi
+        max:
+          cpu: "8"
+          memory: 32Gi
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: analysis
+      - equal:
+          path: spec.limits[0].default
+          value:
+            cpu: "1"
+            memory: 2Gi
+      - equal:
+          path: spec.limits[0].defaultRequest
+          value:
+            cpu: 250m
+            memory: 512Mi
+      - equal:
+          path: spec.limits[0].max
+          value:
+            cpu: "8"
+            memory: 32Gi
+
+  - it: tells the backend the max and the default limits, which a spec file's compute is checked against
+    template: nexus-api-configmap.yaml
+    asserts:
+      - equal:
+          path: data.TASK_COMPUTE_MAX_CPU
+          value: "4"
+      - equal:
+          path: data.TASK_COMPUTE_MAX_MEMORY
+          value: 16Gi
+      - equal:
+          path: data.TASK_COMPUTE_DEFAULT_LIMIT_CPU
+          value: "2"
+      - equal:
+          path: data.TASK_COMPUTE_DEFAULT_LIMIT_MEMORY
+          value: 4Gi
+
+  - it: passes overridden values on to the backend
+    template: nexus-api-configmap.yaml
+    set:
+      taskCompute:
+        default:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 1500m
+            memory: 2Gi
+        max:
+          cpu: "8"
+          memory: 32Gi
+    asserts:
+      - equal:
+          path: data.TASK_COMPUTE_MAX_CPU
+          value: "8"
+      - equal:
+          path: data.TASK_COMPUTE_MAX_MEMORY
+          value: 32Gi
+      - equal:
+          path: data.TASK_COMPUTE_DEFAULT_LIMIT_CPU
+          value: 1500m
+      - equal:
+          path: data.TASK_COMPUTE_DEFAULT_LIMIT_MEMORY
+          value: 2Gi
+
+  - it: rejects a quantity that is not one
+    template: task-limit-range.yaml
+    set:
+      taskCompute:
+        max:
+          cpu: lots
+          memory: 16Gi
+    asserts:
+      - failedTemplate:
+          errorPattern: "taskCompute"
