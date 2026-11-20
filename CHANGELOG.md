@@ -1,6 +1,6 @@
 # Releases Changelog
 ## Unreleased
-- Run behind a TLS-intercepting proxy, or with a private CA ([#652](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/652), ADR 0034, `PROXY_CA_SETUP.md`):
+- Run behind a TLS-intercepting proxy, or with a private CA ([#652](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/652), ADR 0033, `PROXY_CA_SETUP.md`):
   - `mise run configure` replaces `mise run init-conf`. Every run creates `.dev.env` and `dev.values.yaml` from the examples if they are missing; it no longer asks for the first Keycloak user, which `.dev.env.example` now sets to `admin@fn.local` / `admin`. `--proxy[=URL]` (no value: `HTTPS_PROXY`) and `--ca-cert[=FILE]` (no value: the system CA bundle; alone: a private CA, no proxy) check the proxy and CA, then set up Docker and the tooling; `--no-proxy` and `--no-ca` remove them, and a run that changes one keeps the other. `--devcontainer` is what the dev container runs before its image build. It replaces `scripts/setup-proxy-ca.sh`.
   - The checks run before anything is written: the CA bundle is PEM, and with a proxy, `registry-1.docker.io`, `pypi.org` and `github.com` verify through it.
   - It writes only gitignored, generated files: `.generated.env` (`CUSTOM_CA_FILE`, the proxy and CA-bundle variables) and `k8s/federated-node/generated.values.yaml` (the chart's `proxy.*` and `customCA`). They load first, so `.dev.env` and `dev.values.yaml` win.
