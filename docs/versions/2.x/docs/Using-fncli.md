@@ -74,7 +74,7 @@ projects:
 ```
 
 - **The keys are the backend's own unique fields**, so a file holds no ids: provider uri, repository uri, secret label, dataset name, project name.
-- **Where a value comes from.** A secret's values say where fncli reads them at apply time: `env`, `file`, `k8s_secret`, `gitea_oauth` (fncli makes and authorises an OAuth app in Gitea) or `generate` (a random value, for stand-in credentials only). A bare string where a reference is expected is rejected, so a file can never hold a secret.
+- **Where a value comes from.** A secret's values say where fncli reads them at apply time: `env`, `file`, `k8s_secret`, `gitea_oauth` (fncli makes and authorizes an OAuth app in Gitea) or `generate` (a random value, for stand-in credentials only). A bare string where a reference is expected is rejected, so a file can never hold a secret.
 - **References across files resolve against the node.** A project may name a repository, dataset or secret that is in another file, as long as it is on the node when `diff` reads it. One that is in neither blocks the row that names it ("not in the file or on the node"), and `apply` leaves that row alone.
 - `-f` takes a path, or one relative to the nearest `bootstrap/` directory, so `-f examples/globals-gitea.yaml` works from anywhere in the repo.
 - Names may use only lowercase letters, digits, `-` and `.`, because they become secret labels.
@@ -98,7 +98,7 @@ How they behave:
 
 - **Apply is additive.** It creates and updates, and never deletes. Taking an entry out of a file changes nothing on the node.
 - **Apply is repeatable.** A second apply of an unchanged file changes nothing, and a failed one can be run again. It stops at the first backend error and says what was done and what was not.
-- **Secrets are create-only.** An existing secret is left alone. `--rotate LABEL` rewrites all its keys, and authorises a Gitea OAuth app again. A secret edited elsewhere is not noticed until `--rotate`.
+- **Secrets are create-only.** An existing secret is left alone. `--rotate LABEL` rewrites all its keys, and authorizes a Gitea OAuth app again. A secret edited elsewhere is not noticed until `--rotate`.
 - **Changes only touch what differs.** An assignment that exists is changed with a `PATCH` of the fields that differ, so a repeated apply does not re-enable what you switched off.
 - **Disruptive changes are marked.** A dataset's host, port, type or schemas, and a results repository's `target_dir` or `base_branch`, are pinned into each task when it is created, so changing them fails earlier tasks. Assigning a results repository to a live project needs the project disabled, so apply asks first.
 - **Delete is a soft delete** through the API's `DELETE` routes, never with `?force=true`. It works in reverse order: what uses a thing goes before the thing. What another project outside the file still uses is **skipped**, with the backend's reason, and delete exits 1. A provider that other repositories are on is kept.

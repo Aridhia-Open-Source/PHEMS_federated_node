@@ -11,7 +11,7 @@ the API client.
 1. Create the App (org settings → Developer settings → GitHub Apps → New):
    - untick Webhook "Active";
    - Repository permissions: **Contents** and **Pull requests**, read and write;
-   - "Only on this account"; leave the user-authorisation options off.
+   - "Only on this account"; leave the user-authorization options off.
 2. Note the **App ID**, then **Generate a private key** (a `.pem`; keep it out of git).
 3. **Install App** on only the repositories the node uses. The number at the end of the
    installation URL is the **installation ID**.

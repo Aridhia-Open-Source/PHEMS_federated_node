@@ -301,7 +301,7 @@ def apply_node_file(context: Context, node_file: Path, project: str | None, yes:
 @click.option("-y", "--yes", is_flag=True, help="Do not ask before applying.")
 @click.option(
     "--rotate", multiple=True, metavar="LABEL",
-    help="Also rewrite this secret, though it exists (repeatable), and for a Gitea OAuth one, authorise its app again. "
+    help="Also rewrite this secret, though it exists (repeatable), and for a Gitea OAuth one, authorize its app again. "
     "Otherwise a secret is only written when missing.",
 )
 def apply_command(node_file, context, project, yes, rotate):
