@@ -45,7 +45,6 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
@@ -63,7 +62,6 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
@@ -85,7 +83,6 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
@@ -102,7 +99,6 @@ def upgrade() -> None:
         sa.Column('repo_path', sa.String(length=512), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['provider_id'], ['git_providers.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
@@ -120,7 +116,6 @@ def upgrade() -> None:
         sa.Column('repo_path', sa.String(length=512), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['provider_id'], ['git_providers.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
@@ -163,7 +158,6 @@ def upgrade() -> None:
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['default_dataset_id'], ['datasets.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
@@ -205,7 +199,6 @@ def upgrade() -> None:
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
@@ -223,7 +216,6 @@ def upgrade() -> None:
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
@@ -238,7 +230,6 @@ def upgrade() -> None:
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
@@ -257,7 +248,6 @@ def upgrade() -> None:
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
         sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),

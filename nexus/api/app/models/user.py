@@ -50,23 +50,14 @@ class User(db.Model, BaseModel):
 
 class OwnedMixin:
     """
-    Who owns a record (ADR 0036). owner_id is whoever created it, or the service that last wrote it.
-    owner_group, when set, is the Keycloak group or role (one of OWNER_GROUPS) whose members alone may
-    change the record; null leaves it open. A model opts in by inheriting this; writes load the record
-    through helpers/ownership.get_for_write.
+    Who created a record (ADR 0036): owner_id is the user that created it. A model opts in by inheriting
+    this; creating routes set it through helpers/ownership.set_owner.
     """
-    # The fields the owner group locks: None for the whole record. A model narrows it by overriding.
-    owner_locked_fields: frozenset[str] | None = None
 
     @declared_attr
     def owner_id(cls):  # pylint: disable=no-self-argument
-        """The user that created the record, or the service that last wrote it."""
+        """The user that created the record."""
         return sa.Column(sa.String(255), sa.ForeignKey('users.id'), nullable=True)
-
-    @declared_attr
-    def owner_group(cls):  # pylint: disable=no-self-argument
-        """The group whose members alone may change the record; null when it is open."""
-        return sa.Column(sa.String(255), nullable=True)
 
     @declared_attr
     def owner(cls):  # pylint: disable=no-self-argument

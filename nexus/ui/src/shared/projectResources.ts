@@ -4,7 +4,7 @@
 import { api, call } from "../api/client";
 
 export type Kind = "triggers" | "results" | "datasets" | "secrets";
-export type Flags = { enabled: boolean; revoked: boolean; active: boolean; owner_group?: string | null };
+export type Flags = { enabled: boolean; revoked: boolean; active: boolean };
 
 export const resourceKey = (projectId: number, kind: Kind) => ["projects", projectId, "resources", kind] as const;
 
