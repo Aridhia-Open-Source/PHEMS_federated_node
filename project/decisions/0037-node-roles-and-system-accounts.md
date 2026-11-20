@@ -4,7 +4,7 @@ Status: Proposed, 2026-11-20.
 
 ## Context
 
-- **Keycloak signs people and programs in** ([0017](0017-authorization-detached-from-dar-and-keycloak.md)); nexus-api decides what they may do to each record through grants ([0036](0036-policy-based-access-control-with-grants-and-cedar.md)).
+- **Keycloak signs people and programs in** ([0017](0017-authorization-detached-from-dar-and-keycloak.md)); nexus-api decides what they may do to each record ([0036](0036-keycloak-for-sign-in-nexus-api-for-access-decisions.md)), through grants ([0038](0038-policy-based-access-control-with-grants-and-cedar.md)).
 - **Some callers are programs, not people.** The operator applies node config from git ([0032](0032-declarative-node-config-through-an-operator.md)) and Dagster writes pipeline state. Both must work from install, before nexus-api holds any rows.
 - **Records can be left without an owner.** The owning admin leaves, or a record was made before grants existed. Someone has to be able to recover them.
 - **Bypassing access must not bypass the application.** Revoked flags and state transitions ([0005](0005-state-transition-tables.md), [0008](0008-enabled-revoked-and-soft-delete.md)) keep tasks and results consistent; a role that skipped them could leave a node in a broken state.
@@ -24,7 +24,7 @@ Each account holds exactly one node role, a Keycloak realm role. The roles are f
 - **kc-init creates the system accounts on install:** the first admin, the superuser, the operator account and the Dagster account. Their passwords are Kubernetes Secrets referenced by name from values.
 - **A role gives broad scopes, not per-record access.** Per-record access is a grant. A role reaches a record only through a grant to that role (for example `role:Service` owns what the operator creates) or, for `SuperUser`, through the one Cedar rule that skips grants.
 - **SuperUser bypasses grants, not the rules.** It may read, change, delete and grant any record without a grant, but the application's rules still apply to it. For example, nobody can run tasks on a revoked dataset, SuperUser included; it has to un-revoke the dataset first, like any owner. A state change that is a 409 for others is a 409 for it too.
-- **SuperUser is for recovery, not daily work.** It is the only role that may claim a record (`PUT <record path>/owner`), for example when the owning admin has left. Every action it takes is recorded like any other caller's.
+- **SuperUser is for recovery, not daily work.** It is the only role that may claim a record (`PUT <record path>/owner`, [0038](0038-policy-based-access-control-with-grants-and-cedar.md)), for example when the owning admin has left. Every action it takes is recorded like any other caller's.
 - **Program accounts own through their role.** Records the operator creates are owned by `role:Service`, not by the operator's user, so a rotated or second operator account still owns them.
 
 ## Consequences
