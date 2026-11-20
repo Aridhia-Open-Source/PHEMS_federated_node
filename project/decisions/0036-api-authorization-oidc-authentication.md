@@ -34,6 +34,7 @@ This lands before the operator ([0032](0032-declarative-node-config-through-an-o
 - **Three claims:** a stable user id (`sub`), exactly one node role, and the caller's groups. Nothing else is read from the token.
 - **System accounts for programs:** the operator and Dagster sign in as accounts that hold a role, created on install.
 - **Nothing per record.** No resources, policies or permissions live in the provider.
+- **Access tokens on every request.** Clients send the access token to nexus-api; a refresh token only ever goes to the provider, to get a new access token. `/login` returns both. Programs (Dagster, the operator) can log in again with their client credentials instead of refreshing.
 
 ### Authorization: nexus-api decides
 
