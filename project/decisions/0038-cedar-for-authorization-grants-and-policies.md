@@ -1,4 +1,4 @@
-# 0038. Cedar for authorization: grants and policies
+# 0038. Cedar for authorization - grants and policies
 
 Status: Proposed, 2026-11-20.
 

@@ -1,4 +1,4 @@
-# 0037. Keycloak for authentication: roles and system accounts
+# 0037. Keycloak for authentication - roles and system accounts
 
 Status: Proposed, 2026-11-20.
 
