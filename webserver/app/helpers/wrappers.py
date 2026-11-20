@@ -36,7 +36,7 @@ def auth(scope: str):
             # TODO(DAR): DAR checking is disconnected for now. A non-admin caller used to
             # have an active DAR looked up from the project-name header, and its dataset,
             # g.caller_project_id and per-DAR Keycloak client (token exchange) were used.
-            # Dataset-level authorisation is out of scope here: every caller takes the plain
+            # Dataset-level authorization is out of scope here: every caller takes the plain
             # path below. Revisit with the authorization rework.
             if kc_client.is_token_valid(token, scope, resource, token_type):
                 return func(*args, **kwargs)
