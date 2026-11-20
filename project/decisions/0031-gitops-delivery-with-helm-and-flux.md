@@ -2,6 +2,8 @@
 
 Status: Proposed, 2026-11-11.
 
+Superseded in part by [0034](0034-pulumi-for-infrastructure.md): Pulumi replaces OpenTofu.
+
 ## Context
 
 - **Sites differ.** Nodes run on managed Kubernetes in Azure, AWS and GCP, on OpenShift, on self-hosted clusters, and on microk8s on a single VM where `helm upgrade` is run by hand.
@@ -18,6 +20,7 @@ Status: Proposed, 2026-11-11.
 - **A site-owned repository** holds the Flux setup, a `HelmRelease` that pins the chart version, the site's values, and the OpenTofu code if used. We have read-only access or none.
   - Secrets are never in plain text: they are SOPS-encrypted, or pulled from Key Vault by External Secrets.
   - Renovate opens version-bump pull requests. The client merging one is their sign-off.
+- **Secrets reach the cluster one of two ways, chosen per site:** External Secrets from a vault (OpenBao in dev, Azure Key Vault at sites), or SOPS-encrypted files in the site repository that Flux decrypts on apply (an age key in dev, an Azure Key Vault key at sites, so the key is never in git). Either way the result is a Kubernetes Secret.
 - **Rollback.**
   - A failed upgrade is rolled back by Flux automatically.
   - A bad change that succeeded is reverted with `git revert`, and Flux upgrades back.
