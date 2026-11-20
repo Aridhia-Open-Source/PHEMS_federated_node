@@ -4,7 +4,7 @@ the node-file code that writes.
 
 What is sent comes from the file's entries, typed, never from a Change: a Change says which fields differ, not what to
 send (its values are text for the plan). A repeated apply must not undo what someone set by hand, so a secret is only
-written when missing or with --rotate (which is also the only time a gitea_oauth secret authorises its OAuth app again,
+written when missing or with --rotate (which is also the only time a gitea_oauth secret authorizes its OAuth app again,
 as that replaces the app's client secret), and an assignment that exists is only ever PATCHed with the fields that
 differ: a PUT resets what its body omits.
 """
@@ -80,7 +80,7 @@ def missing_sources(node: NodeFile, changes: list[Change]) -> list[str]:
 
 
 def needs_gitea(node: NodeFile, changes: list[Change]) -> bool:
-    """Whether a change calls Gitea: a repository to ensure, or an OAuth app to authorise"""
+    """Whether a change calls Gitea: a repository to ensure, or an OAuth app to authorize"""
     return any(
         change.kind == "gitea repo" or (writes_secret(change) and node.secrets[change.key].gitea_oauth)
         for change in changes

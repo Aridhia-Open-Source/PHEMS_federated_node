@@ -29,7 +29,7 @@ def init_git_secret(
     Store the credentials the backend mints the repo's git tokens from, and return a token that works
     now (None for a GitHub App, which fncli cannot mint a token for). gitea_api is None for a GitHub repo.
     - GitHub: APP_ID, INSTALLATION_ID and PRIVATE_KEY from GH_APP_ID, GH_INSTALLATION_ID and GH_PRIVATE_KEY.
-    - Gitea: CLIENT_ID, CLIENT_SECRET and REFRESH_TOKEN of an OAuth2 application authorised as the admin user,
+    - Gitea: CLIENT_ID, CLIENT_SECRET and REFRESH_TOKEN of an OAuth2 application authorized as the admin user,
       or with static_token a TOKEN, a fresh Gitea personal access token.
     """
     token = None

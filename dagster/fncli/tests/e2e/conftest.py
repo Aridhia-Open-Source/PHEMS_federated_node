@@ -116,7 +116,7 @@ def trigger_secret_label() -> str:
 
 
 def rotate_trigger_secret(fncli):
-    """`fncli apply --rotate` of the trigger repository's secret: its OAuth app is authorised again and the new credentials stored."""
+    """`fncli apply --rotate` of the trigger repository's secret: its OAuth app is authorized again and the new credentials stored."""
     fncli.run("apply", *node_args(GLOBALS_FILE), "--rotate", trigger_secret_label(), "-y")
 
 

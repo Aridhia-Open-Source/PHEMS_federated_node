@@ -93,7 +93,7 @@ class GithubAppSource:
 class GiteaOAuthSource:
     """
     An OAuth2 access token of the Gitea application, from its refresh token, which the answer replaces. The token acts
-    as the user who authorised the application: Gitea cannot restrict it to one repository or permission.
+    as the user who authorized the application: Gitea cannot restrict it to one repository or permission.
     """
     KEYS = frozenset({"CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"})
     CACHED = True
