@@ -59,7 +59,7 @@ GitHub and Gitea repositories can be used side by side. The repository's provide
 1. Create the App (your organisation's settings, Developer settings, GitHub Apps, New):
    - untick Webhook "Active";
    - Repository permissions: **Contents** and **Pull requests**, read and write;
-   - "Only on this account", and leave the user-authorisation options off.
+   - "Only on this account", and leave the user-authorization options off.
 2. Note the **App ID**, then generate a **private key** (a `.pem` file). Keep it out of git.
 3. **Install** the App on only the repositories the node uses. The number at the end of the installation URL is the **installation ID**.
 
@@ -67,7 +67,7 @@ GitHub OAuth Apps (user tokens) are not supported. To withdraw the node's access
 
 ### Gitea
 
-Gitea is the development host. The chart can run one for you (`gitea.enabled`), and `fncli gitea setup` creates and authorises the OAuth2 application for you: see [Using fncli](./Using-fncli). The chart pins Gitea's `INVALIDATE_REFRESH_TOKENS=false`, which makes concurrent refreshes safe. A Gitea repository that goes unused for 30 days loses its refresh token and needs authorising again.
+Gitea is the development host. The chart can run one for you (`gitea.enabled`), and `fncli gitea setup` creates and authorizes the OAuth2 application for you: see [Using fncli](./Using-fncli). The chart pins Gitea's `INVALIDATE_REFRESH_TOKENS=false`, which makes concurrent refreshes safe. A Gitea repository that goes unused for 30 days loses its refresh token and needs authorizing again.
 
 
 ## 1. Secrets

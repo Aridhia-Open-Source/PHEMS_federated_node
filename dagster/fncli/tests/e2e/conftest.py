@@ -140,7 +140,7 @@ def trigger_secret() -> dict:
 
 
 def rotate_trigger_secret(fncli):
-    """`fncli gitea setup --rotate` of the trigger repository's NodeSecret: its OAuth app is authorised again and the new
+    """`fncli gitea setup --rotate` of the trigger repository's NodeSecret: its OAuth app is authorized again and the new
     credentials written to its Secret. Waits until the operator has sent that version of the Secret to nexus-api."""
     secret = trigger_secret()
     label, namespace = secret["metadata"]["name"], secret["metadata"]["namespace"]
