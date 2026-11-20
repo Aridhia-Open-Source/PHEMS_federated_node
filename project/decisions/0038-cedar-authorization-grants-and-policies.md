@@ -1,4 +1,4 @@
-# 0038. Cedar for authorization - grants and policies
+# 0038. Cedar authorization - grants and policies
 
 Status: Proposed, 2026-11-20.
 
@@ -111,7 +111,7 @@ Every action, reads included, is checked.
   when { resource.revoked };
   ```
 
-- **SuperUser bypasses grants, not the rules** ([0037](0037-keycloak-for-authentication-roles-and-system-accounts.md)): the `permit` for `SuperUser` skips grants, and every `forbid` still applies to it.
+- **SuperUser bypasses grants, not the rules** ([0037](0037-keycloak-authentication-roles-and-system-accounts.md)): the `permit` for `SuperUser` skips grants, and every `forbid` still applies to it.
 - **Sites add rules later** as extra `.cedar` files through chart values, versioned in the site's repo ([0031](0031-gitops-delivery-with-helm-and-flux.md)). They add to the standard rules and cannot remove them. A new action needs code, since a route has to ask for it.
 
 ### The check

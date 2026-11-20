@@ -2,7 +2,7 @@
 
 Status: Proposed, 2026-11-20.
 
-An OpenID Connect (OIDC) provider authenticates: it holds the accounts, gives each one a node role and its groups, and issues the tokens. nexus-api authorizes: it decides every access to every record, from its own database, in the record's own transaction, by rules in one reviewed policy file. The provider holds nothing per record. The provider we ship is Keycloak ([0037](0037-keycloak-for-authentication-roles-and-system-accounts.md)); the rules are Cedar ([0038](0038-cedar-for-authorization-grants-and-policies.md)).
+An OpenID Connect (OIDC) provider authenticates: it holds the accounts, gives each one a node role and its groups, and issues the tokens. nexus-api authorizes: it decides every access to every record, from its own database, in the record's own transaction, by rules in one reviewed policy file. The provider holds nothing per record. The provider we ship is Keycloak ([0037](0037-keycloak-authentication-roles-and-system-accounts.md)); the rules are Cedar ([0038](0038-cedar-authorization-grants-and-policies.md)).
 
 ## Context
 
@@ -20,7 +20,7 @@ An OpenID Connect (OIDC) provider authenticates: it holds the accounts, gives ea
 
 This lands before the operator ([0032](0032-declarative-node-config-through-an-operator.md)) and Flux delivery ([0031](0031-gitops-delivery-with-helm-and-flux.md)), because both build on the access model. The operator creates records and needs an identity to own them, and Flux copies each site's config, access settings included, into that site's GitOps repository. The single baseline migration ([0023](0023-fastapi-replaces-flask.md)) is cheap to change only until a site runs it. Settled after the first rollout, the old model ships to every hospital and has to be migrated out site by site. Without per-record access, the node cannot be governed: owner groups give no per-user rights, no expiry and no instant revoke, so leavers and finished projects keep access until someone edits the provider by hand, which fails the access controls sites audit before approving a node.
 
-- **The operator needs an identity.** It gets the `Service` role ([0037](0037-keycloak-for-authentication-roles-and-system-accounts.md)) and owns its records through grants ([0038](0038-cedar-for-authorization-grants-and-policies.md)); without them it ships on `ownerGroups` and `admin`, which 0038 removes.
+- **The operator needs an identity.** It gets the `Service` role ([0037](0037-keycloak-authentication-roles-and-system-accounts.md)) and owns its records through grants ([0038](0038-cedar-authorization-grants-and-policies.md)); without them it ships on `ownerGroups` and `admin`, which 0038 removes.
 - **The baseline closes at first rollout.** Grants change the schema, so they belong in the baseline, not in a later data migration on live hospital databases.
 - **Flux fixes config in site repositories.** Values like `ownerGroups` end up in every site's repository; dropping them later is a rollout to each site, not one PR.
 - **Sites ask first.** "Who can see this dataset, and can you revoke it?" Grants answer with instant revoke and an audit trail.

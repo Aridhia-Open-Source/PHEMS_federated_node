@@ -40,8 +40,8 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0030](../project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md) | fncli demo only walks the pull request process | Setup and cleanup are `apply` and `delete`; the demo checks the node matches first. |
 | [0034](../project/decisions/0034-running-behind-a-tls-intercepting-proxy.md) | Running behind a TLS-intercepting proxy | One script checks the proxy and CA and writes only generated, gitignored env and values files that hand-edited ones override; image builds get the CA as a build secret. |
 | [0036](../project/decisions/0036-api-authorization-oidc-authentication.md) | API authorization, OIDC authentication | An OIDC provider signs people in and supplies a user id, one node role and groups; nexus-api decides every access per record from its own database. |
-| [0037](../project/decisions/0037-keycloak-for-authentication-roles-and-system-accounts.md) | Keycloak for authentication - roles and system accounts | Keycloak is the provider shipped; five fixed realm roles; kc-init creates the system accounts; SuperUser bypasses grants, not the application's rules. |
-| [0038](../project/decisions/0038-cedar-for-authorization-grants-and-policies.md) | Cedar for authorization - grants and policies | A `grants` table per record (owner, read, write, execute, assign, optional expiry); Cedar policies say what each allows; every route declares an `Access` check. |
+| [0037](../project/decisions/0037-keycloak-authentication-roles-and-system-accounts.md) | Keycloak authentication - roles and system accounts | Keycloak is the provider shipped; five fixed realm roles; kc-init creates the system accounts; SuperUser bypasses grants, not the application's rules. |
+| [0038](../project/decisions/0038-cedar-authorization-grants-and-policies.md) | Cedar authorization - grants and policies | A `grants` table per record (owner, read, write, execute, assign, optional expiry); Cedar policies say what each allows; every route declares an `Access` check. |
 
 ## Other docs by topic
 

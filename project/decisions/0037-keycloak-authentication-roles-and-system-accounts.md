@@ -1,4 +1,4 @@
-# 0037. Keycloak for authentication - roles and system accounts
+# 0037. Keycloak authentication - roles and system accounts
 
 Status: Proposed, 2026-11-20.
 
@@ -34,7 +34,7 @@ Each account holds exactly one node role, a realm role. The roles are fixed in c
 | `Users` | normal users | the access their grants give them, nothing more |
 | `Dagster` | the Dagster account | writing pipeline state, on the routes the pipeline calls only |
 
-- **A role gives broad scopes, not per-record access.** A role reaches a record only through a grant to that role (for example `role:Service` owns what the operator creates) or, for `SuperUser`, through the one Cedar rule that skips grants ([0038](0038-cedar-for-authorization-grants-and-policies.md)).
+- **A role gives broad scopes, not per-record access.** A role reaches a record only through a grant to that role (for example `role:Service` owns what the operator creates) or, for `SuperUser`, through the one Cedar rule that skips grants ([0038](0038-cedar-authorization-grants-and-policies.md)).
 - **SuperUser bypasses grants, not the rules.** It may read, change, delete and grant any record without a grant, but the application's rules still apply to it. For example, nobody can run tasks on a revoked dataset, SuperUser included; it has to un-revoke the dataset first, like any owner. A state change that is a 409 for others is a 409 for it too.
 - **SuperUser is for recovery, not daily work.** It is the only role that may claim a record (`PUT <record path>/owner`), for example when the owning admin has left. Every action it takes is recorded like any other caller's.
 
