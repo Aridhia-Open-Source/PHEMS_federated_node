@@ -187,7 +187,7 @@ class TestOAuthAdapter:
         assert adapter.access_token == "cached"
         adapter.refresh_tokens.assert_not_called()
 
-    def test_requests_are_authorised(self, adapter):
+    def test_requests_are_authorized(self, adapter):
         request = MagicMock()
         request.headers = {}
 

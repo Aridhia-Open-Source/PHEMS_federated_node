@@ -67,7 +67,7 @@ class GiteaWebClient(HttpClient):
 
     def authorize(self, client_id: str, redirect_uri: str) -> str:
         """
-        The authorization code. The first time a user authorises an application Gitea asks for
+        The authorization code. The first time a user authorizes an application Gitea asks for
         consent, even with skip_secondary_authorization, so the consent form is posted. Every
         later time it redirects straight away.
         """
@@ -89,7 +89,7 @@ class GiteaWebClient(HttpClient):
             )
         query = parse_qs(urlparse(response.headers["Location"]).query)
         if "code" not in query:
-            raise RuntimeError(f"Gitea did not authorise the application: {query}")
+            raise RuntimeError(f"Gitea did not authorize the application: {query}")
         return query["code"][0]
 
     def exchange_code(self, client_id: str, client_secret: str, code: str, redirect_uri: str) -> dict:
@@ -199,7 +199,7 @@ class GiteaAdminAPI:
 
     def authorize_oauth_app(self, name: str) -> dict:
         """
-        Authorise the admin user's OAuth2 application of that name without a browser (it is created
+        Authorize the admin user's OAuth2 application of that name without a browser (it is created
         if missing) and return its client_id and client_secret with the access_token and
         refresh_token Gitea issued.
         """

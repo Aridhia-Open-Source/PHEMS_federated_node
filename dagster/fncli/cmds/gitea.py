@@ -1,9 +1,9 @@
 """
 `fncli gitea setup -f FILE` makes what the Gitea Repository resources of node config files (config/, ADR 0032) need
 before kubectl applies them: each repository in Gitea, under the node's Gitea admin user, and for each NodeSecret they
-name, a Gitea OAuth app of the NodeSecret's name, authorised, with its credentials (CLIENT_ID, CLIENT_SECRET,
+name, a Gitea OAuth app of the NodeSecret's name, authorized, with its credentials (CLIENT_ID, CLIENT_SECRET,
 REFRESH_TOKEN) in the Kubernetes Secret the NodeSecret reads (fromSecret, in its namespace). A Secret that exists is
-kept: authorising again replaces the app's client secret, so only --rotate does. A repository is a Gitea one when its
+kept: authorizing again replaces the app's client secret, so only --rotate does. A repository is a Gitea one when its
 host is a gitea GitProvider's, in the files or on the cluster. Dev only: production Secrets come from SOPS or External
 Secrets.
 """
@@ -95,7 +95,7 @@ def gitea_group():
 @context_option
 @click.option(
     "--rotate", multiple=True, metavar="NODESECRET",
-    help="Authorise this NodeSecret's OAuth app again and rewrite its Secret, though it exists (repeatable). The "
+    help="Authorize this NodeSecret's OAuth app again and rewrite its Secret, though it exists (repeatable). The "
     "operator sends the new values to nexus-api on its next sync.",
 )
 def setup_command(paths, context, rotate):

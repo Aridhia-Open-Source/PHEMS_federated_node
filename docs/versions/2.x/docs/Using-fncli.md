@@ -102,7 +102,7 @@ The node config is applied in the style of kubectl, because it is kubectl.
 How they behave:
 
 - **Run `fncli gitea setup` first.** A NodeSecret whose Secret does not exist yet stays unsynced until it does.
-- **Secrets are create-only.** A Secret that exists is kept. `--rotate NODESECRET` writes it again, and authorises the Gitea OAuth app again.
+- **Secrets are create-only.** A Secret that exists is kept. `--rotate NODESECRET` writes it again, and authorizes the Gitea OAuth app again.
 - **Apply is repeatable.** The operator creates what is missing and changes only what differs, so a second apply of an unchanged file changes nothing.
 - **Disruptive changes are marked.** A dataset's host, port, type or schemas, and a results repository's `targetDir` or `baseBranch`, are pinned into each task when it is created, so changing them fails earlier tasks.
 - **Delete is a soft delete** through the API's `DELETE` routes, never with `?force=true`. What another project outside the file still uses is kept: the resource stays `Terminating`, with the backend's reason in its Message, until that project is deleted. A provider that other repositories are on is kept.
