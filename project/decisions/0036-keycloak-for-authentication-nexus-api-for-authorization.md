@@ -1,8 +1,8 @@
-# 0036. Keycloak for sign-in, nexus-api for access decisions
+# 0036. Keycloak for authentication, nexus-api for authorization
 
 Status: Proposed, 2026-11-20.
 
-Keycloak authenticates: it holds the accounts, gives each one a broad role and its groups, and issues tokens. nexus-api authorises: it decides every access to every record, from its own database, in the record's own transaction, by rules in one reviewed policy file. Keycloak holds nothing per record. The implementation is [0038](0038-policy-based-access-control-with-grants-and-cedar.md).
+Keycloak authenticates: it holds the accounts, gives each one a broad role and its groups, and issues tokens. nexus-api authorizes: it decides every access to every record, from its own database, in the record's own transaction, by rules in one reviewed policy file. Keycloak holds nothing per record. The implementation is [0038](0038-policy-based-access-control-with-grants-and-cedar.md).
 
 ## Context
 

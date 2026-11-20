@@ -2,7 +2,7 @@
 
 Status: Proposed, 2026-11-20.
 
-This implements [0036](0036-keycloak-for-sign-in-nexus-api-for-access-decisions.md): Keycloak signs people in, nexus-api decides every access per record.
+This implements [0036](0036-keycloak-for-authentication-nexus-api-for-authorization.md): Keycloak signs people in, nexus-api decides every access per record.
 
 A `grants` table in nexus-api says who may read, write, execute or assign each project and global record. A Cedar policy file says what each grant allows. Every route declares an `Access` check, through which a checked route receives its record, and nexus-api refuses to start if a route has none.
 
@@ -215,7 +215,7 @@ The cost is one dependency (`cedarpy`, no transitive dependencies, a prebuilt wh
 | Cerbos | no, sidecar (in-process is paid) | yes, YAML | yes | extra container |
 | Casbin | yes | no, Casbin-only | yes | generic table, rules held in memory |
 | OpenFGA / SpiceDB | no, service | yes | no, second store | extra service, two places to keep in step |
-| Keycloak Authorization Services | no, remote | yes | no, second store | see [0036](0036-keycloak-for-sign-in-nexus-api-for-access-decisions.md) |
+| Keycloak Authorization Services | no, remote | yes | no, second store | see [0036](0036-keycloak-for-authentication-nexus-api-for-authorization.md) |
 | Oso (Polar) | was | yes | yes | open-source library dropped in 2023; now a paid service |
 | Google CEL | yes | yes, expressions only | yes | no policy structure, schema or tests; we would build them. The fallback if Cedar is ruled out |
 

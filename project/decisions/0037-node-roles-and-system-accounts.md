@@ -4,7 +4,7 @@ Status: Proposed, 2026-11-20.
 
 ## Context
 
-- **Keycloak signs people and programs in** ([0017](0017-authorization-detached-from-dar-and-keycloak.md)); nexus-api decides what they may do to each record ([0036](0036-keycloak-for-sign-in-nexus-api-for-access-decisions.md)), through grants ([0038](0038-policy-based-access-control-with-grants-and-cedar.md)).
+- **Keycloak signs people and programs in** ([0017](0017-authorization-detached-from-dar-and-keycloak.md)); nexus-api decides what they may do to each record ([0036](0036-keycloak-for-authentication-nexus-api-for-authorization.md)), through grants ([0038](0038-policy-based-access-control-with-grants-and-cedar.md)).
 - **Some callers are programs, not people.** The operator applies node config from git ([0032](0032-declarative-node-config-through-an-operator.md)) and Dagster writes pipeline state. Both must work from install, before nexus-api holds any rows.
 - **Records can be left without an owner.** The owning admin leaves, or a record was made before grants existed. Someone has to be able to recover them.
 - **Bypassing access must not bypass the application.** Revoked flags and state transitions ([0005](0005-state-transition-tables.md), [0008](0008-enabled-revoked-and-soft-delete.md)) keep tasks and results consistent; a role that skipped them could leave a node in a broken state.
