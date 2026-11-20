@@ -1,8 +1,8 @@
-# 0038. Policy-based access control with grants and Cedar
+# 0038. Cedar for authorization: grants and policies
 
 Status: Proposed, 2026-11-20.
 
-This implements [0036](0036-keycloak-for-authentication-nexus-api-for-authorization.md): Keycloak signs people in, nexus-api decides every access per record.
+This implements the authorization half of [0036](0036-api-authorization-oidc-authentication.md): nexus-api decides every access per record.
 
 A `grants` table in nexus-api says who may read, write, execute or assign each project and global record. A Cedar policy file says what each grant allows. Every route declares an `Access` check, through which a checked route receives its record, and nexus-api refuses to start if a route has none.
 
@@ -111,7 +111,7 @@ Every action, reads included, is checked.
   when { resource.revoked };
   ```
 
-- **SuperUser bypasses grants, not the rules** ([0037](0037-node-roles-and-system-accounts.md)): the `permit` for `SuperUser` skips grants, and every `forbid` still applies to it.
+- **SuperUser bypasses grants, not the rules** ([0037](0037-keycloak-for-authentication-roles-and-system-accounts.md)): the `permit` for `SuperUser` skips grants, and every `forbid` still applies to it.
 - **Sites add rules later** as extra `.cedar` files through chart values, versioned in the site's repo ([0031](0031-gitops-delivery-with-helm-and-flux.md)). They add to the standard rules and cannot remove them. A new action needs code, since a route has to ask for it.
 
 ### The check
@@ -215,7 +215,7 @@ The cost is one dependency (`cedarpy`, no transitive dependencies, a prebuilt wh
 | Cerbos | no, sidecar (in-process is paid) | yes, YAML | yes | extra container |
 | Casbin | yes | no, Casbin-only | yes | generic table, rules held in memory |
 | OpenFGA / SpiceDB | no, service | yes | no, second store | extra service, two places to keep in step |
-| Keycloak Authorization Services | no, remote | yes | no, second store | see [0036](0036-keycloak-for-authentication-nexus-api-for-authorization.md) |
+| Keycloak Authorization Services | no, remote | yes | no, second store | see [0036](0036-api-authorization-oidc-authentication.md) |
 | Oso (Polar) | was | yes | yes | open-source library dropped in 2023; now a paid service |
 | Google CEL | yes | yes, expressions only | yes | no policy structure, schema or tests; we would build them. The fallback if Cedar is ruled out |
 
