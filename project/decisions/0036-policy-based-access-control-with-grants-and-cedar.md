@@ -1,4 +1,4 @@
-# 0036. Access through grants, checked by Cedar
+# 0036. Policy-based access control with grants and Cedar
 
 Status: Proposed, 2026-11-19.
 
@@ -36,23 +36,23 @@ This design answers each point:
 | datasets only | every owned record type |
 | revoke waits for token expiry | deleting a grant applies at once |
 
+### Why before the operator and Flux
+
+This lands before the operator ([0032](0032-declarative-node-config-through-an-operator.md)) and Flux delivery ([0031](0031-gitops-delivery-with-helm-and-flux.md)), because both build on the access model. The operator creates records and needs an identity to own them, and Flux copies each site's config, access settings included, into that site's GitOps repository. The single baseline migration ([0023](0023-fastapi-replaces-flask.md)) is cheap to change only until a site runs it. Settled after the first rollout, the old model ships to every hospital and has to be migrated out site by site. Without per-record access, the node cannot be governed: owner groups give no per-user rights, no expiry and no instant revoke, so leavers and finished projects keep access until someone edits Keycloak by hand, which fails the access controls sites audit before approving a node.
+
+- **The operator needs an identity.** It creates projects, datasets and secrets. This ADR gives it the `Service` role and grants; without them it ships on `ownerGroups` and `admin`, which this ADR removes.
+- **The baseline closes at first rollout.** Grants change the schema, so they belong in the baseline, not in a later data migration on live hospital databases.
+- **Flux fixes config in site repositories.** Values like `ownerGroups` end up in every site's repository; dropping them later is a rollout to each site, not one PR.
+- **The rework is already planned.** The operator moves onto this model either way. Before merge that is a few files; after rollout it is code, data and site config together.
+- **Sites ask first.** "Who can see this dataset, and can you revoke it?" Grants answer with instant revoke and an audit trail, which [0021](0021-nexus-api-owns-the-record-and-the-rules.md) makes nexus-api's job.
+
 ## Decision
 
 Keycloak authenticates and gives each account a broad role. nexus-api authorises: a `grants` table says who may do what to each record, and a Cedar policy file says what each grant allows.
 
 ### Keycloak: accounts, roles and groups
 
-- **Each account holds one node role,** a realm role, for setup and broad scopes:
-
-  | Role | Held by |
-  |---|---|
-  | `SuperUser` | the break-glass account; may do anything |
-  | `Administrator` | admins, the first user included |
-  | `Service` | the nexus operator |
-  | `Users` | normal users |
-  | `Dagster` | the Dagster account; writes pipeline state only |
-
-  kc-init creates the first admin, the superuser, the Dagster account and the operator account on install, so they work before nexus-api holds any rows. The list is fixed in code.
+- **Each account holds one node role,** a realm role: `SuperUser`, `Administrator`, `Service`, `Users` or `Dagster`. The roles, who holds them and the accounts kc-init creates are in [0037](0037-node-roles-and-system-accounts.md).
 - **Groups are Keycloak groups** (for example `/studies/uc1`). Admins manage membership in Keycloak; later a hospital's directory groups can feed them. The realm has a groups mapper, so tokens carry the caller's groups.
 - **Keycloak holds nothing per record.** Keycloak Authorization Services are not used.
 
@@ -145,6 +145,7 @@ Keycloak authenticates and gives each account a broad role. nexus-api authorises
   ```
 
 - **Nothing is allowed unless a `permit` matches,** and a `forbid` always wins.
+- **SuperUser bypasses grants, not the rules** ([0037](0037-node-roles-and-system-accounts.md)): the `permit` for `SuperUser` skips grants, and every `forbid` still applies to it.
 - **Sites add rules later** as extra `.cedar` files through chart values, versioned in the site's repo ([0031](0031-gitops-delivery-with-helm-and-flux.md)). They add to the standard rules and cannot remove them. A new action needs code, since a route has to ask for it.
 - **Tested:** CI validates the policies against the schema and runs `cases.yaml` in pytest. At startup nexus-api validates them again, refuses to start if they fail, and writes a `policy_versions` row if the hash is new.
 
@@ -273,6 +274,22 @@ The cost is one dependency (`cedarpy`, no transitive dependencies, a prebuilt wh
 | Keycloak Authorization Services | no, remote | yes | no, second store | see above |
 | Oso (Polar) | was | yes | yes | open-source library dropped in 2023; now a paid service |
 | Google CEL | yes | yes, expressions only | yes | no policy structure, schema or tests; we would build them. The fallback if Cedar is ruled out |
+
+### Open Policy Agent
+
+OPA is the closest rival: the policy engine most Kubernetes clusters already run (through Gatekeeper). Both read the same `grants` table, so the choice is the engine, not the data.
+
+| | Cedar | OPA (Rego) |
+|---|---|---|
+| Where it runs | inside nexus-api | a sidecar container, one network call per check |
+| Reading the rules | short `permit` and `forbid` statements a security team can sign off | Rego is powerful but hard to read and easy to get subtly wrong |
+| Typos | the schema rejects them in CI and at startup | no schema by default; a typo silently never matches |
+| Engine assurance | machine-checked proofs, fuzz-tested | widely used and tested, no formal proofs |
+| Maturity | small Python wrapper (`cedarpy`), smaller community | graduated CNCF project, large ecosystem and tooling |
+| Familiar to hospital IT | new | likely, where a site already runs Gatekeeper |
+| Reach | nexus-api only | one engine could cover cluster and application policy |
+
+OPA wins on maturity and familiarity. Cedar is chosen because it needs no extra container, and its rules are readable and checked against a schema. Neither of OPA's strengths is needed while nexus-api is the only service that decides access ([0021](0021-nexus-api-owns-the-record-and-the-rules.md)).
 
 ### Other alternatives
 
