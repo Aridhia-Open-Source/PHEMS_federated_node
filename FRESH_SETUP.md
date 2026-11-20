@@ -333,7 +333,7 @@ fncli never creates or deletes GitHub repos, tokens or Apps. You make them, then
 2. Create the GitHub App (Settings, Developer settings, GitHub Apps, New GitHub App. For an org, use the org's settings):
    - untick Webhook "Active";
    - Repository permissions: **Contents** and **Pull requests**, read and write;
-   - "Only on this account", and leave the user-authorisation options off.
+   - "Only on this account", and leave the user-authorization options off.
 
 3. Note the **App ID** from the App's settings page. This is `GH_APP_ID`.
 

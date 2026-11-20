@@ -32,8 +32,8 @@ Pull requests belong to the global trigger repository, and every project assigne
 - Dagster pods no longer read git secrets, which narrows their secret access ([0022](0022-task-isolation.md)).
 - Every token issued can be recorded: which repository, which permission, for which project.
 - Per-project revocation is done on the node (the backend stops handing out tokens). On GitHub a data controller revokes per repository, by removing it from the App installation or uninstalling the App; GitHub has no finer switch.
-- A Gitea OAuth2 token acts as the user who authorised it, not as one repository, so that service user should only have access to the repositories it needs.
-- A Gitea repository unused for 30 days loses its refresh token and needs authorising again.
+- A Gitea OAuth2 token acts as the user who authorized it, not as one repository, so that service user should only have access to the repositories it needs.
+- A Gitea repository unused for 30 days loses its refresh token and needs authorizing again.
 - Git calls now depend on the backend being up, as the rest of the pipeline already does ([0021](0021-webserver-owns-the-record-and-the-rules.md)).
 - The minting code is a module inside the backend behind a small interface; it can move to its own service later without changing callers.
 

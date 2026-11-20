@@ -118,7 +118,7 @@ def test_authorize_fails_when_the_redirect_has_no_code():
         ("GET", "/login/oauth/authorize"): response(303, headers={"Location": f"{CALLBACK}?error=access_denied"}),
     })
 
-    with pytest.raises(RuntimeError, match="did not authorise"):
+    with pytest.raises(RuntimeError, match="did not authorize"):
         web.authorize("cid", CALLBACK)
 
 
@@ -193,7 +193,7 @@ def test_delete_oauth_app_reports_when_there_is_none():
     assert len(session.calls) == 1
 
 
-def test_authorize_oauth_app_logs_in_authorises_and_exchanges_the_code():
+def test_authorize_oauth_app_logs_in_authorizes_and_exchanges_the_code():
     web = MagicMock()
     web.authorize.return_value = "gta_abc"
     web.exchange_code.return_value = {"access_token": "a", "refresh_token": "r", "expires_in": 3600}

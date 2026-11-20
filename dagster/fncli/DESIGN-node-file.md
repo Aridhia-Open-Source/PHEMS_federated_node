@@ -30,7 +30,7 @@ providers:
 # Each value says where fncli reads it at apply time. Never inline.
 secrets:
   demo-gitea-trigger-creds:
-    gitea_oauth: {app: demo-sensor}        # fncli creates and authorises the OAuth app (needs `gitea:` below)
+    gitea_oauth: {app: demo-sensor}        # fncli creates and authorizes the OAuth app (needs `gitea:` below)
   demo-gitea-results-creds:
     gitea_oauth: {app: demo-results}
   phems-sandbox-creds:                     # shared by the GitHub trigger and results repositories
@@ -156,7 +156,7 @@ Plan (excerpt): 3 to create, 2 to change, 1 needs a confirmation, 1 unchanged. N
 - **A reference is where fncli reads a value at apply time, not a pointer the backend follows.** nexus-api keeps its own copy (provider `K8S` only, stored as `fn-secret-<label>`), a create needs the values, and no read returns values or even key names. That includes a `k8s_secret` reference: fncli reads it with the kubeconfig and writes it to nexus-api.
 - **So secrets can't be diffed.** The plan can say "exists" and "enabled", never "changed".
 - **Create-only by default.** Apply creates a missing secret and leaves an existing one alone. `--rotate LABEL` rewrites it. A rewrite replaces all keys, so cached git tokens are dropped, which is intended.
-- **Gitea OAuth must never run on every apply.** Re-authorising rotates the application's client secret and refresh token. It runs only for a missing secret or `--rotate`.
+- **Gitea OAuth must never run on every apply.** Re-authorizing rotates the application's client secret and refresh token. It runs only for a missing secret or `--rotate`.
 - **Never printed.** Logs and plan show the source (`env GH_APP_ID`) and the key names, never values. The schema rejects a bare string where a reference is expected.
 - **Env files still hold secrets.** `--env-file` keeps loading before the file is read, so `GH_*` can live in an ignored env file and the node file is safe to commit. `RESEARCHER_GIT_TOKEN` stays env: it is a person's credential, not node state.
 - **Login is unchanged.** Apply uses the Dagster system user, as setup does today. Revoking stays in `resource-set` and `global-set`, which need the first Keycloak admin. The file never sets `revoked`.
