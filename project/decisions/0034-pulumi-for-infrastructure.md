@@ -12,7 +12,7 @@ Supersedes the OpenTofu part of [0031](0031-gitops-delivery-with-helm-and-flux.m
 
 ## Decision
 
-- **Pulumi in Python provisions each site's infrastructure** where we own the account: AKS, networking, Key Vault for External Secrets, and workload identity.
+- **Pulumi in Python provisions each site's infrastructure** where we own the account: AKS, networking, Key Vault for External Secrets (and the key SOPS decrypts with), and workload identity.
 - **One Pulumi stack per site.** Per-site differences are stack config and ordinary Python, not copied code.
 - **Outputs feed the rest.** The stack's outputs (cluster name, Key Vault URI, identity client ids) go into the site repository and the Flux bootstrap.
 - **Azure first.** AWS and GCP come later, only for sites that hand us an account.
