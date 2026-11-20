@@ -18,9 +18,9 @@ An OpenID Connect (OIDC) provider authenticates: it holds the accounts, gives ea
 
 ### Why before the operator and Flux
 
-This lands before the operator ([0032](0032-declarative-node-config-through-an-operator.md)) and Flux delivery ([0031](0031-gitops-delivery-with-helm-and-flux.md)), because both build on the access model. The operator creates records and needs an identity to own them, and Flux copies each site's config, access settings included, into that site's GitOps repository. The single baseline migration ([0023](0023-fastapi-replaces-flask.md)) is cheap to change only until a site runs it. Settled after the first rollout, the old model ships to every hospital and has to be migrated out site by site. Without per-record access, the node cannot be governed: owner groups give no per-user rights, no expiry and no instant revoke, so leavers and finished projects keep access until someone edits the provider by hand, which fails the access controls sites audit before approving a node.
+This lands before the operator ([0032](0032-declarative-node-config-through-an-operator.md)) and Flux delivery ([0031](0031-gitops-delivery-with-helm-and-flux.md)), because both build on the access model. The operator creates records and needs an identity to be responsible for them, and Flux copies each site's config, access settings included, into that site's GitOps repository. The single baseline migration ([0023](0023-fastapi-replaces-flask.md)) is cheap to change only until a site runs it. Settled after the first rollout, the old model ships to every hospital and has to be migrated out site by site. Without per-record access, the node cannot be governed: owner groups give no per-user rights, no expiry and no instant revoke, so leavers and finished projects keep access until someone edits the provider by hand, which fails the access controls sites audit before approving a node.
 
-- **The operator needs an identity.** It gets the `Service` role ([0037](0037-keycloak-authentication-roles-and-system-accounts.md)) and owns its records through grants ([0038](0038-cedar-authorization-grants-and-policies.md)); without them it ships on `ownerGroups` and `admin`, which 0038 removes.
+- **The operator needs an identity.** It signs in as a Keycloak client in the `Service` role group ([0037](0037-keycloak-authentication-roles-and-system-accounts.md)) and manages its records through a grant to that group ([0038](0038-cedar-authorization-grants-and-policies.md)); without them it ships on `ownerGroups` and `admin`, which 0038 removes.
 - **The baseline closes at first rollout.** Grants change the schema, so they belong in the baseline, not in a later data migration on live hospital databases.
 - **Flux fixes config in site repositories.** Values like `ownerGroups` end up in every site's repository; dropping them later is a rollout to each site, not one PR.
 - **Sites ask first.** "Who can see this dataset, and can you revoke it?" Grants answer with instant revoke and an audit trail.
@@ -31,8 +31,8 @@ This lands before the operator ([0032](0032-declarative-node-config-through-an-o
 
 - **Signed tokens, checked locally.** nexus-api verifies each token against the provider's published keys; it makes no provider call to decide access.
 - **Issuer and key address are configured separately.** The token's issuer is checked against the provider's public address; the signing keys are fetched over the in-cluster one. Nothing assumes one node per cluster.
-- **Three claims:** a stable user id (`sub`), exactly one node role, and the caller's groups. Nothing else is read from the token.
-- **System accounts for programs:** the operator and Dagster sign in as accounts that hold a role, created on install.
+- **Three claims:** a stable user id (`sub`), exactly one node role, and the caller's groups. Nothing else is read from the token; the provider's built-in roles are ignored.
+- **Client accounts for programs:** the operator and Dagster sign in as provider clients with client credentials, with no user and no password; each client's service account holds a node role. They are created on install.
 - **Nothing per record.** No resources, policies or permissions live in the provider.
 - **Access tokens on every request.** Clients send the access token to nexus-api; a refresh token only ever goes to the provider, to get a new access token. `/login` returns both. Programs (Dagster, the operator) can log in again with their client credentials instead of refreshing.
 
