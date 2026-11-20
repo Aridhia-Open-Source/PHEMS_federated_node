@@ -8,7 +8,6 @@ from dataclasses import dataclass
 
 from fastapi import Depends, Request
 
-from app.helpers.const import OWNER_GROUPS
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.helpers.keycloak import Keycloak
 from app.models.user import User
@@ -24,26 +23,8 @@ class Caller:
     is_admin: bool
     is_system: bool
     kc_client: Keycloak
-    # The caller's realm roles and Keycloak groups, from the token
-    groups: frozenset[str]
     # The caller's row in users, created or refreshed on this call (ADR 0036)
     user: User
-
-    @property
-    def owner_group(self) -> str | None:
-        """The first of OWNER_GROUPS the caller is in: the group that locks the records it writes."""
-        return owner_group_of(self.groups)
-
-
-def token_groups(token_info: dict) -> frozenset[str]:
-    """The realm roles and the Keycloak groups (when the token has a groups claim) a decoded token carries."""
-    roles = token_info.get("realm_access", {}).get("roles", [])
-    groups = [g.lstrip("/") for g in token_info.get("groups", [])]
-    return frozenset([*roles, *groups])
-
-
-def owner_group_of(groups: frozenset[str]) -> str | None:
-    return next((g for g in OWNER_GROUPS if g in groups), None)
 
 
 def get_caller(request: Request) -> Caller:
@@ -55,7 +36,6 @@ def get_caller(request: Request) -> Caller:
     kc_client = Keycloak()
     token_info = kc_client.decode_token(token)
     user = kc_client.get_user_by_username(token_info['username'])
-    groups = token_groups(token_info)
 
     # TODO(DAR): DAR checking is disconnected, as in the previous backend. Every caller takes the plain path.
     return Caller(
@@ -64,7 +44,6 @@ def get_caller(request: Request) -> Caller:
         is_admin=kc_client.is_user_admin(token),
         is_system=kc_client.is_system_user(token),
         kc_client=kc_client,
-        groups=groups,
         user=User.seen(user["id"], user["username"]),
     )
 

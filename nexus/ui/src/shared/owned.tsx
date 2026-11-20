@@ -1,13 +1,13 @@
-// A record owned by a group the viewer is not in (ADR 0036): nexus-api refuses every change to it with a
-// 409, so its edit, delete and revoke controls are greyed out, with a tooltip naming the group.
+// Greys out the edit, delete and revoke controls of a record the viewer may not change, with a tooltip
+// naming why. Owner groups are gone and the grants that replace them (ADR 0038) are not built, so every
+// control is allowed.
 import type { ReactNode } from "react";
 
 import { shellMessages } from "@/shell/messages";
 
-// The record's owner group when the viewer is not in it, else null
-export function ownedBy(record: { owner_group?: string | null } | undefined, groups: Set<string>): string | null {
-  const group = record?.owner_group;
-  return group && !groups.has(group) ? group : null;
+// Why the viewer may not change the record, else null: always null until grants decide it
+export function ownedBy(_record: unknown, _groups: Set<string>): string | null {
+  return null;
 }
 
 // Wraps a greyed-out control: a disabled button gets no pointer events, so the tooltip sits on the wrapper

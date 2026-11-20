@@ -20,7 +20,7 @@ from app.dtos.results_repository import ResultsRepositoryDTO
 from app.helpers.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.git_tokens import mint_token, require_token_allowed
-from app.helpers.ownership import get_for_write, set_owner
+from app.helpers.ownership import set_owner
 from app.helpers.soft_delete import delete_global
 from app.helpers.task_config import results_resource
 from app.helpers.wrappers import Caller, get_caller, system_only
@@ -70,12 +70,12 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
 
 
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_repository(repo_id: int, force: bool = False, caller: Caller = Depends(get_caller)):
+def delete_repository(repo_id: int, force: bool = False):
     """
     DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
     """
-    repo = get_for_write(session, ResultsRepository, repo_id, caller)
-    delete_global(repo, repo.project_assignments, force, caller)
+    repo = ResultsRepository.get_by_id(repo_id)
+    delete_global(repo, repo.project_assignments, force)
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=ResultsRepositoryDTO)
@@ -116,7 +116,7 @@ def patch_repository(repo_id: int, req: RepositoryPatchRequest, caller: Caller =
     if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
     project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
     """
-    repo = get_for_write(session, ResultsRepository, repo_id, caller)
+    repo = ResultsRepository.get_by_id(repo_id)
 
     sent = req.model_fields_set
     if not sent:

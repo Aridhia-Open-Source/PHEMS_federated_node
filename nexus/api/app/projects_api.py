@@ -34,7 +34,7 @@ from app.dtos.results_repository import (
 )
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
-from app.helpers.ownership import get_for_write, require_member, require_members, set_owner
+from app.helpers.ownership import set_owner
 from app.helpers.project_state import require_disabled
 from app.helpers.pull_request_fanout import backfill, skip_gap
 from app.helpers.repository_loop import check_no_loop, normalise_dir
@@ -97,7 +97,7 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
     while it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger
     (see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.
     """
-    project = get_for_write(db.session, Project, project_id, caller)
+    project = Project.get_by_id(project_id)
 
     fields = {"enabled", "backfill", "revoked"}
     if not body or not set(body) <= fields:
@@ -129,21 +129,18 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
 
 
 @router.delete('/{project_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_project(project_id: int, caller: Caller = Depends(get_caller)):
+def delete_project(project_id: int):
     """
     DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes
-    every project resource under it: datasets, secrets, results repository and trigger repositories. A 409 names
-    the project resources owned by a group the caller is not in, and nothing is deleted. Its tasks
+    every project resource under it: datasets, secrets, results repository and trigger repositories. Its tasks
     and triggers stay. Secrets, datasets and results repositories belong to no project: they, and
     their stored values, are left alone.
     """
-    project = get_for_write(db.session, Project, project_id, caller)
-    resources = [
+    project = Project.get_by_id(project_id)
+    for resource in (
         *project.dataset_assignments, *project.secret_assignments,
         *project.trigger_repository_assignments, *project.results_repository_assignments,
-    ]
-    require_members(resources, caller, lambda resource: {"type": type(resource).__name__, "id": resource.id})
-    for resource in resources:
+    ):
         resource.soft_delete()
     project.soft_delete()
     db.session.commit()
@@ -198,15 +195,13 @@ def put_project_dataset(
     project, 201, and replaces the project's settings if it is assigned already, 200. The first one assigned becomes the project's default.
     Body: {"enabled": true}, optional.
     """
-    project = require_member(Project.get_by_id(project_id), caller)
+    project = Project.get_by_id(project_id)
     if not set(body) <= {"enabled"}:
         raise InvalidRequest("Provide, optionally, enabled")
     enabled = _enabled(body)
     dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id)
 
-    resource = get_for_write(
-        db.session, ProjectDataset, {"project_id": project.id, "dataset_id": dataset.id}, caller, optional=True
-    )
+    resource = ProjectDataset.query.filter_by(project_id=project.id, dataset_id=dataset.id).one_or_none()
     if resource is None:
         resource = ProjectDataset(project.id, dataset.id, enabled=enabled)
         set_owner(resource, caller)
@@ -225,11 +220,7 @@ def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(de
     PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the project resource on or
     off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
-    require_member(Project.get_by_id(project_id), caller)
-    resource = get_for_write(
-        db.session, ProjectDataset, {"project_id": project_id, "dataset_id": dataset_id}, caller,
-        missing=f"Dataset {dataset_id} is not assigned to project {project_id}",
-    )
+    resource = _dataset_resource(project_id, dataset_id)
     fields = {"enabled", "revoked"}
     if not body or not set(body) <= fields:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
@@ -246,38 +237,22 @@ def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(de
 
 
 @router.delete('/{project_id}/datasets/{dataset_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_project_dataset(project_id: int, dataset_id: int, caller: Caller = Depends(get_caller)):
+def delete_project_dataset(project_id: int, dataset_id: int):
     """
     DELETE /projects/<project_id>/datasets/<dataset_id> endpoint. Unassigns the dataset, not the
     dataset itself: a soft delete that also revokes the project resource. If it was the project's default,
     the project has none afterwards.
     """
-    require_member(Project.get_by_id(project_id), caller)
-    resource = get_for_write(
-        db.session, ProjectDataset, {"project_id": project_id, "dataset_id": dataset_id}, caller,
-        missing=f"Dataset {dataset_id} is not assigned to project {project_id}",
-    )
+    resource = _dataset_resource(project_id, dataset_id)
     resource.soft_delete()
     db.session.commit()
 
 
-def _secret(label: str) -> Secret:
+def _secret_resource(project_id: int, label: str) -> ProjectSecret:
     secret = Secret.query.filter_by(label=label).one_or_none()
     if secret is None:
         raise DBRecordNotFoundError(f"Secret {label} does not exist")
-    return secret
-
-
-def _secret_resource(project_id: int, label: str) -> ProjectSecret:
-    return _resource(ProjectSecret, project_id, _secret(label).id, f"Secret {label}")
-
-
-def _secret_resource_for_write(project_id: int, label: str, caller: Caller) -> ProjectSecret:
-    require_member(Project.get_by_id(project_id), caller)
-    return get_for_write(
-        db.session, ProjectSecret, {"project_id": project_id, "secret_id": _secret(label).id}, caller,
-        missing=f"Secret {label} is not assigned to project {project_id}",
-    )
+    return _resource(ProjectSecret, project_id, secret.id, f"Secret {label}")
 
 
 @router.get('/{project_id}/secrets', response_model=list[ProjectSecretDTO])
@@ -309,15 +284,15 @@ def put_project_secret(
     201, and replaces the project's settings if it is assigned already, 200.
     Body: {"enabled": true}, optional.
     """
-    project = require_member(Project.get_by_id(project_id), caller)
+    project = Project.get_by_id(project_id)
     if not set(body) <= {"enabled"}:
         raise InvalidRequest("Provide, optionally, enabled")
     enabled = _enabled(body)
-    secret = _secret(label)
+    secret = Secret.query.filter_by(label=label).one_or_none()
+    if secret is None:
+        raise DBRecordNotFoundError(f"Secret {label} does not exist")
 
-    resource = get_for_write(
-        db.session, ProjectSecret, {"project_id": project.id, "secret_id": secret.id}, caller, optional=True
-    )
+    resource = ProjectSecret.query.filter_by(project_id=project.id, secret_id=secret.id).one_or_none()
     if resource is None:
         resource = ProjectSecret(project.id, secret.id, enabled=enabled)
         set_owner(resource, caller)
@@ -336,7 +311,7 @@ def patch_project_secret(project_id: int, label: str, body: dict = Body(default_
     PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the project resource on or off (enabled),
     or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
-    resource = _secret_resource_for_write(project_id, label, caller)
+    resource = _secret_resource(project_id, label)
     fields = {"enabled", "revoked"}
     if not body or not set(body) <= fields:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
@@ -353,12 +328,12 @@ def patch_project_secret(project_id: int, label: str, body: dict = Body(default_
 
 
 @router.delete('/{project_id}/secrets/{label}', status_code=HTTPStatus.NO_CONTENT)
-def delete_project_secret(project_id: int, label: str, caller: Caller = Depends(get_caller)):
+def delete_project_secret(project_id: int, label: str):
     """
     DELETE /projects/<project_id>/secrets/{label} endpoint. Unassigns the secret, not the secret
     itself: a soft delete that also revokes the project resource.
     """
-    resource = _secret_resource_for_write(project_id, label, caller)
+    resource = _secret_resource(project_id, label)
     resource.soft_delete()
     db.session.commit()
 
@@ -409,7 +384,7 @@ def put_project_results_repository(
     Body: {"target_dir": "results", "base_branch": "main", "owned_by_federated_node": true, "enabled": true};
     target_dir and base_branch are required, the last two are optional.
     """
-    project = require_member(Project.get_by_id(project_id), caller)
+    project = Project.get_by_id(project_id)
     target_dir = normalise_dir(req.target_dir)
     if not target_dir:
         raise InvalidRequest("target_dir is required")
@@ -426,8 +401,6 @@ def put_project_results_repository(
         resource = ProjectResultsRepository(project.id, repo.id, target_dir, req.base_branch)
         set_owner(resource, caller)
         resource.add(commit=False)
-    else:
-        resource = get_for_write(db.session, ProjectResultsRepository, resource.id, caller)
     resource.target_dir = target_dir
     resource.base_branch = req.base_branch
     resource.owned_by_federated_node = req.owned_by_federated_node
@@ -450,11 +423,7 @@ def patch_project_results_repository(
     off (enabled), or revokes and re-grants it
     (revoked), which is admin only and takes effect at once.
     """
-    require_member(Project.get_by_id(project_id), caller)
-    resource = get_for_write(
-        db.session, ProjectResultsRepository, {"project_id": project_id, "results_repository_id": repository_id},
-        caller, missing=f"Results repository {repository_id} is not assigned to project {project_id}",
-    )
+    resource = _results_resource(project_id, repository_id)
     body = req.model_dump(exclude_unset=True)
     if not body:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectResultsRepositoryPatchRequest.model_fields))}")
@@ -475,16 +444,12 @@ def patch_project_results_repository(
 
 
 @router.delete('/{project_id}/repositories/results/{repository_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_project_results_repository(project_id: int, repository_id: int, caller: Caller = Depends(get_caller)):
+def delete_project_results_repository(project_id: int, repository_id: int):
     """
     DELETE /projects/<project_id>/repositories/results/<repository_id> endpoint. Unassigns the
     repository, not the repository itself: a soft delete that also revokes the project resource. A task of the
     project still in flight gets a REVOKED result.
     """
-    require_member(Project.get_by_id(project_id), caller)
-    resource = get_for_write(
-        db.session, ProjectResultsRepository, {"project_id": project_id, "results_repository_id": repository_id},
-        caller, missing=f"Results repository {repository_id} is not assigned to project {project_id}",
-    )
+    resource = _results_resource(project_id, repository_id)
     resource.soft_delete()
     db.session.commit()
