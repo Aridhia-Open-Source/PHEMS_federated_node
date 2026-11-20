@@ -2,6 +2,8 @@
 
 Status: Proposed, 2026-11-11.
 
+Superseded in part by [0034](0034-pulumi-for-infrastructure.md): Pulumi replaces OpenTofu.
+
 ## Context
 
 - **Sites differ.** Nodes run on managed Kubernetes in Azure, AWS and GCP, on OpenShift, on self-hosted clusters, and on microk8s on a single VM where `helm upgrade` is run by hand.
