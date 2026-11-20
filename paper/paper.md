@@ -128,7 +128,7 @@ The Federated Node (FN) addresses this need by operationalising the
 ICODA Common API into a deployable, open-source package built from
 widely adopted components (Keycloak, nginx, PostgreSQL, Kubernetes). FN
 allows institutions to host secure, standards-compliant endpoints
-capable of executing authorised analytical tasks against local datasets,
+capable of executing authorized analytical tasks against local datasets,
 thereby enabling scalable, privacy-preserving, cross-institutional
 collaboration aligned with international standards.
 

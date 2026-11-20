@@ -59,7 +59,7 @@ Datasets, secrets, trigger repositories and results repositories are all resourc
 - A task reaches its dataset through `task_specs.dataset_id`. "The dataset belongs to this project" means the project has it assigned, and it must be active (`Project.resolve_dataset`, `Task.validate`).
 - `projects.default_dataset_id` points at `datasets.id`; the first dataset assigned to a project becomes its default. A spec that names no dataset runs on the default, if there is one.
 - `task_specs.dataset_id` and `tasks.task_spec_id` are `RESTRICT`, so a dataset a task ran on cannot be deleted for real; deletion is soft ([0008](0008-enabled-revoked-and-soft-delete.md)).
-- Dataset-level authorisation is not part of this design ([0017](0017-authorization-detached-from-dar-and-keycloak.md)).
+- Dataset-level authorization is not part of this design ([0017](0017-authorization-detached-from-dar-and-keycloak.md)).
 
 ### Other rules
 
