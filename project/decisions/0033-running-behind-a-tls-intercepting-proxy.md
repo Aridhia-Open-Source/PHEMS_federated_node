@@ -1,4 +1,4 @@
-# 0034. Running behind a TLS-intercepting proxy
+# 0033. Running behind a TLS-intercepting proxy
 
 Status: Accepted, 2026-11-15.
 
