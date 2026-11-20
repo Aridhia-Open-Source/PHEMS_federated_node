@@ -16,7 +16,7 @@ A secret says where fncli reads each value at apply time, never the value. A ref
     {k8s_secret: {name: N, namespace: NS, key: K}} a key of a Kubernetes secret
     {generate: {length: 24}}                       a random value (dev only, for stand-in dataset credentials)
 
-and a whole secret may instead be `gitea_oauth: {app: NAME}`, an OAuth app fncli creates and authorises in Gitea.
+and a whole secret may instead be `gitea_oauth: {app: NAME}`, an OAuth app fncli creates and authorizes in Gitea.
 A bare string where a reference belongs is an error.
 
 A project's datasets and repositories, and a repository's or dataset's secret, may be listed in this file or already be
