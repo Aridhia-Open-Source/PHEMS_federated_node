@@ -1656,7 +1656,7 @@ fncli<span class="w"> </span>hello-world<span class="w">        </span><span cla
 <p>How they behave:</p>
 <ul>
 <li><strong>Run <code>fncli gitea setup</code> first.</strong> A NodeSecret whose Secret does not exist yet stays unsynced until it does.</li>
-<li><strong>Secrets are create-only.</strong> A Secret that exists is kept. <code>--rotate NODESECRET</code> writes it again, and authorises the Gitea OAuth app again.</li>
+<li><strong>Secrets are create-only.</strong> A Secret that exists is kept. <code>--rotate NODESECRET</code> writes it again, and authorizes the Gitea OAuth app again.</li>
 <li><strong>Apply is repeatable.</strong> The operator creates what is missing and changes only what differs, so a second apply of an unchanged file changes nothing.</li>
 <li><strong>Disruptive changes are marked.</strong> A dataset's host, port, type or schemas, and a results repository's <code>targetDir</code> or <code>baseBranch</code>, are pinned into each task when it is created, so changing them fails earlier tasks.</li>
 <li><strong>Delete is a soft delete</strong> through the API's <code>DELETE</code> routes, never with <code>?force=true</code>. What another project outside the file still uses is kept: the resource stays <code>Terminating</code>, with the backend's reason in its Message, until that project is deleted. A provider that other repositories are on is kept.</li>
