@@ -17,8 +17,8 @@ A `grants` table in nexus-api says which users and groups may read, assign, exec
 
 ### Rules in Cedar, facts in the database
 
-- **A rule that is the same for every record or node is a Cedar rule.** For example: admins and the operator may create global records; admins may assign any global record that is not controlled; SuperUser skips grants.
-- **The database holds only per-record facts:** grants, `created_by` and `owned_by`, `revoked`, `controlled`. Nothing is seeded on install, and there is no `system` user.
+- **A rule that is the same for every record or node is a Cedar rule.** For example: admins and the operator may create global records; admins may assign any global record; SuperUser skips grants.
+- **The database holds only per-record facts:** grants, `created_by` and `owned_by`, `revoked`. Nothing is seeded on install, and there is no `system` user.
 
 ### Tables and columns
 
@@ -41,7 +41,6 @@ A `grants` table in nexus-api says which users and groups may read, assign, exec
   `object_type`, `relation` and `subject_type` are checked against fixed lists. `object_id` has no foreign key, since it points at many tables; deleting a record deletes its grants in the same transaction.
 - **Grants sit on projects and global records only.** A project is a set of resources with one set of permissions: its secrets, trigger and results repositories and assignments have no grants of their own, and every check on them is a check on the project. Each of those resources records `created_by`.
 - **Projects and global records get `created_by` and `owned_by`** (both fk `users.id`). `created_by` is set once, on create, for audit. `owned_by` is who is responsible for the record now; it changes when SuperUser claims or re-assigns the record. Neither grants anything; powers come only from grants and Cedar rules.
-- **Global records (datasets, git providers, secrets, trigger and results repositories) get `controlled`** (boolean, default false). A controlled record can only be assigned by users and groups with an explicit `assign` or `manage` grant on it; the term follows controlled-access data (dbGaP, EGA, GA4GH). Anyone with `manage` on the record may set or clear it.
 - **`users`:** one row per Keycloak account that has called nexus-api (`id` the Keycloak user id, `username`, `created_at`, `last_seen_at`), upserted from the token on each call and skipped when seen in the last minute. Service accounts have rows like people. Never deleted.
 - **`policy_versions`:** the hash and contents of the policy files nexus-api started with, one row per new hash, for audit.
 - **Each model with grants declares `authz_type`** (`authz_type = "Dataset"`), stored in grants and used in the policies. It is never derived from the class or table name, so renaming either breaks nothing. `OwnedMixin` fails at import if a model leaves it out.
@@ -116,16 +115,8 @@ Every action, reads included, is checked. Several users and groups may hold `man
   permit (principal in Group::"/roles/admins", action == Action::"write", resource == Global::"0");
   permit (principal in Group::"/roles/service", action == Action::"write", resource == Global::"0");
 
-  // Admins may read and assign any global record...
+  // Admins may read and assign any global record.
   permit (principal in Group::"/roles/admins", action in [Action::"read", Action::"assign"], resource in Global::"0");
-
-  // ...unless it is controlled and they hold no assign or manage grant on it.
-  forbid (principal in Group::"/roles/admins", action == Action::"assign", resource in Global::"0")
-  when { resource.controlled }
-  unless {
-    (context.grants has assign && context.grants.assign > context.now) ||
-    (context.grants has manage && context.grants.manage > context.now)
-  };
 
   // SuperUser may do anything.
   permit (principal in Role::"SuperUser", action, resource);
@@ -165,7 +156,7 @@ Every action, reads included, is checked. Several users and groups may hold `man
   1. loads the record from the path (404 if missing);
   2. reads the caller from the token: user id, node role, groups;
   3. loads the caller's grants on the record (one query on `grants` matching the user or any of its groups), as one expiry per relation;
-  4. builds the Cedar request: the user with its role and groups as parents, the record with its attributes (`revoked`, `controlled`, and `Global` as parent for the five global record types), and `context` with the grants and the time;
+  4. builds the Cedar request: the user with its role and groups as parents, the record with its attributes (`revoked`, and `Global` as parent for the five global record types), and `context` with the grants and the time;
   5. returns the record if Cedar allows, and raises otherwise.
 
   An unchecked route needs no token from `Access`. Code that is not a route (cascades, the grants routes) calls the same check as `can(caller, action, record)`.
@@ -200,11 +191,10 @@ The operator's `access` list is designed when the operator work resumes; nothing
 
 - The operator creates dataset 12: `owned_by` the operator's service account; grant `Dataset 12, manage, group /roles/service`.
 - Dana (in `/roles/admins`) creates project 3: `owned_by` dana; grant `Project 3, manage, user dana`.
-- Dana adds dataset 12 to project 3: allowed (`manage` on the project, and the Cedar rule letting admins assign global records that are not controlled). She renames dataset 12: denied, the operator manages it.
+- Dana adds dataset 12 to project 3: allowed (`manage` on the project, and the Cedar rule letting admins assign any global record). She renames dataset 12: denied, the operator manages it.
 - In Keycloak she adds Alice and Bob to group `/studies/uc1`. In nexus-api she grants `/studies/uc1` `read`, Alice `write`, and Bob `execute` until 2027-03-01.
 - Alice edits project 3: allowed. Bob edits it: denied. Bob runs a task: allowed, until March. Alice tries to grant access to someone: denied, only `manage` holders may.
 - Dana removes Alice from `/studies/uc1`: Alice keeps her own `write` grant, which also lets her read.
-- A data custodian is whoever holds `manage` on a dataset, not a role: dataset 7 is `owned_by` the lead custodian, with `manage` for group `/custodians/omop`. The custodians mark it `controlled`, so only the admins they grant `assign` may add it to a project.
 - Dana leaves the hospital: SuperUser re-assigns project 3 to Erin, who becomes `owned_by` and gets `manage`.
 
 ## Consequences
