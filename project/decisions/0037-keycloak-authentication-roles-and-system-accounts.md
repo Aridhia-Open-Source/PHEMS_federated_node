@@ -86,7 +86,7 @@ The realm's roles, role groups, operator client and groups mapper (`realms.json`
     }
   ] }
 ],
-"defaultDefaultClientScopes": ["groups"]
+"defaultDefaultClientScopes": ["roles", "profile", "email", "groups"]
 ```
 
 The three claims nexus-api reads from a token; everything else is ignored, and so are Keycloak's built-in roles:

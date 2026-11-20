@@ -41,7 +41,7 @@ A `grants` table in nexus-api says which users and groups may read, assign, exec
   `object_type`, `relation` and `subject_type` are checked against fixed lists. `object_id` has no foreign key, since it points at many tables; deleting a record deletes its grants in the same transaction.
 - **Grants sit on projects and global records only.** A project is a set of resources with one set of permissions: its secrets, trigger and results repositories and assignments have no grants of their own, and every check on them is a check on the project. Each of those resources records `created_by`.
 - **Projects and global records get `created_by` and `owned_by`** (both fk `users.id`). `created_by` is set once, on create, for audit. `owned_by` is who is responsible for the record now; it changes when SuperUser claims or re-assigns the record. Neither grants anything; powers come only from grants and Cedar rules.
-- **Global records get `restricted`** (boolean, default false). A restricted record is not assignable by every admin, only by those with a grant.
+- **Global records (datasets, git providers, secrets, trigger and results repositories) get `restricted`** (boolean, default false). A restricted record is not assignable by every admin, only by those with a grant.
 - **`users`:** one row per Keycloak account that has called nexus-api (`id` the Keycloak user id, `username`, `created_at`, `last_seen_at`), upserted from the token on each call and skipped when seen in the last minute. Service accounts have rows like people. Never deleted.
 - **`policy_versions`:** the hash and contents of the policy files nexus-api started with, one row per new hash, for audit.
 - **Each model with grants declares `authz_type`** (`authz_type = "Dataset"`), stored in grants and used in the policies. It is never derived from the class or table name, so renaming either breaks nothing. `OwnedMixin` fails at import if a model leaves it out.
@@ -71,7 +71,7 @@ Every action, reads included, is checked. Several users and groups may hold `man
 
 ### Global
 
-`Global` is the container for global records, as a project is for project records. Creating a global record (a dataset, git provider, secret, trigger or results repository, or a project) needs `write` on `Global`; a Cedar rule gives it to `/roles/admins` and `/roles/service`. `Global` is not a table and has no grants; it is `Global::"0"` in Cedar and the parent of every global record.
+`Global` is the container for global records, as a project is for project records. Creating a global record (a dataset, git provider, secret, trigger or results repository, or a project) needs `write` on `Global`; a Cedar rule gives it to `/roles/admins` and `/roles/service`. `Global` is not a table and has no grants; it is `Global::"0"` in Cedar and the parent of every dataset, git provider, secret, trigger and results repository. Projects are created under it but are not its children.
 
 ### Grant routes, claiming and re-assigning
 
@@ -165,7 +165,7 @@ Every action, reads included, is checked. Several users and groups may hold `man
   1. loads the record from the path (404 if missing);
   2. reads the caller from the token: user id, node role, groups;
   3. loads the caller's grants on the record (one query on `grants` matching the user or any of its groups), as one expiry per relation;
-  4. builds the Cedar request: the user with its role and groups as parents, the record with its attributes (`revoked`, `restricted`, `Global` as parent), and `context` with the grants and the time;
+  4. builds the Cedar request: the user with its role and groups as parents, the record with its attributes (`revoked`, `restricted`, and `Global` as parent for the five global record types), and `context` with the grants and the time;
   5. returns the record if Cedar allows, and raises otherwise.
 
   An unchecked route needs no token from `Access`. Code that is not a route (cascades, the grants routes) calls the same check as `can(caller, action, record)`.
@@ -176,7 +176,7 @@ Every action, reads included, is checked. Several users and groups may hold `man
 
   Who may create global records is then a Cedar rule, not only a Keycloak scope.
 - **Assigning needs both sides.** Adding or removing a project's datasets, secrets, trigger repositories or results repository needs `write` on the project (through `Access`) and `assign` on the global record (through `can()`).
-- **Lists show only what the caller may read.** List routes filter their query by the caller's grants (a join on `grants` for the user or its groups) and by the Cedar rules that need no grant (unrestricted global records for admins), then Cedar checks each row; `SuperUser` sees everything.
+- **Lists show only what the caller may read.** List routes filter their query by the caller's grants (a join on `grants` for the user or its groups) and by the Cedar rules that need no grant (global records for admins), then Cedar checks each row; `SuperUser` sees everything.
 - **Cascading deletes check every record they would delete;** if the caller may not write one, nothing is deleted.
 - **`execute` is checked for tasks requested through the API.** Tasks started by merged pull requests are not checked, for now; the trigger repository's permissions and the pull request review are the gate there:
   - nexus-api cannot tell who raised or merged a pull request until a hospital links GitHub or Azure identities to Keycloak, and most sites have not yet;
