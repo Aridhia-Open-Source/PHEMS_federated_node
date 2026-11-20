@@ -23,8 +23,6 @@ class TriggerRepositoryDTO(DTO):
     # Where polling the provider resumes, see TriggerRepository.get_ingest_cursor
     pr_cursor: str
     owner: UserRefDTO | None
-    # The group whose members alone may change it, null when it is open (ADR 0036)
-    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: TriggerRepository):
@@ -38,7 +36,6 @@ class TriggerRepositoryDTO(DTO):
             revoked=obj.revoked,
             pr_cursor=obj.get_ingest_cursor(),
             owner=UserRefDTO.of(obj.owner),
-            owner_group=obj.owner_group,
         )
 
 
@@ -62,8 +59,6 @@ class ProjectTriggerRepositoryDTO(DTO):
     revoked: bool
     active: bool
     owner: UserRefDTO | None
-    # The group whose members alone may change it, null when it is open (ADR 0036)
-    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: ProjectTriggerRepository):
@@ -79,7 +74,6 @@ class ProjectTriggerRepositoryDTO(DTO):
             revoked=obj.revoked,
             active=obj.active,
             owner=UserRefDTO.of(obj.owner),
-            owner_group=obj.owner_group,
         )
 
 

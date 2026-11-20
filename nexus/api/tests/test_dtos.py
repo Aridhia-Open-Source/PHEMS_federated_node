@@ -17,7 +17,7 @@ class TestProjectDTO:
     def test_fields(self, project):
         assert set(ProjectDTO.from_model(project).dump()) == {
             "id", "name", "description", "default_dataset_id", "enabled", "revoked",
-            "created_at", "updated_at", "owner", "owner_group",
+            "created_at", "updated_at", "owner",
         }
 
     def test_values(self, project):
@@ -36,7 +36,7 @@ class TestProjectResultsRepositoryDTO:
     def test_fields(self, results_assignment):
         assert set(ProjectResultsRepositoryDTO.from_model(results_assignment).dump()) == {
             "project_id", "results_repository", "target_dir", "base_branch", "owned_by_federated_node",
-            "enabled", "revoked", "active", "owner", "owner_group",
+            "enabled", "revoked", "active", "owner",
         }
 
     def test_values(self, results_assignment):
@@ -49,7 +49,7 @@ class TestDatasetDTO:
         assert set(DatasetDTO.from_model(dataset).dump()) == {
             "id", "secret", "name", "host", "port", "read_schema", "write_schema", "type",
             "extra_connection_args", "created_at", "updated_at", "slug", "url", "enabled",
-            "revoked", "owner", "owner_group",
+            "revoked", "owner",
         }
 
     def test_never_exposes_credentials(self, dataset):
