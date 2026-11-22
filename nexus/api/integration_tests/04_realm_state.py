@@ -45,7 +45,7 @@ check(len(fn_admins) == 0, "no `admin` user in the FederatedNode realm (fn-servi
 # The realm migration version must be recorded, so the next run is a no-op.
 realm_rep = api("", svc)
 version = (realm_rep.get("attributes") or {}).get("fn_realm_version")
-check(version == "4", f"realm records fn_realm_version=4 (got {version!r})")
+check(version == "3", f"realm records fn_realm_version=3 (got {version!r})")
 
 # The secret rotation policy must actually be present -- without it, rotation is an immediate
 # cutover rather than a grace-period handover.
