@@ -24,7 +24,7 @@ Status: Proposed, 2026-11-11.
   - In an emergency: `flux suspend hr`, `helm rollback`, fix git, `flux resume`.
   - Reverting the chart does not undo database migrations. Migrations must stay backward compatible, or ship a down-migration.
 - **Fallback for sites that cannot run Flux.** A release bundle per version: the chart, the image list or image tarballs, and an `upgrade.sh` that runs `helm upgrade --install --atomic` with the site's values. Sites whose outbound access is blocked can mirror our registry and git internally and point Flux at the mirror.
-- **Node config** (git providers, repositories, projects, datasets) rides in the same Helm values. How it reaches nexus-api is decided in [0032](0032-declarative-node-config-through-an-operator.md).
+- **Node config** (git providers, repositories, projects, datasets) rides in the same Helm values. How it reaches nexus-api is decided in [0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/700).
 
 An example of what the site repository pins:
 
