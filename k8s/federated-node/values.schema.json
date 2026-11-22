@@ -416,7 +416,7 @@
         },
         "superuserSecret": {
             "type": "object",
-            "description": "The break-glass SuperUser account (ADR 0037), created by kc-init in /roles/superuser with two-factor required at first sign-in",
+            "description": "The break-glass SuperUser account (ADR 0037), created by kc-init in /roles/superuser",
             "required": [
                 "name",
                 "userKey",

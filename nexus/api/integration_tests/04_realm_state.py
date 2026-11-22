@@ -88,13 +88,12 @@ if user_tok:
     check("/roles/admins" in payload.get("groups", []), f"the token's groups claim has /roles/admins "
           f"(got {payload.get('groups')})")
 
-# The superuser is in /roles/superuser and must set up two-factor before it can sign in.
+# The superuser is in /roles/superuser.
 supers = api("/users?username=superuser&exact=true", svc)
 check(len(supers) == 1, "the superuser exists")
 if supers:
     groups = [g["path"] for g in api(f"/users/{supers[0]['id']}/groups", svc)]
     check(groups == ["/roles/superuser"], f"the superuser is in /roles/superuser only (got {groups})")
-    check("CONFIGURE_TOTP" in supers[0].get("requiredActions", []), "the superuser must set up two-factor")
 
 # The global client's role policies name the new roles, so nexus-api's can_* scopes keep working.
 policies = {p["name"]: p for p in api(f"/clients/{gid}/authz/resource-server/policy?type=role", svc)}

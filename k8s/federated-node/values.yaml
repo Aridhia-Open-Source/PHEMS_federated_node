@@ -226,9 +226,8 @@ taskCompute:
   # lastName:
   # email:
 
-# The break-glass superuser (ADR 0037): holds SuperUser through /roles/superuser and must set up
-# two-factor at first sign-in. Created on install and upgrade when set, never changed after; its
-# username and password are read from the Secret.
+# The break-glass superuser (ADR 0037): holds SuperUser through /roles/superuser. Created on install
+# and upgrade when set, never changed after; its username and password are read from the Secret.
 # superuserSecret:
   # name:
   # userKey:

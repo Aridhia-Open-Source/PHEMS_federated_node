@@ -133,14 +133,13 @@ def ensure_realm_accounts(admin_token:str):
             admin_token=admin_token
         )
 
-    # The break-glass superuser (superuserSecret). Create-only, like the first user, and it must set
-    # up two-factor at first sign-in: Keycloak's browser and direct-grant flows then ask for the code.
+    # The break-glass superuser (superuserSecret). Create-only, like the first user. No two-factor for
+    # now (ADR 0037): nexus-api's /login has no field for the code.
     if settings.superuser_username:
         create_user(
             settings.superuser_username, settings.superuser_pass,
             f"{settings.superuser_username}@phems.local", "Super", "User", "/roles/superuser",
-            admin_token=admin_token,
-            required_actions=["CONFIGURE_TOTP"]
+            admin_token=admin_token
         )
 
     # Create Dagster system user for all Dagster operations, if credentials provided

@@ -106,5 +106,5 @@ A token with no node role, or with more than one, is refused (401).
 
 ## Open questions
 
-- Whether superuser sign-in should need a second factor or an approval, and whether its use should raise an alert.
+- Whether superuser sign-in should need a second factor or an approval, and whether its use should raise an alert. Two-factor is left out for now: it adds pain (nexus-api's `/login` has no field for the code, so the superuser could only sign in through Keycloak's own pages). It could come back later as an optional setting.
 - Whether `Dagster` should become a grant-checked role once its routes are settled, instead of a fixed list of unchecked routes.

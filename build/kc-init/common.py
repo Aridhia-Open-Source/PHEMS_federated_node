@@ -124,8 +124,7 @@ def create_user(
         admin_token:str=None,
         realm:str=settings.keycloak_realm,
         reset_password_if_exists:bool=False,
-        temporary:bool=False,
-        required_actions:list=None
+        temporary:bool=False
     ) -> str:
     """
     Given a set of info about the user, create it in the realm and, if group is set (a full path
@@ -141,9 +140,6 @@ def create_user(
     temporary marks the password as requiring a change at first login. Used for the `admin` console
     account, so Keycloak prompts the operator to set their own password and the generated one in
     kc-secrets stops being meaningful.
-
-    required_actions are what Keycloak makes the user do at first sign-in, e.g. CONFIGURE_TOTP.
-    Like the password, they are only set when the user is created.
     """
     if not admin_token:
         admin_token = login(
@@ -165,7 +161,6 @@ def create_user(
             "enabled": "true",
             "emailVerified": "true",
             "username": username,
-            "requiredActions": required_actions or [],
             "credentials": [
                 {
                     "type": "password",
