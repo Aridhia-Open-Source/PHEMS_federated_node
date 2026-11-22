@@ -2547,12 +2547,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Data"
+                "$ref": "#/components/schemas/NewUserRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
@@ -6966,6 +6965,62 @@
         ],
         "title": "NewUserDTO",
         "description": "The response of creating a user: the temporary password is shown once."
+      },
+      "NewUserRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstname"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastname"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "Users",
+              "Administrator"
+            ],
+            "title": "Role",
+            "default": "Users"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "NewUserRequest",
+        "description": "POST /global/users. The username defaults to the email; the role is Users or Administrator."
       },
       "NodeHealthDTO": {
         "properties": {
