@@ -1,0 +1,15 @@
+2026-11-22 17:20 read ticket, PR #686 plan and orchestrator note; branch is behind feat/keycloak-authentication; plan sent to codepint, waiting for go-ahead
+2026-11-22 17:48 go-ahead relayed by phems/auth; merged latest feat/keycloak-authentication
+2026-11-22 17:53 chunk 1 pushed: local token verification, role gate, login/refresh shape, tests
+2026-11-22 17:57 chunk 2 pushed: role fix, clients, chart issuer/JWKS, realm + m004
+2026-11-22 17:58 chunk 3 pushed: Authorization Services code and UMA tests removed; starting test run
+2026-11-22 17:59 PR body reviewer's guide written; changelog committed locally
+2026-11-22 18:03 ready-for-review label added
+2026-11-22 18:07 merged latest feat/keycloak-authentication (04_realm_state conflict), fixed route-gate test, pushed with changelog
+2026-11-22 18:07 ready-for-review label back on (means code complete)
+
+## Handover (2026-11-22, wrap-up for usage cap)
+State: all code for auth/4 #686 is pushed (3 chunks + changelog + merge of latest feat/keycloak-authentication). Reviewer's guides: one PR comment per chunk, plus the full guide in the PR body. ready-for-review label on; xo status: testing.
+Tests: the first targeted run found the frozenset .pop() bug (fixed in aa98b92e8). The full run (nexus-api ci, dagster test_backend/test_utils, UI npm test + typecheck, helm tests, pylint) was stopped before it reported, so the results are unknown.
+Next step: rerun that full set (cd nexus/api && ./run_tests.sh ci; cd nexus/ui && npm ci && npm test && npm run typecheck; mise run helm tests; mise run pylint; dagster test_backend.py) and fix what fails. Watch nexus/ui/src/api/session.test.ts (per-request fetch option in openapi-fetch 0.13), the new helm suite keycloak_token_issuer_test.yaml, and leftover pylint messages in keycloak.py after the method cuts.
+Open issues: (1) the public /keycloak route keeps the prefix but Keycloak has no http-relative-path, so browser login there would 404; the issuer string is fine. (2) m003 (auth/3's file) no longer repoints the authz policies; m004 turns Authorization Services off. (3) kc-init's realm-management token-exchange setup is untouched. (4) Dataset.add(user_id) still takes an unused user_id. (5) Not deployed or e2e-tested yet: needs a cluster slot from phems/auth.
