@@ -1,0 +1,34 @@
+## keycloak.realm names the realm once: the shared keycloak-config ConfigMap carries it as
+## KEYCLOAK_REALM to Keycloak (realms.json import), keycloak-realm-init and nexus-api, in both
+## namespaces it is rendered into.
+suite: Keycloak realm name
+release:
+  namespace: federatednode
+  name: federatednode
+templates:
+  - templates/keycloak-configmap.yaml
+values:
+  - values/values-local.yaml
+
+tests:
+  - it: defaults to FederatedNode
+    asserts:
+      - equal:
+          path: data.KEYCLOAK_REALM
+          value: FederatedNode
+  - it: takes the realm from keycloak.realm in every namespace
+    set:
+      keycloak:
+        realm: SiteRealm
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: data.KEYCLOAK_REALM
+          value: SiteRealm
+  - it: refuses an empty realm
+    set:
+      keycloak:
+        realm: ""
+    asserts:
+      - failedTemplate: {}

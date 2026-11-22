@@ -21,8 +21,8 @@ KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
 # filter it out -- nothing authenticates as it. Its password is operator-owned and may change at
 # any time, so relying on it would make the backend break whenever an operator rotated it.
 KEYCLOAK_ADMIN = os.getenv("KEYCLOAK_ADMIN")
-# The platform's service account. Holds Super Administrator in the FederatedNode realm, which is
-# exactly what the `admin` realm user used to hold, so the permissions are unchanged.
+# The platform's service account. Holds realm-management's realm-admin in the node's realm and no
+# node role (ADR 0037): it manages Keycloak users and groups and never calls nexus-api.
 KEYCLOAK_SERVICE_USER = os.getenv("KEYCLOAK_SERVICE_USER", "fn-service")
 
 # kc-secrets is mounted as a directory (see the chart's kcSecretsMountPath helper) rather than
@@ -283,7 +283,7 @@ class Keycloak:
 
     def is_user_admin(self, token:str) -> bool:
         """
-        Given a token checks if the owner is an Admin or SuperAdmin
+        Given a token checks if the owner is an Administrator or the SuperUser
         """
         response_auth = requests.post(
             URLS["validate"],
@@ -299,7 +299,8 @@ class Keycloak:
         if not response_auth.ok:
             logger.info(response_auth.content.decode())
             raise AuthenticationError("Failed to login")
-        return "Administrator" in response_auth.json()["realm_access"]["roles"]
+        # SuperUser no longer includes Administrator (ADR 0037), so both count. #686 replaces this check.
+        return bool({"Administrator", "SuperUser"} & set(response_auth.json()["realm_access"]["roles"]))
 
     def _service_login(self, cache_name: str, build_payload) -> str:
         """
@@ -403,7 +404,8 @@ class Keycloak:
     def is_system_user(self, token: str) -> bool:
         token_dict = self.decode_token(token)
         roles = token_dict.get("realm_access", {}).get("roles", [])
-        return 'system' in [r.lower() for r in roles]
+        # Dagster holds the Dagster role (ADR 0037); System is the role it held before. #686 replaces this check.
+        return bool({'system', 'dagster'} & {r.lower() for r in roles})
 
     def decode_token(self, token: str) -> dict:
         """

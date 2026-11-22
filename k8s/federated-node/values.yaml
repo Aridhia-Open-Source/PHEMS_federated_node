@@ -66,6 +66,9 @@ keycloak:
   # Set false to hand realm management entirely to the operator. keycloak-realm-init still manages
   # credentials, but applies neither the realms.json partial import nor any realm migration.
   manageRealm: true
+  # The realm the node's users, roles and clients live in. Keycloak, keycloak-realm-init and nexus-api
+  # all read it from here. Changing it on an existing node starts a new, empty realm.
+  realm: FederatedNode
 
   # Seconds a service-account token may be reused by nexus-api. Without this, every Keycloak()
   # instantiation performs a fresh password grant, so a brief authentication blip during a rotation
@@ -222,6 +225,13 @@ taskCompute:
   # firstName:
   # lastName:
   # email:
+
+# The break-glass superuser (ADR 0037): holds SuperUser through /roles/superuser. Created on install
+# and upgrade when set, never changed after; its username and password are read from the Secret.
+# superuserSecret:
+  # name:
+  # userKey:
+  # passKey:
 
 federatedNode:
   resources:
