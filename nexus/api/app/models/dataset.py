@@ -16,7 +16,6 @@ from sqlalchemy.pool import NullPool
 from app.helpers.base_model import BaseModel, db
 from app.helpers.const import PUBLIC_URL, build_sql_uri
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.keycloak import Keycloak
 from app.helpers.soft_delete import SoftDeleteMixin
 from app.helpers.kubernetes import KubernetesClient
 from app.models import sqla_column
@@ -99,8 +98,6 @@ class Dataset(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
 
     def add(self, commit=True, user_id=None):
         super().add(commit)
-        # TODO: Keycloak registration for datasets is detached for now. Re-attach
-        # self.add_to_keycloak(user_id) when the Keycloak/authorization rework lands.
         return self
 
     @classmethod
@@ -196,79 +193,17 @@ class Dataset(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
         """The driver's first line ("password authentication failed for user ..."), which has no password."""
         return str(getattr(error, "orig", error)).strip().splitlines()[0][:MAX_MESSAGE_LENGTH]
 
-    def add_to_keycloak(self, user_id=None):
-        kc_client = Keycloak()
-        admin_policy = kc_client.get_policy('admin-policy')
-        sys_policy = kc_client.get_policy('system-policy')
-
-        admin_ds_scope = []
-        admin_ds_scope.append(kc_client.get_scope('can_admin_dataset'))
-        admin_ds_scope.append(kc_client.get_scope('can_access_dataset'))
-        admin_ds_scope.append(kc_client.get_scope('can_exec_task'))
-        admin_ds_scope.append(kc_client.get_scope('can_admin_task'))
-        admin_ds_scope.append(kc_client.get_scope('can_send_request'))
-        admin_ds_scope.append(kc_client.get_scope('can_admin_request'))
-        policy = kc_client.create_policy({
-            "name": f"{self.id} - {self.name} Admin Policy",
-            "description": f"List of users allowed to administrate the {self.name} dataset",
-            "logic": "POSITIVE",
-            "users": [user_id]
-        }, "/user")
-
-        resource_ds = kc_client.create_resource({
-            "name": f"{self.id}-{self.name}",
-            "displayName": f"{self.id} - {self.name}",
-            "scopes": admin_ds_scope,
-            "uris": []
-        })
-        kc_client.create_permission({
-            "name": f"{self.id}-{self.name} Admin Permission",
-            "description": "List of policies that will allow certain users or roles to administrate the dataset",
-            "type": "resource",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "policies": [admin_policy["id"], sys_policy["id"], policy["id"]],
-            "resources": [resource_ds["_id"]],
-            "scopes": [scope["id"] for scope in admin_ds_scope]
-        })
-
     def update(self, **kwargs):
         """
         Updates the instance with new values. These should be
         already validated.
         """
-        # TODO: Keycloak resource renaming is detached for now. Re-attach
-        # self.update_keycloak(**kwargs) (before the UPDATE, while self still holds
-        # the old name) when the Keycloak/authorization rework lands.
-
         # Query.update() takes a dict of column -> value
         values = {k: v for k, v in kwargs.items() if k in self._get_fields_name()}
         if values:
             self.query.filter(Dataset.id == self.id).update(
                 values, synchronize_session='evaluate'
             )
-
-    def remove_from_keycloak(self):
-        """
-        Delete what add_to_keycloak creates: the resource, its admin permission
-        and its admin policy.
-        """
-        # TODO: delete the resource f"{self.id}-{self.name}", the permission
-        # f"{self.id}-{self.name} Admin Permission" and the policy
-        # f"{self.id} - {self.name} Admin Policy"
-        raise NotImplementedError(
-            "TODO: delete the dataset's Keycloak resource, permission and policy"
-        )
-
-    def update_keycloak(self, **kwargs):
-        kc_client = Keycloak()
-        new_name = kwargs.get("name", None)
-        if new_name and new_name != self.name:
-            update_args = {
-                "name": f"{self.id}-{kwargs['name']}",
-                "displayName": f"{self.id} - {kwargs['name']}"
-            }
-            kc_client.patch_resource(f"{self.id}-{self.name}", **update_args)
 
     @classmethod
     def get_dataset_by_name_or_id(

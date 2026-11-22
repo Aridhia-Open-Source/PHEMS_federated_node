@@ -619,23 +619,6 @@ def new_user(new_user_email):
     return {"email": new_user_email, "id": "8b707136-a2d8-4b69-9ab5-ec341011a62f", "username": new_user_email}
 
 
-@fixture
-def mock_keycloak_class(mocker):
-    return mocker.patch(
-        'app.models.dataset.Keycloak',
-        return_value=Mock(
-            get_client_id=Mock(return_value="client_id"),
-            get_token=Mock(return_value="token"),
-            get_policy=Mock(return_value={"id": "policy"}),
-            get_scope=Mock(return_value={"id": "scope"}),
-            create_policy=Mock(return_value={"id": "policy"}),
-            create_resource=Mock(return_value={"_id": "resource"}),
-            create_permission=Mock(return_value={"id": "permission"}),
-            is_token_valid=Mock(return_value=True)
-        )
-    )
-
-
 def claims_for(sub: str, username: str, role: str, groups: list[str] | None = None) -> dict:
     """The claims of a verified access token holding one node role (plus a Keycloak default role, ignored)."""
     return {
@@ -661,7 +644,7 @@ def token_claims(mocker, basic_user, user_uuid) -> dict:
 
 
 @fixture(autouse=True)
-def mock_kc_client(mocker, basic_user, mock_keycloak_class):
+def mock_kc_client(mocker, basic_user):
     create_user_return = deepcopy(basic_user)
     create_user_return["password"] = "tempPassword!"
     kc_mock = {
@@ -677,6 +660,5 @@ def mock_kc_client(mocker, basic_user, mock_keycloak_class):
             create_user=Mock(return_value=create_user_return),
             get_user_role=Mock(return_value="Users"),
         )),
-        "dataset_kc": mock_keycloak_class,
     }
     return kc_mock
