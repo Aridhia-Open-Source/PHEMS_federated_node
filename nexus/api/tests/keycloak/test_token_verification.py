@@ -1,6 +1,6 @@
 """
 nexus-api verifies Keycloak access tokens itself (ADR 0036): tokens signed with a test RSA key, the JWKS lookup
-stubbed. The rest of the suite stubs decode_access_token (tests/conftest.py token_claims).
+stubbed. The rest of the suite stubs access_tokens.claims (tests/conftest.py token_claims).
 """
 import time
 from types import SimpleNamespace
@@ -9,20 +9,21 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from app.helpers import wrappers
 from app.helpers.exceptions import AuthenticationError
-from app.helpers.wrappers import KEYCLOAK_ISSUER, decode_access_token
+from app.helpers.access_token import AccessTokenVerifier, access_tokens
 from tests.conftest import claims_for
 
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 OTHER_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PROV = "/global/providers"
+# The real check: the suite's access_tokens.claims is stubbed (tests/conftest.py token_claims)
+verifier = AccessTokenVerifier(access_tokens.config)
 
 
 def access_token(key=KEY, algorithm="RS256", **overrides) -> str:
     now = int(time.time())
     claims = {
-        "iss": KEYCLOAK_ISSUER, "sub": "user-1", "exp": now + 300, "iat": now, "typ": "Bearer", "azp": "global",
+        "iss": verifier.config.issuer, "sub": "user-1", "exp": now + 300, "iat": now, "typ": "Bearer", "azp": "global",
         "aud": ["account"], "preferred_username": "someone",
         "realm_access": {"roles": ["Users", "default-roles-federatednode", "offline_access"]},
     }
@@ -35,12 +36,12 @@ def access_token(key=KEY, algorithm="RS256", **overrides) -> str:
 def jwks(mocker):
     """Keycloak's published key is KEY's public half."""
     return mocker.patch.object(
-        wrappers._jwks_client, "get_signing_key_from_jwt", return_value=SimpleNamespace(key=KEY.public_key())
+        jwt.PyJWKClient, "get_signing_key_from_jwt", return_value=SimpleNamespace(key=KEY.public_key())
     )
 
 
 def test_a_valid_token_gives_its_claims():
-    claims = decode_access_token(access_token())
+    claims = verifier.claims(access_token())
     assert (claims["sub"], claims["preferred_username"]) == ("user-1", "someone")
 
 
@@ -57,13 +58,13 @@ def test_a_valid_token_gives_its_claims():
 ])
 def test_a_bad_token_is_refused(token):
     with pytest.raises(AuthenticationError):
-        decode_access_token(token)
+        verifier.claims(token)
 
 
 @pytest.fixture
 def real_verification(mocker):
-    """get_caller runs the real decode_access_token, undoing the conftest stub."""
-    mocker.patch("app.helpers.wrappers.decode_access_token", decode_access_token)
+    """get_caller runs the real check, undoing the conftest stub."""
+    mocker.patch.object(access_tokens, "claims", verifier.claims)
 
 
 def bearer(token: str) -> dict:

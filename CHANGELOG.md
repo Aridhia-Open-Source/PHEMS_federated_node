@@ -13,7 +13,7 @@
 - nexus-api verifies Keycloak access tokens itself, against the realm's cached keys, instead of asking Keycloak on every request ([#686](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/686), ADR 0036):
   - `/login` and `/refresh_token` return `{"token": <access token>, "refresh_token": ...}`. Send the access token as the Bearer; refresh tokens are no longer accepted there. Access tokens live 5 minutes: nexus-ui refreshes them, Dagster and fncli log in again on a 401.
   - A caller holds exactly one node role (SuperUser, Administrator, Service, Users, Dagster), or gets a 401. `POST /global/users` creates Users, or an Administrator when the SuperUser asks.
-  - Keycloak issues tokens for its public address (`KC_HOSTNAME=https://<host>/keycloak`); nexus-api gets `KEYCLOAK_ISSUER` and `KEYCLOAK_JWKS_URL`.
+  - Keycloak issues tokens for its address on the node's host (`KC_HOSTNAME=https://<host>/keycloak`); nexus-api gets `KEYCLOAK_ISSUER` and `KEYCLOAK_JWKS_URL`.
   - The global client no longer uses Keycloak Authorization Services; realm migration 4 removes them from an existing realm.
 
 ## 1.17.0

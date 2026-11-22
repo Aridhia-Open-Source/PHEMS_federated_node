@@ -31,6 +31,7 @@ from app.models.project_results_repository import ProjectResultsRepository
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
 from app.models.api_request_trigger import ApiRequestTrigger
+from app.helpers.access_token import access_tokens
 from app.helpers.exceptions import AuthenticationError
 from tests.helpers.pull_requests import pr_body
 
@@ -64,7 +65,7 @@ sample_repo_uri = "github.com/org/test-repo"
 # Dagster's token: it passes the admin routers and the system_only routes, but is not an admin (no `revoked`)
 SYSTEM_TOKEN = "system_token"
 # The test bearer tokens and the node role each one's verified claims carry. tests/keycloak/test_token_verification.py
-# checks the real verification; everywhere else app.helpers.wrappers.decode_access_token is stubbed with these.
+# checks the real verification; everywhere else access_tokens.claims (app.helpers.access_token) is stubbed with these.
 TEST_TOKEN_ROLES = {"admin_token": "Administrator", SYSTEM_TOKEN: "Dagster", "user_token": "Users"}
 
 
@@ -639,7 +640,7 @@ def token_claims(mocker, basic_user, user_uuid) -> dict:
             raise AuthenticationError("Token is not valid")
         return claims[token]
 
-    mocker.patch('app.helpers.wrappers.decode_access_token', side_effect=decode)
+    mocker.patch.object(access_tokens, 'claims', side_effect=decode)
     return claims
 
 

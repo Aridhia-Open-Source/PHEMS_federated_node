@@ -8,8 +8,8 @@ that never leaves anyone without a role:
 
 1. fn-service gets realm-admin directly, before Super Administrator (which gave it) goes.
 2. Administrator stops including Users; the global client gets the groups mapper.
-3. Each /roles group carries its role. (The global client's role policies are not repointed: m004
-   removes Authorization Services, and a fresh realm has none.)
+3. Each /roles group carries its role. (The global client's role policies are not repointed: nexus-api
+   no longer uses Authorization Services (ADR 0036), and a fresh realm has none.)
 4. Everyone holding an old role, directly or through an old group, joins the one /roles group for
    their highest role, and loses the direct Administrator or Users mapping.
 5. The old roles and groups are deleted.

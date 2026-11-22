@@ -18,3 +18,6 @@ Open issues: (1) the public /keycloak route keeps the prefix but Keycloak has no
 2026-11-22 20:00 heads-up from phems/auth: dagster-develop merge coming down the stack; pull before next push
 2026-11-22 20:10 CI: 2 users tests renamed via the USERS dict, which no longer drives claims; now rename via token_claims; file passes locally
 2026-11-22 20:13 session.test.ts (new in #686) failed: relative baseUrl rejected by Request in jsdom; test now passes an absolute baseUrl; 4/4 pass, typecheck clean
+2026-11-22 20:14 reading codepint's review comments on #686
+2026-11-22 20:18 review: m004 removed, backchannel back to false, keycloakHostnameUrl, NodeRole enum, AccessTokenConfig (pydantic-settings), AccessTokenVerifier, Caller DTO, NewUserRequest; running targeted tests
+2026-11-22 20:25 review fixes done: targeted tests 73 pass, helm 232 pass (baseline moved again), openapi + schema.d.ts regenerated, typecheck clean; pushing

@@ -36,7 +36,8 @@ from app.helpers.state_rules import transition
 from app.helpers.task_config import decide_launch
 from app.helpers.task_resources import create_run_resources, delete_run_resources
 from app.dtos.task_spec import TaskSpecRequest
-from app.helpers.wrappers import DAGSTER, Caller, get_caller, system_only
+from app.helpers.wrappers import Caller, get_caller, system_only
+from app.models.node_role import NodeRole
 from app.dtos.dataset import DatasetDTO
 from app.dtos.base import page_of
 from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskResourcesDTO
@@ -66,7 +67,7 @@ def does_user_own_task(task: Task, caller: Caller):
 
     If they don't, an exception is raised with 403 status code
     """
-    if task.requested_by != caller.user_id and not caller.is_admin and caller.role != DAGSTER:
+    if task.requested_by != caller.user_id and not caller.is_admin and caller.role != NodeRole.DAGSTER:
         raise UnauthorizedError("User does not have enough permissions")
 
 
