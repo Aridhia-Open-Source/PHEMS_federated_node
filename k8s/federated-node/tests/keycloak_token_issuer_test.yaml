@@ -1,0 +1,30 @@
+## Keycloak issues tokens for its public address, and nexus-api checks them against it with keys
+## fetched in-cluster (ADR 0036).
+suite: Keycloak token issuer
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+set:
+  host: fn.example.org
+
+tests:
+  - it: Keycloak's hostname is the public /keycloak address, with a dynamic backchannel
+    template: templates/keycloak-configmap.yaml
+    asserts:
+      - equal:
+          path: data.KC_HOSTNAME
+          value: https://fn.example.org/keycloak
+      - equal:
+          path: data.KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+          value: "true"
+  - it: nexus-api checks the public issuer and fetches the keys in-cluster
+    template: templates/nexus-api-configmap.yaml
+    asserts:
+      - equal:
+          path: data.KEYCLOAK_ISSUER
+          value: https://fn.example.org/keycloak/realms/FederatedNode
+      - matchRegex:
+          path: data.KEYCLOAK_JWKS_URL
+          pattern: ^http://keycloak\..+\.svc\.cluster\.local/realms/FederatedNode/protocol/openid-connect/certs$

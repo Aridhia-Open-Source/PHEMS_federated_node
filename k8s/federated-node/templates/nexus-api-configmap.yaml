@@ -12,6 +12,9 @@ data:
   KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
+  {{- /* nexus-api verifies tokens itself: the issuer is public, the keys are fetched in-cluster (ADR 0036) */}}
+  KEYCLOAK_ISSUER: {{ include "keycloakIssuer" . | quote }}
+  KEYCLOAK_JWKS_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/certs"
   {{- /*
     Where kc-secrets is mounted. nexus-api reads credentials from these files rather than from its
     environment, so a rotation reaches it without a restart.

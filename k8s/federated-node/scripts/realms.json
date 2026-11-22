@@ -5,6 +5,7 @@
   "offlineSessionIdleTimeout": "${KEYCLOAK_TOKEN_LIFE}",
   "ssoSessionIdleTimeout": "${KEYCLOAK_TOKEN_LIFE}",
   "ssoSessionMaxLifespan": "${KEYCLOAK_TOKEN_LIFE}",
+  "accessTokenLifespan": 300,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": false,
@@ -196,7 +197,6 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": true,
-      "authorizationServicesEnabled": true,
       "publicClient": false,
       "frontchannelLogout": true,
       "protocol": "openid-connect",
@@ -228,204 +228,7 @@
         "phone",
         "offline_access",
         "microprofile-jwt"
-      ],
-      "authorizationSettings": {
-        "allowRemoteResourceManagement": true,
-        "policyEnforcementMode": "ENFORCING",
-        "resources": [
-          {
-            "name": "endpoints",
-            "ownerManagedAccess": false,
-            "displayName": "",
-            "attributes": {},
-            "uris": [],
-            "scopes": [
-              {
-                "name": "can_admin_dataset"
-              },
-              {
-                "name": "can_exec_task"
-              },
-              {
-                "name": "can_admin_task"
-              },
-              {
-                "name": "can_access_dataset"
-              },
-              {
-                "name": "can_transfer_token"
-              },
-              {
-                "name": "can_do_admin"
-              },
-              {
-                "name": "can_send_request"
-              },
-              {
-                "name": "can_admin_request"
-              }
-            ],
-            "icon_uri": ""
-          }
-        ],
-        "policies": [
-          {
-            "name": "admin-policy",
-            "description": "",
-            "type": "role",
-            "logic": "POSITIVE",
-            "decisionStrategy": "UNANIMOUS",
-            "config": {
-              "roles": "[{\"id\":\"Administrator\",\"required\":false},{\"id\":\"SuperUser\",\"required\":false},{\"id\":\"Service\",\"required\":false}]"
-            }
-          },
-          {
-            "name": "superadmin-policy",
-            "description": "",
-            "type": "role",
-            "logic": "POSITIVE",
-            "decisionStrategy": "UNANIMOUS",
-            "config": {
-              "roles": "[{\"id\":\"SuperUser\",\"required\":false}]"
-            }
-          },
-          {
-            "name": "all-users-policy",
-            "description": "",
-            "type": "role",
-            "logic": "POSITIVE",
-            "decisionStrategy": "UNANIMOUS",
-            "config": {
-              "roles": "[{\"id\":\"Administrator\",\"required\":false},{\"id\":\"Users\",\"required\":false},{\"id\":\"SuperUser\",\"required\":false},{\"id\":\"Service\",\"required\":false}]"
-            }
-          },
-          {
-            "name": "system-policy",
-            "description": "",
-            "type": "role",
-            "logic": "POSITIVE",
-            "decisionStrategy": "UNANIMOUS",
-            "config": {
-              "roles": "[{\"id\":\"Dagster\",\"required\":false}]"
-            }
-          },
-          {
-            "name": "can admin dataset permission",
-            "description": "",
-            "type": "scope",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "config": {
-              "scopes": "[\"can_admin_dataset\"]",
-              "applyPolicies": "[\"admin-policy\", \"system-policy\"]"
-            }
-          },
-          {
-            "name": "can admin task permission",
-            "description": "",
-            "type": "scope",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "config": {
-              "scopes": "[\"can_admin_task\"]",
-              "applyPolicies": "[\"admin-policy\"]"
-            }
-          },
-          {
-            "name": "can admin request permission",
-            "description": "",
-            "type": "scope",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "config": {
-              "scopes": "[\"can_admin_request\"]",
-              "applyPolicies": "[\"admin-policy\", \"system-policy\"]"
-            }
-          },
-          {
-            "name": "can exec task permission",
-            "description": "",
-            "type": "scope",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "config": {
-              "scopes": "[\"can_exec_task\"]",
-              "applyPolicies": "[\"all-users-policy\", \"system-policy\"]"
-            }
-          },
-          {
-            "name": "can access dataset permission",
-            "description": "",
-            "type": "scope",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "config": {
-              "scopes": "[\"can_access_dataset\"]",
-              "applyPolicies": "[\"all-users-policy\", \"system-policy\"]"
-            }
-          },
-          {
-            "name": "can transfer token permission",
-            "description": "",
-            "type": "scope",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "config": {
-              "scopes": "[\"can_transfer_token\"]",
-              "applyPolicies": "[\"admin-policy\", \"system-policy\"]"
-            }
-          },
-          {
-            "name": "can do admin permission",
-            "description": "",
-            "type": "scope",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "config": {
-              "scopes": "[\"can_do_admin\"]",
-              "applyPolicies": "[\"admin-policy\"]"
-            }
-          },
-          {
-            "name": "can send request permission",
-            "description": "",
-            "type": "scope",
-            "logic": "POSITIVE",
-            "decisionStrategy": "AFFIRMATIVE",
-            "config": {
-              "scopes": "[\"can_send_request\"]",
-              "applyPolicies": "[\"all-users-policy\", \"system-policy\"]"
-            }
-          }
-        ],
-        "scopes": [
-          {
-            "name": "can_admin_dataset"
-          },
-          {
-            "name": "can_exec_task"
-          },
-          {
-            "name": "can_admin_task"
-          },
-          {
-            "name": "can_access_dataset"
-          },
-          {
-            "name": "can_transfer_token"
-          },
-          {
-            "name": "can_do_admin"
-          },
-          {
-            "name": "can_send_request"
-          },
-          {
-            "name": "can_admin_request"
-          }
-        ],
-        "decisionStrategy": "UNANIMOUS"
-      }
+      ]
     }
   ],
   "components": {

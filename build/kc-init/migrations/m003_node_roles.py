@@ -4,11 +4,12 @@ Move an existing realm to the five node roles held through /roles groups (ADR 00
 partial_import has already added the new roles (SuperUser, Service, Dagster) and the /roles groups,
 but it skips everything that exists: the Administrator composite, the global client's role
 policies and its mappers, and the people holding the old roles. This does the rest, in an order
-that never leaves a policy without a role:
+that never leaves anyone without a role:
 
 1. fn-service gets realm-admin directly, before Super Administrator (which gave it) goes.
 2. Administrator stops including Users; the global client gets the groups mapper.
-3. The global client's role policies name the new roles, and each /roles group carries its role.
+3. Each /roles group carries its role. (The global client's role policies are not repointed: m004
+   removes Authorization Services, and a fresh realm has none.)
 4. Everyone holding an old role, directly or through an old group, joins the one /roles group for
    their highest role, and loses the direct Administrator or Users mapping.
 5. The old roles and groups are deleted.
@@ -37,12 +38,6 @@ OLD_TO_GROUP = {
     "Users": "/roles/users",
 }
 OLD_ROLES = ("Super Administrator", "System")
-POLICY_ROLES = {
-    "admin-policy": ("Administrator", "SuperUser", "Service"),
-    "superadmin-policy": ("SuperUser",),
-    "all-users-policy": ("Administrator", "Users", "SuperUser", "Service"),
-    "system-policy": ("Dagster",),
-}
 ROLE_GROUPS = {
     "/roles/superuser": "SuperUser", "/roles/admins": "Administrator", "/roles/service": "Service",
     "/roles/users": "Users", "/roles/dagster": "Dagster",
@@ -113,22 +108,6 @@ def _add_groups_mapper(client_uuid: str, token: str):
     is_response_good(response)
 
 
-def _repoint_policies(client_uuid: str, token: str):
-    base = f"/clients/{client_uuid}/authz/resource-server/policy"
-    for name, roles in POLICY_ROLES.items():
-        found = _get(base, token, name=name, exact="true")
-        is_response_good(found)
-        if not found.json():
-            continue
-        policy = found.json()[0]
-        policy["roles"] = [{"id": get_role(role, token), "required": False} for role in roles]
-        policy.pop("config", None)
-        response = requests.put(
-            _url(f"{base}/role/{policy['id']}"), headers={'Authorization': f'Bearer {token}'}, json=policy
-        )
-        is_response_good(response)
-
-
 def _map_group_roles(token: str):
     """Each /roles group carries its role, whatever partial_import did with the subgroups' mappings."""
     for path, role in ROLE_GROUPS.items():
@@ -184,7 +163,6 @@ def migrate(admin_token: str):
     _drop_users_from_administrator(admin_token)
     client_uuid = get_client_uuid("global", admin_token)
     _add_groups_mapper(client_uuid, admin_token)
-    _repoint_policies(client_uuid, admin_token)
     _map_group_roles(admin_token)
     _move_people(service_id, admin_token)
     _delete_old(admin_token)

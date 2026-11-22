@@ -79,7 +79,7 @@ def get_caller(request: Request) -> Caller:
         raise AuthenticationError("Token not provided")
 
     claims = decode_access_token(token)
-    roles = NODE_ROLES & set(claims.get("realm_access", {}).get("roles", []))
+    roles = set(claims.get("realm_access", {}).get("roles", [])) & NODE_ROLES
     if len(roles) != 1:
         raise AuthenticationError("The user must hold exactly one node role")
 

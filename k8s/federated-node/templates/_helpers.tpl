@@ -190,6 +190,16 @@ securityContext:
   namespace: {{ .Release.Namespace }}
   name: nexus-api
 {{- end -}}
+{{- /*
+  Keycloak's public address. Keycloak issues every token for it (KC_HOSTNAME), also through the
+  in-cluster /login, and nexus-api checks the issuer against it (ADR 0036).
+*/ -}}
+{{- define "keycloakPublicUrl" -}}
+https://{{ .Values.host }}/keycloak
+{{- end -}}
+{{- define "keycloakIssuer" -}}
+{{ include "keycloakPublicUrl" . }}/realms/{{ .Values.keycloak.realm }}
+{{- end -}}
 {{- define "testsBaseUrl" }}
 {{- if not .Values.local_development -}}
 https://{{ .Values.host }}
