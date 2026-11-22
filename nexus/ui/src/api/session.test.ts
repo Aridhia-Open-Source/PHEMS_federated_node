@@ -52,8 +52,9 @@ test("a request with an expiring token refreshes first and sends the new access 
   vi.stubGlobal("fetch", fetchMock);
   setToken(jwt(inSeconds(5)), "r1");
 
-  // openapi-fetch keeps the fetch it was created with, so the request takes the mock per call
-  await api.GET("/projects", { fetch: fetchMock });
+  // openapi-fetch keeps the fetch it was created with, so the request takes the mock per call.
+  // Request needs an absolute URL outside a browser, so the base gets a host here.
+  await api.GET("/projects", { fetch: fetchMock, baseUrl: "http://localhost/nexus-ui/api" });
 
   const sent = fetchMock.mock.calls.map(([input]) => input).find((i): i is Request => i instanceof Request);
   expect(sent?.headers.get("Authorization")).toBe(`Bearer ${fresh}`);

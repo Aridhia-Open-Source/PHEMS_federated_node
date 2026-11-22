@@ -17,3 +17,4 @@ Open issues: (1) the public /keycloak route keeps the prefix but Keycloak has no
 2026-11-22 19:58 CI failed only on helm kc-config checksum baseline (moved by KC_HOSTNAME change); baseline updated, pushing, CI rerun
 2026-11-22 20:00 heads-up from phems/auth: dagster-develop merge coming down the stack; pull before next push
 2026-11-22 20:10 CI: 2 users tests renamed via the USERS dict, which no longer drives claims; now rename via token_claims; file passes locally
+2026-11-22 20:13 session.test.ts (new in #686) failed: relative baseUrl rejected by Request in jsdom; test now passes an absolute baseUrl; 4/4 pass, typecheck clean
