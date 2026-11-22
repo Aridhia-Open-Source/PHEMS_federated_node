@@ -1,5 +1,5 @@
 {
-  "realm": "FederatedNode",
+  "realm": "${KEYCLOAK_REALM}",
   "enabled": true,
   "registrationEmailAsUsername": false,
   "offlineSessionIdleTimeout": "${KEYCLOAK_TOKEN_LIFE}",

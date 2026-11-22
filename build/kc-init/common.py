@@ -598,11 +598,12 @@ def set_realm_version(version:int, admin_token:str):
 
 def _substitute_placeholders(raw:str) -> str:
     """
-    realms.json carries ${KEYCLOAK_SECRET}, ${KEYCLOAK_TOKEN_LIFE} and ${KEYCLOAK_HOSTNAME}.
+    realms.json carries ${KEYCLOAK_REALM}, ${KEYCLOAK_SECRET}, ${KEYCLOAK_TOKEN_LIFE} and ${KEYCLOAK_HOSTNAME}.
     Keycloak substitutes those itself when importing the file at startup, but the admin REST API
     does not, so it has to be done here before POSTing.
     """
     replacements = {
+        "${KEYCLOAK_REALM}": settings.keycloak_realm,
         "${KEYCLOAK_SECRET}": settings.keycloak_secret,
         "${KEYCLOAK_TOKEN_LIFE}": os.getenv("KEYCLOAK_TOKEN_LIFE", "2592000"),
         "${KEYCLOAK_HOSTNAME}": os.getenv("KEYCLOAK_HOSTNAME", ""),
