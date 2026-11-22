@@ -9,7 +9,7 @@ A `grants` table in nexus-api says which users and groups may read, assign, exec
 ## Context
 
 - **Config records say nothing about access.** Git providers, secrets, trigger and results repositories, datasets, projects and the project's assignments do not say who made them, who is responsible for them or who may change them. Any admin can change any record.
-- **Some config is managed by a program.** The operator applies node config from files ([0032](0032-declarative-node-config-through-an-operator.md)); an edit by someone else is drift it has to fight.
+- **Some config is managed by a program.** The operator applies node config from files ([0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/700)); an edit by someone else is drift it has to fight.
 - **Projects have members with different rights.** An admin sets up a study: global resources, projects, then users who mostly read, some who write and some who run tasks. People join and leave, and their rights change.
 - **Approved data access requests are coming back with the task API trigger.** A data custodian approves a researcher to run tasks on a project until a date, and may revoke it.
 
@@ -127,7 +127,7 @@ Every action, reads included, is checked. Several users and groups may hold `man
   ```
 
 - **SuperUser bypasses grants, not the rules** ([0037](0037-keycloak-authentication-roles-and-system-accounts.md)): the `permit` for `SuperUser` skips grants, and every `forbid` still applies to it.
-- **Sites add rules later** as extra `.cedar` files through chart values, versioned in the site's repo ([0031](0031-gitops-delivery-with-helm-and-flux.md)). They add to the standard rules and cannot remove them. A new action needs code, since a route has to ask for it.
+- **Sites add rules later** as extra `.cedar` files through chart values, versioned in the site's repo ([0031](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/701)). They add to the standard rules and cannot remove them. A new action needs code, since a route has to ask for it.
 
 ### The check
 
@@ -176,7 +176,7 @@ Every action, reads included, is checked. Several users and groups may hold `man
 
 ### With Flux and the operator
 
-The site's git repository already drives the node: Flux deploys the chart ([0031](0031-gitops-delivery-with-helm-and-flux.md)) and the operator applies node config through nexus-api ([0032](0032-declarative-node-config-through-an-operator.md)). Access fits the same flow:
+The site's git repository already drives the node: Flux deploys the chart ([0031](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/701)) and the operator applies node config through nexus-api ([0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/700)). Access fits the same flow:
 
 - **Config managed by the operator.** The operator calls nexus-api with its client credentials, so every record it applies is `owned_by` its service account, with `manage` for `/roles/service`. Admins can still read and assign those records, but a UI edit by an admin is a 409: the records cannot drift from git. Changing one means a PR to the site repository, or the superuser claiming it in an emergency, after which the operator reports drift.
 - **Policies from git.** A site's extra `.cedar` files are chart values in its Flux repository, changed by PR. Flux rolls them out; nexus-api validates them at startup, so a bad policy fails the rollout and the previous pods keep serving.

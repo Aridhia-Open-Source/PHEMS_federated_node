@@ -8,7 +8,7 @@ Keycloak is the OIDC provider the node ships ([0036](0036-api-authorization-oidc
 
 - **0036 needs a provider** that issues signed tokens with a user id, one node role and groups, and that hands sign-in to a hospital's directory.
 - **The chart already ships Keycloak** ([0017](0017-authorization-detached-from-dar-and-keycloak.md)), with kc-init setting up the realm.
-- **Some callers are programs, not people.** The operator applies node config from git ([0032](0032-declarative-node-config-through-an-operator.md)) and Dagster writes pipeline state. Both must work from install, before nexus-api holds any rows, without a person's password.
+- **Some callers are programs, not people.** The operator applies node config from git ([0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/700)) and Dagster writes pipeline state. Both must work from install, before nexus-api holds any rows, without a person's password.
 - **Sites run their own directory.** Who is an admin is decided there, not in each node's Keycloak.
 - **Records can be left without anyone responsible.** The responsible admin leaves, or a record was made before grants existed. Someone has to be able to recover them.
 - **Bypassing access must not bypass the application.** Revoked flags and state transitions ([0005](0005-state-transition-tables.md), [0008](0008-enabled-revoked-and-soft-delete.md)) keep tasks and results consistent.
