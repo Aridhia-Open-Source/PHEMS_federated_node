@@ -6,25 +6,31 @@ user-related endpoints:
 """
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 
 from app.dtos.user import NewUserDTO, UserDTO
 from app.helpers.const import PUBLIC_URL
-from app.helpers.exceptions import InvalidRequest
+from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
+from app.helpers.wrappers import ADMINISTRATOR, SUPERUSER, USERS, Caller, get_caller
 
 router = APIRouter(prefix='/global/users', tags=["users"])
 reset_password_router = APIRouter(prefix='/global/users', tags=["users"])
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=NewUserDTO)
-def create_user(data: dict = Body(default_factory=dict)):
+def create_user(data: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /global/users endpoint. Creates a KC user, and sets a temp
-        password for them.
+        password for them. The role is Users (default) or Administrator, which only the SuperUser may give.
     """
     if data.get("email") is None:
         raise InvalidRequest("An email should be provided")
+    data["role"] = data.get("role", USERS)
+    if data["role"] not in (USERS, ADMINISTRATOR):
+        raise InvalidRequest("role must be Users or Administrator")
+    if data["role"] == ADMINISTRATOR and caller.role != SUPERUSER:
+        raise UnauthorizedError("Only the SuperUser can create an Administrator")
 
     # If a username is not provided, use the email
     if data.get("username") is None:

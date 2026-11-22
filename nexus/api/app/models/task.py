@@ -9,7 +9,6 @@ from app.dtos.repository_uri import RepositoryUriRequest
 from app.helpers.compute import validate_cpu_resources, validate_memory_resources
 from app.helpers.base_model import BaseModel, db
 from app.helpers.git_uri import normalise_repo_uri
-from app.helpers.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest, NotImplementedException
 from app.models import Models, sqla_column
 from app.models.task_spec import TaskSpec
@@ -102,14 +101,12 @@ class Task(db.Model, BaseModel):
         return [f for f in super()._get_required_fields() if f not in ("trigger_id", "task_spec_id")]
 
     @classmethod
-    def validate(cls, data:dict, user_token:str):
+    def validate(cls, data:dict, user_id:str):
         data["name"] = (data.get("name") or "").replace(" ", "")
         if not data["name"]:
             raise InvalidRequest("name is a mandatory field")
 
-        kc_client = Keycloak()
-        decoded_token = kc_client.decode_token(user_token)
-        data["requested_by"] = kc_client.get_user_by_email(decoded_token["email"])["id"]
+        data["requested_by"] = user_id
         repository = data.get("repository")
 
         data = super().validate(data)

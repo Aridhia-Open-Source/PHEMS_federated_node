@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.dtos.healthcheck import NodeHealthDTO
 from app.helpers.exceptions import AuthenticationError, InvalidRequest
-from app.helpers.keycloak import URLS, Keycloak
+from app.helpers.keycloak import URLS, user_tokens
 
 router = APIRouter(tags=["main"])
 
@@ -59,23 +59,21 @@ def health_check():
 def login(username: str | None = Form(None), password: str | None = Form(None)) -> dict:
     """
     POST /login endpoint.
-        Given a form, logs the user in, returning a refresh_token from Keycloak
+        Given a form, logs the user in: {"token": <access token>, "refresh_token": ...}.
+        Send the token as the Bearer; when it expires, swap the refresh token at /refresh_token.
     """
     if not username or not password:
         raise InvalidRequest("username and password are required")
-    return {"token": Keycloak().get_token(username=username, password=password)}
+    return user_tokens(grant_type="password", username=username, password=password)
 
 
 @router.post("/refresh_token")
 def refresh_token(request: Request) -> dict:
     """
     POST /refresh_token endpoint.
-        Given a token, exchanges it for a new one. Returns the same
-        response as /login
+        Given the refresh token as the Bearer, returns a new pair, the same response as /login
     """
-    token = Keycloak.get_token_from_headers(request.headers)
-    kc_client = Keycloak()
-    if not kc_client.is_token_valid(token, resource=None, scope=None, with_permissions=False):
-        raise AuthenticationError()
-
-    return {"token": kc_client.exchange_global_token(token, "refresh_token")}
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+    if not token:
+        raise AuthenticationError("Token not provided")
+    return user_tokens(grant_type="refresh_token", refresh_token=token)

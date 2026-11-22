@@ -1,7 +1,7 @@
 """
 Entrypoint for nexus-api: uvicorn --factory app:create_app.
 Every router is registered here up front; a router module owns its routes and nothing else.
-Deny by default: every router needs the can_do_admin scope, except the ones in OPEN_ROUTERS.
+Deny by default: every router needs an admin node role (or Dagster), except the ones in OPEN_ROUTERS.
 """
 import logging
 
@@ -14,14 +14,14 @@ from app import (
     dagster_api, healthcheck_api,
 )
 from app.errors import register_error_handlers
-from app.helpers.wrappers import require_scope
+from app.helpers.wrappers import ADMIN_ROLES, DAGSTER, require_role
 from app.middleware import JsonObjectBodyMiddleware, SessionMiddleware, TrailingSlashMiddleware
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
 
-# The only routers reachable without the can_do_admin scope. Keep this list short.
+# The only routers reachable without an admin role. Keep this list short.
 OPEN_ROUTERS = (
     main.router,  # /, /ready_check, /health_check, /login, /refresh_token: probes and getting a token
     users_api.reset_password_router,  # PUT /global/users/reset-password: a new user swaps their temp password
@@ -43,7 +43,7 @@ def create_app() -> FastAPI:
         results_repositories_api.router, dagster_api.router, healthcheck_api.router, tasks_api.all_router,
     ):
         admin_only = router not in OPEN_ROUTERS
-        app.include_router(router, dependencies=[Depends(require_scope('can_do_admin'))] if admin_only else None)
+        app.include_router(router, dependencies=[Depends(require_role(*ADMIN_ROLES, DAGSTER))] if admin_only else None)
     # After the routers: it adds the page and size parameters to every route whose response_model is a Page
     add_pagination(app)
     return app

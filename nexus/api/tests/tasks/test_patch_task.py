@@ -69,10 +69,7 @@ class TestPatchTask:
         response = self.patch(client, {"Content-Type": "application/json"}, project, task.id, {"status": "RUNNING"})
         assert response.status_code == 401
 
-    def test_forbidden(self, client, post_json_user_header, task, mock_kc_client, project):
-        is_token_valid = mock_kc_client["wrappers_kc"].return_value.is_token_valid
-        is_token_valid.side_effect = None
-        is_token_valid.return_value = False
+    def test_forbidden(self, client, post_json_user_header, task, project):
         response = self.patch(client, post_json_user_header, project, task.id, {"status": "RUNNING"})
         assert response.status_code == 403
         assert Task.query.get(task.id).status == "PENDING"

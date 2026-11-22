@@ -122,6 +122,23 @@ URLS = {
 }
 
 
+def user_tokens(**grant) -> dict:
+    """
+    A password or refresh_token grant for the global client, without the admin calls Keycloak() makes:
+    {"token": <access token>, "refresh_token": ...}. Clients send the access token (ADR 0036).
+    """
+    response = requests.post(
+        URLS["get_token"], data={"client_id": KEYCLOAK_CLIENT, "client_secret": keycloak_secret(), **grant}, timeout=30
+    )
+    if not response.ok:
+        logger.info(response.text)
+        if re.match("Account is not fully set up", response.json().get("error_description", "")):
+            raise AuthenticationError("Temporary password must be changed before logging in")
+        raise AuthenticationError("Failed to login")
+    body = response.json()
+    return {"token": body["access_token"], "refresh_token": body["refresh_token"]}
+
+
 class Keycloak:
     def __init__(self, client='global') -> None:
         self.client_name = client

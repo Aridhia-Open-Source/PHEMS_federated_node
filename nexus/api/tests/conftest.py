@@ -31,7 +31,7 @@ from app.models.project_results_repository import ProjectResultsRepository
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
 from app.models.api_request_trigger import ApiRequestTrigger
-from app.helpers.exceptions import KeycloakError
+from app.helpers.exceptions import AuthenticationError
 from tests.helpers.pull_requests import pr_body
 
 # Sample responses shared with Dagster. The test compose file mounts them at /contract; outside docker they are in the repo.
@@ -61,11 +61,11 @@ def check_database_connection():
 
 
 sample_repo_uri = "github.com/org/test-repo"
-# The scopes the mocked Keycloak grants the admin token only: a non-admin token is refused (403) on a route with one
-ADMIN_ONLY_SCOPES = ('can_admin_request', 'can_do_admin')
-# The Dagster System user: Keycloak.is_token_valid skips the permission check for it, so it passes every scope, but it is not
-# an admin (is_user_admin, which g.caller_is_admin and so `revoked` use, is False for it)
+# Dagster's token: it passes the admin routers and the system_only routes, but is not an admin (no `revoked`)
 SYSTEM_TOKEN = "system_token"
+# The test bearer tokens and the node role each one's verified claims carry. tests/keycloak/test_token_verification.py
+# checks the real verification; everywhere else app.helpers.wrappers.decode_access_token is stubbed with these.
+TEST_TOKEN_ROLES = {"admin_token": "Administrator", SYSTEM_TOKEN: "Dagster", "user_token": "Users"}
 
 
 def provider_of(uri: str, type: str = "github", api_uri: str | None = None) -> GitProvider:
@@ -112,7 +112,7 @@ def image_name():
 
 @fixture
 def user_token():
-    return "user_refresh_token"
+    return "user_token"
 
 # Users' section
 @fixture
@@ -134,13 +134,6 @@ def admin_user(admin_user_uuid):
 @fixture
 def basic_user(user_uuid):
     return {"email": "test@basicuser.com", "username": "test@basicuser.com", "id": user_uuid}
-
-@fixture
-def project_not_found(mocker):
-    return mocker.patch(
-        'app.helpers.wrappers.Keycloak.exchange_global_token',
-        side_effect=KeycloakError("Could not find project", 400)
-    )
 
 @fixture
 def simple_admin_header(login_admin):
@@ -593,7 +586,6 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, se
 
 @fixture
 def dataset_oracle(mocker, client, user_uuid, k8s_client, project, secret)  -> Dataset:
-    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="AnotherDS", host="example.com", port=5432, secret_id=secret.id, type="oracle")
     dataset.add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
@@ -644,26 +636,38 @@ def mock_keycloak_class(mocker):
     )
 
 
+def claims_for(sub: str, username: str, role: str, groups: list[str] | None = None) -> dict:
+    """The claims of a verified access token holding one node role (plus a Keycloak default role, ignored)."""
+    return {
+        "sub": sub, "preferred_username": username, "groups": groups or [],
+        "realm_access": {"roles": [role, "default-roles-federatednode"]},
+    }
+
+
 @fixture(autouse=True)
-def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
-    decode_token_return = deepcopy(basic_user)
+def token_claims(mocker, basic_user, user_uuid) -> dict:
+    """token -> the claims it verifies to. Add to it for other callers; any other token is a 401."""
+    claims = {
+        token: claims_for(user_uuid, basic_user["username"], role) for token, role in TEST_TOKEN_ROLES.items()
+    }
+
+    def decode(token: str) -> dict:
+        if token not in claims:
+            raise AuthenticationError("Token is not valid")
+        return claims[token]
+
+    mocker.patch('app.helpers.wrappers.decode_access_token', side_effect=decode)
+    return claims
+
+
+@fixture(autouse=True)
+def mock_kc_client(mocker, basic_user, mock_keycloak_class):
     create_user_return = deepcopy(basic_user)
-    decode_token_return["sub"] = user_uuid
     create_user_return["password"] = "tempPassword!"
     kc_mock = {
-        "main_kc": mocker.patch('app.main.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-        )),
-        "wrappers_kc": mocker.patch('app.helpers.wrappers.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-            decode_token=Mock(return_value=decode_token_return),
-            get_user_by_email=Mock(return_value=basic_user),
-            get_user_by_username=Mock(return_value=basic_user),
-            is_user_admin=Mock(side_effect=lambda token: token == "admin_token"),
-            is_system_user=Mock(side_effect=lambda token: token == SYSTEM_TOKEN),
-            has_user_roles=Mock(side_effect=lambda user_id, roles: False),
-            is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token in ("admin_token", SYSTEM_TOKEN) or scope not in ADMIN_ONLY_SCOPES)
-        )),
+        "main_tokens": mocker.patch(
+            'app.main.user_tokens', return_value={"token": "access", "refresh_token": "refresh"}
+        ),
         # TODO(DAR): the datasets_api Keycloak mock went with the DAR code in that module
         "users_api_kc": mocker.patch('app.users_api.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
@@ -674,25 +678,5 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             get_user_role=Mock(return_value="Users"),
         )),
         "dataset_kc": mock_keycloak_class,
-        "task_kc": mocker.patch('app.models.task.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
-            decode_token=Mock(return_value=decode_token_return),
-            get_user_by_email=Mock(return_value=basic_user),
-            get_user_by_id=Mock(return_value=basic_user),
-            list_users=Mock(return_value=[basic_user]),
-            create_user=Mock(return_value=create_user_return),
-            get_user_role=Mock(return_value="Users"),
-        )),
-        "tasks_api_kc": mocker.patch('app.tasks_api.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
-            decode_token=Mock(return_value=decode_token_return),
-            get_user_by_email=Mock(return_value=basic_user),
-            get_user_by_id=Mock(return_value=basic_user),
-            list_users=Mock(return_value=[basic_user]),
-            create_user=Mock(return_value=create_user_return),
-            get_user_role=Mock(return_value="Users"),
-        ))
     }
     return kc_mock

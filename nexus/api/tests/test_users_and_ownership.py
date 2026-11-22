@@ -11,27 +11,22 @@ from app.helpers.base_model import db
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.user import User
+from tests.conftest import claims_for
 
 PROV = "/global/providers"
-# token -> the Keycloak user it decodes to, and its realm roles
+# token -> the Keycloak user it verifies to, and its node role
 USERS = {
-    "admin_token": {"id": "id-admin", "username": "admin", "roles": ["Administrator"]},
-    "person_token": {"id": "id-person", "username": "person", "roles": ["Administrator"]},
-    "service_token": {"id": "id-svc", "username": "svc", "roles": ["service-account"]},
+    "admin_token": {"id": "id-admin", "username": "admin", "role": "Administrator"},
+    "person_token": {"id": "id-person", "username": "person", "role": "Administrator"},
+    "service_token": {"id": "id-svc", "username": "svc", "role": "Service"},
 }
 
 
 @pytest.fixture
-def callers(mock_kc_client):
-    """Each token in USERS decodes to its own user, and holds every scope."""
-    kc = mock_kc_client["wrappers_kc"].return_value
-    kc.decode_token.side_effect = lambda token: {
-        "username": USERS[token]["username"], "realm_access": {"roles": USERS[token]["roles"]}
-    }
-    kc.get_user_by_username.side_effect = lambda username: next(
-        u for u in USERS.values() if u["username"] == username
-    )
-    kc.is_token_valid.side_effect = lambda token, *args, **kwargs: token in USERS
+def callers(token_claims):
+    """Each token in USERS verifies to its own user."""
+    for token, user in USERS.items():
+        token_claims[token] = claims_for(user["id"], user["username"], user["role"])
 
 
 def as_(token: str) -> dict:
