@@ -36,7 +36,7 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
 ## Dev loop
 
 Run from the repo root. `mise tasks` lists the tasks. First-time setup: `mise run configure` creates `.dev.env` and `dev.values.yaml` from the examples; the first Keycloak user defaults to `admin@fn.local` / `admin` (`--proxy` / `--ca-cert` set up a TLS-intercepting proxy or a private CA, `--no-proxy` / `--no-ca` remove it, see `PROXY_CA_SETUP.md`); the rest is in `DEPLOYMENT.md` ("Run it locally").
-Run `mise run setup` once per checkout (installs the pinned tools and the per-package venvs), and `mise trust` if mise asks.
+Run `mise run setup` once per checkout (installs the pinned tools and the per-package venvs), and `mise trust` if mise asks. `mise run doctor` re-checks mise, the venvs (`pip check`) and where `fncli` resolves; `setup` ends with it.
 
 1. Cluster (human developers only): `mise run cluster up` / `mise run cluster down` (`scripts/cluster.sh`) create or delete the kind cluster `fn` and the local registry at `localhost:5001`. Agents never run these; they work against a cluster that already exists. Run `mise run helm deps` once first (`charts/` is gitignored).
 2. Release:
