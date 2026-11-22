@@ -29,7 +29,7 @@ A `grants` table in nexus-api says which users and groups may read, assign, exec
     id            serial pk
     object_type   text        -- the model's authz_type: 'Project', 'Dataset', ...
     object_id     int
-    relation      text        -- 'read' | 'assign' | 'execute' | 'write' | 'manage'
+    relation      text        -- 'read' | 'assign' | 'execute' | 'operate' | 'write' | 'manage'
     subject_type  text        -- 'user' | 'group'
     subject_id    text        -- Keycloak user id or group path
     expires_at    timestamptz null
@@ -52,12 +52,15 @@ A `grants` table in nexus-api says which users and groups may read, assign, exec
 | Relation | Allows |
 |---|---|
 | `manage` | everything (read, assign, execute, write, delete), plus adding and removing the record's grants, `manage` included |
-| `write` | change or delete it; read it |
+| `write` | change or delete it; turn it on or off; read it |
+| `operate` | turn a project and its parts (dataset assignments, trigger and results repositories) on or off, and backfill; read it. Not secrets, repository settings or assignments |
 | `execute` | run tasks with it; read it |
 | `assign` | add it to a project (a project assignment) without changing it; read it |
 | `read` | read it |
 
 Every action, reads included, is checked. Several users and groups may hold `manage` on one record.
+
+Normal users get at most `read`, `execute` and `operate` on a project; `write` and `manage` stay with admins. The project's on/off routes (`PATCH`) and backfill check `operate`, not `write`.
 
 ### Where grants come from
 
@@ -102,11 +105,19 @@ Every action, reads included, is checked. Several users and groups may hold `man
   permit (principal, action == Action::"assign", resource)
   when { context.grants has assign && context.grants.assign > context.now };
 
+  // operate turns things on or off and backfills; write includes it.
+  permit (principal, action == Action::"operate", resource)
+  when {
+    (context.grants has operate && context.grants.operate > context.now) ||
+    (context.grants has write && context.grants.write > context.now)
+  };
+
   // Any current grant lets you read the record.
   permit (principal, action == Action::"read", resource)
   when {
     (context.grants has read && context.grants.read > context.now) ||
     (context.grants has write && context.grants.write > context.now) ||
+    (context.grants has operate && context.grants.operate > context.now) ||
     (context.grants has execute && context.grants.execute > context.now) ||
     (context.grants has assign && context.grants.assign > context.now)
   };

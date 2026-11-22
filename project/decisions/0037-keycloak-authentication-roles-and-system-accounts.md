@@ -2,7 +2,7 @@
 
 Status: Proposed, 2026-11-20.
 
-Keycloak is the OIDC provider the node ships ([0036](0036-api-authorization-oidc-authentication.md)). Each account holds one of five fixed realm roles, given by membership of a role group; the operator and Dagster sign in as Keycloak clients with client credentials. `SuperUser` bypasses grants, not the application's rules, and signs in with two factors.
+Keycloak is the OIDC provider the node ships ([0036](0036-api-authorization-oidc-authentication.md)). Each account holds one of five fixed realm roles, given by membership of a role group; the operator and Dagster sign in as Keycloak clients with client credentials. `SuperUser` bypasses grants, not the application's rules.
 
 ## Context
 
@@ -39,7 +39,6 @@ Each account holds exactly one node role, a realm role. The roles are fixed in c
 - **Roles do not reach records.** Grants name users and groups ([0038](0038-cedar-authorization-grants-and-policies.md)). A role matters in two places only: `SuperUser` skipping grants, and the routes `Dagster` may call. Rules for everyone in a role group (for example, admins may create global records) are Cedar rules on the group.
 - **SuperUser bypasses grants, not the rules.** It may read, change, delete and grant any record without a grant, but the application's rules still apply to it. For example, nobody can run tasks on a revoked dataset, SuperUser included; it has to un-revoke the dataset first, like any other caller with `manage`. A state change that is a 409 for others is a 409 for it too.
 - **SuperUser is for recovery, not daily work.** It is the only role that may claim a record or re-assign it to another user (`PUT <record path>/owner`), for example when the responsible admin has left. Every action it takes is recorded like any other caller's.
-- **SuperUser signs in with two factors.** Keycloak's sign-in flows ask any account with `SuperUser` for a one-time code after the password, and the account sets one up at first sign-in.
 
 ### System accounts
 
@@ -117,7 +116,7 @@ operatorClientSecret:
 - The operator and Dagster work from the first install, with no manual Keycloak setup and no user passwords to rotate.
 - A site manages who is an admin or a user in its own directory, through the role groups.
 - Every node has a way to recover records whose responsible user has gone, without editing the database.
-- The superuser's credentials are the most sensitive Secret on the node; a second factor protects them, and a site still has to keep them out of daily use.
+- The superuser's credentials are the most sensitive Secret on the node, protected by a password only (no second factor yet); a site has to keep them out of daily use.
 - A new role needs a code change, a Cedar schema change and a review; a site cannot widen access by adding one in Keycloak.
 - Hospital IT already know Keycloak, and sites can plug in their own directory without nexus-api changing.
 
@@ -133,4 +132,5 @@ operatorClientSecret:
 ## Open questions
 
 - Whether the superuser's use should raise an alert.
+- Whether superuser sign-in should need a second factor, as an optional setting. Left out for now: nexus-api's `/login` has no field for the code, so a superuser with two-factor could only sign in through Keycloak's own pages.
 - Whether `Dagster` should become a grant-checked role once its routes are settled, instead of a fixed list of unchecked routes.
