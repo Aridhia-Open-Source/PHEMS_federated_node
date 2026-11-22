@@ -1,0 +1,70 @@
+## The break-glass superuser (ADR 0037): kc-init gets its username and password from superuserSecret.
+suite: Superuser account
+release:
+  namespace: federatednode
+  name: federatednode
+  revision: 2
+  upgrade: true
+templates:
+  - templates/keycloak-realm-controller.yaml
+values:
+  - values/values-upgrade.yaml
+kubernetesProvider:
+  scheme:
+    v1/Secret:
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: kc-secrets
+        namespace: federatednode
+      data:
+        KEYCLOAK_SECRET: dGVzdA==
+        KEYCLOAK_ADMIN_PASSWORD: dGVzdA==
+        KC_BOOTSTRAP_ADMIN_PASSWORD: dGVzdA==
+        KEYCLOAK_SERVICE_PASSWORD: dGVzdA==
+        CREDENTIAL_GENERATION: MQ==
+
+tests:
+  - it: passes the superuser's username and password from its secret to kc-init
+    set:
+      superuserSecret:
+        name: superuser
+        userKey: USERNAME
+        passKey: PASSWORD
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SUPERUSER_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: superuser
+                key: USERNAME
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SUPERUSER_PASS
+            valueFrom:
+              secretKeyRef:
+                name: superuser
+                key: PASSWORD
+
+  - it: creates no superuser without the value
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          any: true
+          content:
+            name: SUPERUSER_USERNAME
+
+  - it: refuses a superuserSecret without its keys
+    set:
+      superuserSecret:
+        name: superuser
+    asserts:
+      - failedTemplate: {}
