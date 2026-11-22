@@ -129,6 +129,9 @@ Normal users get at most `read`, `execute` and `operate` on a project; `write` a
   // Admins may read and assign any global record.
   permit (principal in Group::"/roles/admins", action in [Action::"read", Action::"assign"], resource in Global::"0");
 
+  // Dagster reads every record.
+  permit (principal in Role::"Dagster", action == Action::"read", resource);
+
   // SuperUser may do anything.
   permit (principal in Role::"SuperUser", action, resource);
 
@@ -137,6 +140,7 @@ Normal users get at most `read`, `execute` and `operate` on a project; `write` a
   when { resource.revoked };
   ```
 
+- **Callers are a `User`** in `Role::"<node role>"` and in a `Group::"<path>"` for each group in the token's groups claim.
 - **SuperUser bypasses grants, not the rules** ([0037](0037-keycloak-authentication-roles-and-system-accounts.md)): the `permit` for `SuperUser` skips grants, and every `forbid` still applies to it.
 - **Sites add rules later** as extra `.cedar` files through chart values, versioned in the site's repo ([0031](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/701)). They add to the standard rules and cannot remove them. A new action needs code, since a route has to ask for it.
 
@@ -150,6 +154,7 @@ Normal users get at most `read`, `execute` and `operate` on a project; `write` a
       WRITE = "write"
       EXECUTE = "execute"
       ASSIGN = "assign"
+      OPERATE = "operate"       # turn on or off, backfill
       MANAGE = "manage"         # changing the record's grants
       UNCHECKED = "unchecked"   # no record check; the route has no record
 
