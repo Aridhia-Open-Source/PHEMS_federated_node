@@ -45,6 +45,7 @@ services:
       KEYCLOAK_LOGLEVEL: DEBUG
       KEYCLOAK_TOKEN_LIFE: 3600
       KEYCLOAK_HOSTNAME: ${KEYCLOAK_URL}
+      KEYCLOAK_REALM:
     volumes:
       - ../../k8s/federated-node/scripts/realms.json:/opt/keycloak/data/import/realms.json
   kc_init:
@@ -72,6 +73,9 @@ services:
       FIRST_USER_PASS: "test123!"
       FIRST_USER_FIRST_NAME: User
       FIRST_USER_LAST_NAME: Admin
+      KEYCLOAK_REALM:
+      SUPERUSER_USERNAME: superuser
+      SUPERUSER_PASS: "super123!"
     volumes:
       - ../../build/kc-init/setup_realm.py:/scripts/setup_realm.py
       - ../../build/kc-init/common.py:/scripts/common.py
