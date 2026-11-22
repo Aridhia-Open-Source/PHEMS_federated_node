@@ -120,19 +120,17 @@ def create_user(
         email:str="",
         first_name:str="Admin",
         last_name:str="Admin",
-        role_name:str="Super Administrator",
-        with_role:bool=True,
+        group:str=None,
         admin_token:str=None,
         realm:str=settings.keycloak_realm,
         reset_password_if_exists:bool=False,
-        temporary:bool=False
+        temporary:bool=False,
+        required_actions:list=None
     ) -> str:
     """
-    Given a set of info about the user, create in the settings.keycloak_realm and
-    assigns it the role as it can't be done all in one call.
-
-    The default role, is Super Administrator, which is basically to ensure the backend
-    has full access to it
+    Given a set of info about the user, create it in the realm and, if group is set (a full path
+    such as /roles/admins), add it to that group, which carries its node role (ADR 0037). That
+    takes a second call, so it also runs for a user that already exists.
 
     reset_password_if_exists controls what happens when the user is already present. Keycloak
     returns 409 and the supplied password is otherwise ignored, so a deliberate credential
@@ -143,6 +141,9 @@ def create_user(
     temporary marks the password as requiring a change at first login. Used for the `admin` console
     account, so Keycloak prompts the operator to set their own password and the generated one in
     kc-secrets stops being meaningful.
+
+    required_actions are what Keycloak makes the user do at first sign-in, e.g. CONFIGURE_TOTP.
+    Like the password, they are only set when the user is created.
     """
     if not admin_token:
         admin_token = login(
@@ -164,6 +165,7 @@ def create_user(
             "enabled": "true",
             "emailVerified": "true",
             "username": username,
+            "requiredActions": required_actions or [],
             "credentials": [
                 {
                     "type": "password",
@@ -202,11 +204,48 @@ def create_user(
         )
         is_response_good(response_reset)
 
-    if with_role:
-        logger.info(f"Assigning role {role_name} to {username}")
-        assign_role(role_name, get_role(role_name, admin_token), admin_token, realm, user_id)
+    if group:
+        logger.info(f"Adding {username} to {group}")
+        join_group(user_id, group, admin_token, realm)
 
     return user_id
+
+
+def join_group(user_id:str, group_path:str, admin_token:str, realm:str=settings.keycloak_realm):
+    """Add the user to the group at group_path (e.g. /roles/admins). Already a member is a no-op."""
+    headers = {'Authorization': f'Bearer {admin_token}'}
+    response = requests.get(
+        f"{settings.keycloak_url}/admin/realms/{realm}/group-by-path/{quote(group_path.lstrip('/'))}",
+        headers=headers
+    )
+    is_response_good(response)
+    response = requests.put(
+        f"{settings.keycloak_url}/admin/realms/{realm}/users/{user_id}/groups/{response.json()['id']}",
+        headers=headers
+    )
+    is_response_good(response)
+
+
+def assign_client_roles(
+        user_id:str, client_name:str, role_names:List[str], admin_token:str, realm:str=settings.keycloak_realm
+    ):
+    """Give the user the named roles of a client (e.g. realm-management's realm-admin) directly."""
+    headers = {'Authorization': f'Bearer {admin_token}'}
+    client_uuid = get_client_uuid(client_name, admin_token, realm)
+    roles = []
+    for name in role_names:
+        response = requests.get(
+            f"{settings.keycloak_url}/admin/realms/{realm}/clients/{client_uuid}/roles/{quote(name, safe='')}",
+            headers=headers
+        )
+        is_response_good(response)
+        roles.append(response.json())
+    response = requests.post(
+        f"{settings.keycloak_url}/admin/realms/{realm}/users/{user_id}/role-mappings/clients/{client_uuid}",
+        headers=headers,
+        json=roles
+    )
+    is_response_good(response)
 
 def assign_role(role_name, role_id, admin_token, realm, user_id):
     response_assign_role = requests.post(
@@ -482,9 +521,9 @@ def create_system_user(
         realm: str = settings.keycloak_realm
     ) -> str:
     """
-    Create a system service account user with the System role.
-    These are used for services like Dagster that need to authenticate
-    and perform privileged operations.
+    Create Dagster's account, in /roles/dagster for the Dagster role (ADR 0037). Still a user with a
+    password: nexus-api only accepts Dagster's token by refreshing it until #686 checks tokens
+    locally, and then it becomes a client with client credentials.
     """
     if not admin_token:
         admin_token = login(
@@ -505,8 +544,7 @@ def create_system_user(
         email=email or f"{username}@phems.local",
         first_name="System",
         last_name="Account",
-        role_name="System",
-        with_role=True,
+        group="/roles/dagster",
         admin_token=admin_token,
         realm=realm,
         # System accounts are platform-owned, so their password must follow kc-secrets on a
@@ -514,7 +552,7 @@ def create_system_user(
         reset_password_if_exists=True
     )
 
-    logger.info(f"System user {username} created successfully with System role")
+    logger.info(f"System user {username} created in /roles/dagster")
     return user_id
 
 

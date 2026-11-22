@@ -14,7 +14,7 @@ from kubernetes.watch import Watch
 from kubernetes.client.exceptions import ApiException
 
 from common import (
-    create_user, delete_bootstrap_user,
+    assign_client_roles, create_user, delete_bootstrap_user,
     login, health_check, set_token_exchange_for_global_client,
     setup_master_user, create_system_user,
     set_global_client_secret, partial_import
@@ -88,7 +88,7 @@ def bootstrap_platform_accounts(admin_token:str):
         settings.keycloak_admin_password,
         email="admin@federatednode.com",
         admin_token=admin_token,
-        realm="master", with_role=False,
+        realm="master",
         temporary=True
     )
     setup_master_user(
@@ -99,8 +99,10 @@ def bootstrap_platform_accounts(admin_token:str):
     #
     # Scoped to the FederatedNode realm only: it has no master-realm access, so a compromise cannot
     # reach the Keycloak server configuration or any other realm.
+    # It holds realm-management's realm-admin directly and no node role (ADR 0037): it manages the
+    # realm and never calls nexus-api.
     logger.info(f"Ensuring the {settings.keycloak_service_user} service account")
-    create_user(
+    service_id = create_user(
         settings.keycloak_service_user,
         settings.keycloak_service_password,
         email="fn-service@federatednode.com",
@@ -109,6 +111,7 @@ def bootstrap_platform_accounts(admin_token:str):
         admin_token=admin_token,
         reset_password_if_exists=True
     )
+    assign_client_roles(service_id, "realm-management", ["realm-admin"], admin_token)
 
     # Only asserted on this path, i.e. on a first install or a deliberate generation bump.
     set_global_client_secret(admin_token)
@@ -116,8 +119,9 @@ def bootstrap_platform_accounts(admin_token:str):
 
 def ensure_realm_accounts(admin_token:str):
     """
-    Accounts inside the FederatedNode realm. Runs under either credential, since fn-service has
-    Super Administrator and can manage realm users.
+    Accounts inside the realm, each in the /roles group that carries its node role (ADR 0037). Runs
+    under either credential, since fn-service holds realm-admin, and after the realm configuration,
+    so the groups exist on a realm that predates them.
     """
     # Create first user, if chosen to do so. Create-only: this is a human's account, so its password
     # must never be reset from the chart.
@@ -125,8 +129,18 @@ def ensure_realm_accounts(admin_token:str):
         create_user(
             settings.first_user_email, settings.first_user_pass,
             settings.first_user_email, settings.first_user_first_name,
-            settings.first_user_last_name, "Administrator",
+            settings.first_user_last_name, "/roles/admins",
             admin_token=admin_token
+        )
+
+    # The break-glass superuser (superuserSecret). Create-only, like the first user, and it must set
+    # up two-factor at first sign-in: Keycloak's browser and direct-grant flows then ask for the code.
+    if settings.superuser_username:
+        create_user(
+            settings.superuser_username, settings.superuser_pass,
+            f"{settings.superuser_username}@phems.local", "Super", "User", "/roles/superuser",
+            admin_token=admin_token,
+            required_actions=["CONFIGURE_TOTP"]
         )
 
     # Create Dagster system user for all Dagster operations, if credentials provided
@@ -187,8 +201,6 @@ def setup_keycloak():
     if used_bootstrap:
         bootstrap_platform_accounts(admin_token)
 
-    ensure_realm_accounts(admin_token)
-
     if settings.manage_realm:
         # Additive realms.json changes, then anything that must mutate existing configuration.
         partial_import(admin_token)
@@ -196,6 +208,8 @@ def setup_keycloak():
         set_token_exchange_for_global_client(admin_token)
     else:
         logger.info("keycloak.manageRealm is false, skipping realm configuration")
+
+    ensure_realm_accounts(admin_token)
 
     # Always last: on the bootstrap path this deletes the credential the run authenticated with.
     sweep_bootstrap_users()
