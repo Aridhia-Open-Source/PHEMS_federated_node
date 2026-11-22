@@ -1,12 +1,21 @@
 """Realm state after the runs above: credentials, migration version, roles and tokens."""
+import json
 import os
+from pathlib import Path
 from urllib.parse import quote
 
 from kc_api import api, check, claims, password_token, report, service_token
 
-NODE_ROLES = {"SuperUser", "Administrator", "Service", "Users", "Dagster"}
-ROLE_GROUPS = {"superuser": "SuperUser", "admins": "Administrator", "service": "Service",
-               "users": "Users", "dagster": "Dagster"}
+# The node roles and their /roles groups come from realms.json, the one place they are defined for
+# Keycloak: this checks the live realm matches it (ADR 0037).
+REALM_FILE = Path(__file__).resolve().parents[3] / "k8s/federated-node/scripts/realms.json"
+_realm = json.loads(REALM_FILE.read_text())
+NODE_ROLES = {role["name"] for role in _realm["roles"]["realm"]}
+ROLE_GROUPS = {
+    group["name"]: group["realmRoles"][0]
+    for top in _realm["groups"] if top["name"] == "roles"
+    for group in top["subGroups"]
+}
 
 print("=== Realm state assertions ===")
 
