@@ -67,6 +67,7 @@ def does_user_own_task(task: Task, caller: Caller):
 
     If they don't, an exception is raised with 403 status code
     """
+    # Stopgap owner/role check: Cedar read enforcement (auth/8 #688, T-076) replaces it.
     if task.requested_by != caller.user_id and not caller.is_admin and caller.role != NodeRole.DAGSTER:
         raise UnauthorizedError("User does not have enough permissions")
 

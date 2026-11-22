@@ -21,3 +21,4 @@ Open issues: (1) the public /keycloak route keeps the prefix but Keycloak has no
 2026-11-22 20:14 reading codepint's review comments on #686
 2026-11-22 20:18 review: m004 removed, backchannel back to false, keycloakHostnameUrl, NodeRole enum, AccessTokenConfig (pydantic-settings), AccessTokenVerifier, Caller DTO, NewUserRequest; running targeted tests
 2026-11-22 20:25 review fixes done: targeted tests 73 pass, helm 232 pass (baseline moved again), openapi + schema.d.ts regenerated, typecheck clean; pushing
+2026-11-22 20:26 review replies posted, PR body updated, ready-for-review on, xo done; CI 45066353004 running
