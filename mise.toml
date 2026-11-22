@@ -51,7 +51,12 @@ run = [
     echo "  $line"
   fi
   ''',
+  "./scripts/doctor.sh",
 ]
+
+[tasks.doctor]
+description = "Check mise, the three virtualenvs (pip check) and where fncli resolves"
+run = "./scripts/doctor.sh"
 
 [tasks.configure]
 description = "Create .dev.env and dev.values.yaml if missing; --proxy / --ca-cert set up a proxy or CA, --no-proxy / --no-ca remove it (PROXY_CA_SETUP.md)"
