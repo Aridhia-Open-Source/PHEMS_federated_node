@@ -1,4 +1,4 @@
-# 0031. GitOps delivery: OpenTofu for infrastructure, Helm releases delivered by Flux
+# 0031. GitOps deployment with Flux
 
 Status: Proposed, 2026-11-11.
 
