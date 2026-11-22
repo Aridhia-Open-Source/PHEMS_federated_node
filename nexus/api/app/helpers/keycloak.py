@@ -283,7 +283,7 @@ class Keycloak:
 
     def is_user_admin(self, token:str) -> bool:
         """
-        Given a token checks if the owner is an Admin or SuperAdmin
+        Given a token checks if the owner is an Administrator or the SuperUser
         """
         response_auth = requests.post(
             URLS["validate"],
@@ -299,7 +299,8 @@ class Keycloak:
         if not response_auth.ok:
             logger.info(response_auth.content.decode())
             raise AuthenticationError("Failed to login")
-        return "Administrator" in response_auth.json()["realm_access"]["roles"]
+        # SuperUser no longer includes Administrator (ADR 0037), so both count. #686 replaces this check.
+        return bool({"Administrator", "SuperUser"} & set(response_auth.json()["realm_access"]["roles"]))
 
     def _service_login(self, cache_name: str, build_payload) -> str:
         """

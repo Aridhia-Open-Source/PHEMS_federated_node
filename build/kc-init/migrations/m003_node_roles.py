@@ -8,7 +8,7 @@ that never leaves a policy without a role:
 
 1. fn-service gets realm-admin directly, before Super Administrator (which gave it) goes.
 2. Administrator stops including Users; the global client gets the groups mapper.
-3. The global client's role policies name the new roles.
+3. The global client's role policies name the new roles, and each /roles group carries its role.
 4. Everyone holding an old role, directly or through an old group, joins the one /roles group for
    their highest role, and loses the direct Administrator or Users mapping.
 5. The old roles and groups are deleted.
@@ -42,6 +42,10 @@ POLICY_ROLES = {
     "superadmin-policy": ("SuperUser",),
     "all-users-policy": ("Administrator", "Users", "SuperUser", "Service"),
     "system-policy": ("Dagster",),
+}
+ROLE_GROUPS = {
+    "/roles/superuser": "SuperUser", "/roles/admins": "Administrator", "/roles/service": "Service",
+    "/roles/users": "Users", "/roles/dagster": "Dagster",
 }
 GROUPS_MAPPER = {
     "name": "groups", "protocol": "openid-connect", "protocolMapper": "oidc-group-membership-mapper",
@@ -125,6 +129,18 @@ def _repoint_policies(client_uuid: str, token: str):
         is_response_good(response)
 
 
+def _map_group_roles(token: str):
+    """Each /roles group carries its role, whatever partial_import did with the subgroups' mappings."""
+    for path, role in ROLE_GROUPS.items():
+        found = _get(f"/group-by-path/{quote(path.lstrip('/'))}", token)
+        is_response_good(found)
+        response = requests.post(
+            _url(f"/groups/{found.json()['id']}/role-mappings/realm"),
+            headers={'Authorization': f'Bearer {token}'}, json=[_role(role, token)]
+        )
+        is_response_good(response)
+
+
 def _move_people(service_id, token: str):
     """Each holder of an old role or group joins the /roles group of their highest one."""
     target = {}
@@ -169,5 +185,6 @@ def migrate(admin_token: str):
     client_uuid = get_client_uuid("global", admin_token)
     _add_groups_mapper(client_uuid, admin_token)
     _repoint_policies(client_uuid, admin_token)
+    _map_group_roles(admin_token)
     _move_people(service_id, admin_token)
     _delete_old(admin_token)

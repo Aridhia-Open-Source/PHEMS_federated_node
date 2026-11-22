@@ -356,7 +356,8 @@ class TestKeycloakUsers(TestKeycloakMixin):
             kc_client.reset_user_pass(self.user_id, self.email, "pass", "new_pas")
         assert exc.value.description == 'Could not update the password.'
 
-    def test_is_user_admin(self, keycloak_login_request_mock):
+    @pytest.mark.parametrize("role", ["Administrator", "SuperUser"])
+    def test_is_user_admin(self, keycloak_login_request_mock, role):
         """
         Simplistic is_user_admin test to verify if all API requests succeeds
         no exception is raised
@@ -364,7 +365,7 @@ class TestKeycloakUsers(TestKeycloakMixin):
         keycloak_login_request_mock.add(
             responses.POST,
             URLS["validate"],
-            json={"realm_access": {"roles": ["Administrator", "Users"]}},
+            json={"realm_access": {"roles": [role]}},
             match=[
                 matchers.urlencoded_params_matcher(
                     {
