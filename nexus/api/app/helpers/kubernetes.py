@@ -1,8 +1,8 @@
 import base64
-import os
 import logging
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
+from app.config import kubernetes as kubernetes_config
 from app.helpers.exceptions import KubernetesException
 
 logger = logging.getLogger('kubernetes_helper')
@@ -11,7 +11,7 @@ logger.setLevel(logging.INFO)
 
 class KubernetesBase:
     def __init__(self) -> None:
-        if os.getenv('KUBERNETES_SERVICE_HOST'):
+        if kubernetes_config.service_host:
             # Get configuration for an in-cluster setup
             config.load_incluster_config()
         else:

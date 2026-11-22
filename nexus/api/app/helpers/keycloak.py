@@ -6,29 +6,22 @@ import time
 import requests
 
 from app.helpers.exceptions import AuthenticationError, KeycloakError
+from app.config import keycloak
 from app.helpers.const import PASS_GENERATOR_SET
 
 logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
 
-KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
-REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
-KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
-# `admin` is the operator's Keycloak console account. It is kept here only so the user list can
-# filter it out -- nothing authenticates as it. Its password is operator-owned and may change at
-# any time, so relying on it would make the backend break whenever an operator rotated it.
-KEYCLOAK_ADMIN = os.getenv("KEYCLOAK_ADMIN")
-# The platform's service account. Holds realm-management's realm-admin in the node's realm and no
-# node role (ADR 0037): it manages Keycloak users and groups and never calls nexus-api.
-KEYCLOAK_SERVICE_USER = os.getenv("KEYCLOAK_SERVICE_USER", "fn-service")
-
-# kc-secrets is mounted as a directory (see the chart's kcSecretsMountPath helper) rather than
-# injected via envFrom, so that a credential rotation reaches this process without a restart.
-KC_SECRETS_PATH = os.getenv("KC_SECRETS_PATH", "/etc/secrets/kc")
+KEYCLOAK_NAMESPACE = keycloak.namespace
+KEYCLOAK_URL = keycloak.url
+REALM = keycloak.realm
+KEYCLOAK_CLIENT = keycloak.client
+KEYCLOAK_ADMIN = keycloak.admin
+KEYCLOAK_SERVICE_USER = keycloak.service_user
+KC_SECRETS_PATH = keycloak.secrets_path
 
 
-def read_secret(name: str, default: str = "") -> str:
+def read_secret(name: str, fallback: str) -> str:
     """
     Read a credential, preferring the mounted file over the environment.
 
@@ -36,26 +29,26 @@ def read_secret(name: str, default: str = "") -> str:
     a directory; a `subPath` mount is never updated. Reads are from tmpfs, so doing this per call is
     cheap.
 
-    Falls back to the environment so local runs and docker-compose, which have no mount, keep
-    working unchanged.
+    Falls back to `fallback`, the value from the environment, so local runs and docker-compose, which
+    have no mount, keep working unchanged.
     """
     try:
         with open(os.path.join(KC_SECRETS_PATH, name), encoding="utf-8") as handle:
             return handle.read().strip()
     except FileNotFoundError:
-        return os.getenv(name, default)
+        return fallback
     except OSError as exc:
         logger.warning("Could not read secret %s (%s), falling back to the environment", name, exc)
-        return os.getenv(name, default)
+        return fallback
 
 
 def keycloak_secret() -> str:
     """The `global` client secret."""
-    return read_secret("KEYCLOAK_SECRET")
+    return read_secret("KEYCLOAK_SECRET", keycloak.secret)
 
 
 def keycloak_service_password() -> str:
-    return read_secret("KEYCLOAK_SERVICE_PASSWORD")
+    return read_secret("KEYCLOAK_SERVICE_PASSWORD", keycloak.service_password)
 
 
 # How long a service-account token may be reused, in seconds. 0 disables caching.
@@ -64,14 +57,14 @@ def keycloak_service_password() -> str:
 # builds several Keycloak objects -- so a brief authentication outage during a credential rotation
 # turns into a total outage rather than a few failed calls. Defaults to off so the existing test
 # suite, which mocks the token endpoint per test, is unaffected; the chart enables it in production.
-TOKEN_CACHE_TTL = int(os.getenv("KEYCLOAK_TOKEN_CACHE_TTL", "0"))
+TOKEN_CACHE_TTL = keycloak.token_cache_ttl
 
 # How many times to retry a service-account login before giving up, and how long to wait between
 # attempts. Passwords have no dual-credential grace period in Keycloak (unlike client secrets), so
 # during a rotation there is a brief cutover where the credential on disk and the one Keycloak holds
 # disagree. Re-reading and retrying rides over the instant of changeover.
-SERVICE_LOGIN_ATTEMPTS = int(os.getenv("KEYCLOAK_SERVICE_LOGIN_ATTEMPTS", "3"))
-SERVICE_LOGIN_BACKOFF = float(os.getenv("KEYCLOAK_SERVICE_LOGIN_BACKOFF", "1.5"))
+SERVICE_LOGIN_ATTEMPTS = keycloak.service_login_attempts
+SERVICE_LOGIN_BACKOFF = keycloak.service_login_backoff
 
 # Keyed by the credential itself, so a rotated password can never hit a token minted with the old
 # one -- the key simply stops matching.

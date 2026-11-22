@@ -1,6 +1,7 @@
-import os
 import string
 from urllib.parse import quote_plus
+
+from app.config import database as DATABASE, kubernetes, node, task_compute
 
 
 def build_sql_uri(
@@ -12,33 +13,25 @@ def build_sql_uri(
     ssl=None
 ):
     params = {}
-    params['username'] = username or os.environ['NEXUS_DB_USER']
-    params['password'] = password or os.environ['NEXUS_DB_PASSWORD']
-    params['host'] = host or os.environ['PGHOST']
-    params['port'] = port or os.environ['PGPORT']
-    params['database'] = database or os.environ['NEXUS_DB_NAME']
-    params['ssl'] = ssl or os.environ.get('DB_SSL', '')
+    params['username'] = username or DATABASE.user
+    params['password'] = password or DATABASE.password
+    params['host'] = host or DATABASE.host
+    params['port'] = port or DATABASE.port
+    params['database'] = database or DATABASE.name
+    params['ssl'] = ssl or DATABASE.ssl
 
     template = "postgresql://{username}:{password}@{host}:{port}/{database}{ssl}"
     return template.format(**params)
-    # return template.format(
-    #     username=params['username'],
-    #     password=quote_plus(params['password']),
-    #     host=params['host'],
-    #     port=params['port'],
-    #     database=params['database'],
-    #     ssl=os.environ.get('DB_SSL', '')
-    # )
 
 PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
-PUBLIC_URL = os.getenv("PUBLIC_URL")
+PUBLIC_URL = node.public_url
 
 # Where project secrets are stored, apart from the release namespace
-SECRETS_NAMESPACE = os.getenv("SECRETS_NAMESPACE")
+SECRETS_NAMESPACE = kubernetes.secrets_namespace
 # Where a disabled secret's value is kept, out of reach of everything that reads the secrets' own namespace
-QUARANTINE_NAMESPACE = os.getenv("QUARANTINE_NAMESPACE", "fn-quarantine")
-TASK_NAMESPACE = os.getenv("TASK_NAMESPACE")
-DAGSTER_WEBSERVER_URI = os.getenv("DAGSTER_WEBSERVER_URI")
+QUARANTINE_NAMESPACE = kubernetes.quarantine_namespace
+TASK_NAMESPACE = kubernetes.task_namespace
+DAGSTER_WEBSERVER_URI = node.dagster_webserver_uri
 
 # Pod resource validation constants
 CPU_RESOURCE_REGEX = r'^(\d+m|\d+(\.\d+)?)$'
@@ -74,11 +67,11 @@ TASK_TAG_KEY_REGEX = r'^[A-Za-z0-9_.-]{1,63}$'
 TASK_ENV_MAX_BYTES = 32 * 1024
 # What a spec's compute may ask for, from the chart's taskCompute values: nothing over the max, and a request without a
 # limit of its own has to fit the default limit the task namespace's LimitRange gives
-TASK_COMPUTE_MAX_CPU = os.environ["TASK_COMPUTE_MAX_CPU"]
-TASK_COMPUTE_MAX_MEMORY = os.environ["TASK_COMPUTE_MAX_MEMORY"]
-TASK_COMPUTE_DEFAULT_LIMIT_CPU = os.environ["TASK_COMPUTE_DEFAULT_LIMIT_CPU"]
-TASK_COMPUTE_DEFAULT_LIMIT_MEMORY = os.environ["TASK_COMPUTE_DEFAULT_LIMIT_MEMORY"]
-ENABLE_IMAGE_WHITELIST = os.getenv("ENABLE_IMAGE_WHITELIST", "false").lower() == "true"
+TASK_COMPUTE_MAX_CPU = task_compute.max_cpu
+TASK_COMPUTE_MAX_MEMORY = task_compute.max_memory
+TASK_COMPUTE_DEFAULT_LIMIT_CPU = task_compute.default_limit_cpu
+TASK_COMPUTE_DEFAULT_LIMIT_MEMORY = task_compute.default_limit_memory
+ENABLE_IMAGE_WHITELIST = task_compute.enable_image_whitelist
 
 # The longest state_cause the launch endpoint stores when it fails a task
 TASK_CAUSE_MAX_LENGTH = 1024
