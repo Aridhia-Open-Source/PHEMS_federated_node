@@ -15,3 +15,5 @@ Next step: rerun that full set (cd nexus/api && ./run_tests.sh ci; cd nexus/ui &
 Open issues: (1) the public /keycloak route keeps the prefix but Keycloak has no http-relative-path, so browser login there would 404; the issuer string is fine. (2) m003 (auth/3's file) no longer repoints the authz policies; m004 turns Authorization Services off. (3) kc-init's realm-management token-exchange setup is untouched. (4) Dataset.add(user_id) still takes an unused user_id. (5) Not deployed or e2e-tested yet: needs a cluster slot from phems/auth.
 2026-11-22 19:58 fresh session: reading failed CI run 45053857670
 2026-11-22 19:58 CI failed only on helm kc-config checksum baseline (moved by KC_HOSTNAME change); baseline updated, pushing, CI rerun
+2026-11-22 20:00 heads-up from phems/auth: dagster-develop merge coming down the stack; pull before next push
+2026-11-22 20:10 CI: 2 users tests renamed via the USERS dict, which no longer drives claims; now rename via token_claims; file passes locally

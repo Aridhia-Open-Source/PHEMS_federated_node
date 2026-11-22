@@ -54,11 +54,11 @@ def test_a_call_creates_the_callers_row(client, callers):
     assert (person.username, svc.username) == ("person", "svc")
 
 
-def test_a_later_call_refreshes_the_row_instead_of_adding_one(client, callers, monkeypatch):
+def test_a_later_call_refreshes_the_row_instead_of_adding_one(client, callers, token_claims):
     client.get(PROV, headers=as_("person_token"))
     db.session.get(User, "id-person").last_seen_at = dt(2020, 1, 1)
     db.session.commit()
-    monkeypatch.setitem(USERS["person_token"], "username", "renamed")
+    token_claims["person_token"]["preferred_username"] = "renamed"
 
     client.get(PROV, headers=as_("person_token"))
 
@@ -69,7 +69,7 @@ def test_a_later_call_refreshes_the_row_instead_of_adding_one(client, callers, m
     assert user.last_seen_at > dt(2020, 1, 1)
 
 
-def test_a_call_soon_after_the_last_leaves_the_row_alone_unless_the_username_changed(client, callers, monkeypatch):
+def test_a_call_soon_after_the_last_leaves_the_row_alone_unless_the_username_changed(client, callers, token_claims):
     client.get(PROV, headers=as_("person_token"))
     seen = db.session.get(User, "id-person").last_seen_at
 
@@ -77,7 +77,7 @@ def test_a_call_soon_after_the_last_leaves_the_row_alone_unless_the_username_cha
     db.session.expire_all()
     assert db.session.get(User, "id-person").last_seen_at == seen
 
-    monkeypatch.setitem(USERS["person_token"], "username", "renamed")
+    token_claims["person_token"]["preferred_username"] = "renamed"
     client.get(PROV, headers=as_("person_token"))
     db.session.expire_all()
     assert db.session.get(User, "id-person").username == "renamed"
