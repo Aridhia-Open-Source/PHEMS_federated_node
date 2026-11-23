@@ -10,6 +10,8 @@ on:
       - develop
       - dagster-main
       - dagster-develop
+      # throwaway target for testing this workflow like a trunk branch; reset by reset-actions-sandbox.yml
+      - actions-sandbox
     paths-ignore:
       - '**/*.md'
       - 'README'
@@ -32,7 +34,7 @@ on:
 # a new run cancels the older one on the same PR or branch; tags and pushes to the watched branches (release work) are never cancelled
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name != 'merge_group' && github.ref_type == 'branch' && !contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/dagster-main","refs/heads/dagster-develop"]'), github.ref)) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name != 'merge_group' && github.ref_type == 'branch' && !contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/dagster-main","refs/heads/dagster-develop","refs/heads/actions-sandbox"]'), github.ref)) }}
 env:
   TAG: ''
   OWNER_LC: ''
@@ -67,7 +69,7 @@ jobs:
           branch="$BASE"
           for _ in $(seq 20); do
             case "$branch" in
-              main|develop|dagster-main|dagster-develop)
+              main|develop|dagster-main|dagster-develop|actions-sandbox)
                 echo "Base chain ends at $branch"; echo "run=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
             esac
             next=$(gh pr list --repo "$REPO" --head "$branch" --state open --json baseRefName -q '.[0].baseRefName')
@@ -173,6 +175,7 @@ jobs:
               # The dagster prefix stays until the dagster line merges into develop and main
               dagster-main) suffix="-dagster-beta.${n}" ;;
               dagster-develop) suffix="-dagster-alpha.${n}" ;;
+              actions-sandbox) suffix="-sandbox.${n}" ;;
               *) suffix="-branch.${sha}" ;;
             esac
           fi
