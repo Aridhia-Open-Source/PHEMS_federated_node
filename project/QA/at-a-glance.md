@@ -1,6 +1,6 @@
 # QA at a glance: the Federated Node beta
 
-A one-page briefing for testers. It assumes the auth, operator and Flux work has landed. The detailed manual cases are in [README.md](README.md) and the files next to it; this page says what the node is, what to look at first and where things are.
+A one-page briefing for testers. It assumes the auth, operator and Flux work has landed. The detailed manual cases are in [README.md](README.md) and the files next to it; this page says what the node is, what to look at first and where things are. What is still changing is in [incoming-changes.md](incoming-changes.md).
 
 ## What the node is
 
