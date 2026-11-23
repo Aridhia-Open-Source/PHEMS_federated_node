@@ -38,10 +38,6 @@ on:
       - 'sub-license/**'
       - 'environment/*.md'
       - 'paper/**'
-# a new run cancels the older one on the same PR or branch; tags and pushes to the watched branches (release work) are never cancelled
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.ref_type == 'branch' && !contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/dagster-main","refs/heads/dagster-develop"]'), github.ref)) }}
 env:
   TAG: ''
   OWNER_LC: ''
