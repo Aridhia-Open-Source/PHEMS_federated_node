@@ -88,32 +88,49 @@ Normal users get at most `read`, `execute` and `operate` on a project; `write` a
 
 - **The rules are Cedar policies** ([cedar-policy/cedar](https://github.com/cedar-policy/cedar)), evaluated in-process by `cedarpy`. Cedar stores nothing; nexus-api passes in what each request needs.
 - **Nothing is allowed unless a `permit` matches,** and a `forbid` always wins.
-- **Files:** `nexus/api/authz/policies.cedar` (the rules), `schema.cedarschema` (entity types, attributes and actions) and `cases.yaml` (allow and deny cases), committed, reviewed by PR and built into the image.
+- **Files:** `nexus/api/authz/policies.cedar` (the rules), `roles.yaml` (which permissions each role holds), `schema.cedarschema` (entity types, attributes and actions) and `cases.yaml` (allow and deny cases), committed, reviewed by PR and built into the image.
+- **Names follow Model.Action.Context.** A request asks for a model action, `dataset.read` or `project.operate`: the record's `authz_type` and the route's verb. Each model action sits in its verb's group (`dataset.read` in `read`), so a rule about every model says `action in Action::"read"`. Every rule carries an `@id` naming the permission it implements, `<model>.<action>.<context>`, where the context says why it allows or refuses: `granted` (a grant on the record), `owner` (a `manage` grant), `all` (every record of that kind), or a reason such as `revoked`. `*` stands for every model.
+- **Roles hold permissions in `roles.yaml`;** rules check the permission, never the role. Keycloak says who is in a role ([0037](0037-keycloak-authentication-roles-and-system-accounts.md)), `roles.yaml` says what the role holds, and nexus-api passes each held permission to Cedar as a `Permission` parent of the caller. A new role, or a new power for a role, is a line in `roles.yaml`; a new kind of permission is a new rule. Both are reviewed by PR.
+
+  ```yaml
+  # nexus/api/authz/roles.yaml: node role (0037) -> permissions
+  SuperUser:     ["*.all.superuser"]
+  Administrator: [global.write.all, global.read.all, global.assign.all]
+  Service:       [global.write.all]
+  Dagster:       ["*.read.all"]
+  Users:         []          # grants only
+  ```
+
+  Grant-based permissions (`*.read.granted`, `*.write.granted`, ...) need no line: every caller holds them, and the grants table decides per record.
+- **Every decision names its rule.** Cedar returns the `@id`s of the rules that matched; nexus-api logs them with the caller, action and record, for example `allowed dataset.read Dataset 12 user alice by *.read.granted`, or `refused dataset.execute Dataset 12 user alice by dataset.execute.revoked`. A refusal with no matching rule logs `by none` (nothing allowed it).
 - **Tested:** CI validates the policies against the schema and runs `cases.yaml` in pytest. At startup nexus-api validates them again, refuses to start if they fail, and writes a `policy_versions` row if the hash is new.
 - **The standard rules:**
 
   ```
-  // manage allows everything, including changing the record's grants.
+  // Grants. Every caller holds these; the grant on the record decides.
+  @id("*.all.owner")            // manage allows everything, including changing the record's grants
   permit (principal, action, resource)
   when { context.grants has manage && context.grants.manage > context.now };
 
-  // write, execute and assign each allow their own action, until they expire.
-  permit (principal, action == Action::"write", resource)
+  @id("*.write.granted")
+  permit (principal, action in Action::"write", resource)
   when { context.grants has write && context.grants.write > context.now };
-  permit (principal, action == Action::"execute", resource)
+  @id("*.execute.granted")
+  permit (principal, action in Action::"execute", resource)
   when { context.grants has execute && context.grants.execute > context.now };
-  permit (principal, action == Action::"assign", resource)
+  @id("*.assign.granted")
+  permit (principal, action in Action::"assign", resource)
   when { context.grants has assign && context.grants.assign > context.now };
 
-  // operate turns things on or off and backfills; write includes it.
-  permit (principal, action == Action::"operate", resource)
+  @id("*.operate.granted")      // operate turns things on or off and backfills; write includes it
+  permit (principal, action in Action::"operate", resource)
   when {
     (context.grants has operate && context.grants.operate > context.now) ||
     (context.grants has write && context.grants.write > context.now)
   };
 
-  // Any current grant lets you read the record.
-  permit (principal, action == Action::"read", resource)
+  @id("*.read.granted")         // any current grant lets you read the record
+  permit (principal, action in Action::"read", resource)
   when {
     (context.grants has read && context.grants.read > context.now) ||
     (context.grants has write && context.grants.write > context.now) ||
@@ -122,25 +139,26 @@ Normal users get at most `read`, `execute` and `operate` on a project; `write` a
     (context.grants has assign && context.grants.assign > context.now)
   };
 
-  // Admins and the operator may create global records.
-  permit (principal in Group::"/roles/admins", action == Action::"write", resource == Global::"0");
-  permit (principal in Group::"/roles/service", action == Action::"write", resource == Global::"0");
+  // Permissions held through roles.yaml.
+  @id("global.write.all")       // create global records
+  permit (principal in Permission::"global.write.all", action == Action::"global.write", resource == Global::"0");
+  @id("global.read.all")
+  permit (principal in Permission::"global.read.all", action in Action::"read", resource in Global::"0");
+  @id("global.assign.all")
+  permit (principal in Permission::"global.assign.all", action in Action::"assign", resource in Global::"0");
+  @id("*.read.all")             // Dagster reads every record
+  permit (principal in Permission::"*.read.all", action in Action::"read", resource);
+  @id("*.all.superuser")        // SuperUser may do anything a forbid does not stop
+  permit (principal in Permission::"*.all.superuser", action, resource);
 
-  // Admins may read and assign any global record.
-  permit (principal in Group::"/roles/admins", action in [Action::"read", Action::"assign"], resource in Global::"0");
-
-  // Dagster reads every record.
-  permit (principal in Role::"Dagster", action == Action::"read", resource);
-
-  // SuperUser may do anything.
-  permit (principal in Role::"SuperUser", action, resource);
-
-  // Nobody runs tasks on a revoked dataset.
-  forbid (principal, action == Action::"execute", resource is Dataset)
+  // Refusals. A forbid always wins, SuperUser included.
+  @id("dataset.execute.revoked")  // nobody runs tasks on a revoked dataset
+  forbid (principal, action == Action::"dataset.execute", resource)
   when { resource.revoked };
   ```
 
-- **Callers are a `User`** in `Role::"<node role>"` and in a `Group::"<path>"` for each group in the token's groups claim.
+- **Callers are a `User`** in `Role::"<node role>"`, in a `Group::"<path>"` for each group in the token's groups claim, and in a `Permission::"<name>"` for each permission `roles.yaml` gives its role. Grants name users and groups; rules name permissions.
+- **Checked at startup:** every permission in `roles.yaml` must be the `@id` of a rule, and every role must be a node role from [0037](0037-keycloak-authentication-roles-and-system-accounts.md); otherwise nexus-api refuses to start.
 - **SuperUser bypasses grants, not the rules** ([0037](0037-keycloak-authentication-roles-and-system-accounts.md)): the `permit` for `SuperUser` skips grants, and every `forbid` still applies to it.
 - **Sites add rules later** as extra `.cedar` files through chart values, versioned in the site's repo ([0031](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/701)). They add to the standard rules and cannot remove them. A new action needs code, since a route has to ask for it.
 
@@ -172,8 +190,8 @@ Normal users get at most `read`, `execute` and `operate` on a project; `write` a
   1. loads the record from the path (404 if missing);
   2. reads the caller from the token: user id, node role, groups;
   3. loads the caller's grants on the record (one query on `grants` matching the user or any of its groups), as one expiry per relation;
-  4. builds the Cedar request: the user with its role and groups as parents, the record with its attributes (`revoked`, and `Global` as parent for the five global record types), and `context` with the grants and the time;
-  5. returns the record if Cedar allows, and raises otherwise.
+  4. builds the Cedar request: the action `<authz_type>.<verb>` (`dataset.write`), the user with its role, groups and `roles.yaml` permissions as parents, the record with its attributes (`revoked`, and `Global` as parent for the five global record types), and `context` with the grants and the time;
+  5. logs the decision with the `@id`s of the rules that matched, then returns the record if Cedar allows, and raises otherwise.
 
   An unchecked route needs no token from `Access`. Code that is not a route (cascades, the grants routes) calls the same check as `can(caller, action, record)`.
 - **Scopes stay coarse.** A route still requires its token scope first; the record check comes after.
@@ -212,6 +230,28 @@ The operator's `access` list is designed when the operator work resumes; nothing
 - Alice edits project 3: allowed. Bob edits it: denied. Bob runs a task: allowed, until March. Alice tries to grant access to someone: denied, only `manage` holders may.
 - Dana removes Alice from `/studies/uc1`: Alice keeps her own `write` grant, which also lets her read.
 - Dana leaves the hospital: SuperUser re-assigns project 3 to Erin, who becomes `owned_by` and gets `manage`.
+
+What the log shows for some of those, with the rule that decided:
+
+```
+allowed  dataset.assign  Dataset 12  user dana   by global.assign.all        (Administrator holds it in roles.yaml)
+refused  dataset.write   Dataset 12  user dana   by none                     (no grant, no permission)
+allowed  project.write   Project 3   user alice  by *.write.granted          (her write grant)
+allowed  dataset.execute Dataset 12  user bob    by *.execute.granted        (until 2027-03-01)
+refused  dataset.execute Dataset 12  user bob    by dataset.execute.revoked  (after the dataset is revoked)
+```
+
+Adding a role later, for example data controllers who may read and revoke any dataset, takes a new node role in [0037](0037-keycloak-authentication-roles-and-system-accounts.md), a line in `roles.yaml`, and one new rule for the new permission:
+
+```yaml
+DataController: [dataset.read.all, dataset.revoke.all]
+```
+```
+@id("dataset.read.all")
+permit (principal in Permission::"dataset.read.all", action == Action::"dataset.read", resource);
+```
+
+`dataset.revoke.all` would need its own rule too; a role can only hold permissions that a rule implements.
 
 ## Consequences
 
