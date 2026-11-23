@@ -24,3 +24,13 @@ Open issues: (1) the public /keycloak route keeps the prefix but Keycloak has no
 2026-11-22 20:26 review replies posted, PR body updated, ready-for-review on, xo done; CI 45066353004 running
 2026-11-22 20:30 stopgap comment on does_user_own_task pushed, thread replied
 2026-11-22 20:44 CI: Keycloak integration test still expected realm version 4 (m004 removed); back to 3; pushing, CI rerun
+2026-11-22 20:51 new rule: local = changed-file tests only, CI is the full gate; WIP pushes get [skip ci]
+2026-11-22 20:58 new rule: never trigger CI by hand; the push starts it
+2026-11-22 21:01 labels renamed: use review:ready (was ready-for-review)
+2026-11-22 21:04 CI 45068148815 green on 354603e04
+2026-11-22 21:09 new rule: xo agent status + xo sync --yes -q before each report/push
+
+## Handover (2026-11-22 21:10, parked for usage cap)
+State: auth/4 #686 code complete. All 9 of codepint's review comments addressed and replied to; stopgap Cedar comment added. CI green on 354603e04 (run 45068148815). Labels review:ready + review:approved; xo status done.
+Next step: wait for codepint's re-review; address any new threads. Moving the other os.getenv calls into app/config.py is its own PR after #686 (orchestrator owns it).
+Open: existing realms keep Authorization Services and the old token lifespan (m004 removed by request) until the end-of-stack cleanup.

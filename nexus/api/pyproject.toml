@@ -45,5 +45,6 @@ dev = [
     "responses~=0.26.0",
     "pytest-responses~=0.5.1",
     "hypothesis~=6.0",
-    "httpx~=0.28.1"
+    "httpx~=0.28.1",
+    "pytest-xdist~=3.8"
 ]
