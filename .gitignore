@@ -60,3 +60,6 @@ docs/versions/*/.mkdocs.local.yml
 # written by scripts/configure.sh --proxy / --ca-cert: env vars for the tooling, and the chart's proxy and customCA values
 .generated.env
 k8s/federated-node/generated.values.yaml
+# Postman: real-node variables and the files `mise run postman` writes (project/QA/README.md)
+.postman.env
+project/QA/postman/*.local.*
