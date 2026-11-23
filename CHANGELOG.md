@@ -10,7 +10,7 @@
   - The dev container is built from `.devcontainer/Dockerfile` and trusts the CA; `mise run devcontainer-check` builds and starts it without VS Code.
   - mitmproxy tests: `scripts/proxy-sim.sh` (dev container, image builds, pulls) and `scripts/proxy-sim-sensors.sh` (the pull request pipeline).
 - nexus-api tests run on pytest-xdist workers, each with its own Postgres database ([#727](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/727)); `NEXUS_TEST_WORKERS=0` runs them serially
-- CI runs only the jobs a PR's changed files need, adds a `ci-ok` check to require instead of the individual jobs, and runs tests in the merge queue; images, the chart and the summary publish only from trunk pushes, tags and manual runs ([#729](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/729))
+- CI runs only the jobs a PR's changed files need, adds a `ci-ok` check to require instead of the individual jobs, and runs tests in the merge queue; images, the chart and the summary publish only from trunk pushes, tags and manual runs ([#729](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/729)); `actions-sandbox` is a throwaway branch that behaves like a trunk branch for testing these changes, reset from dagster-develop on every push to it
 - Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart
 
 ## 1.17.0
