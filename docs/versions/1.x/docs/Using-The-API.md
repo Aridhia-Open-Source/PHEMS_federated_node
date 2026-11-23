@@ -1,0 +1,270 @@
+# Using the API
+
+This guide covers everyday API interactions for administrators and researchers. Full interactive API docs are available at https://aridhia-open-source.github.io/PHEMS_federated_node/
+
+We also provide a Postman collection with some degree of response automation.
+
+You can find it in the repository: https://github.com/Aridhia-Open-Source/federatednode-postman
+
+
+## Setup
+
+```sh
+export FN_HOST=https://fn.your-institution.example.com
+```
+
+
+## Authentication
+
+### Login
+
+```sh
+TOKEN=$(curl --silent --location "$FN_HOST/login" \
+    --header "Content-Type: application/x-www-form-urlencoded" \
+    --data-urlencode "username=your@email.com" \
+    --data-urlencode "password=yourpassword" | jq -r '.token')
+```
+
+Tokens are valid for 30 days by default (configurable via `token.life`). The token survives cluster restarts.
+
+All subsequent calls pass the token as: `--header "Authorization: Bearer $TOKEN"`
+
+### Refresh a token
+
+A token can be refreshed before it expires. Ideally do this every 29 days to avoid downtime.
+
+```sh
+TOKEN=$(curl --silent --location "$FN_HOST/refresh_token" \
+    --request POST \
+    --header "Authorization: Bearer $TOKEN" | jq -r '.token')
+```
+
+
+## Datasets
+
+Datasets are connection mappings to research databases. The FN stores connection details only - data never leaves its source.
+
+See [Datasets](Datasets.md) for per-engine examples (PostgreSQL, SQL Server, MySQL, MariaDB, Oracle) and for DuckDB/SQLite file datasets.
+
+### Register a dataset (admin only)
+
+```sh
+curl --location "$FN_HOST/datasets/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "my-dataset",
+        "host": "db.your-institution.example.com",
+        "port": 5432,
+        "username": "db_user",
+        "password": "db_password",
+        "type": "postgres",
+        "schema": "public",
+        "schema_write": "results",
+        "repository": "your-org/your-task-repo"
+    }'
+```
+
+**Field notes:**
+
+- `type` - database engine. Options: `postgres`, `mssql`, `mysql`, `oracle`, `mariadb`, and from v1.21.0 `duckdb` and `sqlite`. Defaults to `postgres`.
+- `port` - defaults to `5432` whatever the engine, so set it for non-PostgreSQL databases.
+- `schema` - read schema, passed to analytics containers as `CDM_SCHEMA`
+- `schema_write` - write schema, passed to analytics containers as `WRITE_SCHEMA`
+- `repository` - link this dataset to a GitHub repository for outbound mode. When a task CRD comes from this repo, it maps automatically to this dataset. Only one dataset can be linked to a given repository.
+
+Response: `{ "dataset_id": 1, "url": "https://<host>/datasets/my-dataset" }`
+
+### List datasets
+
+```sh
+curl "$FN_HOST/datasets/" \
+    --header "Authorization: Bearer $TOKEN"
+```
+
+### Update a dataset
+
+```sh
+curl --request PATCH "$FN_HOST/datasets/1" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "schema": "new_schema",
+        "schema_write": "new_results_schema"
+    }'
+```
+
+### Delete a dataset (admin only)
+
+Deletes the dataset mapping, its credentials secret, and any linked catalogues and dictionaries.
+
+```sh
+curl --request DELETE "$FN_HOST/datasets/1" \
+    --header "Authorization: Bearer $TOKEN"
+```
+
+
+## Users
+
+### Create a user (admin only)
+
+```sh
+curl --location "$FN_HOST/users/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "email": "researcher@institution.com",
+        "role": "User"
+    }'
+```
+
+Available roles: `Super Administrator`, `Administrator`, `User`. See [User Roles](User-Roles.md).
+
+If the user doesn't already exist in Keycloak they will be created. Administrator accounts cannot be created via the API - use `firstUserSecret` at deploy time or Keycloak directly.
+
+### Grant a user access to a dataset
+
+Users with the `User` role cannot run tasks until they've been granted access to a specific dataset.
+
+```sh
+curl --location "$FN_HOST/datasets/token_transfer" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "title": "Research Project X",
+        "project_name": "project-x",
+        "requested_by": {
+            "email": "researcher@institution.com"
+        },
+        "description": "Access for benchmarking study",
+        "proj_start": "2024-10-01",
+        "proj_end": "2025-10-01",
+        "dataset_id": 1
+    }'
+```
+
+
+## Container registries
+
+The FN controls which images can run against your data. Registries must be explicitly registered, and images can optionally be restricted to an allowlist.
+
+### Register a registry (admin only)
+
+```sh
+curl --location "$FN_HOST/registries/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "url": "ghcr.io/your-org",
+        "username": "github-username",
+        "password": "github-PAT"
+    }'
+```
+
+### Update registry credentials
+
+```sh
+curl --request PATCH "$FN_HOST/registries/1" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "password": "new-github-PAT"
+    }'
+```
+
+### Delete a registry (admin only)
+
+Removes the registry and all associated container allowlist entries.
+
+```sh
+curl --request DELETE "$FN_HOST/registries/1" \
+    --header "Authorization: Bearer $TOKEN"
+```
+
+### Allowlist an image (admin only)
+
+Only relevant when `federatedNode.enable_image_whitelist: true`. When image whitelisting is off (the default), any image from a registered registry is allowed.
+
+```sh
+curl --location "$FN_HOST/containers" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "my-analysis",
+        "registry": "ghcr.io/your-org",
+        "tag": "1.0"
+    }'
+```
+
+
+## Tasks
+
+### Submit a task
+
+```sh
+curl --location "$FN_HOST/tasks/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "my-analysis",
+        "executors": [
+            {
+                "image": "ghcr.io/your-org/my-analysis:1.0",
+                "env": {
+                    "MY_PARAM": "value"
+                }
+            }
+        ],
+        "tags": {
+            "dataset_id": 1
+        },
+        "description": "Running benchmarking analysis"
+    }'
+```
+
+Additional optional fields in the task body:
+
+- `executors[].env` - key/value pairs passed as environment variables to the analytics container (in addition to the standard DB connection vars)
+- `db_query` - pre-fetch data from the dataset DB before the container runs (see [Analytics Container Development](Analytics-Container-Development.md))
+- `inputs` - input file mappings
+- `outputs` - output path mappings
+
+### Check task status
+
+```sh
+curl "$FN_HOST/tasks/$TASK_ID" \
+    --header "Authorization: Bearer $TOKEN"
+```
+
+### List all tasks (admin only)
+
+```sh
+curl "$FN_HOST/tasks/" \
+    --header "Authorization: Bearer $TOKEN"
+```
+
+### Cancel a task (admin only)
+
+```sh
+curl --request POST "$FN_HOST/tasks/$TASK_ID/cancel" \
+    --header "Authorization: Bearer $TOKEN"
+```
+
+### Retrieve results
+
+Once status is `COMPLETE` (and approved if task review is enabled):
+
+```sh
+curl "$FN_HOST/tasks/$TASK_ID/results" \
+    --header "Authorization: Bearer $TOKEN" \
+    --output results.tar.gz
+```
+
+
+## Audit logs
+
+```sh
+curl "$FN_HOST/admin/audit" \
+    --header "Authorization: Bearer $TOKEN"
+```
+

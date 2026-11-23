@@ -1,0 +1,373 @@
+# Datasets
+
+A dataset tells the Federated Node where a research database lives and how a task should connect to it. The FN stores the connection details and per-dataset permissions - it never copies or centralises the data.
+
+There are two kinds of dataset:
+
+- **Server datasets** - a database server the task connects to over the network: PostgreSQL, Microsoft SQL Server, MySQL, MariaDB or Oracle. The FN keeps the credentials in a Kubernetes secret.
+- **File datasets** - an embedded database file (DuckDB or SQLite) sitting on a volume. The file is mounted read-only into the task pod. There is no server, host or credentials.
+
+Registering, updating and deleting datasets needs the `can_admin_dataset` permission (Administrator or above). See [User roles](User-Roles.md).
+
+
+## Supported engines
+
+| `type` | Kind | ODBC driver used in `CONNECTION_STRING` | Minimum FN version |
+|---|---|---|---|
+| `postgres` (default) | Server | `PostgreSQL ANSI` | any |
+| `mssql` | Server | `ODBC Driver 18 for SQL Server` | any |
+| `mysql` | Server | `MySQL ODBC 9.3 ANSI Driver` | any |
+| `mariadb` | Server | `MariaDB ODBC 3.2 Driver` | any |
+| `oracle` | Server | `Oracle ODBC Driver` | any |
+| `duckdb` | File | `DuckDB Driver` | **v1.21.0** |
+| `sqlite` | File | `SQLite3` | **v1.21.0** |
+
+> **DuckDB and SQLite need v1.21.0 or later.** Older releases reject `"type": "duckdb"` with `DB type duckdb is not supported.` Upgrade the Helm chart to 1.21.0+ before following the [file datasets](#file-datasets-duckdb-and-sqlite) section. The upgrade runs a database migration that adds the `volume_claim` and `path` columns to the datasets table.
+
+The analytics container needs the matching ODBC driver installed. The [FN task base images](https://github.com/Aridhia-Open-Source/Federated-Node-Task-Base-Images) (Python and R) include all of them.
+
+
+## Dataset fields
+
+| Field | Server datasets | File datasets | Description |
+|---|---|---|---|
+| `name` | required | required | Unique name. Lower-cased on save. For server datasets this is also the **database name** used in the connection string. |
+| `type` | optional | required | Engine, from the table above. Defaults to `postgres`. |
+| `host` | required | not allowed | Database hostname |
+| `port` | recommended | not allowed | Database port. **Defaults to `5432` for every server engine**, so always set it for anything other than PostgreSQL. |
+| `username` | required on create | not allowed | Stored in a Kubernetes secret, never in the FN database |
+| `password` | required on create | not allowed | Stored in a Kubernetes secret, never in the FN database |
+| `schema` | optional | optional | Read schema, passed to tasks as `CDM_SCHEMA`. Defaults to `main` for file datasets. |
+| `schema_write` | optional | not allowed | Write schema, passed to tasks as `WRITE_SCHEMA` |
+| `extra_connection_args` | optional | optional | Appended to the end of the ODBC connection string, e.g. `Encrypt=yes;TrustServerCertificate=no;` |
+| `volume_claim` | not allowed | required | Name of a PVC in the tasks namespace that holds the file |
+| `path` | not allowed | required | Path to the file, relative to the root of the volume. Must not start with `/` or contain `..` |
+| `repository` | optional | optional | Link to a GitHub repository for [outbound mode](Outbound-connection-only-mode.md). Only one dataset can be linked to a given repository. |
+| `catalogue` | optional | optional | Object with `title`, `description` and optional `version` |
+| `dictionaries` | optional | optional | List of objects with `table_name`, `field_name`, `description` and optional `label` |
+
+The examples below assume `$FN_HOST` and an admin `$TOKEN` are set, as in [Using the API](Using-The-API.md).
+
+
+## Server datasets
+
+Every server engine uses the same request shape - only `type`, `port` and any `extra_connection_args` change.
+
+### PostgreSQL
+
+```sh
+curl --location "$FN_HOST/datasets/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "omop_cdm",
+        "type": "postgres",
+        "host": "postgres.your-institution.example.com",
+        "port": 5432,
+        "username": "fn_reader",
+        "password": "db_password",
+        "schema": "cdm",
+        "schema_write": "results",
+        "extra_connection_args": "sslmode=require;"
+    }'
+```
+
+### Microsoft SQL Server
+
+```sh
+curl --location "$FN_HOST/datasets/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "omop_cdm",
+        "type": "mssql",
+        "host": "mssql.your-institution.example.com",
+        "port": 1433,
+        "username": "fn_reader",
+        "password": "db_password",
+        "schema": "dbo",
+        "extra_connection_args": "Encrypt=yes;TrustServerCertificate=no;"
+    }'
+```
+
+ODBC Driver 18 encrypts by default and validates the server certificate. If the server uses a self-signed certificate, use `TrustServerCertificate=yes;` instead.
+
+### MySQL
+
+```sh
+curl --location "$FN_HOST/datasets/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "omop_cdm",
+        "type": "mysql",
+        "host": "mysql.your-institution.example.com",
+        "port": 3306,
+        "username": "fn_reader",
+        "password": "db_password",
+        "schema": "omop_cdm"
+    }'
+```
+
+MySQL has no separate schema level - a schema is a database - so `schema` is usually the same as `name`.
+
+### MariaDB
+
+```sh
+curl --location "$FN_HOST/datasets/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "omop_cdm",
+        "type": "mariadb",
+        "host": "mariadb.your-institution.example.com",
+        "port": 3306,
+        "username": "fn_reader",
+        "password": "db_password",
+        "schema": "omop_cdm"
+    }'
+```
+
+### Oracle
+
+```sh
+curl --location "$FN_HOST/datasets/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "orclpdb1",
+        "type": "oracle",
+        "host": "oracle.your-institution.example.com",
+        "port": 1521,
+        "username": "fn_reader",
+        "password": "db_password",
+        "schema": "CDM"
+    }'
+```
+
+For Oracle, `name` is the service name: the connection string uses `DBQ=<host>:<port>/<name>`, and the name is also passed to the task as `ORACLE_SID`.
+
+### What happens on registration
+
+- The connection details go into the FN database. The username and password go into a Kubernetes secret named `<host>-<name>-creds`, created in both the FN namespace and the tasks namespace.
+- A Keycloak resource and admin policy are created for the dataset, so access can be granted per user. See [Architecture](Architecture.md).
+- If DB liveness is enabled (the default), each task pod first checks the database is reachable before the analytics container starts.
+
+The response contains the new dataset's id and URL:
+
+```json
+{ "dataset_id": 1, "url": "https://<host>/datasets/omop_cdm" }
+```
+
+
+## File datasets (DuckDB and SQLite)
+
+> Requires FN **v1.21.0** or later. If you are on an older release, upgrade the chart first - see [Deploy: Core](Deploy-Core.md).
+
+File datasets let you publish a single DuckDB or SQLite file without running a database server. The file lives on a volume, and every task against the dataset gets that volume mounted **read-only** at `/mnt/dataset`. Because the mount is read-only, any number of tasks can read the same file at once and no task can change it.
+
+Setting one up has two steps: make the file available as a PVC in the tasks namespace, then register the dataset pointing at it.
+
+### 1. Make the file available as a volume
+
+The simplest way is the `datasetVolumes` Helm value. Each entry creates a static `ReadOnlyMany` PersistentVolume, plus a PVC with the same `name` in the tasks namespace. Set exactly one storage backend per entry.
+
+```yaml
+datasetVolumes:
+  - name: clinic-files          # PVC name - used as the dataset's volume_claim
+    capacity: 10Gi              # optional, defaults to 10Gi
+    mountOptions: []            # optional
+    azure:
+      shareName: datasets
+      secretName: azure-storage-secret   # optional, this is the default
+      secretNamespace: tasks             # optional
+```
+
+The other backends:
+
+```yaml
+    # On-prem / single node, a directory on the node
+    local:
+      path: /data/datasets
+
+    # AWS EFS
+    aws:
+      fileSystemId: fs-xxxxxxxx
+      accessPointId: fsap-xxxxxxxx   # optional
+
+    # GCP, a GCS bucket via GCS FUSE
+    gcp:
+      bucketName: my-datasets-bucket
+
+    # NFS
+    nfs:
+      url: nfs.example.com
+      path: /exports/datasets
+```
+
+Then upgrade the release, and check the PVC is `Bound`:
+
+```sh
+helm upgrade federatednode federated-node/federated-node -f values.yaml
+kubectl get pvc clinic-files -n <tasks namespace>
+```
+
+You can also create the PVC yourself instead of using `datasetVolumes`. Any PVC in the tasks namespace works, as long as it supports `ReadOnlyMany` (or the task pods all land on one node).
+
+Copy the database file onto the storage, e.g. upload `clinic.duckdb` to the root of the `datasets` Azure file share. The `path` you register is relative to the root of that volume.
+
+### 2. Register the dataset
+
+DuckDB:
+
+```sh
+curl --location "$FN_HOST/datasets/" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "name": "clinic-duckdb",
+        "type": "duckdb",
+        "volume_claim": "clinic-files",
+        "path": "clinic.duckdb"
+    }'
+```
+
+SQLite is the same with `"type": "sqlite"` and a path to a `.sqlite`/`.db` file. Files in subfolders are fine, e.g. `"path": "2026/clinic.duckdb"`.
+
+`host`, `port`, `username`, `password` and `schema_write` are rejected for file datasets. `schema` defaults to `main`, which is the default schema in both DuckDB and SQLite. No Kubernetes secret is created.
+
+When a task is submitted, the FN checks the PVC exists and fails the request with `Volume claim <name> for dataset <dataset> not found` if it doesn't, rather than leaving the pod stuck in `Pending`.
+
+### What the task sees
+
+| Variable | Example |
+|---|---|
+| `DATASET_TYPE` | `duckdb` |
+| `DATASET_PATH` | `/mnt/dataset/clinic.duckdb` |
+| `CDM_SCHEMA` | `main` |
+| `CONNECTION_STRING` | `driver={DuckDB Driver};Database=/mnt/dataset/clinic.duckdb;access_mode=read_only;` |
+
+For SQLite, the connection string opens the file read-only and immutable:
+
+```
+driver={SQLite3};Database=file:/mnt/dataset/clinic.sqlite?mode=ro&immutable=1;
+```
+
+`WRITE_SCHEMA`, `ORACLE_SID`, `DB_USER` and `DB_PSW` are not set, and the DB liveness check is skipped since there is no server. Write results to the results folder, not to the database - see [Analytics container development](Analytics-Container-Development.md).
+
+A task can use the ODBC connection string, or open the file directly with the native library:
+
+```python
+import os
+import duckdb
+
+con = duckdb.connect(os.environ["DATASET_PATH"], read_only=True)
+print(con.sql(f"SELECT count(*) FROM {os.environ['CDM_SCHEMA']}.person").fetchall())
+```
+
+```r
+library(DBI)
+con <- dbConnect(duckdb::duckdb(), Sys.getenv("DATASET_PATH"), read_only = TRUE)
+```
+
+The `db_query` pre-fetch option is only available for server datasets. With a file dataset the task reads the file directly.
+
+### Limitations
+
+- The file is read-only. To publish new data, replace the file on the storage (or register a new `path`) - running tasks keep the file they opened.
+- Make sure the file isn't being written to while tasks read it. For DuckDB, close all writers and checkpoint the file before copying it into place.
+
+
+## Managing datasets
+
+### List and fetch
+
+```sh
+curl "$FN_HOST/datasets/" --header "Authorization: Bearer $TOKEN"
+curl "$FN_HOST/datasets/1" --header "Authorization: Bearer $TOKEN"
+curl "$FN_HOST/datasets/omop_cdm" --header "Authorization: Bearer $TOKEN"
+```
+
+Credentials are never returned.
+
+### Update
+
+`PATCH` only the fields you want to change. Changing `username` or `password` updates the Kubernetes secret; changing `host` or `name` recreates it under the new name.
+
+```sh
+curl --request PATCH "$FN_HOST/datasets/1" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{
+        "password": "rotated_password",
+        "schema_write": "results_v2"
+    }'
+```
+
+For a file dataset, point it at a new file:
+
+```sh
+curl --request PATCH "$FN_HOST/datasets/2" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TOKEN" \
+    --data '{ "path": "clinic-2026-10.duckdb" }'
+```
+
+### Delete
+
+Deletes the dataset record, its credentials secret, and any catalogue and dictionaries. For file datasets the PVC and the file are left alone.
+
+```sh
+curl --request DELETE "$FN_HOST/datasets/1" --header "Authorization: Bearer $TOKEN"
+```
+
+### Catalogue and dictionaries
+
+You can describe a dataset when you register it, so researchers know what's in it without seeing the data:
+
+```json
+{
+    "name": "omop_cdm",
+    "...": "connection fields as above",
+    "catalogue": {
+        "title": "OMOP CDM extract",
+        "description": "Inpatient episodes 2018-2025",
+        "version": "5.4"
+    },
+    "dictionaries": [
+        {
+            "table_name": "person",
+            "field_name": "year_of_birth",
+            "label": "Year of birth",
+            "description": "Patient year of birth"
+        }
+    ]
+}
+```
+
+Read them back with:
+
+```sh
+curl "$FN_HOST/datasets/omop_cdm/catalogue" --header "Authorization: Bearer $TOKEN"
+curl "$FN_HOST/datasets/omop_cdm/dictionaries" --header "Authorization: Bearer $TOKEN"
+curl "$FN_HOST/datasets/omop_cdm/dictionaries/person" --header "Authorization: Bearer $TOKEN"
+```
+
+### Granting access
+
+Researchers with the `User` role can't run tasks against a dataset until they're granted access to it. See [Grant a user access to a dataset](Using-The-API.md#grant-a-user-access-to-a-dataset).
+
+
+## Troubleshooting
+
+| Error | Cause |
+|---|---|
+| `DB type duckdb is not supported.` | FN is older than v1.21.0 - upgrade the chart |
+| `host is required` | Server dataset registered without `host` |
+| `username and password are required` | Server dataset created without credentials |
+| `volume_claim, path not allowed for postgres datasets` | File fields sent with a server `type` (check `type` is set) |
+| `host, port, ... not allowed for duckdb datasets` | Server fields sent for a file dataset |
+| `path must be relative and can't contain '..'` | `path` starts with `/` or escapes the volume |
+| `Volume claim <name> for dataset <dataset> not found` | The PVC doesn't exist in the tasks namespace |
+| Task pod waits on the DB liveness init container | The server isn't reachable from the tasks namespace, or `port` is wrong (remember it defaults to `5432`) |
+| `Repository is already linked to another dataset` | `PATCH` the other dataset with `"repository": null` first |

@@ -1,0 +1,242 @@
+# Deploy: GCP (GKE)
+
+Work through [Deploy: Core](Deploy-Core.md) alongside this guide. The steps here are the GCP-specific additions to your `values.yaml` and the IAM setup to do beforehand.
+
+All authentication uses **Workload Identity** - no service account keys are created or stored.
+
+
+## Prerequisites
+
+The following GKE add-ons must be enabled. Check and enable each if needed.
+
+### Workload Identity
+
+Workload Identity must be enabled on your GKE cluster. Check first:
+
+```sh
+gcloud container clusters describe <your-cluster> \
+    --region <your-region> \
+    --format="value(workloadIdentityConfig.workloadPool)"
+```
+
+If this returns `<your-gcp-project>.svc.id.goog`, Workload Identity is already enabled. If it returns nothing, enable it:
+
+```sh
+gcloud container clusters update <your-cluster> \
+    --workload-pool=<your-gcp-project>.svc.id.goog \
+    --region <your-region>
+```
+
+Workload Identity must also be enabled at the **node pool level**. Check each node pool:
+
+```sh
+gcloud container node-pools describe <your-node-pool> \
+    --cluster <your-cluster> \
+    --region <your-region> \
+    --format="value(config.workloadMetadataConfig.mode)"
+```
+
+If this returns `GKE_METADATA`, it is already enabled. If not:
+
+```sh
+gcloud container node-pools update <your-node-pool> \
+    --cluster <your-cluster> \
+    --region <your-region> \
+    --workload-metadata=GKE_METADATA
+```
+
+### GCS FUSE CSI driver
+
+Required for mounting GCS buckets as volumes. Check first:
+
+```sh
+gcloud container clusters describe <your-cluster> \
+    --region <your-region> \
+    --format="value(addonsConfig.gcsFuseCsiDriverConfig.enabled)"
+```
+
+If this returns nothing or `false`, enable it:
+
+```sh
+gcloud container clusters update <your-cluster> \
+    --region <your-region> \
+    --update-addons GcsFuseCsiDriver=ENABLED
+```
+
+Both updates take several minutes to roll out across the node pool.
+
+
+## 1. Storage
+
+The FN uses GCS FUSE as the `ReadWriteMany` storage backend, mounting a Google Cloud Storage bucket directly into pods.
+
+**The GCS bucket must already exist before deploying.**
+
+### 1a. Create a service account and grant bucket access
+
+```sh
+gcloud iam service-accounts create fn-storage \
+    --display-name "FN Storage"
+
+gcloud storage buckets add-iam-policy-binding gs://<your-bucket> \
+    --member "serviceAccount:fn-storage@<your-gcp-project>.iam.gserviceaccount.com" \
+    --role "roles/storage.objectAdmin"
+```
+
+### 1b. Bind Workload Identity
+
+The FN backend runs as the `secret-backend-handler` Kubernetes service account in the release namespace. Task pods run as `default` in the tasks namespace. Both need access to the bucket:
+
+```sh
+# Backend pods
+gcloud iam service-accounts add-iam-policy-binding \
+    fn-storage@<your-gcp-project>.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:<your-gcp-project>.svc.id.goog[federated-node/secret-backend-handler]"
+
+# Task pods
+gcloud iam service-accounts add-iam-policy-binding \
+    fn-storage@<your-gcp-project>.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:<your-gcp-project>.svc.id.goog[tasks/default]"
+
+# Task controller pod (if deploying in outbound mode)
+gcloud iam service-accounts add-iam-policy-binding \
+    fn-storage@<your-gcp-project>.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:<your-gcp-project>.svc.id.goog[fn-controller/analytics-operator]"
+```
+
+> Replace `federated-node`, `tasks`, and `fn-controller` with the namespaces you are deploying to if different from the defaults.
+
+
+## 2. TLS auto-renewal (optional)
+
+Automatic SSL certificate renewal uses cert-manager with GCP Cloud DNS for the DNS-01 challenge.
+
+### 2a. Create a service account and grant DNS access
+
+```sh
+gcloud iam service-accounts create cert-manager-dns \
+    --display-name "cert-manager Cloud DNS"
+
+gcloud projects add-iam-policy-binding <your-gcp-project> \
+    --member "serviceAccount:cert-manager-dns@<your-gcp-project>.iam.gserviceaccount.com" \
+    --role "roles/dns.admin"
+```
+
+### 2b. Bind Workload Identity
+
+```sh
+gcloud iam service-accounts add-iam-policy-binding \
+    cert-manager-dns@<your-gcp-project>.iam.gserviceaccount.com \
+    --role roles/iam.workloadIdentityUser \
+    --member "serviceAccount:<your-gcp-project>.svc.id.goog[fn-certmanager/<release-name>-cert-manager]"
+```
+
+> `[fn-certmanager/<release-name>-cert-manager]` is `[<cert-manager-namespace>/<release-name>-cert-manager]`. The cert-manager Helm subchart prefixes the Helm release name to its service account - if you installed with `helm install federatednode ...`, the KSA is `federatednode-cert-manager`. The default cert-manager namespace in this chart is `fn-certmanager`.
+>
+> To confirm the exact KSA name after installing: `kubectl get serviceaccounts -n fn-certmanager`
+
+### 2c. Annotate the cert-manager service account
+
+Add this to your `values.yaml` so Helm passes it to the cert-manager subchart:
+
+```yaml
+cert-manager:
+  serviceAccount:
+    annotations:
+      iam.gke.io/gcp-service-account: cert-manager-dns@<your-gcp-project>.iam.gserviceaccount.com
+```
+
+
+## 3. Add the GCP block to values.yaml
+
+Add this to your `values.yaml` (created in the core guide):
+
+```yaml
+on_gke: true
+
+storage:
+  gcp:
+    bucketName: <your-bucket>
+```
+
+With TLS auto-renewal:
+
+```yaml
+on_gke: true
+
+storage:
+  gcp:
+    bucketName: <your-bucket>
+
+cert-manager:
+  enabled: true
+  serviceAccount:
+    annotations:
+      iam.gke.io/gcp-service-account: cert-manager-dns@<your-gcp-project>.iam.gserviceaccount.com
+
+certs:
+  gcp:
+    email: admin@your-institution.example.com
+    project: <your-gcp-project>
+```
+
+**If you are also deploying the Task Controller** (outbound mode), use a YAML anchor to avoid duplicating the storage config:
+
+```yaml
+on_gke: true
+
+storage: &storage
+  gcp:
+    bucketName: <your-bucket>
+
+cert-manager:
+  enabled: true
+  serviceAccount:
+    annotations:
+      iam.gke.io/gcp-service-account: cert-manager-dns@<your-gcp-project>.iam.gserviceaccount.com
+
+certs:
+  gcp:
+    email: admin@your-institution.example.com
+    project: <your-gcp-project>
+
+fn-task-controller:
+  storage: *storage
+```
+
+
+## 4. Deploy
+
+Return to [Deploy: Core](Deploy-Core.md) step 8 and run `helm install` with your completed `values.yaml`.
+
+
+## 5. Annotate the Kubernetes service accounts
+
+The Kubernetes service accounts and namespaces are created by Helm, so this must be done after `helm install`. Annotate first, then restart the pods to pick up the new Workload Identity:
+
+```sh
+kubectl annotate serviceaccount secret-backend-handler \
+    --namespace federated-node \
+    iam.gke.io/gcp-service-account=fn-storage@<your-gcp-project>.iam.gserviceaccount.com
+
+kubectl annotate serviceaccount default \
+    --namespace tasks \
+    iam.gke.io/gcp-service-account=fn-storage@<your-gcp-project>.iam.gserviceaccount.com
+
+# Task controller (if deploying in outbound mode)
+kubectl annotate serviceaccount analytics-operator \
+    --namespace fn-controller \
+    iam.gke.io/gcp-service-account=fn-storage@<your-gcp-project>.iam.gserviceaccount.com
+
+# Restart pods to pick up the new identity
+kubectl rollout restart deployment/backend --namespace federated-node
+kubectl rollout restart deployment/analytics-operator --namespace fn-controller
+```
+
+
+## Next step
+
+[Post-Deploy Testing](Post-Deploy-Testing.md)

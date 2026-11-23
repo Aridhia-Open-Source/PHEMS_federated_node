@@ -1,0 +1,55 @@
+# Architecture decision records
+
+The architecture of the Federated Node's trigger, task and results pipeline, written in MADR style (Context, Decision, Consequences, Alternatives considered, Open questions). Together the records describe the system as it is; each is written in the present tense and open questions are listed at the end of the record they belong to.
+
+New records are numbered in sequence as `NNNN-short-title.md` and added to the table below and to the one in [../../docs/README.md](../../docs/README.md), the reviewer's guide, which also says what to check in each record.
+
+The mirror service is developed on branch `moonshot/gitea-mirror`.
+
+## Diagrams
+
+- [Entities and state machines](../../docs/architecture/entities.md): schema (ER), the two inheritance trees, trigger state, task status, results pull request state.
+- [Flows and components](../../docs/architecture/flows.md): end-to-end flow, sequence across fncli, backend, Dagster and the git host, component and network view, sensor and job inventory.
+
+## Index
+
+| No. | Title | Summary |
+|---|---|---|
+| [0001](0001-polymorphic-triggers.md) | Polymorphic Trigger with PullRequestTrigger and ApiRequestTrigger | A trigger records why a task exists; `state` sits on the parent; one task per trigger. |
+| [0002](0002-task-spec-and-derivation.md) | TaskSpec, and a Task derived from spec and trigger | One normalised, validated spec from the two request shapes; the raw spec is kept on the trigger. |
+| [0003](0003-task-status-written-by-run-status-sensors.md) | Task status is written by the run-status sensors and the reconcile sensor | The status mirrors the Dagster run, and the reconcile sensor repairs a missed event; the launcher only fails tasks a rule stops; delivery never writes it. |
+| [0004](0004-polymorphic-result-and-forward-only-state.md) | Polymorphic Result, PullRequestResult, a forward-only step and a separate state | A delivery's step only moves forward; failure is a state, not a step. |
+| [0005](0005-state-transition-tables.md) | State transition tables for triggers, tasks and result steps; 409 on a refused move | Allowed moves are data; a late or wrong write cannot undo a final state. |
+| [0006](0006-global-resources-and-project-resources.md) | Global resources and project resources | Secrets, git providers, repositories and datasets are global; a project reaches them through its own project resource; URL layout. |
+| [0007](0007-secrets-and-secret-providers.md) | Generic Secret model and SecretProvider; per-repository tokens | A secret is a reference to a value in a store; each repository has its own token. |
+| [0008](0008-enabled-revoked-and-soft-delete.md) | Enabled, revoked and soft delete | A person's switch and the controller's withdrawal are separate flags; deletes are soft. |
+| [0009](0009-task-pinned-to-its-configuration.md) | A task is pinned to its configuration | A snapshot of results and dataset configuration fails or stales a task whose setup changed. |
+| [0010](0010-git-api-protocol-and-factory.md) | GitAPI protocol and GitAPIFactory over Gitea and GitHub | Provider-neutral sensors and delivery over one protocol. |
+| [0011](0011-pull-requests-stored-once-fan-out-and-cursors.md) | Pull requests stored once per repository, fanned out to project resources, with cursors | One poll and one copy per repository; match rule, two cursors, `skip_gap` and backfill. |
+| [0012](0012-github-ingest-pulls-endpoint.md) | Ingest merged pull requests through the pulls endpoint, not search | The list-pulls endpoint avoids the search rate limit and index lag. |
+| [0013](0013-results-delivered-as-branch-and-pull-request.md) | Results delivered as a pushed branch plus a results pull request | Zip, spec and metadata pushed to a branch and opened as a reviewable pull request; resumable. |
+| [0014](0014-dagster-pipeline-ops-sensors-and-retries.md) | The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries | Per-repository ingest runs, per-item isolation, 409 as skip, sensors stopped by default. |
+| [0015](0015-run-keys-retries-and-results-pr-sync.md) | Run keys, retries and the results pull request sync | Run keys with a retry slot, delivery retry, and the sync reconciler. |
+| [0016](0016-pydantic-dto-layer.md) | Pydantic DTO layer for API responses | Responses are built by DTOs; Dagster and fncli parse them into their own models. |
+| [0017](0017-authorization-detached-from-dar-and-keycloak.md) | Authorization detached from DAR, Keycloak and whitelisted images | DAR and whitelisted images are disconnected until the authorization rework. |
+| [0018](0018-fncli-dev-ops-tool.md) | fncli as a dev/ops tool | Idempotent step commands for setting up and exercising the Tilt cluster. |
+| [0019](0019-gitea-port-4000-and-localhost-forward.md) | Gitea on port 4000 in-cluster, localhost forward, fncli host translation | One stored URL works for pods and host tooling. |
+| [0020](0020-tilt-dev-loop.md) | Tilt dev loop, with the tilt-run image for run pods | Live update for the code servers and a rebuilt run image for run pods. |
+| [0021](0021-nexus-api-owns-the-record-and-the-rules.md) | Responsibility: nexus-api owns the record and the rules; Dagster carries out decisions | Dagster asks and acts; decisions come back as typed outcomes; the launcher follows it. |
+| [0022](0022-task-isolation.md) | Task isolation: storage, secrets, namespace and network | A task sees its own run's folder, one dataset's credentials, a dedicated tasks namespace and, by NetworkPolicy, only the database; what is built and what is not. |
+| [0024](0024-github-app-tokens-minted-by-the-backend.md) | Short-lived git tokens, minted by the backend | The backend holds GitHub App and Gitea OAuth2 credentials and hands out cached one-hour tokens per repository; Dagster asks at the moment of use. |
+| [0023](0023-fastapi-replaces-flask.md) | FastAPI replaces Flask: nexus-api owns the deploy, the migrations and the names | One API, one image, one baseline migration regenerated from the models; `backend` becomes `nexus-api`, `BACKEND_*` becomes `NEXUS_*`. |
+| [0025](0025-fncli-bootstrap-files-diff-apply-delete.md) | fncli configures a node from bootstrap files: diff, apply, delete | Declarative files replace about 22 env-driven commands; no secret values, each names its source; secrets create-only; assignments PATCHed, never re-PUT. |
+| [0026](0026-apply-is-additive-delete-is-a-soft-delete.md) | Apply is additive; delete is a soft delete through nexus-api | Apply never deletes; delete soft-deletes without `?force=true`, skips and reports a 409, leaves Gitea alone. |
+| [0027](0027-bootstrap-files-split-by-stage-of-use.md) | Bootstrap files are split by stage of use, and the context is separate | `bootstrap/context.yaml` (node and defaults) per user and cluster; globals, projects and researcher requests apart; references resolve against the node; every command checks the kubectl context. |
+| [0028](0028-experiments-own-their-database-seed-image-and-dataset-file.md) | Experiments own their database, seed, image and dataset file | One folder per experiment; `setup` checks the names against `values.yaml`; the demo is a tiny `demo` experiment with the `demo-fn` image. |
+| [0029](0029-images-are-built-with-docker-buildx-bake.md) | Images are built with docker buildx bake | A root bake file plus one per experiment, found automatically; `mise run images`, `image`, `images-release`; shared tag plus `latest`. |
+| [0030](0030-fncli-demo-only-walks-the-pull-request-process.md) | fncli demo only walks the pull request process | The diff must show the node already matches; setup and cleanup are `apply` and `delete`. |
+| [0031](0031-gitops-deployment-with-flux.md) | GitOps deployment with Flux | OpenTofu only for infrastructure we own; versioned OCI releases; Flux in each site's cluster reads a client-owned site repository; rollback by Flux or git revert. |
+| [0032](0032-declarative-node-config-through-an-operator.md) | Node config as declarative files, applied by an operator | Providers, secrets, repositories, datasets and projects described in YAML instead of env files; on a node they become custom resources a Python operator syncs to nexus-api, so a revert removes config too. |
+| [0033](0033-running-behind-a-tls-intercepting-proxy.md) | Running behind a TLS-intercepting proxy | One script checks the proxy and CA and writes only generated, gitignored env and values files that hand-edited ones override; image builds get the CA as a build secret. |
+| [0034](0034-pulumi-for-infrastructure.md) | Pulumi for infrastructure | Pulumi in Python provisions each site's cloud resources where we own the account, Azure first, one stack per site; its outputs feed the site repository and Flux bootstrap; supersedes the OpenTofu part of 0031. |
+| [0035](0035-api-authorization-oidc-authentication.md) | API authorization, OIDC authentication | An OIDC provider signs people in and supplies a user id, one node role and groups; nexus-api decides every access per record from its own database. |
+| [0036](0036-keycloak-authentication-roles-and-system-accounts.md) | Keycloak authentication - roles and system accounts | Keycloak is the provider shipped; five fixed realm roles; kc-init creates the system accounts; SuperUser bypasses grants, not the application's rules. |
+| [0037](0037-cedar-authorization-grants-and-policies.md) | Cedar authorization - grants and policies | A `grants` table per record (owner, read, write, execute, assign, optional expiry); Cedar policies say what each allows; every route declares an `Access` check. |
+| [0038](0038-one-outbound-client-layer-for-nexus-api.md) | One outbound client layer for nexus-api | Every outbound HTTP call goes through one shared session per service, with a default (connect, read) timeout, 429-only retry and a typed 502/504 error; idempotent reads can opt into a TTL cache, and a test blocks bare requests calls. |

@@ -1,0 +1,229 @@
+# Architecture Overview
+
+This page explains how the Federated Node (FN) is put together: what each component does, how they talk to each other, which pods land in which namespace, and the design decisions you need to make yourself before going to production.
+
+If you just want to install it, start at [Prerequisites](Prerequisites.md) and [Deploy: Core](Deploy-Core.md). Come back here when you need to explain the system to a security reviewer, or when you are deciding where to put the database and how to lock down the network.
+
+
+## The idea in one paragraph
+
+The FN inverts the usual data sharing model. Instead of copying patient data out to a researcher, the researcher sends their analysis code to you, packaged as a Docker image. The FN runs that image inside your cluster, against your data, in an isolated pod that lives only as long as the task. The only thing that leaves is the result files, and only after they have been produced. Everything else stays behind your firewall.
+
+
+## The components
+
+Everything below is deployed by a single Helm chart. Some parts are subcharts you can turn on or off.
+
+| Component | What it is | What it does |
+|---|---|---|
+| **Backend** | Flask/Python application | The FN API itself. Handles authentication checks, dataset registration, task submission, result retrieval, and audit logging. It is also the thing that creates task pods, so it holds Kubernetes API permissions. |
+| **Keycloak** | Customised Keycloak deployment | Identity and access management. Issues tokens, stores users, and holds the per-dataset permission model. See the Keycloak section below. |
+| **Keycloak realm initialiser** | Small controller run at install time | Waits for Keycloak to come up, loads the FN realm configuration, and creates the first admin user if you configured one. |
+| **PostgreSQL** | Your own instance, or an in-cluster one for development | Two logical databases. One holds FN metadata, the other holds Keycloak's own tables. |
+| **Traefik** | Subchart, optional but recommended | Reverse proxy and ingress. Terminates TLS and routes traffic to the backend and to Keycloak, using Gateway API HTTPRoutes. |
+| **cert-manager** | Subchart, optional | Issues and renews TLS certificates if you are not bringing your own. |
+| **Result cleaner** | CronJob | Deletes completed task pods, their volumes, and their results after `cleanupTime` days. |
+| **Task Controller** | Subchart, only in outbound mode | Watches a GitHub repository for task submissions and calls the FN API from inside the cluster, so the node never needs to accept inbound connections. There is a section on it below. |
+
+A couple of small helper containers do supporting work rather than running as long-lived pods. One prepares the databases and storage directories before the backend starts. Another runs inside each task pod, ahead of the researcher's own container, to pull data out of the registered dataset and drop it on the shared volume.
+
+
+## How the pieces connect
+
+A researcher reaches the node over HTTPS, through Traefik. Traefik routes them either to Keycloak, to log in and collect a token, or to the backend, for everything else.
+
+The backend sits in the middle and talks to four things. It calls Keycloak to check that a token is valid and that the user is allowed to do what they are asking. It reads and writes its own PostgreSQL database for datasets, tasks, users and audit records. It calls the Kubernetes API to create task pods, secrets and volumes. And it reads finished results off the shared results volume.
+
+The task pod itself talks to your research database to collect its input, and writes its output to the shared volume. Nothing else.
+
+A few things worth calling out because they surprise people:
+
+- **The backend writes to Keycloak, it does not just read from it.** Registering a dataset or granting someone access to one creates records in Keycloak. This is why the backend needs Keycloak administrative credentials rather than just a client secret.
+- **The backend talks to Keycloak over plain HTTP inside the cluster**, at `http://keycloak.<keycloak-namespace>.svc.cluster.local`. TLS is terminated at the ingress. If your security policy requires encryption in transit inside the cluster, that is a service mesh job and is not something the chart does for you.
+- **Task pods do not talk to the backend.** They read their inputs from a mounted volume and write results to the same volume. The backend polls pod status. This keeps the analysis container as dumb and as unprivileged as possible.
+- **The task pod never gets a Kubernetes service account with any rights.** The credentials it does get are the database connection string for the dataset it was granted, injected as an environment variable.
+
+
+## What Keycloak is doing here
+
+Keycloak does more in the FN than the usual "log in and hand out a token". It is the place where all access control decisions are made and stored, and the backend defers to it rather than keeping its own permission tables.
+
+### Logging in and identity
+
+All FN users live in a single Keycloak realm created by the chart. A researcher authenticates against Keycloak directly and receives a token, which they then present to the FN API on every call. The FN never sees or stores a user's password. Adding, removing, and disabling users is Keycloak's job.
+
+### Deciding who can do what
+
+Access control works on two levels.
+
+The coarse level is roles. There are four, running from a super administrator with full control of the node, through an administrator who manages datasets and tasks, to a standard researcher who can only do what they have been explicitly granted, plus an internal role used for service to service calls. [User roles](User-Roles.md) sets out what each one can call.
+
+The fine level is per dataset. A researcher may be allowed to run tasks against one dataset but have no visibility of another, and roles alone cannot express that. So each registered dataset is represented inside Keycloak as its own protected object, with a set of actions attached to it such as viewing the dataset, running a task against it, or administering it. Granting someone access creates a rule in Keycloak linking that user to that dataset and those actions.
+
+When a request arrives, the backend asks Keycloak whether this token is permitted this action on this dataset, and acts on the answer. The decision is Keycloak's, not the FN's.
+
+The practical consequence is worth remembering: **your access control configuration lives in Keycloak, not in the FN database.** Backing up one and not the other leaves you with a node that knows about its datasets but has lost every user and every permission grant.
+
+### Acting on a user's behalf
+
+Keycloak is also configured to let the backend obtain a token on behalf of a user, so that work can continue for a researcher when their session is not live. This is deliberate and necessary, but it does mean that whoever holds the Keycloak administrative credentials can effectively act as any user on the node. Treat those credentials as the most sensitive secret in the deployment.
+
+### Where Keycloak keeps its data
+
+Keycloak uses the same PostgreSQL server as the FN but its own separate database, created at install time if it does not already exist.
+
+
+## Namespaces and pods
+
+The chart spreads itself over several namespaces on purpose, so you can apply different network and admission policies to each. All names are configurable under `namespaces` in your values file.
+
+### Release namespace (whatever you install into, for example `federated-node`)
+
+| Pod / object | Kind | Notes |
+|---|---|---|
+| `backend` | Deployment | The FN API. Three init containers run first: create the FN database if missing, run Alembic migrations, and create the results directory on the shared volume. |
+| `db` | Deployment | Only present if `create_db_deployment: true`. Development convenience, not for production. |
+| `result-cleaner` | CronJob | Removes expired tasks and results. |
+| `backend-configmap`, `backend-secrets` | ConfigMap, Secret | Backend configuration and credentials. |
+| Results PersistentVolume and Claim | PV / PVC | The shared results storage. |
+| Dataset credential secrets | Secret | One per registered dataset, holding the username and password for that research database. Copied into the tasks namespace as well. |
+
+### `keycloak` namespace
+
+| Pod / object | Kind | Notes |
+|---|---|---|
+| `keycloak` | StatefulSet | Keycloak itself, listening on port 8080 inside the cluster. Defaults to 2 replicas. |
+| `keycloak-realm-init` | Deployment | The realm initialiser. It stays running but is idle after setup. |
+| `keycloak-config`, `kc-secrets` | ConfigMap, Secret | Keycloak configuration and the admin password. |
+| Copied database secret | Secret | The chart copies your database secret here at install time, since Keycloak needs it too. |
+
+### `tasks` namespace
+
+This namespace holds nothing at rest. It is where analysis pods are created, run, and deleted.
+
+| Pod / object | Kind | Notes |
+|---|---|---|
+| Task pods | Pod | One per submitted task. Named after the task. Has an init container that fetches data from the registered dataset, then the researcher's own container. |
+| Result fetch jobs | Job | Created on demand when someone calls `/results`. Zips the task's output folder so the backend can read it. |
+| Per-task PVCs | PVC | Scratch space for the task, deleted by the cleaner. |
+| Dataset credential secrets | Secret | Copies of the dataset secrets, so task pods can mount them. |
+
+### `fn-controller` namespace
+
+Only created when `outboundMode: true`.
+
+| Pod / object | Kind | Notes |
+|---|---|---|
+| `analytics-operator` | Deployment | The Task Controller. A single replica, deliberately, since it is a stateful watcher of a git repository. Two init containers run first: one prepares its working directory, the other creates its own service user in Keycloak. |
+| `analytics` custom resource | CRD | Installed by the subchart. Each submitted task becomes one of these objects. |
+| Controller PersistentVolume and Claim | PV / PVC | Its git working area. This is separate storage from the results volume and needs sizing in its own right. |
+| `controller-config` | ConfigMap | Where the backend and Keycloak live inside the cluster, plus storage and task settings. |
+| `controller-delivery-config` | ConfigMap | The delivery destinations that results are pushed back to. |
+| `controller-user-creds` | Secret | The controller's own Keycloak service account credentials, generated at install time. |
+
+### `fn-certmanager` namespace
+
+Only created when the cert-manager subchart is enabled. Holds cert-manager and its issuers.
+
+## The lifecycle of a task
+
+Putting it together, here is what happens when a researcher submits a task.
+
+1. The researcher gets a token from Keycloak using their username and password, or uses a long lived token issued earlier.
+2. They `POST /tasks` with the image name, the dataset, and any input query.
+3. The backend validates the token against Keycloak and asks it whether that user is allowed to run tasks against that dataset.
+4. If image allow-listing is enabled, the backend checks the requested image exists in one of the registered container registries. It authenticates to the registry using stored credentials and checks the tag or digest.
+5. The backend creates a PVC and a pod in the tasks namespace.
+6. The backend records the task in its database and writes an audit entry.
+7. When the researcher calls `/results`, the backend creates a job that mounts both the task volume and the shared results volume, zips the output, and the backend streams the archive back.
+8. After `cleanupTime` days, the cleaner CronJob deletes the pod, the volume, and the stored results.
+
+If task review is enabled (see [Task review](Task-Review.md)), step 7 requires a human approval first.
+
+
+## The Task Controller and outbound mode
+
+Everything above assumes researchers can reach your node over HTTPS. Many hospitals cannot allow that. Outbound mode, enabled with `outboundMode: true`, removes the inbound path entirely: the node opens connections out, and nothing needs to be exposed to the internet.
+
+### How it changes the flow
+
+In outbound mode the researcher never calls your API. Instead they open a pull request against a GitHub repository that the network operator has set up. The Task Controller, running inside your cluster, watches that repository. When it sees a submission it clones the repository into its own working area, turns the submission into a Kubernetes custom resource, and then calls the FN API from inside the cluster on the researcher's behalf. From the backend's point of view nothing is unusual: it receives an ordinary task request over the cluster network and creates a task pod exactly as it always would.
+
+When the task finishes, the controller collects the results and pushes them back to the destination configured for it, normally the same GitHub repository. The researcher picks them up there.
+
+So the submission path and the results path both run outbound, over HTTPS, to a single endpoint you control.
+
+### What it adds to the deployment
+
+- **A custom resource type.** The subchart installs an `analytics` CRD. Every task submission becomes one of these objects, holding the image to run, the dataset requested, the submitting user, the source repository, and any inputs, outputs and environment variables. This is useful operationally: you can list them with `kubectl` to see what has been submitted, independently of the FN's own database.
+- **Its own persistent storage.** The controller keeps a git working area on a volume, separate from the results volume. Configure it under `fn-task-controller.storage`.
+- **Its own Keycloak service user.** An init container creates a user in Keycloak for the controller, with a password generated at install time. This is the identity the controller uses when it calls the FN API, and it is why the controller counts as a service to service caller rather than as a person.
+- **GitHub as an identity provider in Keycloak.** If you configure `fn-task-controller.idp.github`, a post-install job registers GitHub as an identity provider in the FN realm. This is what lets the node tie a pull request to a real FN user, so the normal per-dataset permission checks still apply to a task that arrived via git. If you set `controller.skipUserAuth`, that mapping is skipped and submissions are not attributed to a user at all, which is only appropriate for a closed test setup.
+- **Broader cluster permissions.** The controller's service account is bound to its own role over the custom resources, and, when it runs as part of the FN chart, to the backend's role as well. Treat it as being as privileged as the backend.
+
+### What it means for your network and security review
+
+- **Nothing inbound.** You do not need a public endpoint, a load balancer, or a certificate for the API. This is usually the entire reason for choosing outbound mode.
+- **Outbound to GitHub becomes a required path.** The controller polls GitHub continuously and pushes results back there. If you run an egress allowlist, GitHub has to be on it, and you should scope it as tightly as your proxy allows. This is a real data egress route and should be reviewed as one, not treated as ordinary internet access.
+- **The GitHub repository becomes part of your access control.** Whoever can open a pull request against that repository can put a task in front of your node. The FN still applies its own dataset permission checks on top, so a submission from someone with no grant on a dataset will be rejected, but the repository permissions are now the outer gate. Confirm who administers it and who can merge.
+- **Results land somewhere you do not control.** Once the controller pushes results back to GitHub, they are outside your firewall. If that matters, enable [task review](Task-Review.md) so a person approves the output before it leaves.
+- **Keycloak still matters just as much.** Outbound mode does not remove Keycloak or bypass it. It just changes who calls the API.
+
+Setup is documented in [Outbound connection only mode](Outbound-connection-only-mode.md).
+
+
+## Storage
+
+The FN needs a ReadWriteMany volume shared between the backend and the result jobs. The supported backends are Azure Files, AWS EFS, GCS, NFS, and a local host path for single node development. This choice is made at install time via `storage` in your values file and is awkward to change later, since it involves recreating PVs.
+
+Size it for concurrent task output, not total data volume, since results are deleted after `cleanupTime` days.
+
+
+## Open points to consider
+
+These are the decisions the chart does not make for you. Work through them before a production deployment.
+
+### Databases
+
+- **Where does the FN's PostgreSQL live?** The chart can deploy one in-cluster with `create_db_deployment: true`, but this is meant for development and has no backup story. For production, use a managed instance or a properly administered one on your own infrastructure.
+- **Is the connection encrypted?** Set `db.enforceSSL: true` to make the FN connect with `sslmode=require`. It is off by default. Turn it on unless the database is on the same host.
+- **Back up Keycloak's database as well as the FN's.** They are separate databases on the same server. Restoring only `fndb` gives you a node that knows about its datasets but has lost every user and every permission grant.
+- **Your research databases are entirely your problem.** The FN stores a hostname, port, schema, and a credential secret per dataset. It supports PostgreSQL, MSSQL, MySQL, MariaDB and Oracle. Decide what account the FN connects with. It should be a dedicated, read-only account scoped to exactly the schema you intend to expose, not an application or admin account.
+- **Where does the research database sit relative to the cluster?** Task pods connect to it directly. If it is outside the cluster, that path needs to be open, and that has firewall implications covered below.
+
+### Network and firewall
+
+- **Inbound.** In the standard mode, researchers reach the FN over HTTPS, which means one public or VPN-reachable endpoint fronted by Traefik. Both the API and the Keycloak login endpoint need to be reachable, since the researcher authenticates directly against Keycloak. If you cannot accept inbound connections at all, use [outbound connection only mode](Outbound-connection-only-mode.md), where nothing needs to be exposed.
+- **Outbound: container images.** The cluster must be able to pull the FN's own images from their public registry, and it must be able to pull whatever analysis image a task requests. If your cluster has no internet egress, you need to mirror both into an internal registry. The backend also makes outbound HTTPS calls to registry APIs to check that an image exists before creating a pod.
+- **Outbound: results delivery.** If you enable the delivery API or the Task Controller, the cluster makes outbound calls to GitHub or another endpoint you configure. That is a deliberate data egress path and should be reviewed as one. See the Task Controller section above for what outbound mode changes.
+- **Network policies are not shipped with the chart.** There are no NetworkPolicy objects in the templates. If you want to stop a task pod from reaching the internet, or from reaching anything other than the one database it was granted, you have to write those policies yourself.
+- **Segmentation between namespaces.** The tasks namespace is where untrusted code runs. Treat it accordingly, and consider whether it should be allowed to reach the release namespace or the Keycloak namespace at all. It does not need to.
+
+### Trust in analysis containers
+
+The FN runs container images supplied by researchers. Nothing in the platform inspects what that code does. The controls available to you are:
+
+- `federatedNode.enable_image_whitelist`, which restricts task images to registries you have registered with the node.
+- [Task review](Task-Review.md), which puts a human approval step between task completion and results leaving the node.
+- Network policy, as above.
+
+Decide which of these you need. A node that will accept tasks from an open federation needs all three. A node used by a known internal team may not.
+
+### Secrets and credentials
+
+- Use pre-created Kubernetes secrets referenced from your values file rather than embedding credentials in the values file. The chart supports this throughout.
+- The Keycloak admin password is the crown jewel, because anyone holding it can obtain a token as any user on the node. If you do not set `firstUserSecret`, it is auto-generated and stored in the `kc-secrets` secret. Rotate it and store it somewhere sensible.
+- Kubernetes secrets are base64 encoded, not encrypted, unless you have enabled encryption at rest on etcd or are using an external secrets provider. Check which is true for your cluster.
+
+### Upgrades
+
+- Database migrations run automatically as a backend init container on every deploy. This means a rollback of the Helm release does not roll back the schema. Take a database snapshot before upgrading across a minor version.
+- The Gateway API and Traefik CRDs are installed by you, not by the chart, so they are also upgraded by you. See [Prerequisites](Prerequisites.md).
+
+
+## Where to go next
+
+- [Prerequisites](Prerequisites.md) and [Deploy: Core](Deploy-Core.md) to install
+- [Helm values reference](Helm-Values-Reference.md) for every configurable field
+- [User roles](User-Roles.md) for the permission model from a user's point of view
+- [Analytics container development](Analytics-Container-Development.md) for what a task container has to look like
