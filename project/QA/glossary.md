@@ -1,6 +1,26 @@
 # QA glossary and where to find things
 
-The words you will meet while testing the Federated Node (FN), then one table with every document. It assumes the in-flight auth, operator and Flux work has landed; terms from that work say so.
+First, every document in one table; then the words you will meet while testing the Federated Node (FN). It assumes the in-flight auth, operator and Flux work has landed; terms from that work say so.
+
+## Where to find everything
+
+All on the branch `qa/tester-pack`.
+
+| What | Link |
+|---|---|
+| Start here (10-minute demo) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/QA/at-a-glance.md |
+| What changed since develop | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/QA/since-develop.md |
+| What is changing (in-flight work) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/QA/incoming-changes.md |
+| QA README and test plans | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/QA/README.md |
+| Postman setup folder | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/qa/tester-pack/project/QA/postman |
+| Postman script | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/scripts/postman.sh |
+| End-to-end tests README | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/dagster/fncli/tests/e2e/README.md |
+| Automated testing overview | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/TESTING.md |
+| Wiki as a site | https://aridhia-open-source.github.io/PHEMS_federated_node/docs/qa-tester-pack/ |
+| Wiki pages (source) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/qa/tester-pack/docs/versions/2.x/docs |
+| All ADRs | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/qa/tester-pack/project/decisions |
+| Demo walkthrough (today's flow) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/DEMO.md |
+| fncli README | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/dagster/fncli/README.md |
 
 ## Access
 
@@ -51,23 +71,3 @@ The words you will meet while testing the Federated Node (FN), then one table wi
 - **ADR**: an architecture decision record; each explains one design choice.
 - **Wiki**: the 2.x user and operator docs.
 - **Stack**: a chain of pull requests, each on the one before. The in-flight ones are auth, operator, Flux and CI.
-
-## Where to find everything
-
-All on the branch `qa/tester-pack`.
-
-| What | Link |
-|---|---|
-| Start here (10-minute demo) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/QA/at-a-glance.md |
-| What changed since develop | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/QA/since-develop.md |
-| What is changing (in-flight work) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/QA/incoming-changes.md |
-| QA README and test plans | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/QA/README.md |
-| Postman setup folder | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/qa/tester-pack/project/QA/postman |
-| Postman script | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/scripts/postman.sh |
-| End-to-end tests README | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/dagster/fncli/tests/e2e/README.md |
-| Automated testing overview | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/TESTING.md |
-| Wiki as a site | https://aridhia-open-source.github.io/PHEMS_federated_node/docs/qa-tester-pack/ |
-| Wiki pages (source) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/qa/tester-pack/docs/versions/2.x/docs |
-| All ADRs | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/qa/tester-pack/project/decisions |
-| Demo walkthrough (today's flow) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/DEMO.md |
-| fncli README | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/dagster/fncli/README.md |
