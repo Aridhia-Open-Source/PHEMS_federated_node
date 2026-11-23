@@ -14,7 +14,7 @@ Core components bundled in the chart:
 
 - **nexus-api** - the FN API (FastAPI). It keeps the record of everything and decides what is allowed
 - **Dagster** - polls the git repositories, starts task pods, and delivers results
-- **Keycloak** - logins and the admin role
+- **Keycloak** - accounts, logins and the five roles
 - **Traefik** - reverse proxy and ingress (recommended for production)
 - **PostgreSQL** - FN metadata (projects, tasks, results) - you provide this externally in production
 
@@ -38,15 +38,19 @@ You also need a git host for the trigger and results repositories: GitHub (with 
 
 **Trying it on your own machine first:** [Run locally](./Run-Locally) takes a Linux or WSL2 machine from nothing to a working demo, on a local cluster with a Gitea inside it.
 
-**Deploying for the first time:** [Prerequisites](./Prerequisites), then [Deploy: Core](./Deploy-Core) with the guide for your platform, then [Post-deploy testing](./Post-Deploy-Testing). The platform guides are [Azure (AKS)](./Deploy-Azure), [AWS (EKS)](./Deploy-AWS), [GCP (GKE)](./Deploy-GCP) and [On-Premises](./Deploy-On-Premises).
+**Deploying for the first time:** [Prerequisites](./Prerequisites), then [Deploy: Core](./Deploy-Core) with the guide for your platform, then [Post-deploy testing](./Post-Deploy-Testing). The platform guides are [Azure (AKS)](./Deploy-Azure), [AWS (EKS)](./Deploy-AWS), [GCP (GKE)](./Deploy-GCP) and [On-Premises](./Deploy-On-Premises). To keep it up to date from git, see [Deploy with Flux](./Deploy-With-Flux).
 
 **Setting up a project for researchers:** [Set up a project](./Set-Up-A-Project) covers the git provider, repositories, dataset and project, in the order they have to be made.
+
+**Keeping the node's config in git:** [Node config](./Node-Config) and [Node secrets](./Node-Secrets) cover the nexus operator, which applies providers, repositories, datasets and projects from Helm values.
 
 **Running tasks as a researcher:** [Researcher guide](./Researcher-Guide).
 
 **Building an analytics container:** [Analytics container development](./Analytics-Container-Development) covers the environment variables, where to write results, and what the pod is and is not allowed to do.
 
 **Registering the databases tasks read from:** [Datasets](./Datasets).
+
+**Who can sign in and who can do what:** [Sign-in and roles](./Sign-In-And-Roles) covers Keycloak and the five roles, [Granting access](./Granting-Access) the per-project grants, and [Auth setup](./Auth-Setup) the first admin and the superuser.
 
 **Developing against the node:** [Using fncli](./Using-fncli) and [Experiments](./Experiments).
 

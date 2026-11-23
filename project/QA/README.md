@@ -1,8 +1,53 @@
-# QA test plan for the beta
+# QA: the Federated Node beta
+
+Start here. This page says what the node is, what changed since the last round of testing and where to look. It assumes the auth, operator and Flux work has all landed. For a ten-minute demo script read [at-a-glance.md](at-a-glance.md); for the detailed manual cases read [The manual test plan](#the-manual-test-plan) below.
+
+## The project in short
+
+The Federated Node (FN) is a Kubernetes service that runs analysis tasks against local datasets and returns the results through git. A researcher opens a pull request with a task spec; once it is merged the node runs the task next to the data and delivers the results as a pushed branch plus a results pull request, which a person reviews. Researchers never see the data.
+
+| Part | What it does |
+|---|---|
+| nexus-api (FastAPI) | Owns the record and the rules: projects, datasets, repositories, secrets, triggers, tasks, results |
+| Keycloak | Signs people and services in; holds the node roles |
+| nexus-ui | The admin UI for the API |
+| Dagster | Watches the git host, launches a task per merged pull request, delivers the results |
+| Operator | Applies node config from Kubernetes resources (`Project`, `Dataset`, `GitProvider`, `NodeSecret`, repositories) to the API |
+| Flux | Optional: deploys the Helm chart from a site repository (Gitea in the cluster, SOPS-encrypted secrets) |
+
+## What is new for testers
+
+| Area | What changed | Try this |
+|---|---|---|
+| Sign-in | Keycloak realm `FederatedNode` with the roles SuperUser, Administrator, Service, Users and Dagster (groups under `/roles`). The API only accepts access tokens | A valid access token gets 200. An expired token, a refresh token and a token from another realm each get 401 |
+| Access | A grants table says who can read, write, execute, assign or manage each record. Creating a record gives its creator `manage` | Create a project, add `read` for a user: they see it, others get 403. Try to remove the owner's `manage`: refused |
+| Ownership | Responses carry `created_by` and `owned_by` instead of `owner`. Only a SuperUser can claim or reassign an owner | `PUT` the owner endpoint as a SuperUser, then as an Administrator (403) |
+| Rules | Cedar rules decide every request. Rules have names (for example `dataset.execute.revoked`), roles map to permissions in `roles.yaml`, and every decision is logged with the rule that made it | A user with only `read` can `GET` but not `PATCH` or `DELETE`. Check the decision log names the rule |
+| Node config as code | `kubectl apply` a resource and the node follows. The operator also reads secrets that Flux/SOPS created | Apply a `Dataset`, change it, delete it. Delete a `NodeSecret` that a repository still uses: it waits, then clears |
+| Deploy | `mise run flux publish`, `flux up`, `flux down`. A commit to the site repository upgrades or rolls back the release | Bump a chart version in the site repository and watch it roll out |
+| Docs | New wiki pages: Sign-In-And-Roles, Granting-Access, Auth-Setup, Node-Config, Node-Secrets, Deploy-With-Flux | Follow one page end to end and write down where it differs from what you see |
+
+Not part of the beta test: infrastructure provisioning (Pulumi) is not built, and the nexus-ui image may not be published for the beta cluster, so the API, Postman and `kubectl` paths matter most.
+
+## Where to look
+
+- **Demo script and who-can-do-what:** [at-a-glance.md](at-a-glance.md)
+- **Postman:** `mise run postman` writes a filled environment and a collection from the API spec into `postman/` (see [Making HTTP calls](#making-http-calls)). The pre-request script signs in so every request carries a token
+- **Wiki** (docs site, 2.x) and the decision records in `project/decisions/`: Flux deploy (0031), node config through an operator (0032), OIDC authentication (0035), Keycloak roles and accounts (0036), Cedar grants and policies (0037), the outbound client layer (0038)
+- **Automated tests:** [../TESTING.md](../TESTING.md) says what the unit, integration and end-to-end suites cover, so manual cases start where those stop
+- **Known rough edges:** [known-issues.md](known-issues.md)
+
+## Files in this folder
+
+One file per area of the manual plan: [sign-in-and-admin-actions](sign-in-and-admin-actions.md), [permissions-and-out-of-scope](permissions-and-out-of-scope.md), [operator-and-node-config](operator-and-node-config.md), [deploy-and-health](deploy-and-health.md), [pull-requests-and-task-creation](pull-requests-and-task-creation.md), [run-a-task-and-deliver-the-result](run-a-task-and-deliver-the-result.md), [secrets-and-quarantine](secrets-and-quarantine.md), [task-pinning](task-pinning.md), [task-and-result-state-machines](task-and-result-state-machines.md), [enabled-and-revoked-ingest-side](enabled-and-revoked-ingest-side.md), [enabled-and-revoked-launch-and-delivery](enabled-and-revoked-launch-and-delivery.md), [globalresources-and-project-resources](globalresources-and-project-resources.md), [two-projects-on-the-same-globalresources](two-projects-on-the-same-globalresources.md), [sensors-restarts-and-catch-up](sensors-restarts-and-catch-up.md), [failure-paths](failure-paths.md), [failures-mid-flow-and-limits](failures-mid-flow-and-limits.md).
+
+Some of these plans were written before the auth work. Where a case expects an older response, write down what you saw instead.
+
+## The manual test plan
 
 A plan for a person to run by hand against a deployed node. It starts where the automated tests stop: [../TESTING.md](../TESTING.md) says what the unit, integration and end-to-end tests cover and what they cannot show; this plan covers the rest, and repeats a few automated paths on a real node.
 
-It is written against the code at commit `6c46e803` (branch `moonshot/shared-resources`). Where this plan and the node disagree, record it as a finding. The decisions in [../decisions/README.md](../decisions/README.md) win over any text here, and the known issues are in [known-issues.md](known-issues.md).
+It is written against the code at commit `55e8d6917` (branch `feat/gitops-operator`, which adds the nexus operator to `dagster-develop`). The node's config (git providers, Secrets, repositories, datasets, projects) is custom resources that the nexus operator applies to nexus-api ([Declarative node config through an operator]). Where this plan and the node disagree, record it as a finding. The decisions in [../decisions/README.md](../decisions/README.md) win over any text here, and the known issues are in [known-issues.md](known-issues.md).
 
 ## How to use the plan
 
@@ -19,28 +64,78 @@ It is written against the code at commit `6c46e803` (branch `moonshot/shared-res
 
 | Need | For |
 |---|---|
-| A deployed node, and `kubectl` on its cluster | Every section |
+| A deployed node with the nexus operator on (`operator.enabled: true`; the dev values turn it on), and `kubectl` on its cluster | Every section |
+| The node config files in `config/`: `config/gitea.yaml`, `config/e2e/dev-dataset.yaml`, `config/e2e/fn-dev.yaml`, `config/e2e/qa-two.yaml`, `config/e2e/qa-three.yaml` | Setup, second and third projects, [operator and node config](operator-and-node-config.md) |
+| The experiments release (`fncli experiment deploy`): the dev project's dataset logs in with the demo database's role | Setup on the dev cluster |
 | The administrator login (the first Keycloak user) | Anything with `--revoked`, global writes, the API calls |
 | The Dagster UI | Sensor status, runs, ticks, run keys |
 | The git host's UI (Gitea on the dev cluster) | Results pull requests, manual commits, closing a pull request |
 | `jq`, `curl` | The state and counts commands below |
-| `fncli` on the dev cluster (installed by `mise run setup`, see [../../dagster/fncli/README.md](../../dagster/fncli/README.md)) | Setup, pull requests, switches, sensors |
+| `fncli` on the dev cluster (installed by `mise run setup`, see [../../dagster/fncli/README.md](../../dagster/fncli/README.md)) | Gitea setup, pull requests, switches, sensors |
 | A task image that runs for a while, and one that writes more than 10 MiB | A few cases; they say when they need it |
 
 Which environment the commands are for:
 
-- The `fncli` commands are written for the dev cluster: context `kind-fn`, the Tilt port-forwards (backend `:5000`, Gitea `:4000`, Dagster `:3000`, Keycloak `:8080`), a `.dev.env` in the repo root, a `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`) and the project that `fncli apply -f examples/globals-e2e.yaml -y` then `fncli apply -f examples/projects/e2e.yaml -y` creates (they work on the project from `--project`, else the context's `defaults.project`: `export FNCLI_DEFAULT_PROJECT=fn-dev`). On any other node, check that `fncli` can reach it; if it cannot, use the HTTP route the case names, with an administrator bearer token.
-- `fncli apply` and `fncli delete` with bootstrap files create and delete GlobalResources and git repositories. Use them on the test project only, never on a shared node.
+- The `fncli` commands are written for the dev cluster: context `kind-fn`, the Tilt port-forwards (backend `:5000`, Gitea `:4000`, Dagster `:3000`, Keycloak `:8080`), a `.dev.env` in the repo root and a `bootstrap/context.yaml` (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`). The example context's default project is `demo-gitea`, so set the dev project: `export FNCLI_DEFAULT_PROJECT=fn-dev`. The commands work on the project from `--project`, else that default. On any other node, check that `fncli` can reach it; if it cannot, use the HTTP route the case names, with an administrator bearer token.
+- Set the dev project up the way the end-to-end suites do:
+
+  ```bash
+  fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml   # the Gitea repositories, and a Kubernetes Secret per NodeSecret
+  kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml
+  kubectl wait --for=jsonpath='{.status.synced}'=true --timeout=180s \
+    -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml
+  kubectl get fn -A                                                   # every resource: Synced, and the operator's message
+  fncli start-sensor --group all
+  ```
+
+- `kubectl apply` and `kubectl delete` of these files create and soft-delete the node's records through the operator, and `fncli gitea setup` creates Gitea repositories and OAuth apps. Use them on the test project only, never on a shared node. A node delivered by Flux ([GitOps delivery with Helm and Flux]) holds the same config in its Helm values: change it in the site repository, not with kubectl: the next upgrade overwrites a kubectl edit (at once only if the HelmRelease turns on drift detection).
 - The end-to-end suites use Gitea only. GitHub is checked by one case in [pull request ingest and task creation](pull-requests-and-task-creation.md).
 
 Rules for the notes you keep:
 
-- Never write a token, password or Secret value in a note, a ticket or a log excerpt. Never decode a Secret: to see where one is, list names only (`kubectl get secret -A | grep <name>`). Do not open `.dev.env`.
+- Never write a token, password or Secret value in a note, a ticket or a log excerpt. Never decode a Secret: to see where one is, list names only (`kubectl get secret -A | grep <name>`). Do not open `.dev.env`. The one exception is `mise run postman` ([Making HTTP calls](#making-http-calls)): it reads the first user's Secret for you; never copy its values anywhere. A NodeSecret names its Kubernetes Secret and never holds a value; its status shows `resourceVersion`s only.
 - Undo every change you make (switches, `target_dir`, tokens) and let all tasks and results settle before the next case: no task `PENDING`, `QUEUED` or `RUNNING`, no result still being delivered.
+
+## Making HTTP calls
+
+Postman, logged in as the administrator, with every nexus-api route ready to send:
+
+1. On the dev cluster, skip this step: the administrator login comes from the first Keycloak user's Secret, and nexus-api from the port-forward on `localhost:5000`. On any other node, write `.postman.env` in the repo root (gitignored) with `baseUrl=` (nexus-api's URL), `username=` and `password=`.
+2. `mise run postman`. It writes `project/QA/postman/fn.local.postman_environment.json` and `fn.local.postman_collection.json` (both gitignored; the environment holds the password).
+3. In Postman, import both files and select the environment **Federated Node**.
+
+Every request then logs in through `POST /login` when it has no token or its token is about to expire, and sends it as the bearer (the script is `project/QA/postman/prerequest.js`). Importing `nexus/api/openapi.json` on its own gives the routes without the login. Path variables (`:project_id` and so on) are empty; the id of a record the operator manages is `kubectl get <kind> <name> -n <namespace> -o jsonpath='{.status.nexusId}'` (namespaces under **Synced** below), for example `kubectl get project fn-dev -n fn -o jsonpath='{.status.nexusId}'`. After nexus-api's routes change, run `mise run postman` again and re-import the collection.
 
 ## Shorthand used in the steps
 
 **Sensor interval.** The configured minimum interval of every sensor (`DAGSTER_SENSORS_MIN_INTERVAL_SECONDS`; 30 seconds by default, shorter on the dev cluster; read the real value from the first case in [deploy and health checks](deploy-and-health.md)). "Wait five intervals" means five sensor intervals: the same wait the end-to-end suites use for "nothing happens".
+
+**Resync interval.** How often the operator looks at every NodeSecret again (`operator.syncIntervalSeconds`, 60 seconds by default), so a rotated source Secret reaches nexus-api. Nothing else is put back on a timer: the operator syncs the other kinds when they are created or changed and when it starts.
+
+**Synced.** `kubectl get fn -A` lists every node config resource with `Synced` and `Message`. `kubectl get <kind> <name> -n <namespace> -o yaml` shows the whole status: `synced`, `nexusId`, `message` (what it waits for, or nexus-api's refusal), `observedGeneration`, and for a NodeSecret `sourceVersions`. The kinds are `gitproviders`, `nodesecrets`, `repositories`, `datasets` and `projects`. `dev-dataset` and its NodeSecret are in namespace `experiments`; the rest are in `fn`.
+
+**Settings the Project owns.** nexus-api refuses (409, "change its custom resource instead") a change through `fncli`, the API or the UI to a field a custom resource declares, and the removal of a record the operator manages ([Declarative node config through an operator]). For a project these are:
+
+- the project's `enabled` and `backfill`;
+- the trigger resource's `enabled`, `watch_dir` and `base_branch` (`watchDir`, `baseBranch` in the Project);
+- the results resource's `enabled`, `target_dir` and `base_branch` (`targetDir`, `baseBranch`);
+- which datasets, trigger repositories and results repository the project has (the `PUT` and `DELETE` routes).
+
+Runtime state is not in the config and stays editable through `fncli`, the API and the UI: `revoked` on anything, a GlobalResource's or Secret's `enabled`, and a dataset resource's `enabled`. `fncli project-set --revoked` and `fncli resource-set KIND --revoked` are unchanged.
+
+**Change a setting of the Project.** A case that switches the project, its trigger or results resource, or changes a directory or branch, patches the Project resource and waits until the operator has synced it. Undo it with the opposite patch. The patches (the dev project is `fn-dev` in namespace `fn`; for `qa-two` use its name):
+
+| Shorthand | JSON patch operations (`kubectl patch project fn-dev -n fn --type=json -p '[...]'`) |
+|---|---|
+| project off, project on | `{"op":"add","path":"/spec/enabled","value":false}`, `...true` |
+| project on with backfill | `{"op":"add","path":"/spec/enabled","value":true},{"op":"add","path":"/spec/backfill","value":true}`. Then `{"op":"remove","path":"/spec/backfill"}`, or the next enable backfills too |
+| trigger resource off, on | `{"op":"add","path":"/spec/repositories/triggers/0/enabled","value":false}`, `...true` |
+| results resource off, on | `{"op":"add","path":"/spec/repositories/results/enabled","value":false}`, `...true` |
+| target directory | `{"op":"add","path":"/spec/repositories/results/targetDir","value":"<directory>"}` |
+| base branch | `.../triggers/0/baseBranch` or `.../results/baseBranch` in the same form |
+| watch directory | `.../triggers/0/watchDir` in the same form |
+
+Wait until `kubectl get project fn-dev -n fn -o jsonpath='{.metadata.generation} {.status.observedGeneration} {.status.synced}'` shows the same two numbers and `true`, then use the state command. Switching `enabled` back on moves the cursors like any other switch. A patch with two operations is one change.
 
 **Counts.** The numbers a case compares before and after:
 
@@ -50,7 +145,7 @@ fncli project-show | jq -c '{prs: .trigger_resources[0].pr_count, stored: .trigg
 
 `prs` are the pull requests that have a trigger in the project; `stored` is how many the repository has stored, with or without a trigger for this project.
 
-**Keep the project small.** `fncli project-show` lists at most 100 pull requests (the newest) and 100 tasks (the oldest, by id), so `tasks` in both commands, and the lists in the state command, stop growing at 100 and every "up by one" check is then silently wrong. `prs` and `stored` are totals and stay right. Before the project nears 90 tasks, recreate it: `fncli delete -f examples/projects/e2e.yaml -y`, then `fncli apply -f examples/globals-e2e.yaml -y` then `fncli apply -f examples/projects/e2e.yaml -y` (test project only), and start `fncli start-sensor --group all` again if the sensors stopped.
+**Keep the project small.** `fncli project-show` lists at most 100 pull requests (the newest) and 100 tasks (the oldest, by id), so `tasks` in both commands, and the lists in the state command, stop growing at 100 and every "up by one" check is then silently wrong. `prs` and `stored` are totals and stay right. Before the project nears 90 tasks, recreate it (test project only): `kubectl delete -f config/e2e/qa-two.yaml -f config/e2e/qa-three.yaml --ignore-not-found`, then `kubectl delete -f config/e2e/fn-dev.yaml -f config/e2e/dev-dataset.yaml`, then the setup commands above. Start `fncli start-sensor --group all` again if the sensors stopped.
 
 **State.** The states a case watches:
 
@@ -58,11 +153,13 @@ fncli project-show | jq -c '{prs: .trigger_resources[0].pr_count, stored: .trigg
 fncli project-show | jq -c '{project: (.project | {enabled, revoked}), trigger: (.trigger_resources[0] | {enabled, revoked, active, global_enabled}), result: (.results_resources[0] | {target_dir, enabled, revoked, active}), prs: [.trigger_resources[0].pull_requests[] | {number, state, task_id}], tasks: [.tasks[] | {id, status, state_cause}], results: [.results[] | {task_id, step, state, number}]}'
 ```
 
-Add `--project QaTwo` to look at the second project.
+Add `--project qa-two` to look at the second project.
 
 **Merge a watched pull request.** `fncli open-pr --kind watched --merge`. Other kinds: `unwatched`, `invalid`, `failing` (a valid spec whose task exits non-zero).
 
-**Second project.** `fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y` creates a project with the same Secrets, dataset and repositories assigned as the test project, with the same settings, and enables it. `fncli delete -f examples/projects/e2e-second-projects.yaml -y` deletes it and leaves the GlobalResources. Use `QaThree` for a third.
+**Second project.** `kubectl apply -f config/e2e/qa-two.yaml`, then `kubectl wait --for=jsonpath='{.status.synced}'=true --timeout=180s -f config/e2e/qa-two.yaml`. It is the project `qa-two`, with the same dataset, trigger repository and results repository as the test project, with the same settings, and enabled. `kubectl delete -f config/e2e/qa-two.yaml` soft-deletes it and leaves the GlobalResources. Use `config/e2e/qa-three.yaml` (`qa-three`) for a third. Delete these before the test project's own file: while they exist, its repositories and dataset are still in use and their delete is refused.
+
+**Rotate a git token.** `fncli gitea setup -f config/e2e/fn-dev.yaml --rotate fn-trigger-repo-creds` (the results repository's is `fn-results-repo-creds`) authorises the OAuth app again and rewrites the Kubernetes Secret. The operator sends the new values at its next resync of the NodeSecret. Wait until `kubectl get nodesecret fn-trigger-repo-creds -n fn -o jsonpath='{.status.sourceVersions}'` shows the Secret's version (`kubectl get secret fn-trigger-repo-creds -n fn -o jsonpath='{.metadata.resourceVersion}'`, metadata only), then `fncli verify-git-secret --entity trigger`.
 
 **Make a change while a task is still PENDING.** Used by [task pinning](task-pinning.md) and [enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md).
 
@@ -85,13 +182,14 @@ Keep a copy of each section file (or tick in place) and put this header at the t
 ```
 Date:
 Node and release:
-Backend, Dagster and run-image tags:
+Backend, Dagster, operator and run-image tags:
 Sensor interval:
+Operator resync interval:
 Notes on the setup:
 ```
 
 - Tick **Pass** or **Fail**. Leave both unticked for a case you did not run, and say why in the notes.
-- A failing case is a finding: this plan reports, it does not fix. Write the case title, the commands you ran, the expected and actual result, and the logs. Always capture `fncli sensor-status`, the output of `fncli project-show`, and the last 200 lines of nexus-api and the Dagster code server (`kubectl get pods -A | grep -E "backend|dagster"`, then `kubectl logs <pod> --tail=200`).
+- A failing case is a finding: this plan reports, it does not fix. Write the case title, the commands you ran, the expected and actual result, and the logs. Always capture `fncli sensor-status`, the output of `fncli project-show`, `kubectl get fn -A`, and the last 200 lines of nexus-api, the Dagster code server and the operator (`kubectl get pods -A | grep -E "backend|dagster|nexus-operator"`, then `kubectl logs <pod> --tail=200`).
 - For the cases that ask you to "check" or "record", write what you saw even when you tick Pass.
 
 ## Where to spend the time
@@ -104,13 +202,14 @@ Ranked by risk: how complex the rules are, and how little of them an automated t
 | [Task pinning](task-pinning.md) | Highest | Two behaviours removed from the end-to-end suites; the rest never had one. Only unit-tested. A change while a task waits or runs fails it or stales its result |
 | [Enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md) | Highest | Three behaviours removed from the end-to-end suites and the rest unit-only; many orderings (revoked beats changed beats switched off); held results; work in flight |
 | [Failures mid-flow and limits](failures-mid-flow-and-limits.md) | Highest | Nothing automated beyond one lost token: services down mid-flow, token expiry and rotation, concurrent merges, the size limit, stuck runs. May expose stuck items |
-| [Enabled and revoked: pull requests and triggers](enabled-and-revoked-ingest-side.md) | High | The most complex rules. The end-to-end failure suite covers the trigger side only, and has never run on a cluster; GitProvider flags, combinations and the edge of the skipped gap are unit-only |
+| [Operator and node config](operator-and-node-config.md) | High | New. The operator's sync is unit-tested against a fake API; refused deletes, refused API edits, restarts, finalizers and the uninstall hook are seen only on a live cluster. The end-to-end suites use it for setup and never check it |
+| [Enabled and revoked: pull requests and triggers](enabled-and-revoked-ingest-side.md) | High | The most complex rules. The end-to-end failure suite covers the trigger side only, and has never run on a cluster; GitProvider flags, combinations and the edge of the skipped gap are unit-only. The switches the Project declares are changed by patching the Project, so every such case waits for the operator to sync |
 | [Secrets and quarantine](secrets-and-quarantine.md) | High | The unit tests use an in-memory store; the real move of a value between namespaces is checked only here |
 | [Task and result state machines](task-and-result-state-machines.md) | High | Forward-only rules are unit-tested, but the live sensors that write them, the retry limit and the reconcile sensor are not |
 | [Two projects on the same GlobalResources](two-projects-on-the-same-globalresources.md) | High | Tests use at most two projects and one pull request at a time; shared edits reach every project |
 | [Pull request ingest and task creation](pull-requests-and-task-creation.md) | Medium | The matching rules are unit-tested; no end-to-end test of base branch, file types, spec files, datasets or GitHub |
 | [Failure paths](failure-paths.md) | Medium | Each is in the end-to-end failure suite, which is written but has never run on a cluster |
-| [Run a task and deliver the result](run-a-task-and-deliver-the-result.md) | Medium | The end-to-end success suite passed on the dev cluster, on Gitea only, before the launch endpoint and the reconcile sensor landed, and has not run since; layout, close and delete are not checked live |
+| [Run a task and deliver the result](run-a-task-and-deliver-the-result.md) | Medium | The end-to-end success suite passed on the dev cluster, on Gitea only, before the launch endpoint, the reconcile sensor and the operator landed, and has not run since; layout, close and delete are not checked live |
 | [GlobalResources and project resources](globalresources-and-project-resources.md) | Lower | Well covered by the route tests |
 | [Deploy and health checks](deploy-and-health.md) | Lower, but do it first | Unit tests mock reachability |
 | [Sign-in and admin-only actions](sign-in-and-admin-actions.md) | Lower | Only the administrator and the System user matter for the beta |
@@ -123,20 +222,25 @@ This is the dependency order; use the table above to choose where to put your ti
 
 1. [Deploy and health checks](deploy-and-health.md): the node is up and honest about it.
 2. [Sign-in and admin-only actions](sign-in-and-admin-actions.md): the logins you need for the rest.
-3. [GlobalResources and project resources](globalresources-and-project-resources.md): the setup everything else builds on.
-4. [Secrets and quarantine](secrets-and-quarantine.md): the real store, before anything depends on it. The last two cases need a task, so do them after "Run a task and deliver the result".
-5. [Pull request ingest and task creation](pull-requests-and-task-creation.md): the matching rules.
-6. [Two projects on the same GlobalResources](two-projects-on-the-same-globalresources.md): the second project is used by many later cases.
-7. [Run a task and deliver the result](run-a-task-and-deliver-the-result.md): the main path, which later sections assume works.
-8. [Failure paths](failure-paths.md).
-9. [Enabled and revoked: pull requests and triggers](enabled-and-revoked-ingest-side.md).
-10. [Enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md).
-11. [Task pinning](task-pinning.md).
-12. [Task and result state machines](task-and-result-state-machines.md).
-13. [Sensors, restarts and catch-up](sensors-restarts-and-catch-up.md) (manual only, important).
-14. [Failures mid-flow and limits](failures-mid-flow-and-limits.md).
-15. [Permissions and what is out of scope](permissions-and-out-of-scope.md) and [known issues](known-issues.md).
+3. [Operator and node config](operator-and-node-config.md): the dev project is applied through it, and everything else builds on that.
+4. [GlobalResources and project resources](globalresources-and-project-resources.md): the rules behind the records the operator writes.
+5. [Secrets and quarantine](secrets-and-quarantine.md): the real store, before anything depends on it. The last two cases need a task, so do them after "Run a task and deliver the result".
+6. [Pull request ingest and task creation](pull-requests-and-task-creation.md): the matching rules.
+7. [Two projects on the same GlobalResources](two-projects-on-the-same-globalresources.md): the second project is used by many later cases.
+8. [Run a task and deliver the result](run-a-task-and-deliver-the-result.md): the main path, which later sections assume works.
+9. [Failure paths](failure-paths.md).
+10. [Enabled and revoked: pull requests and triggers](enabled-and-revoked-ingest-side.md).
+11. [Enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md).
+12. [Task pinning](task-pinning.md).
+13. [Task and result state machines](task-and-result-state-machines.md).
+14. [Sensors, restarts and catch-up](sensors-restarts-and-catch-up.md) (manual only, important).
+15. [Failures mid-flow and limits](failures-mid-flow-and-limits.md).
+16. [Permissions and what is out of scope](permissions-and-out-of-scope.md) and [known issues](known-issues.md).
 
 ## Sources
 
-The cases are based on the end-to-end suites ([../../dagster/fncli/tests/e2e/README.md](../../dagster/fncli/tests/e2e/README.md)), the unit tests ([../TESTING.md](../TESTING.md)), the decision records in [../decisions/](../decisions/) and the architecture notes in [../../docs/architecture/](../../docs/architecture/): [revoke-and-enabled.md](../../docs/architecture/revoke-and-enabled.md), [flows.md](../../docs/architecture/flows.md), [entities.md](../../docs/architecture/entities.md) and [sensors/](../../docs/architecture/sensors/README.md).
+The cases are based on the end-to-end suites ([../../dagster/fncli/tests/e2e/README.md](../../dagster/fncli/tests/e2e/README.md)), the operator's tests (`nexus/operator/tests/test_sync.py`) and chart suites (`k8s/federated-node/tests/nexus_operator_test.yaml`, `node_config_test.yaml`), the unit tests ([../TESTING.md](../TESTING.md)), the decision records in [../decisions/](../decisions/) and the architecture notes in [../../docs/architecture/](../../docs/architecture/): [revoke-and-enabled.md](../../docs/architecture/revoke-and-enabled.md), [flows.md](../../docs/architecture/flows.md), [entities.md](../../docs/architecture/entities.md) and [sensors/](../../docs/architecture/sensors/README.md).
+
+<!-- link definitions -->
+[Declarative node config through an operator]: ../decisions/0032-declarative-node-config-through-an-operator.md
+[GitOps delivery with Helm and Flux]: ../decisions/0031-gitops-delivery-with-helm-and-flux.md
