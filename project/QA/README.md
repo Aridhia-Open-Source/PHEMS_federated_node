@@ -1,4 +1,49 @@
-# QA test plan for the beta
+# QA: the Federated Node beta
+
+Start here. This page says what the node is, what changed since the last round of testing and where to look. It assumes the auth, operator and Flux work has all landed. For a ten-minute demo script read [at-a-glance.md](at-a-glance.md); for the detailed manual cases read [The manual test plan](#the-manual-test-plan) below.
+
+## The project in short
+
+The Federated Node (FN) is a Kubernetes service that runs analysis tasks against local datasets and returns the results through git. A researcher opens a pull request with a task spec; once it is merged the node runs the task next to the data and delivers the results as a pushed branch plus a results pull request, which a person reviews. Researchers never see the data.
+
+| Part | What it does |
+|---|---|
+| nexus-api (FastAPI) | Owns the record and the rules: projects, datasets, repositories, secrets, triggers, tasks, results |
+| Keycloak | Signs people and services in; holds the node roles |
+| nexus-ui | The admin UI for the API |
+| Dagster | Watches the git host, launches a task per merged pull request, delivers the results |
+| Operator | Applies node config from Kubernetes resources (`Project`, `Dataset`, `GitProvider`, `NodeSecret`, repositories) to the API |
+| Flux | Optional: deploys the Helm chart from a site repository (Gitea in the cluster, SOPS-encrypted secrets) |
+
+## What is new for testers
+
+| Area | What changed | Try this |
+|---|---|---|
+| Sign-in | Keycloak realm `FederatedNode` with the roles SuperUser, Administrator, Service, Users and Dagster (groups under `/roles`). The API only accepts access tokens | A valid access token gets 200. An expired token, a refresh token and a token from another realm each get 401 |
+| Access | A grants table says who can read, write, execute, assign or manage each record. Creating a record gives its creator `manage` | Create a project, add `read` for a user: they see it, others get 403. Try to remove the owner's `manage`: refused |
+| Ownership | Responses carry `created_by` and `owned_by` instead of `owner`. Only a SuperUser can claim or reassign an owner | `PUT` the owner endpoint as a SuperUser, then as an Administrator (403) |
+| Rules | Cedar rules decide every request. Rules have names (for example `dataset.execute.revoked`), roles map to permissions in `roles.yaml`, and every decision is logged with the rule that made it | A user with only `read` can `GET` but not `PATCH` or `DELETE`. Check the decision log names the rule |
+| Node config as code | `kubectl apply` a resource and the node follows. The operator also reads secrets that Flux/SOPS created | Apply a `Dataset`, change it, delete it. Delete a `NodeSecret` that a repository still uses: it waits, then clears |
+| Deploy | `mise run flux publish`, `flux up`, `flux down`. A commit to the site repository upgrades or rolls back the release | Bump a chart version in the site repository and watch it roll out |
+| Docs | New wiki pages: Sign-In-And-Roles, Granting-Access, Auth-Setup, Node-Config, Node-Secrets, Deploy-With-Flux | Follow one page end to end and write down where it differs from what you see |
+
+Not part of the beta test: infrastructure provisioning (Pulumi) is not built, and the nexus-ui image may not be published for the beta cluster, so the API, Postman and `kubectl` paths matter most.
+
+## Where to look
+
+- **Demo script and who-can-do-what:** [at-a-glance.md](at-a-glance.md)
+- **Postman:** `mise run postman` writes a filled environment and a collection from the API spec into `postman/` (see [Making HTTP calls](#making-http-calls)). The pre-request script signs in so every request carries a token
+- **Wiki** (docs site, 2.x) and the decision records in `project/decisions/`: Flux deploy (0031), node config through an operator (0032), OIDC authentication (0035), Keycloak roles and accounts (0036), Cedar grants and policies (0037), the outbound client layer (0038)
+- **Automated tests:** [../TESTING.md](../TESTING.md) says what the unit, integration and end-to-end suites cover, so manual cases start where those stop
+- **Known rough edges:** [known-issues.md](known-issues.md)
+
+## Files in this folder
+
+One file per area of the manual plan: [sign-in-and-admin-actions](sign-in-and-admin-actions.md), [permissions-and-out-of-scope](permissions-and-out-of-scope.md), [operator-and-node-config](operator-and-node-config.md), [deploy-and-health](deploy-and-health.md), [pull-requests-and-task-creation](pull-requests-and-task-creation.md), [run-a-task-and-deliver-the-result](run-a-task-and-deliver-the-result.md), [secrets-and-quarantine](secrets-and-quarantine.md), [task-pinning](task-pinning.md), [task-and-result-state-machines](task-and-result-state-machines.md), [enabled-and-revoked-ingest-side](enabled-and-revoked-ingest-side.md), [enabled-and-revoked-launch-and-delivery](enabled-and-revoked-launch-and-delivery.md), [globalresources-and-project-resources](globalresources-and-project-resources.md), [two-projects-on-the-same-globalresources](two-projects-on-the-same-globalresources.md), [sensors-restarts-and-catch-up](sensors-restarts-and-catch-up.md), [failure-paths](failure-paths.md), [failures-mid-flow-and-limits](failures-mid-flow-and-limits.md).
+
+Some of these plans were written before the auth work. Where a case expects an older response, write down what you saw instead.
+
+## The manual test plan
 
 A plan for a person to run by hand against a deployed node. It starts where the automated tests stop: [../TESTING.md](../TESTING.md) says what the unit, integration and end-to-end tests cover and what they cannot show; this plan covers the rest, and repeats a few automated paths on a real node.
 
