@@ -281,6 +281,12 @@ The same `grants` table with the rules written in Python (`if relation == "manag
 
 The cost is one dependency (`cedarpy`, no transitive dependencies, a prebuilt wheel) and building Cedar's input for each check.
 
+### Role permissions as grant rows
+
+A grant already is a permission: `object_type` is the model, `relation` the action, and the user or group the context it is granted to. Role permissions could be grants too, wildcard rows such as `Dataset *, read, group /roles/admins`, with `roles.yaml` and the role rules dropped: one mechanism instead of two.
+
+They stay in `roles.yaml` because grants are runtime data. Any `manage` holder, or SuperUser, changes them through the API without review. A role's powers apply across every record, so they change only by a reviewed PR, like the rules that implement them. Grants stay the runtime, per-record part.
+
 ### Why Cedar over the other engines
 
 | Option | Runs in nexus-api | Standard rules format | Data in one place | Main reason not |
