@@ -133,7 +133,7 @@ capable of executing authorised analytical tasks against local datasets,
 thereby enabling scalable, privacy-preserving, cross-institutional
 collaboration aligned with international standards.
 
-By operationalizing existing specifications rather than creating proprietary approaches, the FN lowers adoption barriers while supporting interoperability, as illustrated by its use in the PHEMS network described below.
+By operationalising existing specifications rather than creating proprietary approaches, the FN lowers adoption barriers while supporting interoperability, as illustrated by its use in the PHEMS network described below.
 
 # Research Impact Statement
 The FN was developed for, and is used within, the [PHEMS](https://phems.eu) (Pediatric Hospitals as European drivers for multi-party computation and synthetic data generation) consortium, a collaboration between four European children's hospitals and industry partners to build a federated
@@ -198,7 +198,7 @@ initiated by an authenticated user:
 - *1a* Before creating the task pod, the FN checks that the requested container image is available in one of the container registries configured for the FN.
 
 - *1b* The task pod is created, and the results are saved in the
-  condfigured persisten storage.
+  configured persistent storage.
 
 - *2* On calls to the `/tasks/{id}/results` endpoint, if the task pod is on completed status, a job
   is created.
@@ -207,7 +207,7 @@ initiated by an authenticated user:
   persistent storage. It fetches the task's results folder and zips it.
 
 - *4* The webserver reads the zip contents from the live job pod and
-  saves it in its own presistent storage.
+  saves it in its own persistent storage.
 
 - *5* The resulting archive is returned to the end user
 
