@@ -1468,7 +1468,7 @@
 
 <h1 id="granting-access">Granting access<a class="headerlink" href="#granting-access" title="Permanent link">&para;</a></h1>
 <p>Who may see or change a project or global record (a dataset, git provider, secret, trigger repository or results repository) is a list of <strong>grants</strong> in nexus-api. This page is for the admin who sets that list. For how people sign in, see <a href="../Sign-In-And-Roles/">Sign-in and roles</a>.</p>
-<p>The design is in <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0038-cedar-authorization-grants-and-policies.md">ADR 0038</a>. The rules that apply to everyone are one reviewed file, <code>nexus/api/authz/policies.cedar</code>.</p>
+<p>The design is in <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0037-cedar-authorization-grants-and-policies.md">ADR 0037</a>. The rules that apply to everyone are one reviewed file, <code>nexus/api/authz/policies.cedar</code>.</p>
 <h2 id="what-a-grant-is">What a grant is<a class="headerlink" href="#what-a-grant-is" title="Permanent link">&para;</a></h2>
 <p>A grant gives one user or one Keycloak group one relation on one record, optionally until a date. Every call is checked, reads included, and a list shows only what the caller may read.</p>
 <table>
@@ -1541,7 +1541,7 @@ curl<span class="w"> </span>-sS<span class="w"> </span>-X<span class="w"> </span
 </code></pre></div>
 <p>The new owner gets <code>manage</code>. The old owner's grant stays until a <code>manage</code> holder removes it.</p>
 <h2 id="not-covered-by-grants-yet">Not covered by grants yet<a class="headerlink" href="#not-covered-by-grants-yet" title="Permanent link">&para;</a></h2>
-<p>Tasks started by a merged pull request are not checked against <code>execute</code>: the trigger repository's permissions and the review of the pull request are the gate (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0038-cedar-authorization-grants-and-policies.md">ADR 0038</a>). <code>execute</code> is checked for tasks asked for through the API.</p>
+<p>Tasks started by a merged pull request are not checked against <code>execute</code>: the trigger repository's permissions and the review of the pull request are the gate (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0037-cedar-authorization-grants-and-policies.md">ADR 0037</a>). <code>execute</code> is checked for tasks asked for through the API.</p>
 
 
 

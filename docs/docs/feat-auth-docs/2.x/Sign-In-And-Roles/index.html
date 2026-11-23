@@ -1446,7 +1446,7 @@
 
 <h1 id="sign-in-and-roles">Sign-in and roles<a class="headerlink" href="#sign-in-and-roles" title="Permanent link">&para;</a></h1>
 <p>How people and programs sign in to a Federated Node 2.x, and what each of the five roles is for. What a person may do to a project or dataset is a separate question: see <a href="../Granting-Access/">Granting access</a>.</p>
-<p>The design is in <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0036-api-authorization-oidc-authentication.md">ADR 0036</a> and <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0037-keycloak-authentication-roles-and-system-accounts.md">ADR 0037</a>.</p>
+<p>The design is in <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0035-api-authorization-oidc-authentication.md">ADR 0035</a> and <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md">ADR 0036</a>.</p>
 <h2 id="how-sign-in-works">How sign-in works<a class="headerlink" href="#how-sign-in-works" title="Permanent link">&para;</a></h2>
 <p>Keycloak keeps the accounts and issues the tokens. nexus-api decides what each account may do, from its own database. Keycloak holds nothing per project or dataset.</p>
 <ol>
@@ -1532,7 +1532,7 @@
 <h2 id="creating-users">Creating users<a class="headerlink" href="#creating-users" title="Permanent link">&para;</a></h2>
 <p>An admin creates a user with <code>POST /global/users</code> (<a href="../Using-The-API/#users">Using the API</a>). The role is <code>Users</code>, or <code>Administrator</code>, which only the <code>SuperUser</code> may give. Researchers who only work in git do not need an account.</p>
 <h2 id="not-yet-shipped">Not yet shipped<a class="headerlink" href="#not-yet-shipped" title="Permanent link">&para;</a></h2>
-<p>The operator's own account is planned as a Keycloak client with no password, in <code>/roles/service</code> (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0037-keycloak-authentication-roles-and-system-accounts.md">ADR 0037</a>); it arrives with the operator. Dagster signs in as a Keycloak user for now.</p>
+<p>The operator's own account is planned as a Keycloak client with no password, in <code>/roles/service</code> (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md">ADR 0036</a>); it arrives with the operator. Dagster signs in as a Keycloak user for now.</p>
 
 
 
