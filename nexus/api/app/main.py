@@ -79,3 +79,4 @@ def refresh_token(request: Request) -> dict:
         raise AuthenticationError()
 
     return {"token": kc_client.exchange_global_token(token, "refresh_token")}
+# T-098 CI path-filter test, throwaway
