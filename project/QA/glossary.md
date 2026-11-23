@@ -18,9 +18,27 @@ All on the branch `qa/tester-pack`.
 | Automated testing overview | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/TESTING.md |
 | Wiki as a site | https://aridhia-open-source.github.io/PHEMS_federated_node/docs/qa-tester-pack/ |
 | Wiki pages (source) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/qa/tester-pack/docs/versions/2.x/docs |
-| All ADRs | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/qa/tester-pack/project/decisions |
+| All ADR files | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/qa/tester-pack/project/decisions |
 | Demo walkthrough (today's flow) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/DEMO.md |
 | fncli README | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/dagster/fncli/README.md |
+
+## Decision records
+
+The ADR index lists every record, 0001 to 0040: https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/README.md
+
+The ones for the in-flight work:
+
+| ADR | Link |
+|---|---|
+| 0031 GitOps deployment with Flux | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/0031-gitops-deployment-with-flux.md |
+| 0032 Node config through an operator | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/0032-declarative-node-config-through-an-operator.md |
+| 0034 Pulumi for infrastructure (parked) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/0034-pulumi-for-infrastructure.md |
+| 0035 API authorization, OIDC authentication | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/0035-api-authorization-oidc-authentication.md |
+| 0036 Keycloak roles and system accounts | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md |
+| 0037 Cedar grants and policies | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/0037-cedar-authorization-grants-and-policies.md |
+| 0038 One outbound client layer for nexus-api | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/0038-one-outbound-client-layer-for-nexus-api.md |
+| 0039 Several node instances in one cluster (draft) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/0039-several-node-instances-in-one-cluster.md |
+| 0040 QA test cases as YAML (draft) | https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/qa/tester-pack/project/decisions/0040-qa-test-cases-as-yaml.md |
 
 ## Access
 
