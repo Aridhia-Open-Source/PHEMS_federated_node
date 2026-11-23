@@ -31,6 +31,7 @@ Not part of the beta test: infrastructure provisioning (Pulumi) is not built, an
 
 ## Where to look
 
+- **Glossary and every link in one place:** [glossary.md](glossary.md). **What changed since `develop`:** [since-develop.md](since-develop.md). **What is still changing:** [incoming-changes.md](incoming-changes.md)
 - **Demo script and who-can-do-what:** [at-a-glance.md](at-a-glance.md)
 - **Postman:** `mise run postman` writes a filled environment and a collection from the API spec into `postman/` (see [Making HTTP calls](#making-http-calls)). The pre-request script signs in so every request carries a token
 - **Wiki** (docs site, 2.x) and the decision records in `project/decisions/`: Flux deploy (0031), node config through an operator (0032), OIDC authentication (0035), Keycloak roles and accounts (0036), Cedar grants and policies (0037), the outbound client layer (0038)
