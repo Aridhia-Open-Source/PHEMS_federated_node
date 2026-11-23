@@ -1259,13 +1259,13 @@
 <ol>
 <li>Deploy the node once with Helm (<a href="../Deploy-Core/">Deploy: Core</a>), with <code>gitea.enabled: true</code> in its values. Flux adopts this release later.</li>
 <li>Install Flux: <code>flux install</code>.</li>
-<li>Make the site's age key and load it into Flux: <a href="../Flux-Secrets/">Flux secrets</a>.</li>
+<li>Choose where the site's Secrets come from, SOPS (the default) or a vault, and set it up: <a href="../Flux-Secrets/">Flux secrets</a>.</li>
 <li>Make the site repository in the node's Gitea from <code>site-example/</code>:</li>
 <li><code>helmrepository.yaml</code>: <code>url: oci://ghcr.io/aridhia-open-source/charts</code>, drop <code>insecure</code>.</li>
-<li>The namespace <code>fn</code> appears in <code>helmrelease.yaml</code>, <code>helmrepository.yaml</code>, <code>first-user-secret.yaml</code> and the <code>configMapGenerator</code> in <code>kustomization.yaml</code>: change all of them to the node's namespace.</li>
+<li>The namespace <code>fn</code> appears in <code>helmrelease.yaml</code>, <code>helmrepository.yaml</code>, the files under <code>secrets/</code> and the <code>configMapGenerator</code> in <code>kustomization.yaml</code>: change all of them to the node's namespace.</li>
 <li><code>helmrelease.yaml</code>: <code>releaseName</code> is the one step 1 used, so Flux adopts that release rather than installing a second node; <code>version</code> is the chart version to run.</li>
 <li><code>values.yaml</code>: drop the <code>image</code> and <code>tag</code> lines, set the site's own values. Secret values never go here.</li>
-<li><code>first-user-secret.yaml</code>: fill in the first user's login and encrypt it before the first commit.</li>
+<li><code>secrets/</code>: the first user's login, as <a href="../Flux-Secrets/">Flux secrets</a> describes for the path the site chose.</li>
 <li>Point Flux at it, as <code>scripts/flux.sh up</code> does:</li>
 </ol>
 <div class="highlight"><pre><span></span><code>flux<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>git<span class="w"> </span>fn-site-auth<span class="w"> </span>-n<span class="w"> </span>flux-system<span class="w"> </span>--url<span class="o">=</span>&lt;site<span class="w"> </span>repo<span class="w"> </span>URL&gt;<span class="w"> </span>--username<span class="o">=</span>&lt;user&gt;<span class="w"> </span>--password<span class="o">=</span>&lt;token&gt;
