@@ -25,6 +25,10 @@
   - New tables `grants` (read, assign, execute, operate, write, manage, for a user or a group, optional expiry) and `policy_versions`, in the baseline migration.
   - Records say `created_by` instead of `owner`; projects and global records also say `owned_by`. Creating one gives the creator `manage` on it (the operator's go to group `/roles/service`); deleting it deletes its grants.
   - `GET/POST/DELETE <record path>/grants` on projects, datasets, git providers, secrets, trigger and results repositories: only a `manage` holder or the SuperUser changes them, and the owner's `manage` grant stays. `PUT <record path>/owner` lets the SuperUser claim a record or re-assign it.
+- The Cedar access engine, not yet called from the routes ([#687](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/687), ADR 0037):
+  - `nexus/api/authz/`: `policies.cedar` (the standard rules: grants, admins and the operator create global records, admins read and assign any global record, Dagster reads everything, SuperUser skips grants, no tasks on a revoked dataset), `schema.cedarschema` and `cases.yaml` (allow and deny cases run in pytest).
+  - nexus-api refuses to start if the policies fail the schema, and records each new policy hash in `policy_versions`.
+  - Grant changes are checked by Cedar's `manage` action instead of Python.
 
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller

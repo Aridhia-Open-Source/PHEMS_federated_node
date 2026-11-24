@@ -67,6 +67,7 @@ docker_build_with_restart(
     'requirements.txt',
     'alembic.ini',
     'migrations',
+    'authz',
   ],
   live_update=[
     # Dependency / packaging changes => full rebuild
@@ -74,6 +75,8 @@ docker_build_with_restart(
       'nexus/api/requirements.txt',
       'nexus/api/alembic.ini',
       'nexus/api/migrations',
+      # Cedar policies are read once at startup
+      'nexus/api/authz',
     ]),
     # Python code changes => sync into the running container
     sync('nexus/api/app', '/nexus/app'),

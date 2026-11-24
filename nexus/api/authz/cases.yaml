@@ -1,0 +1,125 @@
+# Allow and deny cases for policies.cedar (ADR 0037), run by tests/test_authz_cases.py.
+# Each case is one caller and one record; every action in allow must be allowed and every one in deny denied.
+#   role: the caller's node role (Keycloak realm role); groups: its Keycloak groups, role groups included
+#   resource: a record type, or a list of them (each is checked); Global is Global::"0"
+#   revoked: the dataset's revoked flag (Dataset only)
+#   grants: the caller's grants on the record, relation -> never (no expiry), future (expires in an hour) or
+#     expired (expired an hour ago)
+cases:
+  # Grants
+  - name: manage allows everything
+    role: Users
+    resource: [Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
+    grants: {manage: never}
+    allow: [read, write, execute, assign, operate, manage]
+  - name: write allows read and operate, not grant changes
+    role: Users
+    resource: Project
+    grants: {write: never}
+    allow: [read, write, operate]
+    deny: [execute, assign, manage]
+  - name: operate allows read and operate only
+    role: Users
+    resource: Project
+    grants: {operate: never}
+    allow: [read, operate]
+    deny: [write, execute, assign, manage]
+  - name: execute allows read and execute only
+    role: Users
+    resource: Project
+    grants: {execute: future}
+    allow: [read, execute]
+    deny: [write, operate, assign, manage]
+  - name: assign allows read and assign only
+    role: Users
+    resource: Dataset
+    grants: {assign: never}
+    allow: [read, assign]
+    deny: [write, execute, operate, manage]
+  - name: read allows read only
+    role: Users
+    resource: Project
+    grants: {read: never}
+    allow: [read]
+    deny: [write, execute, assign, operate, manage]
+  - name: an expired grant allows nothing
+    role: Users
+    resource: Project
+    grants: {manage: expired, write: expired, read: expired}
+    deny: [read, write, execute, assign, operate, manage]
+  - name: no grant allows nothing
+    role: Users
+    groups: [/roles/users]
+    resource: [Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
+    deny: [read, write, execute, assign, operate, manage]
+
+  # Global: creating global records
+  - name: admins may create global records
+    role: Administrator
+    groups: [/roles/admins]
+    resource: Global
+    allow: [write]
+    deny: [manage]
+  - name: the operator may create global records
+    role: Service
+    groups: [/roles/service]
+    resource: Global
+    allow: [write]
+    deny: [manage]
+  - name: users may not create global records
+    role: Users
+    groups: [/roles/users]
+    resource: Global
+    deny: [write, manage]
+
+  # Admins on global records
+  - name: admins read and assign any global record with no grant, but cannot change it
+    role: Administrator
+    groups: [/roles/admins]
+    resource: [Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
+    allow: [read, assign]
+    deny: [write, execute, operate, manage]
+  - name: admins get nothing on a project without a grant
+    role: Administrator
+    groups: [/roles/admins]
+    resource: Project
+    deny: [read, write, execute, assign, operate, manage]
+  - name: a user needs an assign grant to assign a global record
+    role: Users
+    groups: [/roles/users]
+    resource: Dataset
+    deny: [assign]
+  - name: the operator manages global records only through its group's grant
+    role: Service
+    groups: [/roles/service]
+    resource: Dataset
+    deny: [read, write, assign, manage]
+
+  # SuperUser
+  - name: SuperUser may do anything without a grant
+    role: SuperUser
+    resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
+    allow: [read, write, execute, assign, operate, manage]
+
+  # Revoked datasets
+  - name: nobody runs tasks on a revoked dataset, not even SuperUser
+    role: SuperUser
+    resource: Dataset
+    revoked: true
+    allow: [read, write, assign, manage]
+    deny: [execute]
+  - name: a manage holder cannot run tasks on a revoked dataset
+    role: Users
+    resource: Dataset
+    revoked: true
+    grants: {manage: never}
+    allow: [read, write]
+    deny: [execute]
+
+  # Dagster
+  - name: Dagster reads every record but changes none
+    role: Dagster
+    groups: [/roles/dagster]
+    resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
+    allow: [read]
+    deny: [write, execute, assign, operate, manage]
