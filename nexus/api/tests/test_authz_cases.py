@@ -63,9 +63,10 @@ def grant(record, relation, subject_type="user", subject_id="id-alice", expires_
 
 def test_group_grant(project):
     grant(project, "write", subject_type="group", subject_id="/studies/uc1")
-    assert can(caller(groups=["/studies/uc1"]), Action.WRITE, project)
-    assert not can(caller(groups=["/studies/uc2"]), Action.WRITE, project)
-    assert not can(caller(groups=["/studies/uc1"]), Action.MANAGE, project)
+    assert can(caller("Administrator", ["/studies/uc1"]), Action.WRITE, project)
+    assert not can(caller("Administrator", ["/studies/uc2"]), Action.WRITE, project)
+    assert not can(caller("Administrator", ["/studies/uc1"]), Action.MANAGE, project)
+    assert not can(caller("Users", ["/studies/uc1"]), Action.WRITE, project)
 
 
 def test_expired_grant_is_left_out(project):

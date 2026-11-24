@@ -8,12 +8,12 @@
 cases:
   # Grants
   - name: manage allows everything
-    role: Users
+    role: Administrator
     resource: [Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
     grants: {manage: never}
     allow: [read, write, execute, assign, operate, manage]
   - name: write allows read and operate, not grant changes
-    role: Users
+    role: Administrator
     resource: Project
     grants: {write: never}
     allow: [read, write, operate]
@@ -42,6 +42,13 @@ cases:
     grants: {read: never}
     allow: [read]
     deny: [write, execute, assign, operate, manage]
+  - name: write and manage granted to a Users account or group change nothing
+    role: Users
+    groups: [/roles/users]
+    resource: [Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
+    grants: {manage: never, write: never}
+    allow: [read, execute, assign, operate]
+    deny: [write, manage]
   - name: an expired grant allows nothing
     role: Users
     resource: Project
@@ -109,7 +116,7 @@ cases:
     allow: [read, write, assign, manage]
     deny: [execute]
   - name: a manage holder cannot run tasks on a revoked dataset
-    role: Users
+    role: Administrator
     resource: Dataset
     revoked: true
     grants: {manage: never}

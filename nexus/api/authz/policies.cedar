@@ -43,6 +43,10 @@ permit (principal in Role::"Dagster", action == Action::"read", resource);
 // SuperUser may do anything.
 permit (principal in Role::"SuperUser", action, resource);
 
+// write and manage stay with admins (ADR 0037): a Users account or group granted them still cannot use them, so a
+// manage holder cannot hand the record, or its grants, to a normal user.
+forbid (principal in Role::"Users", action in [Action::"write", Action::"manage"], resource);
+
 // Nobody runs tasks on a revoked dataset.
 forbid (principal, action == Action::"execute", resource is Dataset)
 when { resource.revoked };
