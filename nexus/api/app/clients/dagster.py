@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from app.helpers.const import DAGSTER_WEBSERVER_URI
+from app.config import settings
 from app.helpers.exceptions import DagsterError
 
 SENSORS_QUERY = """
@@ -59,7 +59,7 @@ def graphql(query: str, variables: dict | None = None) -> dict:
     """Run a query against Dagster, returning its data. Anything but data is a DagsterError."""
     try:
         response = requests.post(
-            f"{DAGSTER_WEBSERVER_URI}/graphql",
+            f"{settings.node.dagster_webserver_uri}/graphql",
             json={"query": query, "variables": variables or {}},
             timeout=30,
         )

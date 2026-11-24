@@ -5,13 +5,8 @@ from pydantic import (
     BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
 )
 
+from app.config import settings
 from app.tasks.compute import convert_cpu_values_to_int, convert_memory_values_to_int
-from app.helpers.const import (
-    TASK_COMPUTE_DEFAULT_LIMIT_CPU,
-    TASK_COMPUTE_DEFAULT_LIMIT_MEMORY,
-    TASK_COMPUTE_MAX_CPU,
-    TASK_COMPUTE_MAX_MEMORY,
-)
 from app.tasks.limits import (
     CPU_RESOURCE_REGEX,
     MEMORY_RESOURCE_REGEX,
@@ -66,9 +61,10 @@ class Compute(BaseModel):
 
     @model_validator(mode="after")
     def _validate_quantities(self):
+        compute = settings.kubernetes.task_limits
         for resource, convert, node_max, default_limit in (
-            ("cpu", convert_cpu_values_to_int, TASK_COMPUTE_MAX_CPU, TASK_COMPUTE_DEFAULT_LIMIT_CPU),
-            ("memory", convert_memory_values_to_int, TASK_COMPUTE_MAX_MEMORY, TASK_COMPUTE_DEFAULT_LIMIT_MEMORY),
+            ("cpu", convert_cpu_values_to_int, compute.max_cpu, compute.default_limit_cpu),
+            ("memory", convert_memory_values_to_int, compute.max_memory, compute.default_limit_memory),
         ):
             given = {}
             for kind in ("requests", "limits"):

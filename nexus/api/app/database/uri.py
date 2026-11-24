@@ -1,4 +1,4 @@
-import os
+from app.config import settings
 
 
 def build_sql_uri(
@@ -10,12 +10,12 @@ def build_sql_uri(
     ssl=None
 ):
     params = {}
-    params['username'] = username or os.environ['NEXUS_DB_USER']
-    params['password'] = password or os.environ['NEXUS_DB_PASSWORD']
-    params['host'] = host or os.environ['PGHOST']
-    params['port'] = port or os.environ['PGPORT']
-    params['database'] = database or os.environ['NEXUS_DB_NAME']
-    params['ssl'] = ssl or os.environ.get('DB_SSL', '')
+    params['username'] = username or settings.database.user
+    params['password'] = password or settings.database.password
+    params['host'] = host or settings.database.host
+    params['port'] = port or settings.database.port
+    params['database'] = database or settings.database.name
+    params['ssl'] = ssl or settings.database.ssl
 
     template = "postgresql://{username}:{password}@{host}:{port}/{database}{ssl}"
     return template.format(**params)

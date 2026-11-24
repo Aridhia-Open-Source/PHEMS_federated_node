@@ -3,7 +3,7 @@ Secret endpoints. The values only ever go to the secret store; the database keep
 reference so that repositories and datasets can share a secret. A secret belongs to no
 project and is addressed by its label, which is unique. A project is assigned one under
 /projects/<id>/secrets (see projects_api.py). Creating, editing and deleting are admin-only. A disabled
-secret's value is moved out of its namespace into a quarantine namespace (QUARANTINE_NAMESPACE), so nothing
+secret's value is moved out of its namespace into a quarantine namespace, so nothing
 reading the secret where the row says it is can get it, and moved back when the secret is enabled again:
 - GET /global/secrets
 - GET /global/secrets/<label>
@@ -19,9 +19,9 @@ from http import HTTPStatus
 from fastapi import APIRouter, Body, Depends
 from kubernetes.client.exceptions import ApiException
 
+from app.config import settings
 from app.dtos.secret import SecretDTO
 from app.database.base_model import db
-from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.clients.kubernetes import KubernetesClient
 from app.clients.kubernetes_names import validate_secret_key
@@ -52,8 +52,8 @@ def _get_values(body: dict) -> dict[str, str]:
 class K8sSecretProvider:
     """Writes and deletes secrets in Kubernetes."""
 
-    namespace = SECRETS_NAMESPACE
-    quarantine_namespace = QUARANTINE_NAMESPACE
+    namespace = settings.kubernetes.namespaces.secrets
+    quarantine_namespace = settings.kubernetes.namespaces.quarantine
 
     def set(self, key: str, namespace: str, values: dict[str, str]):
         """The caller is the authority on the content, so it overwrites what is there."""
