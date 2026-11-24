@@ -1,4 +1,4 @@
-# 0041 Test an upgrade before switching to it
+# 0041 Flux Upgrade Verification
 
 Status: Proposed (draft: options only, codepint chooses)
 
