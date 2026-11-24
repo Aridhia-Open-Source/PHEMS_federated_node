@@ -5,8 +5,10 @@ compares first and sends only what differs: a PUT resets what its body omits, an
 its source Secret changed.
 
 A record is found by its natural key (name, label or uri) and adopted; the resource's status.nexusId is a cache.
-A record made by hand that already matches is left as it is. Nothing locks the records to the operator yet, so an
-edit in the UI stays until the resource next changes (the operator owns its records through grants in a later step).
+The operator signs in with the Service role, so a record it creates is managed by group /roles/service (ADR 0037) and
+an edit in the UI is a 409: config changes go through git. A record made by hand is owned by whoever made it, so
+adopting it is a 409 too, until the SuperUser re-assigns it to the operator's account (PUT <record path>/owner).
+A resource's `access` list is reconciled into the record's group grants (sync_access).
 A dependency that is not in nexus-api yet raises kopf.TemporaryError naming it, and the resource is retried.
 
 Spec fields are the CRDs' (camelCase); the API's are snake_case.
@@ -36,6 +38,46 @@ class Synced:
     nexus_id: int | None
     changed: bool
     status: dict = field(default_factory=dict)
+
+
+# Access: a resource's `access` list -> the record's grants (ADR 0037)
+
+def record_path(plural: str, name: str, spec: Mapping, nexus_id: int | None) -> str:
+    """The record's own path in nexus-api, under which its /grants routes are"""
+    if plural == "nodesecrets":
+        return f"/global/secrets/{name}"
+    if plural == "repositories":
+        return f"/global/repositories/{'triggers' if spec['type'] == 'trigger' else 'results'}/{nexus_id}"
+    return {
+        "gitproviders": "/global/providers", "datasets": "/global/datasets", "projects": "/projects",
+    }[plural] + f"/{nexus_id}"
+
+
+def sync_access(api: BackendAPI, path: str, access: list[Mapping], applied: list[Mapping]) -> tuple[bool, list[dict]]:
+    """
+    Adds a group grant for each entry of the spec's `access` list that the record lacks, and removes the ones this
+    operator added (`applied`, status.access from the last sync) that the spec no longer names. Every other grant
+    stays: manage, user grants, and group grants made at runtime, such as an approved data access request, even one
+    the spec also names (the operator did not add it, so it never deletes it).
+    Returns whether it changed anything, and the new status.access: the grants this operator added that the spec
+    still names (a list, which a status merge-patch replaces whole; a dict's dropped keys would stay).
+    """
+    wanted = {(entry["relation"], entry["group"]) for entry in access}
+    mine = {(entry["relation"], entry["group"]) for entry in applied}
+    dropped = mine - wanted
+    if not wanted and not dropped:
+        return False, []
+    current = {
+        (grant["relation"], grant["subject_id"]): grant["id"]
+        for grant in api.get_grants(path) if grant["subject_type"] == "group"
+    }
+    added = wanted - current.keys()
+    for relation, group in sorted(added):
+        api.add_grant(path, relation, "group", group)
+    for key in sorted(dropped & current.keys()):
+        api.delete_grant(path, current[key])
+    changed = bool(added) or bool(dropped & current.keys())
+    return changed, [{"group": group, "relation": relation} for relation, group in sorted((mine & wanted) | added)]
 
 
 # Field comparison, lifted from the old fncli node files (diff.py, schema.py)

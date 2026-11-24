@@ -98,6 +98,10 @@ def reconcile(plural, body, name, namespace, spec, status, meta, patch, logger, 
     """Sync one resource and write its status; a wait or an API error is retried after retry_delay_seconds"""
     try:
         result = sync_one(plural, name, spec, namespace, status, meta)
+        access_changed, access = sync.sync_access(
+            api, sync.record_path(plural, name, spec, result.nexus_id), spec.get("access", []),
+            status.get("access") or [],
+        )
     except kopf.TemporaryError as error:
         patch.status.update(synced=False, message=str(error))
         raise kopf.TemporaryError(str(error), delay=env.retry_delay_seconds) from error
@@ -105,9 +109,10 @@ def reconcile(plural, body, name, namespace, spec, status, meta, patch, logger, 
         patch.status.update(synced=False, message=describe(error))
         raise kopf.TemporaryError(describe(error), delay=env.retry_delay_seconds) from error
     patch.status.update(
-        synced=True, nexusId=result.nexus_id, message="", observedGeneration=meta.get("generation"), **result.status,
+        synced=True, nexusId=result.nexus_id, message="", observedGeneration=meta.get("generation"), access=access,
+        **result.status,
     )
-    if result.changed:
+    if result.changed or access_changed:
         attribution = flux_annotations(meta)
         logger.info(f"Synced {plural}/{name} to nexus-api {attribution}")
         kopf.info(body, reason="Synced", message=f"Synced to nexus-api {attribution}".strip())

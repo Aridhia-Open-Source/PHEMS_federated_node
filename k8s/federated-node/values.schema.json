@@ -92,6 +92,34 @@
                     "$ref": "#/definitions/memoryQuantity"
                 }
             }
+        },
+        "access": {
+            "type": "array",
+            "description": "Keycloak groups and what each may do with the record (ADR 0037); the operator reconciles them into group grants",
+            "items": {
+                "type": "object",
+                "required": [
+                    "group",
+                    "relation"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                    "group": {
+                        "type": "string",
+                        "pattern": "^/",
+                        "description": "The group's full Keycloak path, e.g. /studies/uc1"
+                    },
+                    "relation": {
+                        "enum": [
+                            "read",
+                            "assign",
+                            "execute",
+                            "operate",
+                            "write"
+                        ]
+                    }
+                }
+            }
         }
     },
     "properties": {
@@ -1064,6 +1092,9 @@
                             "apiUri": {
                                 "type": "string",
                                 "minLength": 1
+                            },
+                            "access": {
+                                "$ref": "#/definitions/access"
                             }
                         }
                     }
@@ -1126,6 +1157,9 @@
                                         }
                                     }
                                 }
+                            },
+                            "access": {
+                                "$ref": "#/definitions/access"
                             }
                         }
                     }
@@ -1156,6 +1190,9 @@
                                     "secret": {
                                         "type": "string",
                                         "minLength": 1
+                                    },
+                                    "access": {
+                                        "$ref": "#/definitions/access"
                                     }
                                 }
                             }
@@ -1182,6 +1219,9 @@
                                     "secret": {
                                         "type": "string",
                                         "minLength": 1
+                                    },
+                                    "access": {
+                                        "$ref": "#/definitions/access"
                                     }
                                 }
                             }
@@ -1225,6 +1265,9 @@
                             "secret": {
                                 "type": "string",
                                 "minLength": 1
+                            },
+                            "access": {
+                                "$ref": "#/definitions/access"
                             }
                         }
                     }
@@ -1281,6 +1324,9 @@
                                         ]
                                     }
                                 }
+                            },
+                            "access": {
+                                "$ref": "#/definitions/access"
                             }
                         }
                     }

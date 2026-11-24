@@ -140,3 +140,26 @@ tests:
         documentSelector:
           path: metadata.name
           value: results-github-com-example-org-both
+
+  - it: passes a project's access list through to its spec (ADR 0037)
+    set:
+      nodeConfig:
+        projects:
+          - name: uc1
+            access:
+              - {group: /studies/uc1, relation: read}
+            repositories:
+              results: {repository: https://github.com/example-org/r, targetDir: r/, baseBranch: main}
+    asserts:
+      - equal:
+          path: spec.access
+          value: [{group: /studies/uc1, relation: read}]
+
+  - it: refuses an access group that is not a full Keycloak path
+    set:
+      nodeConfig:
+        datasets:
+          - {name: d, type: postgres, host: h, port: 5432, secret: s, access: [{group: uc1-team, relation: read}]}
+    asserts:
+      - failedTemplate:
+          errorPattern: "group"

@@ -2,7 +2,7 @@
 {{- /*
   The Kopf operator (nexus/operator, ADR 0032). One replica with Recreate, so two never run at once
   and Kopf's peering stays off (--standalone in the image). Nothing calls it, so no Service.
-  It logs in to nexus-api as fn-operator (Administrator), from operator-keycloak-creds
+  It logs in to nexus-api as fn-operator (role Service, ADR 0036), from operator-keycloak-creds
   (keycloak-secrets.yaml, in the operator's namespace). The password is a mounted file read at every login, not env, so the
   credential rotation reaches it without a restart (a directory mount: a subPath one never refreshes).
 */}}

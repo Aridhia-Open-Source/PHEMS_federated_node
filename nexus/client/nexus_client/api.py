@@ -489,6 +489,22 @@ class BackendAPI:
         self.session.delete(f"/global/secrets/{label}")
         return True
 
+    # Grants (ADR 0037). record_path is the record's own path, e.g. /projects/3 or /global/secrets/creds.
+
+    def get_grants(self, record_path: str) -> list[dict]:
+        """The record's grants, oldest first: id, relation, subject_type, subject_id, expires_at, created_by"""
+        return self.session.get(f"{record_path}/grants").json()
+
+    def add_grant(self, record_path: str, relation: str, subject_type: str, subject_id: str) -> dict:
+        """Adds a grant that never expires; only a manage holder may (409 otherwise, and on a duplicate)"""
+        return self.session.post(
+            f"{record_path}/grants",
+            json={"relation": relation, "subject_type": subject_type, "subject_id": subject_id},
+        ).json()
+
+    def delete_grant(self, record_path: str, grant_id: int) -> None:
+        self.session.delete(f"{record_path}/grants/{grant_id}")
+
     def get_git_providers(self) -> list[GitProvider]:
         """The global git providers"""
         return [GitProvider(**provider) for provider in self.session.get("/global/providers").json()]
