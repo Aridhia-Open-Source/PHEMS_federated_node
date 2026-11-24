@@ -1246,6 +1246,7 @@
 <li>Point Flux at it: <code>flux create source git</code> and <code>flux create kustomization</code>, as <code>scripts/flux.sh up</code> does.</li>
 <li>Upgrade: bump <code>version</code> in <code>helmrelease.yaml</code> and merge. Revert: <code>git revert</code> that commit. A failed upgrade is retried twice, then rolled back.</li>
 <li>Config: edit <code>values.yaml</code> and merge. The values ConfigMap name carries a hash of its content, so every values change upgrades the release.</li>
+<li>An upgrade that breaks Gitea also stops Flux from pulling the fix, since the site repository lives there. Recover by hand: <code>flux suspend helmrelease federated-node -n fn</code>, <code>helm rollback &lt;release&gt; &lt;last good revision&gt; -n fn</code>, push the fix to the site repository, <code>flux resume helmrelease federated-node -n fn</code>.</li>
 </ol>
 <h3 id="site-repository-hosted-elsewhere">Site repository hosted elsewhere<a class="headerlink" href="#site-repository-hosted-elsewhere" title="Permanent link">&para;</a></h3>
 <p>When the site repository lives outside the cluster (GitHub, the site's own git), Gitea keeps a pull mirror of it and Flux pulls from the mirror. Commits land in the site repository; Gitea picks them up within 10 minutes.</p>
