@@ -1212,7 +1212,7 @@ mise<span class="w"> </span>run<span class="w"> </span>flux<span class="w"> </sp
 mise<span class="w"> </span>run<span class="w"> </span>flux<span class="w"> </span>down<span class="w">                </span><span class="c1"># remove Flux and fn-site; the release stays</span>
 </code></pre></div>
 <ul>
-<li><code>up</code> makes the dev age key (<code>bootstrap/sops/age.agekey</code>, kept across runs) and loads it into Flux, fills <code>secrets/sops/first-user-secret.yaml</code> from <code>.dev.env</code> and encrypts it before the first push.</li>
+<li><code>up</code> makes the dev age key (<code>bootstrap/sops/kind-fn.agekey</code>, kept across runs) and loads it into Flux, fills <code>secrets/sops/first-user-secret.yaml</code> from <code>.dev.env</code> and encrypts it before the first push.</li>
 <li><code>site-example/helmrelease.yaml</code> uses the release name and namespace <code>mise run deploy</code> used, so Flux adopts that release.</li>
 <li>While Flux owns the release, <code>mise run deploy</code> and <code>mise run teardown</code> refuse; <code>mise run flux down</code> hands it back.</li>
 <li>The dev site values pin the dev images (<code>latest</code>), so a version bump changes only the chart.</li>
@@ -1223,7 +1223,7 @@ mise<span class="w"> </span>run<span class="w"> </span>flux<span class="w"> </sp
 <li><strong>Upgrade:</strong> <code>mise run flux publish 0.0.2-dev</code>, set <code>version: "0.0.2-dev"</code> in <code>helmrelease.yaml</code>, push. <code>helm history fn-dev -n fn</code> shows the new revision.</li>
 <li><strong>Revert:</strong> <code>git revert HEAD</code>, push.</li>
 <li><strong>Config:</strong> change a value in <code>values.yaml</code>, push.</li>
-<li><strong>Secret:</strong> <code>sops encrypt -i</code> in your clone (its <code>.sops.yaml</code> has your key); <code>SOPS_AGE_KEY_FILE=&lt;repo&gt;/bootstrap/sops/age.agekey sops &lt;file&gt;</code> edits one.</li>
+<li><strong>Secret:</strong> <code>sops encrypt -i</code> in your clone (its <code>.sops.yaml</code> has your key); <code>SOPS_AGE_KEY_FILE=&lt;repo&gt;/bootstrap/sops/kind-fn.agekey sops &lt;file&gt;</code> edits one.</li>
 </ul>
 <p>Flux looks every minute; <code>flux reconcile kustomization fn-site -n flux-system --with-source</code> skips the wait.</p>
 

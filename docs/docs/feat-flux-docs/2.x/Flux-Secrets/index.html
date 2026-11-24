@@ -1219,7 +1219,7 @@
 <h2 id="the-age-key">The age key<a class="headerlink" href="#the-age-key" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Against the site's <code>kubectl</code> context: <code>mise run flux sops-key</code>. It makes the key if there is none and loads it into Flux as Secret <code>flux-system/sops-age</code>.</li>
-<li>The private half is kept in <code>bootstrap/sops/age.agekey</code> (gitignored). Back it up: it is the only way to decrypt the site's Secrets.</li>
+<li>The private half is kept in <code>bootstrap/sops/&lt;kubectl context&gt;.agekey</code> (gitignored, one file per cluster). Back it up: it is the only way to decrypt the site's Secrets.</li>
 <li>In the site repository's <code>.sops.yaml</code>, replace <code>AGE_PUBLIC_KEY</code> with the public key it printed.</li>
 <li>The Flux Kustomization needs <code>--decryption-provider=sops --decryption-secret=sops-age</code> (<a href="../Deploy-With-Flux/">Deploy with Flux</a>, step 5).</li>
 </ol>
@@ -1228,7 +1228,7 @@
 <li>Write the Secret like <code>site-example/first-user-secret.yaml</code>, in a file whose name matches <code>*secret*.yaml</code> (the rule in <code>.sops.yaml</code>).</li>
 <li>Encrypt it in place: <code>sops encrypt -i my-secret.yaml</code>.</li>
 <li>List it in <code>kustomization.yaml</code> and commit.</li>
-<li>Edit it later with <code>sops my-secret.yaml</code> (needs the private key, e.g. <code>SOPS_AGE_KEY_FILE=bootstrap/sops/age.agekey</code>).</li>
+<li>Edit it later with <code>sops my-secret.yaml</code> (needs the private key, e.g. <code>SOPS_AGE_KEY_FILE=bootstrap/sops/&lt;kubectl context&gt;.agekey</code>).</li>
 </ol>
 <p><code>first-user-secret.yaml</code> becomes <code>keycloak-first-user</code>, which the Keycloak realm controller and the <code>HelmRelease</code> read.</p>
 
