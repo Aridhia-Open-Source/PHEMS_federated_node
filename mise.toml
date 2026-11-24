@@ -234,6 +234,18 @@ run = "./scripts/proxy-sim.sh shell"
 description = "Remove the proxy simulation"
 run = "./scripts/proxy-sim.sh down"
 
+# mise run openbao up | status | down
+# OpenBao and the External Secrets Operator in the dev cluster (scripts/openbao.sh); opt-in, deploy never runs it
+[tasks.openbao]
+description = "OpenBao and External Secrets in the dev cluster: up (install, auth, fill keycloak-first-user from the vault), status, down"
+quiet = true
+usage = '''
+arg "<action>" help="up, status or down" {
+  choices "up" "status" "down"
+}
+'''
+run = './scripts/openbao.sh "$usage_action"'
+
 [tasks.deploy-owner]
 description = "Show which worktree owns the dev cluster"
 run = "./scripts/deploy_owner.sh show"

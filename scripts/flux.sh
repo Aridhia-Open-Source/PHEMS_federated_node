@@ -107,12 +107,12 @@ case "$COMMAND" in
       # A fresh history: the site repository is the site's, not a copy of this one
       SEED="$(mktemp -d)"
       trap 'rm -rf "$SEED"; kill "${GITEA_PF_PID:-}" 2>/dev/null || true' EXIT
-      cp "$SITE_DIR"/*.yaml "$SITE_DIR"/.sops.yaml "$SEED"/
+      cp -r "$SITE_DIR"/. "$SEED"/
       # Encrypt the example Secret for this cluster's age key, as a site does before it commits one
       sed -i "s/AGE_PUBLIC_KEY/$(age_public_key)/" "$SEED"/.sops.yaml
       # The first user's login from .dev.env (scripts/load_env.sh), as a site writes its own
       # (written as JSON strings, which are YAML, so no character in them needs escaping)
-      EMAIL="$KEYCLOAK_FIRST_USER_EMAIL" PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" python3 - "$SEED"/first-user-secret.yaml <<'PY'
+      EMAIL="$KEYCLOAK_FIRST_USER_EMAIL" PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" python3 - "$SEED"/secrets/sops/first-user-secret.yaml <<'PY'
 import json
 import os
 import sys
@@ -124,7 +124,7 @@ for placeholder, variable in (("FIRST_USER_EMAIL", "EMAIL"), ("FIRST_USER_PASSWO
 open(path, "w", encoding="utf-8").write(text)
 PY
       # From the repo root, so a mise shim still finds the sops version mise.toml pins
-      sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/first-user-secret.yaml"
+      sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/secrets/sops/first-user-secret.yaml"
       git -C "$SEED" init -q -b main
       git -C "$SEED" add .
       git -C "$SEED" -c user.name=fn-dev -c user.email=fn-dev@example.org commit -q -m "Site: node pinned to its first release"
