@@ -2,7 +2,7 @@
 The real clients against the real nexus app over HTTP, no Kubernetes.
 
 The app of the `client` fixture is served by uvicorn on 127.0.0.1 in a thread, with the same
-process-wide Keycloak/k8s mocks, and the fncli backend client (dagster/fncli/backend.py) and the
+process-wide Keycloak/k8s mocks, and the fncli backend client (nexus/fednode/cli/backend.py) and the
 Dagster code location's BackendAPI (dagster/app/backend.py) are pointed at it with the Dagster system user's token
 (the identity they log in as), and `admin_api` with the admin token, which revoking needs.
 
@@ -19,11 +19,11 @@ import requests
 
 from tests.conftest import SYSTEM_TOKEN
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 DAGSTER_DIR = REPO_ROOT / "dagster"
 
-if not (DAGSTER_DIR / "fncli" / "backend.py").is_file():
-    pytest.skip("dagster/fncli is not available", allow_module_level=True)
+if not (REPO_ROOT / "nexus" / "fednode" / "cli" / "backend.py").is_file():
+    pytest.skip("nexus/fednode/cli is not available", allow_module_level=True)
 
 import uvicorn  # noqa: E402
 
@@ -43,8 +43,8 @@ def _load_dagster_client():
         backend = importlib.import_module("app.backend")
         utils = importlib.import_module("app.utils")
         models = importlib.import_module("app.models")
-        fncli_backend = importlib.import_module("fncli.backend")
-        fncli_state = importlib.import_module("fncli.cmds.state")
+        fncli_backend = importlib.import_module("fednode.cli.backend")
+        fncli_state = importlib.import_module("fednode.cli.cmds.state")
         return backend.BackendAPI, utils, models, fncli_backend.FncliBackendAPI, fncli_state
     except Exception:  # pragma: no cover
         return None
@@ -57,7 +57,7 @@ def _load_dagster_client():
 
 _dagster = _load_dagster_client()
 if _dagster is None:
-    pytest.skip("dagster/app and dagster/fncli are not importable", allow_module_level=True)
+    pytest.skip("dagster/app and nexus/fednode/cli are not importable", allow_module_level=True)
 DagsterBackendAPI, _utils, fn_models, FnBackendAPI, state = _dagster
 
 

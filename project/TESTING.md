@@ -5,8 +5,8 @@ What each kind of test in this repository covers, what it does not, and how to r
 | Kind | Where | Needs | Proves |
 |---|---|---|---|
 | nexus-api tests (route tests, a model-based test) | [nexus/api/tests/](../nexus/api/tests/) | A Postgres; Keycloak and Kubernetes are mocked | nexus-api's rules and routes, one request at a time |
-| Dagster app tests and fncli tests | [dagster/app/tests/](../dagster/app/tests/), [dagster/fncli/tests/](../dagster/fncli/tests/) | Nothing running; nexus-api, git host and Dagster instance are mocked | Each sensor, job and command does what nexus-api's answer says |
-| End-to-end suites | [dagster/fncli/tests/e2e/](../dagster/fncli/tests/e2e/) | The live dev cluster (`kind-fn`) | That the real pieces work together |
+| Dagster app tests and fncli tests | [dagster/app/tests/](../dagster/app/tests/), [nexus/fednode/tests/cli/](../nexus/fednode/tests/cli/) | Nothing running; nexus-api, git host and Dagster instance are mocked | Each sensor, job and command does what nexus-api's answer says |
+| End-to-end suites | [nexus/fednode/tests/e2e/](../nexus/fednode/tests/e2e/) | The live dev cluster (`kind-fn`) | That the real pieces work together |
 
 A by-hand plan for a deployed node, which takes over where these stop, is in [QA/README.md](QA/README.md).
 
@@ -76,9 +76,9 @@ Counts are `def test_` lines; a parametrised test counts once.
 
 ### How to run
 
-- `cd dagster && ./run_tests.sh [ci] [pytest args]` (Docker Compose, the test image is built from the local Dagster image), or `mise run tests-dagster` from the repo root (the `ci` variant). `pytest_args` default to `.`; the paths in `dagster/pyproject.toml` are `app/tests` and `fncli/tests`, so the fncli tests run with them. The end-to-end tests are skipped unless `--e2e` is given.
+- `cd dagster && ./run_tests.sh [ci] [pytest args]` (Docker Compose, the test image is built from the local Dagster image), or `mise run tests-dagster` from the repo root (the `ci` variant). `pytest_args` default to the configured test paths; the paths in `dagster/pyproject.toml` are `app/tests` and `../nexus/fednode/tests`, so the fncli tests run with them. The end-to-end tests are skipped unless `--e2e` is given.
 - `dagster/app/tests/test_enum_drift.py` needs the whole checkout (it parses nexus-api source) and skips in the test image. Run it from the repo root: `pytest dagster/app/tests/test_enum_drift.py`.
-- The end-to-end README runs pytest from the repo root with `dagster/.venv/bin/python -m pytest dagster ...`.
+- The end-to-end README runs pytest from the repo root with `dagster/.venv/bin/python -m pytest nexus/fednode ...`.
 
 ### What they cover, by area
 
@@ -108,7 +108,7 @@ Counts are `def test_` lines; a parametrised test counts once.
 
 ## fncli tests
 
-`dagster/fncli/tests/` (run with the Dagster tests; see above). They check the command line tool, with nexus-api, Gitea, Dagster and Kubernetes mocked.
+`nexus/fednode/tests/cli/` (run with the Dagster tests; see above). They check the command line tool, with nexus-api, Gitea, Dagster and Kubernetes mocked.
 
 | Area | Files | What is covered |
 |---|---|---|
@@ -116,7 +116,7 @@ Counts are `def test_` lines; a parametrised test counts once.
 | Setup and pull request commands | `test_pr.py` (26), `test_dataset.py`, `test_backend.py` (18), `test_git_uri.py` | The file each `--kind` of pull request commits; branch names; what `--watch` prints; backend find-or-create and assign calls; URI translation |
 | State commands | `test_state.py` (16) | `resource-set --revoked` logs in as the first Keycloak user; everything else uses the Dagster System user |
 | Sensors and verify | `test_sensor.py` (6), `test_verify.py` (18) | `all` covers the twelve sensors once each; the order a group starts and stops in; what `verify-project` and `verify-repo` report |
-| Simulation | `test_simulation.py` (10) | The plan and checker of the multi-provider simulation on built states, with no cluster. The simulation itself has not been run ([dagster/fncli/README.md](../dagster/fncli/README.md)) |
+| Simulation | `test_simulation.py` (10) | The plan and checker of the multi-provider simulation on built states, with no cluster. The simulation itself has not been run ([nexus/fednode/cli/README.md](../nexus/fednode/cli/README.md)) |
 
 They cannot show that a command works against the real cluster; that is what the end-to-end suites are for.
 
@@ -126,7 +126,7 @@ They cannot show that a command works against the real cluster; that is what the
 
 ## End-to-end tests
 
-`dagster/fncli/tests/e2e/`. They drive the real stack (nexus-api, Keycloak, Postgres, Dagster and Gitea on the `kind-fn` cluster) through fncli, one fncli command or one expected state per test, in order, on one project. The first failure stops the run and prints the last project snapshot. Details: [dagster/fncli/tests/e2e/README.md](../dagster/fncli/tests/e2e/README.md).
+`nexus/fednode/tests/e2e/`. They drive the real stack (nexus-api, Keycloak, Postgres, Dagster and Gitea on the `kind-fn` cluster) through fncli, one fncli command or one expected state per test, in order, on one project. The first failure stops the run and prints the last project snapshot. Details: [nexus/fednode/tests/e2e/README.md](../nexus/fednode/tests/e2e/README.md).
 
 ### What they need
 
@@ -142,8 +142,8 @@ They cannot show that a command works against the real cluster; that is what the
 From the repo root:
 
 ```bash
-dagster/.venv/bin/python -m pytest dagster --e2e success -v -x -p no:cacheprovider
-dagster/.venv/bin/python -m pytest dagster --e2e failure -v -x -p no:cacheprovider
+dagster/.venv/bin/python -m pytest nexus/fednode --e2e success -v -x -p no:cacheprovider
+dagster/.venv/bin/python -m pytest nexus/fednode --e2e failure -v -x -p no:cacheprovider
 ```
 
 `--e2e` alone runs both, success first, then failure. The project is cleared at the start of each run and left in place afterwards; `E2E_TEARDOWN=1` tears it down at the end. `E2E_FAST_SENSORS=1` sets the sensor interval to 1 s for the run (it restarts the code server, which stops the sensors, so start them again first). `E2E_TASK_TIMEOUT` (default 600 s) bounds a task that has to start. A plain `pytest` skips all of them.
@@ -201,7 +201,7 @@ Probes the end-to-end README lists as worth a manual check, not a pass or fail:
 
 These have not been run against a cluster. When one is run and the result recorded, remove it from this list.
 
-- The failure suite (`pytest dagster --e2e failure`), including the group where a results resource is switched off and the result is delivered once the project resource is switched back on. Two assumptions in it are unchecked: a task can be created and launched while its results resource is switched off, and the watched task uses the project's default dataset.
+- The failure suite (`pytest nexus/fednode --e2e failure`), including the group where a results resource is switched off and the result is delivered once the project resource is switched back on. Two assumptions in it are unchecked: a task can be created and launched while its results resource is switched off, and the watched task uses the project's default dataset.
 - The success and failure suites with the launch endpoint and the reconcile sensor in place.
 - `dagster/app/tests/test_enum_drift.py`, from a full checkout: it skips when `webserver/` is not beside `dagster/`.
 - The reconcile sensor catching up: stop the sensors, let a task run to the end, then start them. The reconcile sensor should bring the task to its final status. It finds the run by its `fn/trigger`, `fn/task_id` and `fn/attempt` tags. It was tested against a fake instance and one real instance, never a live Dagster with real runs; check that its ticks show in the Dagster UI.

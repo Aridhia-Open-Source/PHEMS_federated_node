@@ -11,7 +11,7 @@ Needs: the administrator's login. Never write a password or token into the notes
 
 - **Expected:** both return 200 and a list. No Secret value is in the response.
 - **Rule:** creating GlobalResources and writing their flags needs the admin role ([Global resources and project resources]).
-- **Automated by:** Partly automated: the failure suite logs in as the first Keycloak user before it starts (`dagster/fncli/tests/e2e/test_failure_paths.py`, the admin login check). nexus-api tests mock Keycloak, so real logins are not covered elsewhere.
+- **Automated by:** Partly automated: the failure suite logs in as the first Keycloak user before it starts (`nexus/fednode/tests/e2e/test_failure_paths.py`, the admin login check). nexus-api tests mock Keycloak, so real logins are not covered elsewhere.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -33,7 +33,7 @@ Needs: the administrator's login. Never write a password or token into the notes
 
 - **Expected:** step 1 is refused with 403 and nothing changes. Step 2 returns 200 both ways.
 - **Rule:** `revoked` is set only by administrators; the pipeline's System user can never revoke ([Enabled, revoked and soft delete]).
-- **Automated by:** Partly automated: `nexus/api/tests/test_system_user_routes.py`, `dagster/fncli/tests/test_state.py` (which login each command uses) and the end-to-end revoke groups. The tests mock the role check.
+- **Automated by:** Partly automated: `nexus/api/tests/test_system_user_routes.py`, `nexus/fednode/tests/cli/test_state.py` (which login each command uses) and the end-to-end revoke groups. The tests mock the role check.
 - [ ] Pass
 - [ ] Fail — notes:
 

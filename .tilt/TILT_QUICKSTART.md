@@ -24,7 +24,7 @@ Once everything is deployed, Tilt automatically watches and reloads:
 - `nexus/api/app/` → nexus-api code changes (instant reload)
 - `nexus/api/requirements.txt`, `setup.py`, `alembic.ini` → Full rebuild
 - `dagster/app/` → User code changes (the process restarts, then `dagster-reload` makes sure the Dagster code location is loaded again; if it logs an error, look at the code server pod log)
-- `dagster/fncli/`, tests and docs → no rebuild
+- `nexus/fednode/cli/`, tests and docs → no rebuild
 - `dagster/requirements.txt`, `setup.py` → Full rebuild
 
 ### Access services

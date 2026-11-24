@@ -152,4 +152,4 @@ These act on the project in your context's defaults (or `--project NAME`), and t
 
 ## More detail
 
-The repo's [fncli README](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/dagster/fncli/README.md) has every command and option. The design is in the decision records [0025](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0025-fncli-bootstrap-files-diff-apply-delete.md) to [0030](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md).
+The repo's [fncli README](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/nexus/fednode/cli/README.md) has every command and option. The design is in the decision records [0025](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0025-fncli-bootstrap-files-diff-apply-delete.md) to [0030](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md).
