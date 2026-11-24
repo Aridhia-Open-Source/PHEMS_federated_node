@@ -27,7 +27,7 @@ from app.models.git_provider import GitProvider
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.trigger_repository import TriggerRepository
-from app.secrets_api import K8sSecretProvider
+from app.clients.secret_store import K8sSecretProvider
 
 PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PRIVATE_PEM = PRIVATE_KEY.private_bytes(

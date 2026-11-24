@@ -10,6 +10,7 @@ the pull request routes (evaluation state). With ?active=true the list has only 
 - GET /projects/<project_id>/repositories/triggers/<repository_id>/pull_requests/<number>
 - PATCH /projects/<project_id>/repositories/triggers/<repository_id>/pull_requests/<number>
 - POST /projects/<project_id>/repositories/triggers/<repository_id>/pull_requests/<number>/task
+- GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck
 """
 from http import HTTPStatus
 
@@ -38,6 +39,8 @@ from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.task import Task
 from app.models.trigger_repository import TriggerRepository
 from app.models.trigger_state import TriggerState
+from app.dtos.healthcheck import ProjectTriggerRepositoryHealthDTO
+from app.health.repositories import prepare_trigger_resource_health
 
 router = APIRouter(
     prefix='/projects/{project_id}/repositories/triggers', tags=["project_trigger_repositories"]
@@ -319,3 +322,13 @@ def post_task(
         return TaskDTO.from_model(task)
     response.status_code = HTTPStatus.CREATED
     return TaskDTO.from_model(task)
+
+
+@router.get('/{repository_id}/healthcheck', response_model=ProjectTriggerRepositoryHealthDTO)
+def project_trigger_repository_healthcheck(project_id: int, repository_id: int):
+    """
+    GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The
+    global repository's check, the project's resource state and its pull request count. 404 if the
+    project has no resource for it.
+    """
+    return prepare_trigger_resource_health(_assignment(project_id, repository_id))()

@@ -8,7 +8,7 @@ only. Deleting one is a soft delete, refused with a 409 naming the projects it i
 - PATCH /global/repositories/results/<id>
 - DELETE /global/repositories/results/<id>
 - POST /global/repositories/results/<id>/token
-- GET /global/repositories/results/<id>/healthcheck, see healthcheck_api.py
+- GET /global/repositories/results/<id>/healthcheck
 """
 from http import HTTPStatus
 
@@ -27,6 +27,8 @@ from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
+from app.dtos.healthcheck import RepositoryConnectionDTO
+from app.health.repositories import prepare_repository_health
 
 router = APIRouter(
     prefix='/global/repositories/results', tags=["results_repositories"]
@@ -149,3 +151,12 @@ def patch_repository(repo_id: int, req: RepositoryPatchRequest, caller: Caller =
 
     session.commit()
     return ResultsRepositoryDTO.from_model(repo)
+
+
+@router.get('/{repository_id}/healthcheck', response_model=RepositoryConnectionDTO)
+def results_repository_healthcheck(repository_id: int):
+    """
+    GET /global/repositories/results/<repository_id>/healthcheck endpoint. Whether the repository
+    can be reached with its own secret.
+    """
+    return prepare_repository_health(ResultsRepository.get_by_id(repository_id))()
