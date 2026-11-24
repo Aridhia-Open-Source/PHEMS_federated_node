@@ -39,6 +39,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0029](../project/decisions/0029-images-are-built-with-docker-buildx-bake.md) | Images are built with docker buildx bake | One bake file at the root and one per experiment; `mise run images`, `image`, `images-release`. |
 | [0030](../project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md) | fncli demo only walks the pull request process | Setup and cleanup are `apply` and `delete`; the demo checks the node matches first. |
 | [0033](../project/decisions/0033-running-behind-a-tls-intercepting-proxy.md) | Running behind a TLS-intercepting proxy | One script checks the proxy and CA and writes only generated, gitignored env and values files that hand-edited ones override; image builds get the CA as a build secret. |
+| [0034](../project/decisions/0034-pulumi-for-infrastructure.md) | IaC Pulumi Deployments | Pulumi in Python provisions each site's cloud resources where we own the account, Azure first, one stack per site; its outputs feed the site repository and Flux bootstrap; supersedes the OpenTofu part of 0031. |
 
 ## Other docs by topic
 
