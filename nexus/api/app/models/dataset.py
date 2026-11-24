@@ -14,7 +14,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.pool import NullPool
 
 from app.database.base_model import BaseModel, db
-from app.helpers.const import PUBLIC_URL
+from app.config import settings
 from app.database.uri import build_sql_uri
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.clients.keycloak import Keycloak
@@ -82,7 +82,7 @@ class Dataset(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     ):
         self.name = urllib.parse.unquote(name).lower()
         self.slug = self.slugify_name()
-        self.url = f"https://{PUBLIC_URL}/datasets/{self.slug}"
+        self.url = f"https://{settings.node.public_url}/datasets/{self.slug}"
         self.host = host
         self.port = port
         self.read_schema = read_schema
