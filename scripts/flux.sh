@@ -84,7 +84,7 @@ case "$COMMAND" in
       gitea_git -C "$SEED" push -q "$(gitea_repo_url "$SITE_REPO")" main
       echo "Pushed $SITE_DIR/ as $GITEA_URL/$GITEA_ADMIN_USER/$SITE_REPO"
     else
-      echo "Already there, left as it is (mise run flux down deletes it)"
+      echo "Already there (a mirror from mise run mirror-to-gitea, or an earlier up), left as it is (mise run flux down deletes it)"
     fi
 
     echo
