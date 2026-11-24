@@ -31,6 +31,7 @@ from app.helpers.exceptions import (
     UnauthorizedError
 )
 from app.clients.keycloak import Keycloak  # noqa: F401  patched by tests/conftest.py
+from app.rules.ownership import does_user_own_task
 from app.rules.project_state import require_accepts_tasks
 from app.clients.kubernetes_names import validate_dns_label
 from app.rules.state_rules import transition
@@ -57,19 +58,6 @@ all_router = APIRouter(prefix='/tasks', tags=["tasks"])
 VALIDATION_ERRORS = (
     InvalidRequest, InvalidDBEntry, DBRecordNotFoundError, TaskImageException, UnauthorizedError
 )
-
-
-def does_user_own_task(task: Task, caller: Caller):
-    """
-    Simple wrapper to check if the user is the one who
-    triggered the task, or is admin, or is the system user (Dagster, which reads tasks it
-    did not request).
-
-    If they don't, an exception is raised with 403 status code
-    """
-    # TODO(auth): revisit with the Keycloak/authorization rework.
-    if task.requested_by != caller.user_id and not caller.is_admin and not caller.is_system:
-        raise UnauthorizedError("User does not have enough permissions")
 
 
 def get_project_task(project_id: int, task_id: int) -> Task:

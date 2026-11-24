@@ -8,7 +8,7 @@ import logging
 from fastapi import Depends, FastAPI
 from fastapi_pagination import add_pagination
 
-from app import main, dagster_api, healthcheck_api
+from app import auth_api, dagster_api, healthcheck_api
 from app.globals import (
     datasets_api, git_providers_api, results_repositories_api, secrets_api, trigger_repositories_api, users_api,
 )
@@ -23,8 +23,8 @@ logger.setLevel(logging.INFO)
 
 # The only routers reachable without the can_do_admin scope. Keep this list short.
 OPEN_ROUTERS = (
-    main.router,  # /, /ready_check, /health_check, /login, /refresh_token: probes and getting a token
-    users_api.reset_password_router,  # PUT /global/users/reset-password: a new user swaps their temp password
+    healthcheck_api.probes_router,  # /, /ready_check, /health_check: the probes
+    auth_api.router,  # /login, /refresh_token, PUT /global/users/reset-password: getting a token
 )
 
 
@@ -37,8 +37,8 @@ def create_app() -> FastAPI:
     app.add_middleware(TrailingSlashMiddleware)
 
     for router in (
-        main.router, projects_api.router, datasets_api.router, tasks_api.router, results_api.router,
-        users_api.reset_password_router, users_api.router, trigger_repositories_api.router,
+        healthcheck_api.probes_router, auth_api.router, projects_api.router, datasets_api.router, tasks_api.router,
+        results_api.router, users_api.router, trigger_repositories_api.router,
         project_trigger_repositories_api.router, secrets_api.router, git_providers_api.router,
         results_repositories_api.router, dagster_api.router, healthcheck_api.router, tasks_api.all_router,
     ):

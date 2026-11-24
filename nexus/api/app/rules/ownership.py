@@ -11,8 +11,9 @@ from http import HTTPStatus
 
 from sqlalchemy.orm import Session
 
-from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.helpers.wrappers import Caller
+from app.models.task import Task
 from app.models.user import OwnedMixin
 
 
@@ -96,3 +97,16 @@ def _member(group: str | None, caller: Caller) -> bool:
 def _locks(model: type[OwnedMixin], fields: set[str] | None) -> bool:
     locked = model.owner_locked_fields
     return fields is None or locked is None or bool(fields & locked)
+
+
+def does_user_own_task(task: Task, caller: Caller):
+    """
+    Simple wrapper to check if the user is the one who
+    triggered the task, or is admin, or is the system user (Dagster, which reads tasks it
+    did not request).
+
+    If they don't, an exception is raised with 403 status code
+    """
+    # TODO(auth): revisit with the Keycloak/authorization rework.
+    if task.requested_by != caller.user_id and not caller.is_admin and not caller.is_system:
+        raise UnauthorizedError("User does not have enough permissions")

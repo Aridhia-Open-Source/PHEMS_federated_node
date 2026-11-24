@@ -21,7 +21,7 @@ from app.models.project import Project
 from app.models.task import Task
 from app.models.task_status import TaskStatus
 from app.models.result import Result
-from app.projects.tasks_api import does_user_own_task
+from app.rules.ownership import does_user_own_task
 
 router = APIRouter(prefix='/projects', tags=["results"])
 

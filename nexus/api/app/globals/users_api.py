@@ -2,7 +2,7 @@
 user-related endpoints:
 - GET /global/users
 - POST /global/users
-- PUT /global/users/reset-password (on reset_password_router, which needs no token: the temp-password flow)
+- PUT /global/users/reset-password, see auth_api.py
 """
 from http import HTTPStatus
 
@@ -14,7 +14,6 @@ from app.helpers.exceptions import InvalidRequest
 from app.clients.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
 
 router = APIRouter(prefix='/global/users', tags=["users"])
-reset_password_router = APIRouter(prefix='/global/users', tags=["users"])
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=NewUserDTO)
@@ -42,22 +41,6 @@ def create_user(data: dict = Body(default_factory=dict)):
         "info": "The user should change the temp password at " \
             f"https://{PUBLIC_URL}/global/users/reset-password"
     }
-
-
-@reset_password_router.put('/reset-password', status_code=HTTPStatus.NO_CONTENT)
-def reset_password(body: dict = Body(default_factory=dict)):
-    """
-    PUT /global/users/reset-password endpoint. Interface to keycloak
-        API, so we can change the credentials and make sure
-        there are no pending action to undertake
-    """
-    kc = Keycloak()
-    user = kc.get_user_by_email(email=body.get("email"))
-    kc.reset_user_pass(
-        user_id=user["id"], username=user["username"],
-        old_pass=body.get("tempPassword"),
-        new_pass=body.get("newPassword")
-    )
 
 
 @router.get('', response_model=list[UserDTO])
