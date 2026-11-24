@@ -8,9 +8,8 @@ import dagster as dg
 import pytest
 import requests
 
-from app.config import ResultsDeliveryConfig
+from app.config import ResultsDeliveryConfig, settings
 from app.definitions.sensors.task import JOBS, SENSORS
-from app.definitions.sensors.task import delivery as delivery_sensors
 from app.definitions.sensors.task.delivery import (
     ResultsDeliveryRetrySensor,
     deliver_results_job,
@@ -443,7 +442,7 @@ def test_the_retry_sensor_ignores_final_steps(step):
 
 
 def test_the_retry_sensor_gives_up_at_the_max_attempts(monkeypatch):
-    monkeypatch.setattr(delivery_sensors, "DELIVERY_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(settings.sensors, "delivery_max_attempts", 3)
 
     (request,), _, _ = retry_sensor([result(state="FAILED", attempts=2)])
     (skip,), _, _ = retry_sensor([result(state="FAILED", attempts=3)])

@@ -4,7 +4,7 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
 from app.backend import BackendAPI
-from app.config import DEFAULT_SENSOR_STATUS, DELIVERY_MAX_ATTEMPTS, MIN_SENSOR_INTERVAL_SECONDS, ResultsDeliveryConfig
+from app.config import settings
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.base import LaunchingSensor, artifacts_volume_tags, run_key
 from app.delivery.results import FINAL, ResultsDelivery
@@ -16,7 +16,7 @@ def deliver_results(context: OpExecCtx):
     """Push the results of a task to its project's results repository."""
     ResultsDelivery(
         backend_api=cast(BackendAPI, context.resources.backend_api),
-        config=ResultsDeliveryConfig(),
+        config=settings.results_delivery,
         log=context.log,
     )(
         context.op_config["project_id"], context.op_config["task_id"], context.op_config["run_id"]
@@ -36,10 +36,10 @@ def deliver_results_job():
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.SUCCESS,
-    default_status=DEFAULT_SENSOR_STATUS,
+    default_status=settings.sensors.initial_status,
     monitored_jobs=[k8s_pipes_job],
     request_job=deliver_results_job,
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
 )
 def task_results_delivery_sensor(context: RunStatusSensorContext):
     """
@@ -86,7 +86,7 @@ class ResultsDeliveryRetrySensor(LaunchingSensor):
             result
             for project in self.backend_api.get_projects()
             for result in self.backend_api.get_results_by_state(project.id, ResultState.FAILED.value, active_resource=True)
-            if result.step not in FINAL and result.attempts < DELIVERY_MAX_ATTEMPTS
+            if result.step not in FINAL and result.attempts < settings.sensors.delivery_max_attempts
         ]
 
     def describe(self, item: PullRequestResult) -> str:
@@ -111,8 +111,8 @@ class ResultsDeliveryRetrySensor(LaunchingSensor):
 
 
 @dg.sensor(
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=DEFAULT_SENSOR_STATUS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
+    default_status=settings.sensors.initial_status,
     required_resource_keys={"backend_api"},
     job=deliver_results_job,
 )

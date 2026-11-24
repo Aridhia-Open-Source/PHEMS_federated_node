@@ -6,7 +6,7 @@ from typing import Any, Iterable, Union
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
-from app.config import SENSOR_RETRY_INTERVAL_SECONDS, ArtifactsVolumeConfig
+from app.config import settings
 
 IN_FLIGHT = [dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.QUEUED, dg.DagsterRunStatus.STARTING,
              dg.DagsterRunStatus.STARTED]
@@ -21,7 +21,7 @@ def run_key(kind: str, item_id: Any = None, state: Any = None) -> str:
     retry interval, because the slot changes: run keys are permanent per sensor in Dagster, so a
     key that never changed would never launch again.
     """
-    slot = int(time.time() // SENSOR_RETRY_INTERVAL_SECONDS)
+    slot = int(time.time() // settings.sensors.retry_interval_seconds)
     return "/".join(str(part) for part in (kind, item_id, state, slot) if part is not None)
 
 
@@ -32,7 +32,7 @@ def artifacts_volume_tags(run_id: str | None = None) -> dict[str, str]:
     Without run_id, the whole volume read-write: a task's run pod creates the run's folder in it. With one, only
     that run's folder, read-only, at the path delivery reads it from.
     """
-    config = ArtifactsVolumeConfig()
+    config = settings.artifacts_volume
     mount = {"name": config.pvc_name, "mountPath": config.mount_path}
     if run_id:
         mount = {**mount, "mountPath": f"{config.mount_path}/{run_id}", "subPath": run_id, "readOnly": True}
