@@ -112,8 +112,6 @@ function DatasetCreate() {
     { name: "read_schema" },
     { name: "write_schema" },
     { name: "extra_connection_args", help: "e.g. TrustServerCertificate=Yes" },
-    { name: "catalogue", type: "json", help: '{"title": "...", "description": "..."}' },
-    { name: "dictionaries", type: "json", help: '[{"table_name": "patient", "description": "..."}]' },
     { name: "enabled", type: "checkbox" },
   ];
   const create = useMutation({
