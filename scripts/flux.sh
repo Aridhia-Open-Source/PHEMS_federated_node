@@ -125,6 +125,9 @@ open(path, "w", encoding="utf-8").write(text)
 PY
       # From the repo root, so a mise shim still finds the sops version mise.toml pins
       sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/secrets/sops/first-user-secret.yaml"
+      sed -i -e "s|SUPERUSER_USERNAME|${KEYCLOAK_SUPERUSER_USERNAME:-}|" -e "s|SUPERUSER_PASSWORD|${KEYCLOAK_SUPERUSER_PASSWORD:-}|" \
+        "$SEED"/secrets/sops/superuser-secret.yaml
+      sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/secrets/sops/superuser-secret.yaml"
       git -C "$SEED" init -q -b main
       git -C "$SEED" add .
       git -C "$SEED" -c user.name=fn-dev -c user.email=fn-dev@example.org commit -q -m "Site: node pinned to its first release"
