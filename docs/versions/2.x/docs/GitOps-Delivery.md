@@ -20,7 +20,7 @@ How a node is upgraded, reverted and configured from a git repository with Flux 
 
 Secrets go in the site repository encrypted with [SOPS](https://getsops.io) and an age key; Flux decrypts them on apply. Only `data` and `stringData` are encrypted, so the rest of each Secret stays readable in review.
 
-1. Make the site's age key and load it into Flux: `mise run flux sops-key` (against the site's `kubectl` context). The private half is kept in `bootstrap/sops/age.agekey` (gitignored) and in the cluster as Secret `flux-system/sops-age`; back it up, it is the only way to decrypt.
+1. Make the site's age key and load it into Flux: `mise run flux sops-key` (against the site's `kubectl` context). The private half is kept in `bootstrap/sops/<kubectl context>.agekey` (gitignored, one file per cluster) and in the cluster as Secret `flux-system/sops-age`; back it up, it is the only way to decrypt.
 2. In `.sops.yaml`, replace `AGE_PUBLIC_KEY` with the public key it printed.
 3. Point the Kustomization at the key: add `--decryption-provider=sops --decryption-secret=sops-age` to `flux create kustomization`.
 4. Write a Secret like `first-user-secret.yaml`, encrypt it in place (`sops encrypt -i my-secret.yaml`, file names matching `*secret*.yaml`), list it in `kustomization.yaml`, commit. Edit it later with `sops my-secret.yaml`.
@@ -52,7 +52,7 @@ mise run flux up                  # install Flux, push site-example/ to Gitea as
 mise run flux status              # Flux objects and the release's helm history
 ```
 
-`up` also makes the dev age key (`bootstrap/sops/age.agekey`, kept across runs), loads it into Flux and fills `first-user-secret.yaml` from `.dev.env` and encrypts it with that key before the first push. Flux decrypts it into `keycloak-first-user`, which the Keycloak realm controller reads. To add a Secret in the loop, run `sops encrypt -i` in your clone of fn-site (its `.sops.yaml` has your key); `SOPS_AGE_KEY_FILE=<repo>/bootstrap/sops/age.agekey sops <file>` edits one.
+`up` also makes the dev age key (`bootstrap/sops/kind-fn.agekey`, kept across runs), loads it into Flux and fills `first-user-secret.yaml` from `.dev.env` and encrypts it with that key before the first push. Flux decrypts it into `keycloak-first-user`, which the Keycloak realm controller reads. To add a Secret in the loop, run `sops encrypt -i` in your clone of fn-site (its `.sops.yaml` has your key); `SOPS_AGE_KEY_FILE=<repo>/bootstrap/sops/kind-fn.agekey sops <file>` edits one.
 
 `site-example/helmrelease.yaml` uses the release name and namespace `mise run deploy` used, so Flux adopts that release rather than installing a second node. From then on `mise run deploy` and `mise run teardown` refuse until `mise run flux down`, which removes Flux and the site repository and leaves the release as it is.
 
