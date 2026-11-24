@@ -1,31 +1,14 @@
 from abc import abstractmethod
-from typing import Any, Protocol, Union
+from typing import Any, Union
 
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
+from fednode.clients.git.gitea import GiteaClient
+from fednode.clients.git.github import GitHubClient
+from fednode.clients.git.provider import GitProvider
 from fednode.clients.nexus.client import BackendAPI
 from app.definitions.sensors.base import BaseSensor
-from app.gitea import GiteaAPI, GiteaClient
-from app.github import GithubAPI, GithubClient
 from fednode.clients.nexus.models import ResultsRepository, TriggerRepository
-
-
-class GitAPI(Protocol):
-    """Protocol required for a git provider api client (i.e Gitea, GitHub, GitLab)"""
-
-    def get_pull_request(self, repo_path: str, pr_number: int) -> dict: ...
-
-    def get_pulls(self, repo_path: str, since: str, state: str = "all", merged_only: bool = False) -> list[dict]: ...
-
-    def get_pull_request_files(self, repo_path: str, pr_number: int) -> list[dict]: ...
-
-    def get_file_contents(self, repo_path: str, file_path: str, ref: str) -> str: ...
-
-    def get_default_branch(self, repo_path: str) -> str: ...
-
-    def create_pull_request(
-        self, repo_path: str, head_branch: str, base_branch: str, title: str, body: str
-    ) -> dict: ...
 
 
 class GitAPIFactory:
@@ -38,15 +21,15 @@ class GitAPIFactory:
     def __init__(self, backend_api: BackendAPI):
         self.backend_api = backend_api
 
-    def for_repository(self, repo: TriggerRepository | ResultsRepository, project_id: int | None = None) -> GitAPI:
+    def for_repository(self, repo: TriggerRepository | ResultsRepository, project_id: int | None = None) -> GitProvider:
         """The client for a repository. project_id names the project the work is for, None for the repository as a whole."""
         kind = "trigger" if isinstance(repo, TriggerRepository) else "results"
         token = self.backend_api.get_repository_token(kind, repo.id, project_id).token
         match repo.provider.type:
             case "github":
-                return GithubAPI(GithubClient(token=token, base_uri=repo.provider.api_uri))
+                return GitHubClient(repo.provider.api_uri, token)
             case "gitea":
-                return GiteaAPI(GiteaClient(token=token, base_uri=repo.provider.api_uri))
+                return GiteaClient(repo.provider.api_uri, token)
             case provider_type:
                 raise ValueError(f"Unsupported git provider {provider_type!r} for repository {repo.uri}")
 

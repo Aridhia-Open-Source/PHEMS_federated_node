@@ -12,10 +12,11 @@ import requests
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, SensorEvaluationContext
 
+from fednode.clients.git.provider import GitProvider
 from fednode.clients.nexus.client import BackendAPI
 from app.config import DEFAULT_SENSOR_STATUS, DELIVERY_MAX_ATTEMPTS, MIN_SENSOR_INTERVAL_SECONDS
 from app.definitions.sensors.base import LaunchingSensor, run_in_flight, run_key
-from app.definitions.sensors.git.base import GitAPI, GitAPIFactory, GitSensor
+from app.definitions.sensors.git.base import GitAPIFactory, GitSensor
 from app.delivery.results import MAX_ERROR_LENGTH, results_title
 from fednode.clients.nexus.models import PullRequestResult, PullRequestResultStep, ResultsRepository
 
@@ -151,7 +152,7 @@ class ResultsPullRequestSyncSensor(LaunchingSensor, GitSensor):
     def __init__(self, context, backend_api: BackendAPI, git_apis: GitAPIFactory):
         super().__init__(context, backend_api, git_apis)
         self.repositories: dict[int, ResultsRepository | None] = {}
-        self.clients: dict[int, GitAPI] = {}
+        self.clients: dict[int, GitProvider] = {}
         self.since: dict[int, str] = {}
         self.pulls: dict[int, list[dict]] = {}
         self.patches: dict[int, dict] = {}

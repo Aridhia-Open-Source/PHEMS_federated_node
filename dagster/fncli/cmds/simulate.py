@@ -235,11 +235,11 @@ def merge_pull_requests(target: Target, repo: str, kinds: list[str], seed: int) 
     for kind in kinds:
         time.sleep(rng.uniform(0, 1.5))  # interleave the repositories
         branch = new_branch_name()
-        gitea_api.create_branch(config.repo_path, branch, base)
+        gitea_api.client.create_branch(config.repo_path, branch, base)
         path, content = file_for(config, branch, kind, trigger)
-        gitea_api.create_file(config.repo_path, path, content, message=f"Add {path}", branch=branch)
-        pr = gitea_api.create_pull_request(config.repo_path, branch, base, f"{kind} {branch}", f"A {kind} pull request, from the simulation")
-        gitea_api.merge_pull_request(config.repo_path, pr["number"])
+        gitea_api.client.create_file(config.repo_path, path, content, message=f"Add {path}", branch=branch)
+        pr = gitea_api.client.create_pull_request(config.repo_path, branch, base, f"{kind} {branch}", f"A {kind} pull request, from the simulation")
+        gitea_api.client.merge_pull_request(config.repo_path, pr["number"])
         merged.append({"number": pr["number"], "kind": kind})
         logger.info(f"{repo}: merged #{pr['number']} ({kind})")
     return merged

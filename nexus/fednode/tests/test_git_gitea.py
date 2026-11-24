@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from app.gitea import GiteaAPI, GiteaClient
+from fednode.clients.git.gitea import GiteaClient
 
 
 def response(body, status_code=200):
@@ -27,20 +27,19 @@ def client():
 
 @pytest.fixture
 def api(client):
-    return GiteaAPI(client=client, logger=MagicMock())
+    gitea = GiteaClient("http://gitea:3000/api/v1", "abc", session=MagicMock())
+    gitea.request = client.request
+    return gitea
 
 
 class TestGiteaClient:
     def test_sends_the_bearer_token_to_the_base_uri(self):
         session = MagicMock()
 
-        client = GiteaClient(token="abc", session=session, base_uri="http://gitea:3000/api/v1/")
+        client = GiteaClient("http://gitea:3000/api/v1/", "abc", session=session)
 
         session.headers.update.assert_called_with({"Authorization": "Bearer abc"})
         assert client._base_uri == "http://gitea:3000/api/v1"
-
-    def test_defaults_to_the_in_cluster_gitea(self):
-        assert GiteaClient(token="abc", session=MagicMock())._base_uri == "http://gitea.fn.svc:4000/api/v1"
 
 
 class TestPulls:
@@ -196,7 +195,7 @@ class TestCreatePullRequest:
 
 class TestMergePullRequest:
     def test_retries_while_gitea_computes_mergeability(self, api, client, monkeypatch):
-        monkeypatch.setattr("app.gitea.time.sleep", lambda seconds: None)
+        monkeypatch.setattr("fednode.clients.git.provider.time.sleep", lambda seconds: None)
         busy = requests.HTTPError(response=MagicMock(status_code=405))
         client.request.side_effect = [busy, response({})]
 

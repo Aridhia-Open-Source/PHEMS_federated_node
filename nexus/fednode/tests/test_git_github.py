@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.github import GithubAPI, GithubClient
+from fednode.clients.git.github import GH_API_BASE_URL, GitHubClient
 
 
 def response(body, status_code=200):
@@ -24,27 +24,25 @@ def client():
 
 @pytest.fixture
 def api(client):
-    return GithubAPI(client=client, logger=MagicMock())
+    github = GitHubClient(GH_API_BASE_URL, "abc", session=MagicMock())
+    github.request = client.request
+    return github
 
 
-class TestGithubClient:
+class TestGitHubClient:
     def test_sends_the_github_accept_header(self):
         session = MagicMock()
 
-        GithubClient(token="abc", session=session)
+        GitHubClient(GH_API_BASE_URL, "abc", session=session)
 
         session.headers.update.assert_any_call({"Accept": "application/vnd.github+json"})
 
-    def test_defaults_to_the_public_api(self):
-        client = GithubClient(token="abc", session=MagicMock())
+    def test_sends_the_bearer_token_to_the_base_uri(self):
+        session = MagicMock()
 
-        assert client._base_uri == "https://api.github.com"
+        client = GitHubClient("https://github.example.com/api/v3", "abc", session=session)
 
-    def test_base_uri_is_overridable(self):
-        client = GithubClient(
-            token="abc", session=MagicMock(), base_uri="https://github.example.com/api/v3"
-        )
-
+        session.headers.update.assert_any_call({"Authorization": "Bearer abc"})
         assert client._base_uri == "https://github.example.com/api/v3"
 
 
