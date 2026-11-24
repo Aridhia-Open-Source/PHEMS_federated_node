@@ -4,7 +4,26 @@
   its finalizer and Kopf's annotations) and their status, get a NodeSecret's source Secret, and
   create Events. Nothing cluster-wide: Kopf runs namespaced with --namespace per namespace. Nothing in
   the release namespace (operator-namespace.yaml).
+
+  Source Secrets: with operator.sourceSecrets empty, any Secret in a watched namespace (dev, where
+  config/ names many). Set, only those names plus the ones nodeConfig.secrets names (fromSecret and
+  every secretKeyRef), so a NodeSecret cannot copy another Secret, such as the operator's own
+  login, into nexus-api. NodeSecrets applied by Flux or kubectl are not in nodeConfig: list their
+  Secrets in sourceSecrets.
 */}}
+{{- $sourceSecrets := list }}
+{{- if (.Values.operator).sourceSecrets }}
+{{- $sourceSecrets = .Values.operator.sourceSecrets }}
+{{- range $_, $secret := (.Values.nodeConfig).secrets }}
+{{- with $secret.fromSecret }}
+{{- $sourceSecrets = append $sourceSecrets .name }}
+{{- end }}
+{{- range $_, $ref := $secret.values }}
+{{- $sourceSecrets = append $sourceSecrets $ref.secretKeyRef.name }}
+{{- end }}
+{{- end }}
+{{- $sourceSecrets = $sourceSecrets | uniq | sortAlpha }}
+{{- end }}
 {{- range (include "operatorNamespaces" . | fromJsonArray) }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -22,6 +41,9 @@ rules:
 - apiGroups: [""]
   resources: ["secrets"]
   verbs: ["get"]
+  {{- with $sourceSecrets }}
+  resourceNames: {{ toJson . }}
+  {{- end }}
 - apiGroups: ["", "events.k8s.io"]
   resources: ["events"]
   verbs: ["create"]

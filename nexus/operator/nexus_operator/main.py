@@ -9,7 +9,6 @@ state in annotations, so status holds only what the operator writes: synced, nex
 Run with `kopf run -m nexus_operator.main --standalone --namespace <ns> ...` (the chart's Deployment).
 """
 
-import base64
 from functools import partial
 
 import kopf
@@ -37,15 +36,21 @@ api = BackendAPI(BackendSession(
 
 
 def read_secret(namespace: str, name: str) -> tuple[dict[str, str], str]:
-    """A source Secret in the resource's own namespace: its decoded data and resourceVersion"""
+    """
+    A source Secret in the resource's own namespace (made by hand, SOPS or External Secrets): its decoded data and
+    resourceVersion. No error carries a value: the ApiException body and the decode error are never chained.
+    """
     try:
         secret = client.CoreV1Api().read_namespaced_secret(name, namespace)
     except ApiException as error:
         if error.status == 404:
-            raise kopf.TemporaryError(f"waiting for Secret {name}") from error
-        raise
-    data = {key: base64.b64decode(value).decode() for key, value in (secret.data or {}).items()}
-    return data, secret.metadata.resource_version
+            raise kopf.TemporaryError(f"waiting for Secret {name}") from None
+        if error.status == 403:
+            raise kopf.TemporaryError(
+                f"may not read Secret {name}: add it to the chart's operator.sourceSecrets"
+            ) from None
+        raise kopf.TemporaryError(f"reading Secret {name}: {error.status} {error.reason}") from None
+    return sync.decode_secret(name, secret.data), secret.metadata.resource_version
 
 
 # plural -> (sync(api, name, spec), delete(api, name, spec)); a NodeSecret's sync also reads its source Secrets

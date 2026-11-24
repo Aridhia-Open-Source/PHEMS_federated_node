@@ -1013,6 +1013,14 @@
                     },
                     "description": "Namespaces watched besides the operator's own (global.namespaces.operator). Never the release namespace."
                 },
+                "sourceSecrets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "description": "The Kubernetes Secrets NodeSecrets may read, plus those nodeConfig.secrets names. Empty: any Secret in a watched namespace."
+                },
                 "syncIntervalSeconds": {
                     "type": "integer",
                     "minimum": 1,

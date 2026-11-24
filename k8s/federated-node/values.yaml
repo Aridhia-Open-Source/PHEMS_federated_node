@@ -579,6 +579,10 @@ operator:
   # Namespaces watched besides its own (global.namespaces.operator; dev adds experiments). The operator
   # reads a NodeSecret's source Secret only in the NodeSecret's own namespace. Never list the release namespace.
   watchNamespaces: []
+  # The Kubernetes Secrets NodeSecrets may read (made by SOPS, External Secrets or by hand). Empty: any Secret
+  # in a watched namespace. Set it in production: only these names, plus the ones nodeConfig.secrets names, so
+  # a NodeSecret cannot copy another Secret (such as the operator's own login) into nexus-api.
+  sourceSecrets: []
   # How often every NodeSecret is synced again, to see a rotated source Secret
   syncIntervalSeconds: 60
   resources:
