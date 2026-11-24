@@ -39,6 +39,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0029](../project/decisions/0029-images-are-built-with-docker-buildx-bake.md) | Images are built with docker buildx bake | One bake file at the root and one per experiment; `mise run images`, `image`, `images-release`. |
 | [0030](../project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md) | fncli demo only walks the pull request process | Setup and cleanup are `apply` and `delete`; the demo checks the node matches first. |
 | [0033](../project/decisions/0033-running-behind-a-tls-intercepting-proxy.md) | Running behind a TLS-intercepting proxy | One script checks the proxy and CA and writes only generated, gitignored env and values files that hand-edited ones override; image builds get the CA as a build secret. |
+| [0041](../project/decisions/0041-test-an-upgrade-before-switching-to-it.md) | Test an upgrade before switching to it | Draft, options only: pause and upgrade in place with Flux and Helm hooks, Flagger gates, Flagger blue/green, or a throwaway copy with a prod database copy; all gated by the ADR 0040 test cases. |
 
 ## Other docs by topic
 
