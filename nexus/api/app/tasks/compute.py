@@ -1,6 +1,6 @@
 import re
 
-from app.helpers.const import CPU_RESOURCE_REGEX, MEMORY_RESOURCE_REGEX, MEMORY_UNITS
+from app.tasks.limits import CPU_RESOURCE_REGEX, MEMORY_RESOURCE_REGEX, MEMORY_UNITS
 from app.helpers.exceptions import InvalidRequest
 
 

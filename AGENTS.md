@@ -14,7 +14,10 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
 - `nexus/api/` - the backend (FastAPI, SQLAlchemy, Alembic).
   - `app/*_api.py` - routers, one per resource; `app/main.py` builds the app.
   - `app/dtos/` - Pydantic response DTOs (ADR 0016); `app/models/` - SQLAlchemy models.
-  - `app/helpers/` - state rules, Keycloak, Kubernetes, git tokens, task config and resources.
+  - `app/clients/` - the Keycloak, Kubernetes, Dagster and outbound clients, and token checks.
+  - `app/repos/` - git tokens and addresses, pull request fan-out. `app/tasks/` - task config, resources and limits.
+  - `app/rules/` - state rules, ownership, authorization. `app/database/` - the model base, queries, soft delete.
+  - `app/helpers/` - errors, request wrappers and the env-derived constants still in `const.py`.
   - `migrations/versions/` - a single baseline migration (`001_baseline.py`, see ADR 0023).
   - `tests/` - unit tests; `integration_tests/` - Keycloak integration scripts.
 - `nexus/ui/` - React + Vite + TypeScript admin UI; API client and generated types in `src/api/`.
@@ -93,7 +96,7 @@ Tests and lint:
 - Python dependencies are pinned with hashes in `requirements.txt`; use `~=` specifiers in `pyproject.toml`.
 - Secrets are Kubernetes Secrets referenced by name from values (e.g. `firstUserSecret`); secret values never go in values files, examples or committed `.env` files. `.dev.env` and `dev.values.yaml` are gitignored.
 - Generated, machine-local files (env, values, fncli contexts, test CAs) live in the repo and are gitignored, in the standard place for their kind (`.generated.env`, `k8s/federated-node/generated.values.yaml`, `bootstrap/`), never under `~/`. The one exception is `~/.fn/data`, the cluster's volume data shared by every worktree.
-- API responses are built through DTOs; state changes go through the transition tables in `nexus/api/app/helpers/state_rules.py` (ADR 0005, a refused move is a 409).
+- API responses are built through DTOs; state changes go through the transition tables in `nexus/api/app/rules/state_rules.py` (ADR 0005, a refused move is a 409).
 - nexus-api decides, Dagster carries out decisions (ADR 0021); Dagster and fncli parse API responses into their own models.
 - CI (`.github/workflows/build.yml`) runs pylint, hadolint, helm lint/template/unittest, nexus-api tests, Dagster tests and Keycloak integration tests.
 

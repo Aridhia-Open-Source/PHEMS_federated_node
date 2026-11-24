@@ -14,9 +14,9 @@ import sqlalchemy as sa
 from sqlalchemy import event
 from sqlalchemy.orm import Session, with_loader_criteria
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.ownership import require_members
+from app.rules.ownership import require_members
 from app.helpers.wrappers import Caller
 
 

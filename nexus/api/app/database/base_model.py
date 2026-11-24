@@ -4,7 +4,7 @@ from typing import Self
 from sqlalchemy import Column, create_engine
 from sqlalchemy.orm import Relationship, declarative_base, scoped_session, sessionmaker
 
-from app.helpers.const import build_sql_uri
+from app.database.uri import build_sql_uri
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidDBEntry
 
 engine = create_engine(build_sql_uri())

@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import ProgrammingError, OperationalError, InternalError
 
-from app.helpers.const import build_sql_uri
+from app.database.uri import build_sql_uri
 from app.models.dataset import Dataset
 from app.helpers.exceptions import DBError
 

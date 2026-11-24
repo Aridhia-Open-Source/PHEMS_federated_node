@@ -14,6 +14,7 @@
 - Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart
 - Removed unused nexus-api code: five `Task` methods, two exceptions, two `Keycloak` methods, `GitRepositoryMixin.check_connection` and the `ENABLE_IMAGE_WHITELIST` setting
 - Removed the dataset catalogue and dictionaries: the `catalogue` and `dictionaries` fields on dataset create and update, their tables, the UI fields and the Dagster models
+- nexus-api helpers are grouped by area: `app/clients/`, `app/repos/`, `app/tasks/`, `app/rules/` and `app/database/`, and `const.py` is split (task limits to `app/tasks/limits.py`, `build_sql_uri` to `app/database/uri.py`)
 
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller

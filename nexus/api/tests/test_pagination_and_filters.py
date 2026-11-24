@@ -1,7 +1,7 @@
 """Pagination shape, ordering and query filters of the list endpoints."""
 import pytest
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.models.project import Project
 
 TASK_STATUSES = ["PENDING", "QUEUED", "RUNNING", "SUCCESS", "FAILED", "CANCELED"]

@@ -5,12 +5,24 @@ from pydantic import (
     BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
 )
 
-from app.helpers.compute import convert_cpu_values_to_int, convert_memory_values_to_int
+from app.tasks.compute import convert_cpu_values_to_int, convert_memory_values_to_int
 from app.helpers.const import (
-    CPU_RESOURCE_REGEX, MEMORY_RESOURCE_REGEX, SPEC_RAW_MAX_BYTES, TASK_COMPUTE_DEFAULT_LIMIT_CPU,
-    TASK_COMPUTE_DEFAULT_LIMIT_MEMORY, TASK_COMPUTE_MAX_CPU, TASK_COMPUTE_MAX_MEMORY, TASK_ENV_KEY_REGEX,
-    TASK_ENV_MAX_BYTES, TASK_ENV_RESERVED_KEYS, TASK_ENV_RESERVED_PREFIXES, TASK_IMAGE_MAX_LENGTH,
-    TASK_NAME_MAX_LENGTH, TASK_TAG_KEY_REGEX
+    TASK_COMPUTE_DEFAULT_LIMIT_CPU,
+    TASK_COMPUTE_DEFAULT_LIMIT_MEMORY,
+    TASK_COMPUTE_MAX_CPU,
+    TASK_COMPUTE_MAX_MEMORY,
+)
+from app.tasks.limits import (
+    CPU_RESOURCE_REGEX,
+    MEMORY_RESOURCE_REGEX,
+    SPEC_RAW_MAX_BYTES,
+    TASK_ENV_KEY_REGEX,
+    TASK_ENV_MAX_BYTES,
+    TASK_ENV_RESERVED_KEYS,
+    TASK_ENV_RESERVED_PREFIXES,
+    TASK_IMAGE_MAX_LENGTH,
+    TASK_NAME_MAX_LENGTH,
+    TASK_TAG_KEY_REGEX,
 )
 from app.helpers.exceptions import InvalidRequest
 

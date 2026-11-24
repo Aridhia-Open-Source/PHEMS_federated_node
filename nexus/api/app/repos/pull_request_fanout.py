@@ -30,8 +30,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from app.dtos.trigger_repository import PullRequestRequest
-from app.helpers.base_model import db
-from app.helpers.spec_files import spec_files
+from app.database.base_model import db
+from app.tasks.spec_files import spec_files
 from app.models.project_trigger_repository import ProjectTriggerRepository, now_ts
 from app.models.pull_request import PullRequest, PullRequestFile
 from app.models.pull_request_trigger import PullRequestTrigger

@@ -3,10 +3,10 @@ from http import HTTPStatus
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship, validates
 
-from app.helpers.base_model import BaseModel, db
+from app.database.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.kubernetes_names import validate_dns_subdomain
-from app.helpers.soft_delete import SoftDeleteMixin
+from app.clients.kubernetes_names import validate_dns_subdomain
+from app.database.soft_delete import SoftDeleteMixin
 from app.models import sqla_column
 from app.models.secret_provider_type import SecretProviderType
 from app.models.user import OwnedMixin

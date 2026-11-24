@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.task import Task
 

@@ -10,7 +10,7 @@ With one global trigger repository and several project resources ([0006](0006-gl
 
 **Ingest.** `POST /global/repositories/triggers/<id>/pull_requests` takes up to 100 pull requests (more is a 400) and is refused with a 400 for a repository that is not active (disabled, revoked, or on such a provider). `store_pull_request` inserts with `ON CONFLICT DO NOTHING` on the unique constraint, so an existing number is left as it was and two concurrent posts store it once. The answer lists the numbers `created` and `existing`; posting the same pull requests again changes nothing.
 
-**Fan-out** (`nexus/api/app/helpers/pull_request_fanout.py`). For the pull requests newly stored by a call, `fan_out` runs `create_triggers` for every project resource that `accepts_triggers`: the project resource is active (global repository and provider on, project resource enabled, not revoked) and its project is enabled and not revoked. A project resource gets a trigger when the pull request's `base_branch` equals the project resource's, and either `files_truncated` is set or `spec_files` finds a file the pull request adds, ending in `.json`, under the project resource's `watch_dir`. Otherwise it gets no trigger and the cause is logged at info level. The match uses stored data only, with no provider call, so evaluate never calls the provider for a pull request a project does not watch. A new trigger starts `UNKNOWN`.
+**Fan-out** (`nexus/api/app/repos/pull_request_fanout.py`). For the pull requests newly stored by a call, `fan_out` runs `create_triggers` for every project resource that `accepts_triggers`: the project resource is active (global repository and provider on, project resource enabled, not revoked) and its project is enabled and not revoked. A project resource gets a trigger when the pull request's `base_branch` equals the project resource's, and either `files_truncated` is set or `spec_files` finds a file the pull request adds, ending in `.json`, under the project resource's `watch_dir`. Otherwise it gets no trigger and the cause is logged at info level. The match uses stored data only, with no provider call, so evaluate never calls the provider for a pull request a project does not watch. A new trigger starts `UNKNOWN`.
 
 **Two cursors.**
 - The global poll cursor is the latest `merged_at` stored for the repository, or the repository's creation when none is stored (`TriggerRepository.get_ingest_cursor`, shown as `pr_cursor`). It only moves forward as pull requests are stored, and does not move while a repository is off, so what was merged meanwhile is ingested once it is back on.
@@ -40,7 +40,7 @@ With one global trigger repository and several project resources ([0006](0006-gl
 
 ## Where it lives
 
-- `nexus/api/app/helpers/pull_request_fanout.py`, `helpers/spec_files.py`
+- `nexus/api/app/repos/pull_request_fanout.py`, `tasks/spec_files.py`
 - `nexus/api/app/models/pull_request.py`, `pull_request_trigger.py`, `project_trigger_repository.py`
 - `nexus/api/app/trigger_repositories_api.py`, `project_trigger_repositories_api.py`, `projects_api.py`, `git_providers_api.py`
 

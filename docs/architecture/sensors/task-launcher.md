@@ -65,7 +65,7 @@ The job: `k8s_pipes_job` has one op, `k8s_pipes_op`. It starts the task pod from
 
 ## 7. How `enabled` and `revoked` change what it does
 
-nexus-api's rules run in this order ([0021](../../../project/decisions/0021-nexus-api-owns-the-record-and-the-rules.md)); `decide_launch` in `nexus/api/app/helpers/task_config.py` holds them. The first that applies fails the task.
+nexus-api's rules run in this order ([0021](../../../project/decisions/0021-nexus-api-owns-the-record-and-the-rules.md)); `decide_launch` in `nexus/api/app/tasks/task_config.py` holds them. The first that applies fails the task.
 
 | State | Effect |
 |---|---|

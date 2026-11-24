@@ -25,7 +25,7 @@ from http import HTTPStatus
 from fastapi import APIRouter, Body, Depends, Response
 from fastapi_pagination import Page
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.dtos.base import page_of
 from app.dtos.dataset import ProjectDatasetDTO
@@ -34,11 +34,11 @@ from app.dtos.results_repository import (
 )
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
-from app.helpers.ownership import get_for_write, require_member, require_members, set_owner
-from app.helpers.project_state import require_disabled
-from app.helpers.pull_request_fanout import backfill, skip_gap
-from app.helpers.repository_loop import check_no_loop, normalise_dir
-from app.helpers.query_filters import QueryFilters, parse_query_params
+from app.rules.ownership import get_for_write, require_member, require_members, set_owner
+from app.rules.project_state import require_disabled
+from app.repos.pull_request_fanout import backfill, skip_gap
+from app.repos.repository_loop import check_no_loop, normalise_dir
+from app.database.query_filters import QueryFilters, parse_query_params
 from app.helpers.wrappers import Caller, get_caller
 from app.models.dataset import Dataset
 from app.models.project import Project

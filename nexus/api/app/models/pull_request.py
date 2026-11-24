@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.orm import validates
 
-from app.helpers.base_model import BaseModel, db
+from app.database.base_model import BaseModel, db
 
 
 class PullRequest(db.Model, BaseModel):

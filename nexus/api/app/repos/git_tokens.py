@@ -21,7 +21,7 @@ import jwt
 import requests
 
 from app.helpers.exceptions import GitProviderError, InvalidRequest, UnauthorizedError
-from app.helpers.kubernetes import KubernetesClient
+from app.clients.kubernetes import KubernetesClient
 from app.models.git_provider import _message_of
 
 # The models import this module (GitRepositoryMixin.get_token), so they are only named in annotations

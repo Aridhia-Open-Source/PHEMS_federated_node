@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import declared_attr, relationship
 from sqlalchemy.sql import func
 
-from app.helpers.base_model import BaseModel, db
+from app.database.base_model import BaseModel, db
 
 
 class User(db.Model, BaseModel):

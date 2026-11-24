@@ -4,8 +4,8 @@ One test per rule; fixtures come from conftest.
 """
 import pytest
 
-from app.helpers.base_model import db
-from app.helpers.task_config import build_snapshot, snapshot_hash
+from app.database.base_model import db
+from app.tasks.task_config import build_snapshot, snapshot_hash
 from app.models.project import Project
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.result import Result

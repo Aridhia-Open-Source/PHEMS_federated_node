@@ -4,8 +4,8 @@ A project's grant of a global dataset, holding the project's own state for it.
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
-from app.helpers.base_model import BaseModel, db
-from app.helpers.soft_delete import SoftDeleteMixin
+from app.database.base_model import BaseModel, db
+from app.database.soft_delete import SoftDeleteMixin
 from app.models import Models
 from app.models.user import OwnedMixin
 

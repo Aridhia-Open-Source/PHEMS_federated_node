@@ -11,7 +11,7 @@ from kubernetes.client.exceptions import ApiException
 from unittest.mock import Mock
 
 from app.helpers.exceptions import KubernetesException
-from app.helpers.kubernetes import KubernetesClient
+from app.clients.kubernetes import KubernetesClient
 
 
 class TestKubernetesHelper:

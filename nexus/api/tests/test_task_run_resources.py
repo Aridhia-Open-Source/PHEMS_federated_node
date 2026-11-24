@@ -1,14 +1,14 @@
 """
 A run's Secret and ConfigMap in the tasks namespace: POST /projects/<id>/tasks/<id>/runs/<run_id>/resources
 creates them, labelled and named per run, and a task reaching SUCCESS, FAILED or CANCELED (PATCH) deletes them
-by the run label (helpers/task_resources.py).
+by the run label (tasks/task_resources.py).
 """
 import json
 
 import pytest
 from kubernetes.client.exceptions import ApiException
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.models.task import Task
 from tests.conftest import CONTRACT_DIR
 

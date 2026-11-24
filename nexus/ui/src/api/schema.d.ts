@@ -904,7 +904,7 @@ export interface paths {
         /**
          * Post Token
          * @description POST /global/repositories/triggers/<id>/token — a short-lived read token for the repository, minted from the
-         *     credential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the
+         *     credential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the
          *     repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
          *     its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
          *     project or resource still gets a token. Dagster asks at the moment of use.
@@ -1258,7 +1258,7 @@ export interface paths {
         /**
          * Post Token
          * @description POST /global/repositories/results/<id>/token — a short-lived write token for the repository, minted from the
-         *     credential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the
+         *     credential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the
          *     repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
          *     its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
          *     project or resource still gets a token. Dagster asks at the moment of use.

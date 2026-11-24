@@ -17,12 +17,12 @@ from fastapi import APIRouter, Body, Depends
 from app.dtos.git_token import GitTokenDTO, GitTokenRequest
 from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.git_tokens import mint_token, require_token_allowed
-from app.helpers.ownership import get_for_write, set_owner
-from app.helpers.soft_delete import delete_global
-from app.helpers.task_config import results_resource
+from app.repos.git_tokens import mint_token, require_token_allowed
+from app.rules.ownership import get_for_write, set_owner
+from app.database.soft_delete import delete_global
+from app.tasks.task_config import results_resource
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
@@ -55,7 +55,7 @@ def get_repository(repo_id: int):
 def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitTokenRequest)):
     """
     POST /global/repositories/results/<id>/token — a short-lived write token for the repository, minted from the
-    credential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the
+    credential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the
     repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
     its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
     project or resource still gets a token. Dagster asks at the moment of use.
