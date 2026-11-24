@@ -35,7 +35,7 @@ class NewUserDTO(DTO):
 
 
 class UserRefDTO(DTO):
-    """A nexus-api user as a record names it, as its owner (ADR 0036)."""
+    """A nexus-api user as a record names it, as its creator or owner (ADR 0037)."""
     id: str
     username: str
 

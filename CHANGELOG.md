@@ -21,6 +21,10 @@
   - Keycloak issues tokens for its address on the node's host (`KC_HOSTNAME=https://<host>/keycloak`); nexus-api gets `KEYCLOAK_ISSUER` and `KEYCLOAK_JWKS_URL`.
   - Tokens are accepted from the Keycloak client and from any client in `KEYCLOAK_ALLOWED_CLIENTS` (comma-separated, for the operator's and Dagster's own clients).
   - The global client no longer uses Keycloak Authorization Services (removed from `realms.json`; no realm migration for existing realms).
+- Grants on projects and global records, recorded but not yet enforced ([#684](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/684), ADR 0037):
+  - New tables `grants` (read, assign, execute, operate, write, manage, for a user or a group, optional expiry) and `policy_versions`, in the baseline migration.
+  - Records say `created_by` instead of `owner`; projects and global records also say `owned_by`. Creating one gives the creator `manage` on it (the operator's go to group `/roles/service`); deleting it deletes its grants.
+  - `GET/POST/DELETE <record path>/grants` on projects, datasets, git providers, secrets, trigger and results repositories: only a `manage` holder or the SuperUser changes them, and the owner's `manage` grant stays. `PUT <record path>/owner` lets the SuperUser claim a record or re-assign it.
 
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller

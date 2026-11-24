@@ -11,7 +11,7 @@ from fastapi_pagination import add_pagination
 from app import (
     main, datasets_api, tasks_api, projects_api, users_api, trigger_repositories_api,
     project_trigger_repositories_api, secrets_api, git_providers_api, results_repositories_api, results_api,
-    dagster_api, healthcheck_api,
+    dagster_api, healthcheck_api, grants_api,
 )
 from app.errors import register_error_handlers
 from app.helpers.wrappers import require_role
@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
         users_api.reset_password_router, users_api.router, trigger_repositories_api.router,
         project_trigger_repositories_api.router, secrets_api.router, git_providers_api.router,
         results_repositories_api.router, dagster_api.router, healthcheck_api.router, tasks_api.all_router,
+        *grants_api.routers,
     ):
         gate = [Depends(require_role(*ADMIN_ROLES, NodeRole.DAGSTER))] if router not in OPEN_ROUTERS else None
         app.include_router(router, dependencies=gate)

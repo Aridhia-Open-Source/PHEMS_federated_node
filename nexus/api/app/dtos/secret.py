@@ -15,7 +15,8 @@ class SecretDTO(DTO):
     enabled: bool
     created_at: WireDatetime
     updated_at: WireDatetime
-    owner: UserRefDTO | None
+    created_by: UserRefDTO | None
+    owned_by: UserRefDTO | None
 
 
 class ProjectSecretDTO(DTO):
@@ -25,7 +26,7 @@ class ProjectSecretDTO(DTO):
     enabled: bool
     revoked: bool
     active: bool
-    owner: UserRefDTO | None
+    created_by: UserRefDTO | None
 
     @classmethod
     def from_model(cls, obj: ProjectSecret):
@@ -35,5 +36,5 @@ class ProjectSecretDTO(DTO):
             enabled=obj.enabled,
             revoked=obj.revoked,
             active=obj.active,
-            owner=UserRefDTO.of(obj.owner),
+            created_by=UserRefDTO.of(obj.created_by),
         )

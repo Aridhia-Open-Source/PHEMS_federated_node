@@ -40,9 +40,9 @@ def test_create_get_and_list(client, admin_headers):
     created = client.post(PROV, json=body(uri="https://GitHub.com/"), headers=admin_headers)
     assert created.status_code == 201, created.json()
     assert set(created.json()) == {
-        "id", "name", "type", "uri", "api_uri", "enabled", "revoked", "created_at", "updated_at", "owner",
+        "id", "name", "type", "uri", "api_uri", "enabled", "revoked", "created_at", "updated_at", "created_by", "owned_by",
     }
-    volatile = {"id": None, "created_at": None, "updated_at": None, "owner": None}
+    volatile = {"id": None, "created_at": None, "updated_at": None, "created_by": None, "owned_by": None}
     assert created.json() | volatile == {**body(), "enabled": True, "revoked": False, **volatile}  # the uri is kept normalised
 
     mirror = client.post(PROV, json=body(

@@ -4,11 +4,14 @@ API returns, and the Dagster wire models in dagster/app/models.py depend on them
 """
 import re
 
+import pytest
+
 from app.dtos.dataset import DatasetDTO
 from app.dtos.project import ProjectDTO
 from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.task import TaskDTO
 from app.models.task import Task
+from app.models.user import OwnedMixin
 
 WIRE_DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
 
@@ -17,7 +20,7 @@ class TestProjectDTO:
     def test_fields(self, project):
         assert set(ProjectDTO.from_model(project).dump()) == {
             "id", "name", "description", "default_dataset_id", "enabled", "revoked",
-            "created_at", "updated_at", "owner",
+            "created_at", "updated_at", "created_by", "owned_by",
         }
 
     def test_values(self, project):
@@ -36,7 +39,7 @@ class TestProjectResultsRepositoryDTO:
     def test_fields(self, results_assignment):
         assert set(ProjectResultsRepositoryDTO.from_model(results_assignment).dump()) == {
             "project_id", "results_repository", "target_dir", "base_branch", "owned_by_federated_node",
-            "enabled", "revoked", "active", "owner",
+            "enabled", "revoked", "active", "created_by",
         }
 
     def test_values(self, results_assignment):
@@ -49,7 +52,7 @@ class TestDatasetDTO:
         assert set(DatasetDTO.from_model(dataset).dump()) == {
             "id", "secret", "name", "host", "port", "read_schema", "write_schema", "type",
             "extra_connection_args", "created_at", "updated_at", "slug", "url", "enabled",
-            "revoked", "owner",
+            "revoked", "created_by", "owned_by",
         }
 
     def test_never_exposes_credentials(self, dataset):
@@ -108,3 +111,10 @@ class TestTaskDTO:
             "image": "alpine:latest", "dataset_id": None, "env": {}, "compute": {}, "tags": {}, "config": None,
             "metadata": None,
         }
+
+
+def test_a_model_with_grants_must_declare_its_authz_type():
+    """OwnedMixin refuses a class without a known authz_type, before it maps a table."""
+    with pytest.raises(TypeError, match="authz_type"):
+        class NoType(OwnedMixin):  # pylint: disable=unused-variable
+            pass

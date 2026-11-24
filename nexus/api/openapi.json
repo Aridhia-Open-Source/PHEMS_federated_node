@@ -4951,6 +4951,1248 @@
           }
         }
       }
+    },
+    "/projects/{project_id}/grants": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Get Grants",
+        "description": "The record's grants, oldest first.",
+        "operationId": "get_grants_projects__project_id__grants_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Get Grants Projects  Project Id  Grants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Post Grant",
+        "description": "Adds a grant. Body: {\"relation\": \"read\", \"subject_type\": \"group\", \"subject_id\": \"/studies/uc1\",\n\"expires_at\": \"2027-01-01T00:00:00Z\"}; expires_at is optional.",
+        "operationId": "post_grant_projects__project_id__grants_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/grants/{grant_id}": {
+      "delete": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Delete Grant",
+        "description": "Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).",
+        "operationId": "delete_grant_projects__project_id__grants__grant_id__delete",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Grant Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/owner": {
+      "put": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Put Owner",
+        "description": "SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has\ncalled nexus-api ({\"user_id\": \"...\"}, 404 if unknown). Returns the record's grants.",
+        "operationId": "put_owner_projects__project_id__owner_put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OwnerRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Req"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Put Owner Projects  Project Id  Owner Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/datasets/{dataset_id}/grants": {
+      "get": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Get Grants",
+        "description": "The record's grants, oldest first.",
+        "operationId": "get_grants_global_datasets__dataset_id__grants_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Get Grants Global Datasets  Dataset Id  Grants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Post Grant",
+        "description": "Adds a grant. Body: {\"relation\": \"read\", \"subject_type\": \"group\", \"subject_id\": \"/studies/uc1\",\n\"expires_at\": \"2027-01-01T00:00:00Z\"}; expires_at is optional.",
+        "operationId": "post_grant_global_datasets__dataset_id__grants_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/datasets/{dataset_id}/grants/{grant_id}": {
+      "delete": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Delete Grant",
+        "description": "Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).",
+        "operationId": "delete_grant_global_datasets__dataset_id__grants__grant_id__delete",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Grant Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/datasets/{dataset_id}/owner": {
+      "put": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Put Owner",
+        "description": "SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has\ncalled nexus-api ({\"user_id\": \"...\"}, 404 if unknown). Returns the record's grants.",
+        "operationId": "put_owner_global_datasets__dataset_id__owner_put",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OwnerRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Req"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Put Owner Global Datasets  Dataset Id  Owner Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/providers/{provider_id}/grants": {
+      "get": {
+        "tags": [
+          "git_providers"
+        ],
+        "summary": "Get Grants",
+        "description": "The record's grants, oldest first.",
+        "operationId": "get_grants_global_providers__provider_id__grants_get",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Get Grants Global Providers  Provider Id  Grants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "git_providers"
+        ],
+        "summary": "Post Grant",
+        "description": "Adds a grant. Body: {\"relation\": \"read\", \"subject_type\": \"group\", \"subject_id\": \"/studies/uc1\",\n\"expires_at\": \"2027-01-01T00:00:00Z\"}; expires_at is optional.",
+        "operationId": "post_grant_global_providers__provider_id__grants_post",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/providers/{provider_id}/grants/{grant_id}": {
+      "delete": {
+        "tags": [
+          "git_providers"
+        ],
+        "summary": "Delete Grant",
+        "description": "Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).",
+        "operationId": "delete_grant_global_providers__provider_id__grants__grant_id__delete",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Grant Id"
+            }
+          },
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/providers/{provider_id}/owner": {
+      "put": {
+        "tags": [
+          "git_providers"
+        ],
+        "summary": "Put Owner",
+        "description": "SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has\ncalled nexus-api ({\"user_id\": \"...\"}, 404 if unknown). Returns the record's grants.",
+        "operationId": "put_owner_global_providers__provider_id__owner_put",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OwnerRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Req"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Put Owner Global Providers  Provider Id  Owner Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/secrets/{label}/grants": {
+      "get": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Get Grants",
+        "description": "The record's grants, oldest first.",
+        "operationId": "get_grants_global_secrets__label__grants_get",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Get Grants Global Secrets  Label  Grants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Post Grant",
+        "description": "Adds a grant. Body: {\"relation\": \"read\", \"subject_type\": \"group\", \"subject_id\": \"/studies/uc1\",\n\"expires_at\": \"2027-01-01T00:00:00Z\"}; expires_at is optional.",
+        "operationId": "post_grant_global_secrets__label__grants_post",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/secrets/{label}/grants/{grant_id}": {
+      "delete": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Delete Grant",
+        "description": "Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).",
+        "operationId": "delete_grant_global_secrets__label__grants__grant_id__delete",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Grant Id"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/secrets/{label}/owner": {
+      "put": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Put Owner",
+        "description": "SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has\ncalled nexus-api ({\"user_id\": \"...\"}, 404 if unknown). Returns the record's grants.",
+        "operationId": "put_owner_global_secrets__label__owner_put",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OwnerRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Req"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Put Owner Global Secrets  Label  Owner Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/repositories/triggers/{repo_id}/grants": {
+      "get": {
+        "tags": [
+          "trigger_repositories"
+        ],
+        "summary": "Get Grants",
+        "description": "The record's grants, oldest first.",
+        "operationId": "get_grants_global_repositories_triggers__repo_id__grants_get",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Get Grants Global Repositories Triggers  Repo Id  Grants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "trigger_repositories"
+        ],
+        "summary": "Post Grant",
+        "description": "Adds a grant. Body: {\"relation\": \"read\", \"subject_type\": \"group\", \"subject_id\": \"/studies/uc1\",\n\"expires_at\": \"2027-01-01T00:00:00Z\"}; expires_at is optional.",
+        "operationId": "post_grant_global_repositories_triggers__repo_id__grants_post",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/repositories/triggers/{repo_id}/grants/{grant_id}": {
+      "delete": {
+        "tags": [
+          "trigger_repositories"
+        ],
+        "summary": "Delete Grant",
+        "description": "Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).",
+        "operationId": "delete_grant_global_repositories_triggers__repo_id__grants__grant_id__delete",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Grant Id"
+            }
+          },
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/repositories/triggers/{repo_id}/owner": {
+      "put": {
+        "tags": [
+          "trigger_repositories"
+        ],
+        "summary": "Put Owner",
+        "description": "SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has\ncalled nexus-api ({\"user_id\": \"...\"}, 404 if unknown). Returns the record's grants.",
+        "operationId": "put_owner_global_repositories_triggers__repo_id__owner_put",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OwnerRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Req"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Put Owner Global Repositories Triggers  Repo Id  Owner Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/repositories/results/{repo_id}/grants": {
+      "get": {
+        "tags": [
+          "results_repositories"
+        ],
+        "summary": "Get Grants",
+        "description": "The record's grants, oldest first.",
+        "operationId": "get_grants_global_repositories_results__repo_id__grants_get",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Get Grants Global Repositories Results  Repo Id  Grants Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "results_repositories"
+        ],
+        "summary": "Post Grant",
+        "description": "Adds a grant. Body: {\"relation\": \"read\", \"subject_type\": \"group\", \"subject_id\": \"/studies/uc1\",\n\"expires_at\": \"2027-01-01T00:00:00Z\"}; expires_at is optional.",
+        "operationId": "post_grant_global_repositories_results__repo_id__grants_post",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/repositories/results/{repo_id}/grants/{grant_id}": {
+      "delete": {
+        "tags": [
+          "results_repositories"
+        ],
+        "summary": "Delete Grant",
+        "description": "Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).",
+        "operationId": "delete_grant_global_repositories_results__repo_id__grants__grant_id__delete",
+        "parameters": [
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Grant Id"
+            }
+          },
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/repositories/results/{repo_id}/owner": {
+      "put": {
+        "tags": [
+          "results_repositories"
+        ],
+        "summary": "Put Owner",
+        "description": "SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has\ncalled nexus-api ({\"user_id\": \"...\"}, 404 if unknown). Returns the record's grants.",
+        "operationId": "put_owner_global_repositories_results__repo_id__owner_put",
+        "parameters": [
+          {
+            "name": "repo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repo Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/OwnerRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Req"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GrantDTO"
+                  },
+                  "title": "Response Put Owner Global Repositories Results  Repo Id  Owner Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5065,7 +6307,17 @@
             "type": "string",
             "title": "Url"
           },
-          "owner": {
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owned_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -5093,7 +6345,8 @@
           "updated_at",
           "slug",
           "url",
-          "owner"
+          "created_by",
+          "owned_by"
         ],
         "title": "DatasetDTO"
       },
@@ -5182,7 +6435,17 @@
             "type": "string",
             "title": "Updated At"
           },
-          "owner": {
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owned_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -5204,7 +6467,8 @@
           "revoked",
           "created_at",
           "updated_at",
-          "owner"
+          "created_by",
+          "owned_by"
         ],
         "title": "GitProviderDTO"
       },
@@ -5514,6 +6778,115 @@
         ],
         "title": "GlobalHealthDTO"
       },
+      "GrantDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "relation": {
+            "type": "string",
+            "title": "Relation"
+          },
+          "subject_type": {
+            "type": "string",
+            "title": "Subject Type"
+          },
+          "subject_id": {
+            "type": "string",
+            "title": "Subject Id"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "relation",
+          "subject_type",
+          "subject_id",
+          "expires_at",
+          "created_by",
+          "created_at"
+        ],
+        "title": "GrantDTO",
+        "description": "One grant on a record (ADR 0038). subject_id is a Keycloak user id or group path; created_by a user id."
+      },
+      "GrantRequest": {
+        "properties": {
+          "relation": {
+            "type": "string",
+            "enum": [
+              "read",
+              "assign",
+              "execute",
+              "operate",
+              "write",
+              "manage"
+            ],
+            "title": "Relation"
+          },
+          "subject_type": {
+            "type": "string",
+            "enum": [
+              "user",
+              "group"
+            ],
+            "title": "Subject Type"
+          },
+          "subject_id": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Subject Id"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "relation",
+          "subject_type",
+          "subject_id"
+        ],
+        "title": "GrantRequest",
+        "description": "A grant to add. With no expires_at it never expires."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5667,6 +7040,27 @@
         ],
         "title": "NodeHealthDTO",
         "description": "GET /health_check: whether the node's Keycloak answers. \"ok\" or \"non operational\"."
+      },
+      "OwnerRequest": {
+        "properties": {
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "OwnerRequest",
+        "description": "The new owner: a nexus-api user id. Leave it out to claim the record for the caller."
       },
       "Page_DatasetDTO_": {
         "properties": {
@@ -5930,7 +7324,17 @@
             "type": "string",
             "title": "Updated At"
           },
-          "owner": {
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owned_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -5951,7 +7355,8 @@
           "default_dataset_id",
           "created_at",
           "updated_at",
-          "owner"
+          "created_by",
+          "owned_by"
         ],
         "title": "ProjectDTO"
       },
@@ -5976,7 +7381,7 @@
             "type": "boolean",
             "title": "Active"
           },
-          "owner": {
+          "created_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -5994,7 +7399,7 @@
           "enabled",
           "revoked",
           "active",
-          "owner"
+          "created_by"
         ],
         "title": "ProjectDatasetDTO",
         "description": "A project's resource for a global dataset, the dataset nested. Addressed by the dataset's id."
@@ -6144,7 +7549,7 @@
             "type": "boolean",
             "title": "Active"
           },
-          "owner": {
+          "created_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -6165,7 +7570,7 @@
           "enabled",
           "revoked",
           "active",
-          "owner"
+          "created_by"
         ],
         "title": "ProjectResultsRepositoryDTO",
         "description": "A project's resource for a global results repository, the repository nested. Addressed by the repository's id."
@@ -6334,7 +7739,7 @@
             "type": "boolean",
             "title": "Active"
           },
-          "owner": {
+          "created_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -6352,7 +7757,7 @@
           "enabled",
           "revoked",
           "active",
-          "owner"
+          "created_by"
         ],
         "title": "ProjectSecretDTO",
         "description": "A project's resource for a global secret, the reference nested. Addressed by the secret's label. Never carries values."
@@ -6437,7 +7842,7 @@
             "type": "boolean",
             "title": "Active"
           },
-          "owner": {
+          "created_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -6460,7 +7865,7 @@
           "enabled",
           "revoked",
           "active",
-          "owner"
+          "created_by"
         ],
         "title": "ProjectTriggerRepositoryDTO",
         "description": "A project's resource for a global trigger repository, the repository nested. Addressed by the repository's id."
@@ -7081,7 +8486,17 @@
             "type": "boolean",
             "title": "Revoked"
           },
-          "owner": {
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owned_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -7101,7 +8516,8 @@
           "secret",
           "enabled",
           "revoked",
-          "owner"
+          "created_by",
+          "owned_by"
         ],
         "title": "ResultsRepositoryDTO"
       },
@@ -7198,7 +8614,17 @@
             "type": "string",
             "title": "Updated At"
           },
-          "owner": {
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owned_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -7220,7 +8646,8 @@
           "enabled",
           "created_at",
           "updated_at",
-          "owner"
+          "created_by",
+          "owned_by"
         ],
         "title": "SecretDTO"
       },
@@ -7851,7 +9278,17 @@
             "type": "string",
             "title": "Pr Cursor"
           },
-          "owner": {
+          "created_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owned_by": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/UserRefDTO"
@@ -7872,7 +9309,8 @@
           "enabled",
           "revoked",
           "pr_cursor",
-          "owner"
+          "created_by",
+          "owned_by"
         ],
         "title": "TriggerRepositoryDTO"
       },
@@ -7959,7 +9397,7 @@
           "username"
         ],
         "title": "UserRefDTO",
-        "description": "A nexus-api user as a record names it, as its owner (ADR 0036)."
+        "description": "A nexus-api user as a record names it, as its creator or owner (ADR 0038)."
       },
       "ValidationError": {
         "properties": {

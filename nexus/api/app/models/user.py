@@ -1,6 +1,6 @@
 """
 A Keycloak identity that has called nexus-api (ADR 0036). Identity only: what a caller may do stays in
-Keycloak. Records point at it to say who owns them.
+Keycloak. Records point at it to say who created them and who owns them.
 """
 from datetime import timedelta
 
@@ -10,6 +10,7 @@ from sqlalchemy.orm import declared_attr, relationship
 from sqlalchemy.sql import func
 
 from app.database.base_model import BaseModel, db
+from app.models.grant import OBJECT_TYPES, Grant
 
 
 class User(db.Model, BaseModel):
@@ -48,18 +49,47 @@ class User(db.Model, BaseModel):
         return f'<User ({self.username})>'
 
 
-class OwnedMixin:
+class CreatedByMixin:
     """
-    Who created a record (ADR 0035): owner_id is the user that created it. A model opts in by inheriting
-    this; creating routes set it through helpers/ownership.set_owner.
+    Who created a record (ADR 0037): created_by is set once, on create, for audit, and grants nothing. Every
+    record a caller creates has it; creating routes set it through helpers/ownership.
     """
 
     @declared_attr
-    def owner_id(cls):  # pylint: disable=no-self-argument
-        """The user that created the record."""
-        return sa.Column(sa.String(255), sa.ForeignKey('users.id'), nullable=True)
+    def created_by_id(cls):  # pylint: disable=no-self-argument
+        """The user that created the record (column created_by)."""
+        return sa.Column('created_by', sa.String(255), sa.ForeignKey('users.id'), nullable=True)
 
     @declared_attr
-    def owner(cls):  # pylint: disable=no-self-argument
-        """The owner_id's user."""
-        return relationship("User", foreign_keys=f"[{cls.__name__}.owner_id]")
+    def created_by(cls):  # pylint: disable=no-self-argument
+        """The created_by user."""
+        return relationship("User", foreign_keys=f"[{cls.__name__}.created_by_id]")
+
+
+class OwnedMixin(CreatedByMixin):
+    """
+    A project or a global record, which has grants (ADR 0037). owned_by is who is responsible for it now; it
+    changes when SuperUser claims or re-assigns it, and grants nothing by itself. A model declares authz_type,
+    the name its grants and the policies use; it is never derived from the class or table name.
+    """
+    authz_type: str
+
+    def __init_subclass__(cls, **kwargs):
+        if cls.__dict__.get('authz_type') not in OBJECT_TYPES:
+            raise TypeError(f"{cls.__name__} must declare authz_type, one of {OBJECT_TYPES}")
+        super().__init_subclass__(**kwargs)
+
+    def soft_delete(self):
+        """Deleting the record deletes its grants, in the same transaction (before SoftDeleteMixin in the bases)."""
+        Grant.delete_for(self)
+        super().soft_delete()
+
+    @declared_attr
+    def owned_by_id(cls):  # pylint: disable=no-self-argument
+        """The user responsible for the record (column owned_by)."""
+        return sa.Column('owned_by', sa.String(255), sa.ForeignKey('users.id'), nullable=True)
+
+    @declared_attr
+    def owned_by(cls):  # pylint: disable=no-self-argument
+        """The owned_by user."""
+        return relationship("User", foreign_keys=f"[{cls.__name__}.owned_by_id]")

@@ -103,6 +103,16 @@ class ModelRegistry:
         return Secret
 
     @cached_property
+    def Grant(self):
+        from app.models.grant import Grant
+        return Grant
+
+    @cached_property
+    def PolicyVersion(self):
+        from app.models.policy_version import PolicyVersion
+        return PolicyVersion
+
+    @cached_property
     def User(self):
         from app.models.user import User
         return User
@@ -138,6 +148,8 @@ __all__ = ['sqla_column', 'SqlaColumn', 'ModelRegistry', 'Models']
 # This ensures string-based relationships can be resolved to avoid circular dependencies.
 _ = (
     Models.User,
+    Models.Grant,
+    Models.PolicyVersion,
     Models.Dataset,
     Models.ProjectDataset,
     Models.Project,

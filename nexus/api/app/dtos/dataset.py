@@ -28,7 +28,8 @@ class DatasetDTO(DTO):
     updated_at: WireDatetime
     slug: str
     url: str
-    owner: UserRefDTO | None
+    created_by: UserRefDTO | None
+    owned_by: UserRefDTO | None
 
     @classmethod
     def from_model(cls, obj: Dataset):
@@ -49,7 +50,8 @@ class DatasetDTO(DTO):
             updated_at=obj.updated_at,
             slug=slug,
             url=f"https://{settings.node.public_url}/global/datasets/{obj.id}",
-            owner=UserRefDTO.of(obj.owner),
+            created_by=UserRefDTO.of(obj.created_by),
+            owned_by=UserRefDTO.of(obj.owned_by),
         )
 
 
@@ -60,7 +62,7 @@ class ProjectDatasetDTO(DTO):
     enabled: bool
     revoked: bool
     active: bool
-    owner: UserRefDTO | None
+    created_by: UserRefDTO | None
 
     @classmethod
     def from_model(cls, obj: ProjectDataset):
@@ -70,7 +72,7 @@ class ProjectDatasetDTO(DTO):
             enabled=obj.enabled,
             revoked=obj.revoked,
             active=obj.active,
-            owner=UserRefDTO.of(obj.owner),
+            created_by=UserRefDTO.of(obj.created_by),
         )
 
 

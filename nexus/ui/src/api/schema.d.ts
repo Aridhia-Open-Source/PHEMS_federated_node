@@ -1579,6 +1579,402 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Grants
+         * @description The record's grants, oldest first.
+         */
+        get: operations["get_grants_projects__project_id__grants_get"];
+        put?: never;
+        /**
+         * Post Grant
+         * @description Adds a grant. Body: {"relation": "read", "subject_type": "group", "subject_id": "/studies/uc1",
+         *     "expires_at": "2027-01-01T00:00:00Z"}; expires_at is optional.
+         */
+        post: operations["post_grant_projects__project_id__grants_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/grants/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Grant
+         * @description Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).
+         */
+        delete: operations["delete_grant_projects__project_id__grants__grant_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Owner
+         * @description SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has
+         *     called nexus-api ({"user_id": "..."}, 404 if unknown). Returns the record's grants.
+         */
+        put: operations["put_owner_projects__project_id__owner_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/datasets/{dataset_id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Grants
+         * @description The record's grants, oldest first.
+         */
+        get: operations["get_grants_global_datasets__dataset_id__grants_get"];
+        put?: never;
+        /**
+         * Post Grant
+         * @description Adds a grant. Body: {"relation": "read", "subject_type": "group", "subject_id": "/studies/uc1",
+         *     "expires_at": "2027-01-01T00:00:00Z"}; expires_at is optional.
+         */
+        post: operations["post_grant_global_datasets__dataset_id__grants_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/datasets/{dataset_id}/grants/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Grant
+         * @description Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).
+         */
+        delete: operations["delete_grant_global_datasets__dataset_id__grants__grant_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/datasets/{dataset_id}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Owner
+         * @description SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has
+         *     called nexus-api ({"user_id": "..."}, 404 if unknown). Returns the record's grants.
+         */
+        put: operations["put_owner_global_datasets__dataset_id__owner_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/providers/{provider_id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Grants
+         * @description The record's grants, oldest first.
+         */
+        get: operations["get_grants_global_providers__provider_id__grants_get"];
+        put?: never;
+        /**
+         * Post Grant
+         * @description Adds a grant. Body: {"relation": "read", "subject_type": "group", "subject_id": "/studies/uc1",
+         *     "expires_at": "2027-01-01T00:00:00Z"}; expires_at is optional.
+         */
+        post: operations["post_grant_global_providers__provider_id__grants_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/providers/{provider_id}/grants/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Grant
+         * @description Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).
+         */
+        delete: operations["delete_grant_global_providers__provider_id__grants__grant_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/providers/{provider_id}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Owner
+         * @description SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has
+         *     called nexus-api ({"user_id": "..."}, 404 if unknown). Returns the record's grants.
+         */
+        put: operations["put_owner_global_providers__provider_id__owner_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/secrets/{label}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Grants
+         * @description The record's grants, oldest first.
+         */
+        get: operations["get_grants_global_secrets__label__grants_get"];
+        put?: never;
+        /**
+         * Post Grant
+         * @description Adds a grant. Body: {"relation": "read", "subject_type": "group", "subject_id": "/studies/uc1",
+         *     "expires_at": "2027-01-01T00:00:00Z"}; expires_at is optional.
+         */
+        post: operations["post_grant_global_secrets__label__grants_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/secrets/{label}/grants/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Grant
+         * @description Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).
+         */
+        delete: operations["delete_grant_global_secrets__label__grants__grant_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/secrets/{label}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Owner
+         * @description SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has
+         *     called nexus-api ({"user_id": "..."}, 404 if unknown). Returns the record's grants.
+         */
+        put: operations["put_owner_global_secrets__label__owner_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/triggers/{repo_id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Grants
+         * @description The record's grants, oldest first.
+         */
+        get: operations["get_grants_global_repositories_triggers__repo_id__grants_get"];
+        put?: never;
+        /**
+         * Post Grant
+         * @description Adds a grant. Body: {"relation": "read", "subject_type": "group", "subject_id": "/studies/uc1",
+         *     "expires_at": "2027-01-01T00:00:00Z"}; expires_at is optional.
+         */
+        post: operations["post_grant_global_repositories_triggers__repo_id__grants_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/triggers/{repo_id}/grants/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Grant
+         * @description Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).
+         */
+        delete: operations["delete_grant_global_repositories_triggers__repo_id__grants__grant_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/triggers/{repo_id}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Owner
+         * @description SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has
+         *     called nexus-api ({"user_id": "..."}, 404 if unknown). Returns the record's grants.
+         */
+        put: operations["put_owner_global_repositories_triggers__repo_id__owner_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/results/{repo_id}/grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Grants
+         * @description The record's grants, oldest first.
+         */
+        get: operations["get_grants_global_repositories_results__repo_id__grants_get"];
+        put?: never;
+        /**
+         * Post Grant
+         * @description Adds a grant. Body: {"relation": "read", "subject_type": "group", "subject_id": "/studies/uc1",
+         *     "expires_at": "2027-01-01T00:00:00Z"}; expires_at is optional.
+         */
+        post: operations["post_grant_global_repositories_results__repo_id__grants_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/results/{repo_id}/grants/{grant_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Grant
+         * @description Removes a grant. The grant that gives the owned_by user manage stays while they own the record (409).
+         */
+        delete: operations["delete_grant_global_repositories_results__repo_id__grants__grant_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/global/repositories/results/{repo_id}/owner": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Owner
+         * @description SuperUser only (409 for anyone else): claims the record (no body), or re-assigns it to a user that has
+         *     called nexus-api ({"user_id": "..."}, 404 if unknown). Returns the record's grants.
+         */
+        put: operations["put_owner_global_repositories_results__repo_id__owner_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1621,7 +2017,8 @@ export interface components {
             slug: string;
             /** Url */
             url: string;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
+            owned_by: components["schemas"]["UserRefDTO"] | null;
         };
         /**
          * DatasetHealthDTO
@@ -1663,7 +2060,8 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
+            owned_by: components["schemas"]["UserRefDTO"] | null;
         };
         /**
          * GitProviderHealthDTO
@@ -1780,6 +2178,46 @@ export interface components {
             /** Results Repositories */
             results_repositories: components["schemas"]["RepositoryConnectionDTO"][];
         };
+        /**
+         * GrantDTO
+         * @description One grant on a record (ADR 0038). subject_id is a Keycloak user id or group path; created_by a user id.
+         */
+        GrantDTO: {
+            /** Id */
+            id: number;
+            /** Relation */
+            relation: string;
+            /** Subject Type */
+            subject_type: string;
+            /** Subject Id */
+            subject_id: string;
+            /** Expires At */
+            expires_at: string | null;
+            /** Created By */
+            created_by: string | null;
+            /** Created At */
+            created_at: string;
+        };
+        /**
+         * GrantRequest
+         * @description A grant to add. With no expires_at it never expires.
+         */
+        GrantRequest: {
+            /**
+             * Relation
+             * @enum {string}
+             */
+            relation: "read" | "assign" | "execute" | "operate" | "write" | "manage";
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "user" | "group";
+            /** Subject Id */
+            subject_id: string;
+            /** Expires At */
+            expires_at?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1837,6 +2275,14 @@ export interface components {
             status: string;
             /** Keycloak */
             keycloak: boolean;
+        };
+        /**
+         * OwnerRequest
+         * @description The new owner: a nexus-api user id. Leave it out to claim the record for the caller.
+         */
+        OwnerRequest: {
+            /** User Id */
+            user_id?: string | null;
         };
         /** Page[DatasetDTO] */
         Page_DatasetDTO_: {
@@ -1929,7 +2375,8 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
+            owned_by: components["schemas"]["UserRefDTO"] | null;
         };
         /**
          * ProjectDatasetDTO
@@ -1945,7 +2392,7 @@ export interface components {
             revoked: boolean;
             /** Active */
             active: boolean;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
         };
         /** ProjectDatasetHealthDTO */
         ProjectDatasetHealthDTO: {
@@ -2008,7 +2455,7 @@ export interface components {
             revoked: boolean;
             /** Active */
             active: boolean;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
         };
         /** ProjectResultsRepositoryHealthDTO */
         ProjectResultsRepositoryHealthDTO: {
@@ -2078,7 +2525,7 @@ export interface components {
             revoked: boolean;
             /** Active */
             active: boolean;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
         };
         /** ProjectSecretHealthDTO */
         ProjectSecretHealthDTO: {
@@ -2116,7 +2563,7 @@ export interface components {
             revoked: boolean;
             /** Active */
             active: boolean;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
         };
         /** ProjectTriggerRepositoryHealthDTO */
         ProjectTriggerRepositoryHealthDTO: {
@@ -2336,7 +2783,8 @@ export interface components {
             enabled: boolean;
             /** Revoked */
             revoked: boolean;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
+            owned_by: components["schemas"]["UserRefDTO"] | null;
         };
         /** ResultsRepositoryHealthDTO */
         ResultsRepositoryHealthDTO: {
@@ -2373,7 +2821,8 @@ export interface components {
             created_at: string;
             /** Updated At */
             updated_at: string;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
+            owned_by: components["schemas"]["UserRefDTO"] | null;
         };
         /**
          * SecretHealthDTO
@@ -2584,7 +3033,8 @@ export interface components {
             revoked: boolean;
             /** Pr Cursor */
             pr_cursor: string;
-            owner: components["schemas"]["UserRefDTO"] | null;
+            created_by: components["schemas"]["UserRefDTO"] | null;
+            owned_by: components["schemas"]["UserRefDTO"] | null;
         };
         /**
          * TriggerRepositoryRefDTO
@@ -2618,7 +3068,7 @@ export interface components {
         };
         /**
          * UserRefDTO
-         * @description A nexus-api user as a record names it, as its owner (ADR 0036).
+         * @description A nexus-api user as a record names it, as its creator or owner (ADR 0038).
          */
         UserRefDTO: {
             /** Id */
@@ -5877,6 +6327,792 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Page_TaskDTO_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_grants_projects__project_id__grants_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_grant_projects__project_id__grants_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_grant_projects__project_id__grants__grant_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grant_id: number;
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_owner_projects__project_id__owner_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OwnerRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_grants_global_datasets__dataset_id__grants_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_grant_global_datasets__dataset_id__grants_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_grant_global_datasets__dataset_id__grants__grant_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grant_id: number;
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_owner_global_datasets__dataset_id__owner_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OwnerRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_grants_global_providers__provider_id__grants_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_grant_global_providers__provider_id__grants_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_grant_global_providers__provider_id__grants__grant_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grant_id: number;
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_owner_global_providers__provider_id__owner_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OwnerRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_grants_global_secrets__label__grants_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_grant_global_secrets__label__grants_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_grant_global_secrets__label__grants__grant_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grant_id: number;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_owner_global_secrets__label__owner_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OwnerRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_grants_global_repositories_triggers__repo_id__grants_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_grant_global_repositories_triggers__repo_id__grants_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_grant_global_repositories_triggers__repo_id__grants__grant_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grant_id: number;
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_owner_global_repositories_triggers__repo_id__owner_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OwnerRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_grants_global_repositories_results__repo_id__grants_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_grant_global_repositories_results__repo_id__grants_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_grant_global_repositories_results__repo_id__grants__grant_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                grant_id: number;
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_owner_global_repositories_results__repo_id__owner_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OwnerRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrantDTO"][];
                 };
             };
             /** @description Validation Error */

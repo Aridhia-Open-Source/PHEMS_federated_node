@@ -14,7 +14,8 @@ class ProjectDTO(DTO):
     default_dataset_id: int | None
     created_at: WireDatetime
     updated_at: WireDatetime
-    owner: UserRefDTO | None
+    created_by: UserRefDTO | None
+    owned_by: UserRefDTO | None
 
 
 class ProjectCreatedDTO(DTO):
