@@ -11,7 +11,7 @@ from app.definitions.sensors.task.launcher import TaskLauncherSensor
 from fednode.clients.nexus.models import Dataset, LaunchDecision, Project, Task
 
 # nexus-api sample responses, shared with the nexus-api tests (nexus/fednode/tests/contract)
-CONTRACT_DIR = Path(__file__).resolve().parents[3] / "nexus" / "client" / "tests" / "contract"
+CONTRACT_DIR = Path(__file__).resolve().parents[3] / "nexus" / "fednode" / "tests" / "contract"
 
 pytestmark = pytest.mark.usefixtures("artifacts_env")
 
