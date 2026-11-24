@@ -1157,17 +1157,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#catalogue-and-dictionaries" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Catalogue and dictionaries
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1591,17 +1580,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#catalogue-and-dictionaries" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Catalogue and dictionaries
-      
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -1745,11 +1723,6 @@
 <td>no</td>
 <td>Defaults to <code>true</code>.</td>
 </tr>
-<tr>
-<td><code>catalogue</code>, <code>dictionaries</code></td>
-<td>no</td>
-<td>A description of the data. See <a href="#catalogue-and-dictionaries">Catalogue and dictionaries</a>.</td>
-</tr>
 </tbody>
 </table>
 <p>Field types are strict: <code>port</code> must be a number, not <code>"5432"</code>, and <code>enabled</code> a boolean. <code>revoked</code> is not accepted on create: an admin revokes a dataset with a <code>PATCH</code>.</p>
@@ -1862,25 +1835,6 @@ curl<span class="w"> </span>-sS<span class="w"> </span><span class="s2">"</span>
 <p>A pending task whose dataset is switched off does not start, and its <code>state_cause</code> says why. Turning a dataset back on is refused with a <code>409</code> while its secret is switched off or deleted. <a href="../Operations/#switch-things-on-and-off">Operations</a> has the full list of switches.</p>
 <h3 id="delete">Delete<a class="headerlink" href="#delete" title="Permanent link">&para;</a></h3>
 <p><code>DELETE /global/datasets/&lt;id&gt;</code> is a <strong>soft delete</strong>: the dataset disappears from the API and the name is free again, but the record stays for the tasks and results that used it. If projects still use the dataset, the delete is refused with a <code>409</code> that lists them. Add <code>?force=true</code> to revoke and remove those project resources too. The dataset's secret is left alone, because other datasets may share it. Prefer switching a dataset off.</p>
-<h3 id="catalogue-and-dictionaries">Catalogue and dictionaries<a class="headerlink" href="#catalogue-and-dictionaries" title="Permanent link">&para;</a></h3>
-<p>You can describe a dataset when you register it or later, so people know what is in it without seeing the data. Send them in the same body:</p>
-<div class="highlight"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">"catalogue"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"OMOP CDM extract"</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Inpatient episodes 2018-2025"</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"5.4"</span>
-<span class="w">  </span><span class="p">},</span>
-<span class="w">  </span><span class="nt">"dictionaries"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">    </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">"table_name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"person"</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">"field_name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"year_of_birth"</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">"label"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Year of birth"</span><span class="p">,</span>
-<span class="w">      </span><span class="nt">"description"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Patient year of birth"</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">  </span><span class="p">]</span>
-<span class="p">}</span>
-</code></pre></div>
-<p><code>title</code> and <code>description</code> are required in a catalogue, <code>version</code> is optional. A dictionary entry needs <code>table_name</code>, <code>field_name</code> and <code>description</code>, and may have a <code>label</code>. A <code>PATCH</code> updates the catalogue, and adds or updates the entries it names. They are stored with the dataset.</p>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
