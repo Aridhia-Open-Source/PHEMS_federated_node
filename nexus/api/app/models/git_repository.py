@@ -53,9 +53,6 @@ class GitRepositoryMixin:
         """
         return mint_token(self.secret, self, self.TOKEN_PERMISSION)[0]
 
-    def check_connection(self) -> ConnectionCheck:
-        return self.prepare_connection_check()()
-
     def prepare_connection_check(self) -> Callable[[], ConnectionCheck]:
         """
         Whether the repository can be reached with its token, the way the sensors reach it:

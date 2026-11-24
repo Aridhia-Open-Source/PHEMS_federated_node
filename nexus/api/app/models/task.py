@@ -10,7 +10,7 @@ from app.helpers.compute import validate_cpu_resources, validate_memory_resource
 from app.helpers.base_model import BaseModel, db
 from app.helpers.git_uri import normalise_repo_uri
 from app.helpers.keycloak import Keycloak
-from app.helpers.exceptions import InvalidRequest, NotImplementedException
+from app.helpers.exceptions import InvalidRequest
 from app.models import Models, sqla_column
 from app.models.task_spec import TaskSpec
 from app.models.task_status import TaskStatus
@@ -176,33 +176,3 @@ class Task(db.Model, BaseModel):
                 f"{image} does not have a tag or is malformed. Please provide one in "
                 "the format <registry>/<image>:<tag> or <registry>/<image>@sha256.."
             )
-
-    def run(self):
-        """
-        Launches the task
-        """
-        raise NotImplementedException()
-
-    def get_status(self) -> dict | str:
-        """
-        Returns the task's status envelope
-        """
-        raise NotImplementedException()
-
-    def terminate_pod(self):
-        """
-        Cancels the task
-        """
-        raise NotImplementedException()
-
-    def get_results(self):
-        """
-        Returns the path to the task's zipped results
-        """
-        raise NotImplementedException()
-
-    def get_logs(self):
-        """
-        Returns the task's logs
-        """
-        raise NotImplementedException()
