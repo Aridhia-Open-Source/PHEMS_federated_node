@@ -41,7 +41,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0033](../project/decisions/0033-running-behind-a-tls-intercepting-proxy.md) | Running behind a TLS-intercepting proxy | One script checks the proxy and CA and writes only generated, gitignored env and values files that hand-edited ones override; image builds get the CA as a build secret. |
 | [0035](../project/decisions/0035-api-authorization-oidc-authentication.md) | Keycloak Authentication | An OIDC provider signs people in and supplies a user id, one node role and groups; nexus-api decides every access per record from its own database. |
 | [0036](../project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md) | Roles and Accounts | Keycloak is the provider shipped; five fixed realm roles; kc-init creates the system accounts; SuperUser bypasses grants, not the application's rules. |
-| [0037](../project/decisions/0037-cedar-authorization-grants-and-policies.md) | Cedar authorization - grants and policies | A `grants` table per record (owner, read, write, execute, assign, optional expiry); Cedar policies say what each allows; every route declares an `Access` check. |
+| [0037](../project/decisions/0037-cedar-authorization-grants-and-policies.md) | Cedar Authz Grants | A `grants` table per record (owner, read, write, execute, assign, optional expiry); Cedar policies say what each allows; every route declares an `Access` check. |
 
 ## Other docs by topic
 
