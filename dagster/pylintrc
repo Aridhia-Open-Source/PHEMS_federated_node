@@ -2,8 +2,8 @@
 
 # Add files or directories matching the regex patterns to the ignore-list. The
 # regex matches against paths and can be in Posix or Windows format.
-# Tests live under app/ here; nexus-api does not lint its tests either.
-ignore-paths=^app/tests/
+# Tests live under app/ here and under nexus/fednode/tests; nexus-api does not lint its tests either.
+ignore-paths=^app/tests/,^../nexus/fednode/tests/
 
 # Specify a score threshold to be exceeded before program exits with error.
 fail-under=9.0
