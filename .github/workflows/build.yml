@@ -74,7 +74,7 @@ jobs:
         run: |
           if [ "$EVENT" != "pull_request" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           branch="$BASE"
-          for _ in $(seq 20); do
+          for _ in $(seq 100); do
             case "$branch" in
               main|develop|dagster-main|dagster-develop)
                 echo "Base chain ends at $branch"; echo "run=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
