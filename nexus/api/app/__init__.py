@@ -1,8 +1,9 @@
 """
 Entrypoint for nexus-api: uvicorn --factory app:create_app.
 Every router is registered here up front; a router module owns its routes and nothing else.
-Deny by default: every router needs an admin node role (or Dagster), except the ones in OPEN_ROUTERS.
-Every write route declares an Access check (ADR 0037): nexus-api does not start if one has none.
+Deny by default: every router needs a signed-in caller with a node role, except the ones in OPEN_ROUTERS.
+Every route declares an Access check (ADR 0037), and every unchecked one a role gate of its own: nexus-api does
+not start if one has none.
 The Cedar policies are validated here too: nexus-api does not start if they fail. On startup a new policy
 hash is recorded in policy_versions.
 """
@@ -18,16 +19,16 @@ from app import (
     dagster_api, healthcheck_api, grants_api,
 )
 from app.errors import register_error_handlers
-from app.rules.authz import check_policies, record_policy_version, routes_without_access
+from app.rules.authz import check_policies, record_policy_version, routes_without_access, unchecked_without_gate
 from app.helpers.wrappers import require_role
-from app.models.node_role import ADMIN_ROLES, NodeRole
+from app.models.node_role import NodeRole
 from app.middleware import JsonObjectBodyMiddleware, SessionMiddleware, TrailingSlashMiddleware
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
 
-# The only routers reachable without an admin role. Keep this list short.
+# The only routers reachable without a token. Keep this list short.
 OPEN_ROUTERS = (
     main.router,  # /, /ready_check, /health_check, /login, /refresh_token: probes and getting a token
     users_api.reset_password_router,  # PUT /global/users/reset-password: a new user swaps their temp password
@@ -64,9 +65,12 @@ def create_app() -> FastAPI:
     unchecked = routes_without_access(routers())
     if unchecked:
         raise RuntimeError(f"Routes without an Access check: {', '.join(unchecked)}")
+    ungated = unchecked_without_gate([router for router in routers() if router not in OPEN_ROUTERS])
+    if ungated:
+        raise RuntimeError(f"Unchecked routes without a role gate: {', '.join(ungated)}")
     for router in routers():
-        gate = [Depends(require_role(*ADMIN_ROLES, NodeRole.DAGSTER))] if router not in OPEN_ROUTERS else None
-        app.include_router(router, dependencies=gate)
+        signed_in = router not in OPEN_ROUTERS
+        app.include_router(router, dependencies=[Depends(require_role(*NodeRole))] if signed_in else None)
     # After the routers: it adds the page and size parameters to every route whose response_model is a Page
     add_pagination(app)
     return app

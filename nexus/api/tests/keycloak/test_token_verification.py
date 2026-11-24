@@ -93,7 +93,7 @@ def test_a_bad_token_is_a_401_end_to_end(client, real_verification):
     pytest.param([], 401, id="no node role"),
     pytest.param(["Administrator", "SuperUser"], 401, id="two node roles"),
     pytest.param(["default-roles-federatednode", "offline_access"], 401, id="only Keycloak roles"),
-    pytest.param(["Users"], 403, id="Users on an admin router"),
+    pytest.param(["Users"], 200, id="Users get a list of what they may read"),
     pytest.param(["Administrator", "offline_access"], 200, id="Keycloak roles ignored"),
     pytest.param(["Dagster"], 200, id="Dagster passes the admin routers"),
 ])

@@ -44,6 +44,8 @@ router = APIRouter(
     prefix='/projects/{project_id}/repositories/triggers', tags=["project_trigger_repositories"]
 )
 session = db.session
+# A project resource's read checks the project
+READ_PROJECT = Depends(Access(model=Project, action=Action.READ))
 
 
 def _assignment(project_id: int, repo_id: int) -> ProjectTriggerRepository:
@@ -65,14 +67,13 @@ def _check_loop(assignment: ProjectTriggerRepository):
         raise
 
 
-@router.get('', response_model=list[ProjectTriggerRepositoryDTO])
+@router.get('', response_model=list[ProjectTriggerRepositoryDTO], dependencies=[READ_PROJECT])
 def list_project_trigger_repositories(project_id: int, active: str = ''):
     """
     GET /projects/<project_id>/repositories/triggers — the project's trigger repository
     resources, inactive ones included with their flags unless ?active=true, which returns only the
     active ones.
     """
-    Project.get_by_id(project_id)
     assignments = ProjectTriggerRepository.query.filter_by(project_id=project_id).order_by(ProjectTriggerRepository.id)
     if active.lower() == 'true':
         assignments = [a for a in assignments if a.active]
@@ -132,7 +133,7 @@ def put_project_trigger_repository(
     return ProjectTriggerRepositoryDTO.from_model(assignment)
 
 
-@router.get('/{repo_id}', response_model=ProjectTriggerRepositoryDTO)
+@router.get('/{repo_id}', response_model=ProjectTriggerRepositoryDTO, dependencies=[READ_PROJECT])
 def get_project_trigger_repository(project_id: int, repo_id: int):
     """
     GET /projects/<project_id>/repositories/triggers/<repo_id>
@@ -209,9 +210,9 @@ def _pull_request(project_id: int, repo_id: int, number: int) -> PullRequestTrig
     return pr
 
 
-# The pull_requests routes below are called by Dagster only. The writes are system user only; the reads are
-# still open to anyone with the scope, which should be restricted to internal callers too.
-@router.get('/{repo_id}/pull_requests', response_model=Page[PullRequestTriggerDTO])
+# The pull_requests routes below are called by Dagster. The writes are system user only; the reads check the
+# project like every other project read.
+@router.get('/{repo_id}/pull_requests', response_model=Page[PullRequestTriggerDTO], dependencies=[READ_PROJECT])
 def get_pull_requests(project_id: int, repo_id: int, state: str | None = None):
     """
     GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests — list PRs
@@ -237,7 +238,7 @@ def get_pull_requests(project_id: int, repo_id: int, state: str | None = None):
     return page_of(query, PullRequestTriggerDTO)
 
 
-@router.get('/{repo_id}/pull_requests/{number}', response_model=PullRequestTriggerDTO)
+@router.get('/{repo_id}/pull_requests/{number}', response_model=PullRequestTriggerDTO, dependencies=[READ_PROJECT])
 def get_pull_request(project_id: int, repo_id: int, number: int):
     """
     GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number> — get a single PR

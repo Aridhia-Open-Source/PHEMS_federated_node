@@ -31,14 +31,18 @@ Open issues: (1) the public /keycloak route keeps the prefix but Keycloak has no
 2026-11-22 20:39 phems/auth: feat/cedar-setup will change (Caller/NodeRole moves); merge it only when told
 2026-11-22 20:36 chunk 1 pushed (54d093427), CI started, guide posted
 2026-11-22 20:59 merged origin/feat/cedar-setup (Caller -> app/dtos/caller.py, NodeRole); rewrote test_system_user_routes for Cedar; relevant tests 379 passed
-2026-11-22 21:00 merge pushed, guide posted; xo done; CI on the push is the gate
-2026-11-22 21:07 realm state test expects version 3; pushed
-
-## Handover (2026-11-22, parked for usage cap)
-State: auth/7 #685 code complete and pushed (last b88702ff6). Access on every write route, startup walk, operate/assign/execute checks, fncli node files as admin, openapi.json + schema.d.ts regenerated, changelog, guides in PR body and comments, label review:ready. Relevant unit tests pass locally (379).
-Waiting on: CI for b88702ff6 (full suites).
-Next step: read CI; if it fails, fix locally (run only the failing files), push, tell phems/auth. Watch dagster fncli tests (test_nodefile_plan now patches build_admin_backend_api) and any nexus-api tests outside the access files that write fixture records as a non-owner.
-Not done on purpose: Users stay out of the router role gate until #688 checks reads.
-2026-11-22 21:35 resumed: CI 45070340079 failed 2 tests (admin-gate walk read Access.__name__; launch contract sample had no dataset owner); fixed, pushing for CI
-2026-11-22 21:35 PR body whole-PR guide rewritten; waiting on CI for fea1c9c88
-2026-11-22 21:36 merged origin/feat/cedar-setup (only .dockerignore changes), pushing for CI
+start: read brief, merging latest feat/cedar-policy-enforcement
+merged latest feat/cedar-policy-enforcement; reading authz code
+plan settled: Readable list dependency with Cedar probe, Access param override, role gate opened with per-route gates on unchecked
+read checks added: global detail/list, healthchecks, project resources, tasks, results; does_user_own_task removed
+cascade checks: require_each in dataset/repo/secret deletes
+snapshot test updated (GET + role gate); app starts
+read route walk added to test_users_and_ownership.py, 74 passed locally
+changed-file tests pass (ownership walk, list filtering, global resources, healthchecks, tasks list, pagination, unchecked routes); committing
+pushed code + realm version fix (74bf0066d); CI is the gate
+guide posted (comment + PR body), label review:ready, orchestrator told; waiting on CI for 74bf0066d
+merged parent #685 (CI fixes); pushed for CI
+HANDOVER (parked): code complete and pushed (fc97f5846), PR #688 labelled review:ready. Next: check CI on fc97f5846; if it fails, fix locally (changed-file tests via run_local_tests.sh, venv from t-075 worktree) and push.
+2026-11-23 09:33 fresh session: phems asks to fix 36 revoke/unrevoke CI failures on fc97f5846
+2026-11-23 09:40 tests updated for the opened role gate: Users without a grant get Cedar's 409, Users list providers (200), route walk checks a node role; 219 pass locally
+2026-11-23 09:41 pushed 361f3c2ba; merged into feat/auth-docs (#689) via temp worktree and pushed

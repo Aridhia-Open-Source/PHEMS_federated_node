@@ -1,6 +1,6 @@
 """
 Dagster (role Dagster) writes only its pipeline state (SYSTEM_ONLY routes), which an admin cannot write. It
-creates, changes and revokes no record: Cedar gives it no write (409). Users are refused by the role gate (403).
+creates, changes and revokes no record: Cedar gives it no write (409). Users without a grant get the same 409.
 """
 import pytest
 
@@ -33,9 +33,11 @@ SYSTEM_ROUTES = [
 ]
 
 
+@pytest.mark.usefixtures("global_dataset", "global_trigger_repo", "global_results_repo", "global_secret")
 @pytest.mark.parametrize("method,url,body", SYSTEM_ROUTES, ids=[f"{m} {u}" for m, u, _ in SYSTEM_ROUTES])
 def test_a_caller_who_is_neither_admin_nor_system_is_refused(client, post_json_user_header, method, url, body):
-    assert getattr(client, method)(url, json=body, headers=post_json_user_header).status_code == 403
+    """A User with no grant has no write on the record, or on Global for a create (409)."""
+    assert getattr(client, method)(url, json=body, headers=post_json_user_header).status_code == 409
 
 
 # (method, url, body) for the pull request, task and result writes Dagster makes, and the git token requests; the check runs
@@ -120,9 +122,9 @@ def _revoked(model, where):
 
 @pytest.mark.parametrize("kind", REVOKE_KINDS)
 def test_only_a_writer_can_revoke(client, admin_headers, system_headers, post_json_user_header, request, kind):
-    """Dagster has no write (409); Users do not pass the role gate yet (403, until reads are checked)."""
+    """Dagster and Users without a grant have no write (409)."""
     url, model, where = _revoke_target(request, kind)
-    for headers, code in ((system_headers, 409), (post_json_user_header, 403)):
+    for headers, code in ((system_headers, 409), (post_json_user_header, 409)):
         assert client.patch(url, json={"revoked": True}, headers=headers).status_code == code
         assert _revoked(model, where) is False
     revoked = client.patch(url, json={"revoked": True}, headers=admin_headers)
@@ -134,7 +136,7 @@ def test_only_a_writer_can_revoke(client, admin_headers, system_headers, post_js
 def test_only_a_writer_can_unrevoke(client, admin_headers, system_headers, post_json_user_header, request, kind):
     url, model, where = _revoke_target(request, kind)
     assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
-    for headers, code in ((system_headers, 409), (post_json_user_header, 403)):
+    for headers, code in ((system_headers, 409), (post_json_user_header, 409)):
         assert client.patch(url, json={"revoked": False}, headers=headers).status_code == code
         assert _revoked(model, where) is True
     restored = client.patch(url, json={"revoked": False}, headers=admin_headers)

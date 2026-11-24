@@ -9,7 +9,6 @@ Only a manage holder or SuperUser changes a record's grants; a deny is a 409 nam
 Cedar (Access(model=..., action=Action.MANAGE)); claiming and re-assigning stay a SuperUser role check on top.
 Listing them is a read, checked with the other reads.
 """
-from collections.abc import Callable
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends
@@ -32,16 +31,16 @@ from app.models.trigger_repository import TriggerRepository
 from app.models.user import OwnedMixin, User
 
 
-def _grants_router(prefix: str, tag: str, load: Callable, model: type[OwnedMixin]) -> APIRouter:
+def _grants_router(prefix: str, tag: str, model: type[OwnedMixin]) -> APIRouter:
     """
-    The grant routes of one record path. load is the dependency that gets the record from the path, 404 if
-    missing; its parameter names the path parameter. The writes get the record from Access instead.
+    The grant routes of one record path. Reading them needs read on the record, changing them manage.
     """
     router = APIRouter(prefix=prefix, tags=[tag])
+    read = Access(model=model, action=Action.READ)
     manage = Access(model=model, action=Action.MANAGE)
 
     @router.get('/grants', response_model=list[GrantDTO])
-    def get_grants(record: OwnedMixin = Depends(load)):
+    def get_grants(record: OwnedMixin = Depends(read)):
         """The record's grants, oldest first."""
         return [GrantDTO.from_model(grant) for grant in db.session.scalars(Grant.of(record).order_by(Grant.id))]
 
@@ -93,42 +92,11 @@ def _grants_router(prefix: str, tag: str, load: Callable, model: type[OwnedMixin
     return router
 
 
-def _load_project(project_id: int) -> Project:
-    return Project.get_by_id(project_id)
-
-
-def _load_dataset(dataset_id: int) -> Dataset:
-    return Dataset.get_by_id(dataset_id)
-
-
-def _load_provider(provider_id: int) -> GitProvider:
-    return GitProvider.get_by_id(provider_id)
-
-
-def _load_secret(label: str) -> Secret:
-    secret = Secret.query.filter(Secret.label == label).one_or_none()
-    if secret is None:
-        raise DBRecordNotFoundError(f"Secret {label} does not exist")
-    return secret
-
-
-def _load_trigger_repository(repo_id: int) -> TriggerRepository:
-    return TriggerRepository.get_by_id(repo_id)
-
-
-def _load_results_repository(repo_id: int) -> ResultsRepository:
-    return ResultsRepository.get_by_id(repo_id)
-
-
 routers = (
-    _grants_router('/projects/{project_id}', 'projects', _load_project, Project),
-    _grants_router('/global/datasets/{dataset_id}', 'datasets', _load_dataset, Dataset),
-    _grants_router('/global/providers/{provider_id}', 'git_providers', _load_provider, GitProvider),
-    _grants_router('/global/secrets/{label}', 'secrets', _load_secret, Secret),
-    _grants_router(
-        '/global/repositories/triggers/{repo_id}', 'trigger_repositories', _load_trigger_repository, TriggerRepository,
-    ),
-    _grants_router(
-        '/global/repositories/results/{repo_id}', 'results_repositories', _load_results_repository, ResultsRepository,
-    ),
+    _grants_router('/projects/{project_id}', 'projects', Project),
+    _grants_router('/global/datasets/{dataset_id}', 'datasets', Dataset),
+    _grants_router('/global/providers/{provider_id}', 'git_providers', GitProvider),
+    _grants_router('/global/secrets/{label}', 'secrets', Secret),
+    _grants_router('/global/repositories/triggers/{repo_id}', 'trigger_repositories', TriggerRepository),
+    _grants_router('/global/repositories/results/{repo_id}', 'results_repositories', ResultsRepository),
 )

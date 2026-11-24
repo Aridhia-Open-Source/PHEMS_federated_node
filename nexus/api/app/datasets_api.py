@@ -18,7 +18,7 @@ from fastapi_pagination import Page
 from app.dtos.base import page_of
 from app.dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from app.database.base_model import db
-from app.rules.authz import Access, Action, Global
+from app.rules.authz import Access, Action, Global, Listing, Readable, require_each
 from app.helpers.exceptions import InvalidRequest
 from app.rules.ownership import set_owner
 from app.database.soft_delete import delete_global
@@ -32,11 +32,11 @@ session = db.session
 
 
 @router.get('', response_model=Page[DatasetDTO])
-def get_datasets():
+def get_datasets(*, listing: Listing = Depends(Readable(Dataset))):
     """
-    GET /global/datasets/ endpoint. Returns a list of all datasets
+    GET /global/datasets/ endpoint. Returns a page of the datasets the caller may read
     """
-    return page_of(Dataset.query, DatasetDTO)
+    return page_of(listing.filter(Dataset.query), DatasetDTO, keep=listing.allowed)
 
 
 def _reject_project(body: dict):
@@ -97,21 +97,25 @@ def post_datasets(body: dict = Body(default_factory=dict), caller: Caller = Depe
 
 
 @router.get('/{dataset_id}', response_model=DatasetDTO)
-def get_dataset(dataset_id: int):
+def get_dataset(*, ds: Dataset = Depends(Access(model=Dataset, action=Action.READ))):
     """
     GET /global/datasets/id endpoint. Gets dataset with a give id
     """
-    ds = Dataset.get_by_id(dataset_id)
     return DatasetDTO.from_model(ds)
 
 
 @router.delete('/{dataset_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_dataset(force: bool = False, *, ds: Dataset = Depends(Access(model=Dataset, action=Action.WRITE))):
+def delete_dataset(
+    force: bool = False, *, ds: Dataset = Depends(Access(model=Dataset, action=Action.WRITE)),
+    caller: Caller = Depends(get_caller),
+):
     """
     DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
         unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
-        other datasets may share it.
+        other datasets may share it. With force the caller needs write on each of those projects.
     """
+    if force:
+        require_each(caller, Action.WRITE, [assignment.project for assignment in ds.project_assignments])
     delete_global(ds, ds.project_assignments, force)
 
 

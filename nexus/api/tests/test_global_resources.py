@@ -8,6 +8,7 @@ from app.database.base_model import db
 from app.models.dataset import Dataset
 from app.models.results_repository import ResultsRepository
 from app.models.trigger_repository import TriggerRepository
+from tests.conftest import claims_for
 
 DS = "/global/datasets"
 SEC = "/global/secrets"
@@ -220,6 +221,23 @@ def test_assigned_dataset_can_be_edited_disabled_and_force_deleted(client, admin
     assert client.get(f"/projects/{project.id}", headers=admin_headers).json()["default_dataset_id"] is None
 
 
+def test_a_force_delete_with_one_project_the_caller_cannot_write_deletes_nothing(
+    client, admin_headers, token_claims, assigned_dataset, project,
+):
+    """A manager of the dataset with no write on the project it is assigned to: the cascade is refused whole."""
+    token_claims["other_token"] = claims_for("id-other", "other", "Administrator")
+    dataset_id = assigned_dataset["dataset"]["id"]
+    body = {"relation": "manage", "subject_type": "user", "subject_id": "id-other"}
+    assert client.post(f"{DS}/{dataset_id}/grants", json=body, headers=admin_headers).status_code == 201
+
+    refused = client.delete(f"{DS}/{dataset_id}?force=true", headers={"Authorization": "Bearer other_token"})
+
+    assert refused.status_code == 409, refused.json()
+    assert f"<Project {project.name}>" in refused.json()["error"]
+    assert client.get(f"{DS}/{dataset_id}", headers=admin_headers).status_code == 200
+    assert len(client.get(f"/projects/{project.id}/datasets", headers=admin_headers).json()) == 1
+
+
 def test_a_deleted_dataset_name_can_be_created_again(client, admin_headers, global_secret):
     created = client.post(DS, json=ds_body(), headers=admin_headers)
     assert created.status_code == 201
@@ -370,7 +388,7 @@ WRITE_FAMILIES = {
 
 @pytest.mark.parametrize("method", ["post", "patch", "delete"])
 @pytest.mark.parametrize("family", WRITE_FAMILIES)
-def test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources(
+def test_a_user_without_grants_is_refused_on_the_write_routes_of_the_global_resources(
         client, admin_headers, post_json_user_header, request, family, method):
     base, fixture, ident = WRITE_FAMILIES[family]
     resource = request.getfixturevalue(fixture)
@@ -378,7 +396,8 @@ def test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources(
 
     refused = getattr(client, method)(url, json={"enabled": False}, headers=post_json_user_header)
 
-    assert refused.status_code == 403, refused.json()
+    # A user passes the router and Cedar refuses: no grant on the record, and only admins create global ones
+    assert refused.status_code == 409, refused.json()
     # nothing changed or went
     kept = client.get(f"{base}/{ident(resource)}", headers=admin_headers)
     assert kept.status_code == 200 and kept.json()["enabled"] is True

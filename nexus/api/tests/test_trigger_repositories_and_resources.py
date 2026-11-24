@@ -197,7 +197,7 @@ def test_resource_is_invisible_to_other_projects(client, admin_headers, assigned
 
 def test_revoke_is_admin_only(client, admin_headers, post_json_user_header, assigned_trigger_repo):
     url = f"/projects/{assigned_trigger_repo['project_id']}/repositories/triggers/{assigned_trigger_repo['trigger_repository']['id']}"
-    assert patch(client, post_json_user_header, url, {"revoked": True}).status_code == 403
+    assert patch(client, post_json_user_header, url, {"revoked": True}).status_code == 409
     revoked = patch(client, admin_headers, url, {"revoked": True})
     assert revoked.status_code == 200
     assert revoked.json()["revoked"] is True and revoked.json()["active"] is False
@@ -456,7 +456,7 @@ def test_patch_revoked_must_be_a_boolean(ctx, client, admin_headers, value):
 def test_patch_revoked_is_admin_only_shows_in_the_dto_and_leaves_enabled_alone(
         ctx, client, admin_headers, post_json_user_header):
     assert get(client, admin_headers, ctx.glob).json()["revoked"] is False
-    assert patch(client, post_json_user_header, ctx.glob, {"revoked": True}).status_code == 403
+    assert patch(client, post_json_user_header, ctx.glob, {"revoked": True}).status_code == 409
     assert get(client, admin_headers, ctx.glob).json()["revoked"] is False
 
     revoked = patch(client, admin_headers, ctx.glob, {"revoked": True})

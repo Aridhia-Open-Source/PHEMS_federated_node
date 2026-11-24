@@ -21,13 +21,14 @@ only the network calls run in the threads (a repository's check first gets its t
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.dtos.healthcheck import (
     DatasetHealthDTO, GitProviderHealthDTO, GlobalHealthDTO, ProjectDatasetHealthDTO, ProjectResultsRepositoryHealthDTO,
     ProjectSecretHealthDTO, ProjectTriggerRepositoryHealthDTO, RepositoryConnectionDTO, SecretHealthDTO
 )
 from app.dtos.project import HealthCheckDTO, ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
+from app.rules.authz import ADMIN_UNCHECKED, Access, Action
 from app.helpers.exceptions import DBRecordNotFoundError
 from app.repos.git_tokens import missing_credential_keys
 from app.models.dataset import Dataset
@@ -43,11 +44,13 @@ from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.models.trigger_repository import TriggerRepository
 from app.projects_api import _dataset_resource, _results_resource, _secret_resource
-from app.secrets_api import SecretProvider, _get_secret
+from app.secrets_api import SecretProvider
 
 HEALTHCHECK_MAX_WORKERS = 8
 
 router = APIRouter(tags=["healthcheck"])
+# A project resource's check reads the project
+READ_PROJECT = Depends(Access(model=Project, action=Action.READ))
 
 
 def _trigger_resource(project_id: int, repository_id: int) -> ProjectTriggerRepository:
@@ -197,7 +200,11 @@ def prepare_results_resource_health(resource: ProjectResultsRepository) -> Calla
     )
 
 
-@router.get('/global/healthcheck', response_model=GlobalHealthDTO)
+# Unchecked: every global record at once, for the node's admins; the admin roles gate it
+@router.get(
+    '/global/healthcheck', response_model=GlobalHealthDTO,
+    dependencies=ADMIN_UNCHECKED,
+)
 def global_healthcheck():
     """
     GET /global/healthcheck endpoint. Checks every global dataset, secret, trigger repository
@@ -224,57 +231,62 @@ def global_healthcheck():
 
 
 @router.get('/global/datasets/{dataset_id}/healthcheck', response_model=DatasetHealthDTO)
-def dataset_healthcheck(dataset_id: int):
+def dataset_healthcheck(*, dataset: Dataset = Depends(Access(model=Dataset, action=Action.READ))):
     """
     GET /global/datasets/<dataset_id>/healthcheck endpoint. Whether the node can connect to the
     dataset's database with its secret.
     """
-    return prepare_dataset_health(Dataset.get_by_id(dataset_id))()
+    return prepare_dataset_health(dataset)()
 
 
 @router.get('/global/secrets/{label}/healthcheck', response_model=SecretHealthDTO)
-def secret_healthcheck(label: str):
+def secret_healthcheck(*, secret: Secret = Depends(Access(model=Secret, action=Action.READ))):
     """
     GET /global/secrets/<label>/healthcheck endpoint. Whether the secret is in its store with the
     keys its datasets and repositories need. Never the values.
     """
-    return prepare_secret_health(_get_secret(label))()
+    return prepare_secret_health(secret)()
 
 
 @router.get('/global/providers/{provider_id}/healthcheck', response_model=GitProviderHealthDTO)
-def provider_healthcheck(provider_id: int):
+def provider_healthcheck(*, provider: GitProvider = Depends(Access(model=GitProvider, action=Action.READ))):
     """
     GET /global/providers/<provider_id>/healthcheck endpoint. Whether the provider's API answers.
     """
-    return prepare_provider_health(GitProvider.get_by_id(provider_id))()
+    return prepare_provider_health(provider)()
 
 
 @router.get('/global/repositories/triggers/{repository_id}/healthcheck', response_model=RepositoryConnectionDTO)
-def trigger_repository_healthcheck(repository_id: int):
+def trigger_repository_healthcheck(
+    *,
+    repository: TriggerRepository = Depends(Access(model=TriggerRepository, action=Action.READ, param="repository_id")),
+):
     """
     GET /global/repositories/triggers/<repository_id>/healthcheck endpoint. Whether the repository
     can be reached with its own secret.
     """
-    return prepare_repository_health(TriggerRepository.get_by_id(repository_id))()
+    return prepare_repository_health(repository)()
 
 
 @router.get('/global/repositories/results/{repository_id}/healthcheck', response_model=RepositoryConnectionDTO)
-def results_repository_healthcheck(repository_id: int):
+def results_repository_healthcheck(
+    *,
+    repository: ResultsRepository = Depends(Access(model=ResultsRepository, action=Action.READ, param="repository_id")),
+):
     """
     GET /global/repositories/results/<repository_id>/healthcheck endpoint. Whether the repository
     can be reached with its own secret.
     """
-    return prepare_repository_health(ResultsRepository.get_by_id(repository_id))()
+    return prepare_repository_health(repository)()
 
 
 @router.get('/projects/{project_id}/healthcheck', response_model=ProjectHealthDTO)
-def project_healthcheck(project_id: int):
+def project_healthcheck(*, project: Project = Depends(Access(model=Project, action=Action.READ))):
     """
     GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository resource can be
     reached with its token, and reports its pull request count and the project's results
     repository. A failed check is reported in the body, still with a 200.
     """
-    project = Project.get_by_id(project_id)
 
     trigger_resources = list(project.trigger_repository_assignments)
     results_resource = project.get_results_repository()
@@ -319,7 +331,10 @@ def project_healthcheck(project_id: int):
     return health
 
 
-@router.get('/projects/{project_id}/datasets/{dataset_id}/healthcheck', response_model=ProjectDatasetHealthDTO)
+@router.get(
+    '/projects/{project_id}/datasets/{dataset_id}/healthcheck',
+    response_model=ProjectDatasetHealthDTO, dependencies=[READ_PROJECT],
+)
 def project_dataset_healthcheck(project_id: int, dataset_id: int):
     """
     GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's
@@ -328,7 +343,10 @@ def project_dataset_healthcheck(project_id: int, dataset_id: int):
     return prepare_dataset_resource_health(_dataset_resource(project_id, dataset_id))()
 
 
-@router.get('/projects/{project_id}/secrets/{label}/healthcheck', response_model=ProjectSecretHealthDTO)
+@router.get(
+    '/projects/{project_id}/secrets/{label}/healthcheck',
+    response_model=ProjectSecretHealthDTO, dependencies=[READ_PROJECT],
+)
 def project_secret_healthcheck(project_id: int, label: str):
     """
     GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check
@@ -337,7 +355,10 @@ def project_secret_healthcheck(project_id: int, label: str):
     return prepare_secret_resource_health(_secret_resource(project_id, label))()
 
 
-@router.get('/projects/{project_id}/repositories/triggers/{repository_id}/healthcheck', response_model=ProjectTriggerRepositoryHealthDTO)
+@router.get(
+    '/projects/{project_id}/repositories/triggers/{repository_id}/healthcheck',
+    response_model=ProjectTriggerRepositoryHealthDTO, dependencies=[READ_PROJECT],
+)
 def project_trigger_repository_healthcheck(project_id: int, repository_id: int):
     """
     GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The
@@ -347,7 +368,10 @@ def project_trigger_repository_healthcheck(project_id: int, repository_id: int):
     return prepare_trigger_resource_health(_trigger_resource(project_id, repository_id))()
 
 
-@router.get('/projects/{project_id}/repositories/results/{repository_id}/healthcheck', response_model=ProjectResultsRepositoryHealthDTO)
+@router.get(
+    '/projects/{project_id}/repositories/results/{repository_id}/healthcheck',
+    response_model=ProjectResultsRepositoryHealthDTO, dependencies=[READ_PROJECT],
+)
 def project_results_repository_healthcheck(project_id: int, repository_id: int):
     """
     GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The
