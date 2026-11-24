@@ -1,5 +1,17 @@
 # Releases Changelog
 ## Unreleased
+- Node config from git, applied by the nexus operator ([#700](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/700), ADR 0032, wiki pages Node-Config and Node-Secrets):
+  - New `nexus/operator` (Kopf), image `nexus_operator`, off by default (`operator.enabled`). It runs in its own namespace, `fn-operator` (`global.namespaces.operator`), and logs in as the Keycloak user `fn-operator`, whose password the rotation job rotates.
+  - CRDs `GitProvider`, `NodeSecret`, `Repository`, `Dataset`, `Project` (`fn.aridhia.com/v1alpha1`) in the chart's `crds/`; a pre-upgrade hook applies them on every `helm upgrade`.
+  - `nodeConfig` values render as those resources. The operator creates, updates and soft-deletes the records in nexus-api, never forced: a record still in use stays, with the reason in the resource's status.
+  - A `NodeSecret` names a Kubernetes Secret in its own namespace (`fromSecret` or `values.<KEY>.secretKeyRef`); rotated values are picked up every `operator.syncIntervalSeconds`.
+  - Turning the operator off or `helm uninstall` strips its finalizers first, so the nexus-api records stay.
+  - fncli no longer sets up node config: `fncli apply`, `diff` and `delete` are gone; dev uses `kubectl apply -f config/`, and `fncli gitea setup -f FILE` makes the Gitea repositories and Secrets a file needs.
+  - `nexus/client`, the nexus-api client shared by Dagster, fncli and the operator, moves out of `dagster/app`.
+- The nexus operator owns its records through grants ([#697](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/697), ADR 0037):
+  - Records the operator creates are managed by `/roles/service`; a UI or API edit of one is a 409, so config changes go through git.
+  - Every node config entry (and CRD) takes `access: [{group: /full/keycloak/path, relation: read}]`; the operator reconciles it into group grants and removes only the ones it added.
+  - `nexus/client` gets `get_grants`, `add_grant` and `delete_grant`.
 - Run behind a TLS-intercepting proxy, or with a private CA ([#652](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/652), ADR 0033, `PROXY_CA_SETUP.md`):
   - `mise run configure` replaces `mise run init-conf`. Every run creates `.dev.env` and `dev.values.yaml` from the examples if they are missing; it no longer asks for the first Keycloak user, which `.dev.env.example` now sets to `admin@fn.local` / `admin`. `--proxy[=URL]` (no value: `HTTPS_PROXY`) and `--ca-cert[=FILE]` (no value: the system CA bundle; alone: a private CA, no proxy) check the proxy and CA, then set up Docker and the tooling; `--no-proxy` and `--no-ca` remove them, and a run that changes one keeps the other. `--devcontainer` is what the dev container runs before its image build. It replaces `scripts/setup-proxy-ca.sh`.
   - The checks run before anything is written: the CA bundle is PEM, and with a proxy, `registry-1.docker.io`, `pypi.org` and `github.com` verify through it.
@@ -9,6 +21,9 @@
   - Chart: `proxy.*` (the proxy for the pods that call out) and `customCA` (a CA Secret added to the system trust of nexus-api, the Dagster code server and run pods, and Keycloak).
   - The dev container is built from `.devcontainer/Dockerfile` and trusts the CA; `mise run devcontainer-check` builds and starts it without VS Code.
   - mitmproxy tests: `scripts/proxy-sim.sh` (dev container, image builds, pulls) and `scripts/proxy-sim-sensors.sh` (the pull request pipeline).
+- The nexus operator's NodeSecrets read Kubernetes Secrets made by SOPS or External Secrets, with no secret value in status, events or logs ([#698](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/698)):
+  - A missing key, a Secret with no keys yet, a refused read (403) or non-UTF-8 data sets a status message and retries.
+  - Chart: `operator.sourceSecrets` limits the operator to those Secrets plus the ones `nodeConfig.secrets` names; empty (the default) allows any Secret in a watched namespace. Set it in production.
 - nexus-api tests run on pytest-xdist workers, each with its own Postgres database ([#727](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/727)); `NEXUS_TEST_WORKERS=0` runs them serially
 - CI runs only the jobs a PR's changed files need, adds a `ci-ok` check to require instead of the individual jobs, and runs tests in the merge queue; images, the chart and the summary publish only from trunk pushes, tags and manual runs ([#729](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/729)); `actions-sandbox` is a throwaway branch that behaves like a trunk branch for testing these changes, reset from dagster-develop on every push to it
 - Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart

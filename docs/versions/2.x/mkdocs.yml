@@ -72,6 +72,8 @@ nav:
       - Auth setup: Auth-Setup.md
   - Using the node:
       - Set up a project: Set-Up-A-Project.md
+      - Node config: Node-Config.md
+      - Node secrets: Node-Secrets.md
       - Researcher guide: Researcher-Guide.md
       - Analytics container development: Analytics-Container-Development.md
       - Datasets: Datasets.md
