@@ -31,9 +31,9 @@ from app.models.api_request_trigger import ApiRequestTrigger
 from app.helpers.exceptions import KeycloakError
 from tests.helpers.pull_requests import pr_body
 
-# Sample responses shared with Dagster. The test compose file mounts them at /contract; outside docker they are in the repo.
+# Sample responses shared with the nexus client (nexus/client/tests/contract). The test compose file mounts them at /contract; outside docker they are in the repo.
 CONTRACT_DIR = Path("/contract") if Path("/contract").is_dir() else (
-    Path(__file__).resolve().parents[3] / "dagster" / "app" / "tests" / "contract"
+    Path(__file__).resolve().parents[2] / "client" / "tests" / "contract"
 )
 
 

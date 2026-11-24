@@ -24,8 +24,8 @@ services:
     links:
       - db
     volumes:
-      # Sample responses shared with Dagster, read by the contract tests
-      - ../../dagster/app/tests/contract:/contract:ro
+      # Sample responses shared with the nexus client, read by the contract tests
+      - ../client/tests/contract:/contract:ro
     environment:
       PGHOST:
       PGDATABASE:

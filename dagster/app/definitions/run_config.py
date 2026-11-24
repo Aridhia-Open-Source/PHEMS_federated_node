@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from app.models import Dataset, TaskSpec
+from nexus_client.models import Dataset, TaskSpec
 
 
 class PipesDatasetConfig(BaseModel):

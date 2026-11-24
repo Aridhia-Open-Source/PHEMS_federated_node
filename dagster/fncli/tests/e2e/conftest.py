@@ -22,7 +22,7 @@ import click
 import pytest
 from dotenv import find_dotenv, load_dotenv
 
-from fncli.backend import repo_path_of
+from nexus_client.git_uri import repo_path_of
 from fncli.cli import cli
 from fncli.cmds.common import DagsterConfig, NamespaceConfig, ProjectConfig, build_backend_api, build_gitea_api
 from fncli.cmds.nodefile import gitea_config

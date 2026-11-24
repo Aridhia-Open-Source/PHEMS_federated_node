@@ -2,9 +2,10 @@ import logging
 from http import HTTPStatus
 from typing import Literal
 
-from app.utils import BackendSession
-from app.models import (
-    GitToken, ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
+from nexus_client.git_uri import normalise_repo_uri, repo_path_of
+from nexus_client.http import BackendSession
+from nexus_client.models import (
+    GitProvider, GitToken, ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
     ResultsRepository, Task,
     TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision, TaskResources
 )
@@ -313,14 +314,6 @@ class BackendAPI:
         response = self.session.post("/global/datasets", json=data)
         return Dataset(**response.json())
 
-    def get_datasets(self) -> list[Dataset]:
-        """Get all datasets"""
-        self.logger.info("Fetching datasets")
-        response = self.session.get("/global/datasets")
-        data = response.json()
-        items = data.get("items", data) if isinstance(data, dict) else data
-        return [Dataset(**ds) for ds in items]
-
     def get_dataset(self, dataset_id: int) -> Dataset:
         """Get single dataset"""
         self.logger.info(f"Fetching dataset {dataset_id}")
@@ -361,3 +354,302 @@ class BackendAPI:
     def delete_repository(self, repo_id: int) -> None:
         """Delete a repository, and with it (force) every project's resource for it"""
         self.session.delete(f"/global/repositories/triggers/{repo_id}", params={"force": "true"})
+
+    def _get_all_pages(self, path: str, **filters: str) -> list[dict]:
+        """Every item of a paginated list endpoint, filtered by nexus-api's query options"""
+        items = []
+        page = 1
+        while True:
+            data = self.session.get(path, params={**filters, "page": page, "size": 100}).json()
+            items.extend(data["items"])
+            if page >= data["pages"]:
+                return items
+            page += 1
+
+    def get_dataset_healthcheck(self, dataset_id: int) -> dict:
+        """Whether the node can connect to the dataset's database with its secret: {"status": "ok", "health_check": {"message", ...}, ...}"""
+        self.logger.info(f"Checking health of dataset {dataset_id}")
+        return self.session.get(f"/global/datasets/{dataset_id}/healthcheck").json()
+
+    def find_dataset(self, name: str) -> Dataset | None:
+        """The global dataset of that name, if any"""
+        for dataset in self.get_datasets():
+            if dataset.name.lower() == name.lower():
+                return dataset
+        return None
+
+    def get_datasets(self) -> list[Dataset]:
+        """Get all datasets, over every page"""
+        self.logger.info("Fetching datasets")
+        return [Dataset(**ds) for ds in self._get_all_pages("/global/datasets")]
+
+    def get_project_datasets(self, project_id: int) -> list[ProjectDataset]:
+        """The project's datasets, inactive ones included"""
+        self.logger.info(f"Fetching datasets of project {project_id}")
+        return [ProjectDataset(**a) for a in self.session.get(f"/projects/{project_id}/datasets").json()]
+
+    def find_project_dataset(self, name: str, project_id: int) -> ProjectDataset | None:
+        """The project's dataset of that name, if any"""
+        for assignment in self.get_project_datasets(project_id):
+            if assignment.dataset.name.lower() == name.lower():
+                return assignment
+        return None
+
+    def patch_dataset(self, dataset_id: int, data: dict) -> Dataset:
+        """Update a global dataset: any of name, host, port, type, read_schema, write_schema, secret_label"""
+        self.logger.info(f"Updating dataset {dataset_id}")
+        return Dataset(**self.session.patch(f"/global/datasets/{dataset_id}", json=data).json())
+
+    def get_or_assign_dataset(self, project_id: int, dataset: Dataset) -> ProjectDataset:
+        """Reuse the project's dataset if there is one, else assign it"""
+        assignment = self.find_project_dataset(dataset.name, project_id)
+        if assignment:
+            self.logger.info(f"Reusing existing dataset {dataset.name} in project {project_id}")
+            return assignment
+        self.logger.info(f"Assigning dataset {dataset.name} to project {project_id}")
+        response = self.session.put(f"/projects/{project_id}/datasets/{dataset.id}", json={})
+        return ProjectDataset(**response.json())
+
+    def find_project(self, name: str) -> Project | None:
+        """The project of that name, if any"""
+        projects = self._get_all_pages("/projects", name=name)
+        return Project(**projects[0]) if projects else None
+
+    def get_or_create_project(
+        self, name: str, description: str | None = None, enabled: bool = False
+    ) -> Project:
+        """Reuse the project of that name if there is one, else create it with enabled"""
+        project = self.find_project(name)
+        if project:
+            self.logger.info(f"Reusing existing project {name} ({project.id})")
+            return project
+
+        self.logger.info(f"Creating project {name}")
+        data = {"name": name, "description": description, "enabled": enabled}
+        response = self.session.post("/projects", json=data)
+        return self.get_project(response.json()["id"])
+
+    def get_project(self, project_id: int) -> Project:
+        """Get single project"""
+        self.logger.info(f"Fetching project {project_id}")
+        return Project(**self.session.get(f"/projects/{project_id}").json())
+
+    def delete_project(self, project_id: int) -> None:
+        """Delete the project and everything under it"""
+        self.logger.info(f"Deleting project {project_id}")
+        self.session.delete(f"/projects/{project_id}")
+
+    def get_project_healthcheck(self, project_id: int) -> dict:
+        """Whether the project's trigger repositories can be reached with their tokens"""
+        self.logger.info(f"Checking health of project {project_id}")
+        return self.session.get(f"/projects/{project_id}/healthcheck").json()
+
+    def patch_project(self, project_id: int, data: dict) -> Project:
+        """Update project"""
+        self.logger.info(f"Updating project {project_id}")
+        response = self.session.patch(f"/projects/{project_id}", json=data)
+        return Project(**response.json())
+
+    def get_secrets(self) -> list[dict]:
+        """The secrets, without their values. They belong to no project."""
+        return self.session.get("/global/secrets").json()
+
+    def get_secret(self, label: str) -> dict:
+        return self.session.get(f"/global/secrets/{label}").json()
+
+    def upsert_secret(self, label: str, values: dict[str, str]) -> dict:
+        """
+        The backend keeps only the label, so a re-run rotates the values in the secret store.
+        Returns the secret, whose key is what it is called in the store.
+        """
+        if any(secret["label"] == label for secret in self.get_secrets()):
+            self.logger.info(f"Updating secret {label}")
+            response = self.session.patch(f"/global/secrets/{label}", json={"values": values})
+        else:
+            self.logger.info(f"Creating secret {label}")
+            response = self.session.post(
+                "/global/secrets", json={"label": label, "provider": "K8S", "values": values}
+            )
+        return response.json()
+
+    def delete_secret(self, label: str) -> bool:
+        """Delete the secret. Returns whether there was one to delete."""
+        if not any(secret["label"] == label for secret in self.get_secrets()):
+            return False
+        self.logger.info(f"Deleting secret {label}")
+        self.session.delete(f"/global/secrets/{label}")
+        return True
+
+    def get_git_providers(self) -> list[GitProvider]:
+        """The global git providers"""
+        return [GitProvider(**provider) for provider in self.session.get("/global/providers").json()]
+
+    def find_git_provider(self, uri: str) -> GitProvider | None:
+        """The global git provider with that uri (as the backend keeps it: scheme and host), if any"""
+        for provider in self.get_git_providers():
+            if provider.uri == uri:
+                return provider
+        return None
+
+    def get_or_create_git_provider(self, uri: str, name: str, type: str, api_uri: str) -> GitProvider:
+        """Reuse the global git provider with that uri if there is one, else create it"""
+        provider = self.find_git_provider(uri)
+        if provider:
+            self.logger.info(f"Reusing existing git provider {provider.name} ({provider.id})")
+            return provider
+        self.logger.info(f"Creating git provider {name}")
+        data = {"name": name, "type": type, "uri": uri, "api_uri": api_uri}
+        return GitProvider(**self.session.post("/global/providers", json=data).json())
+
+    def patch_git_provider(self, provider_id: int, data: dict) -> GitProvider:
+        """Update a global git provider: any of name, type, uri, api_uri"""
+        self.logger.info(f"Updating git provider {provider_id}")
+        return GitProvider(**self.session.patch(f"/global/providers/{provider_id}", json=data).json())
+
+    def delete_git_provider(self, provider_id: int) -> None:
+        """Delete a global git provider, which no repository may be on"""
+        self.logger.info(f"Deleting git provider {provider_id}")
+        self.session.delete(f"/global/providers/{provider_id}")
+
+    def get_trigger_repositories(self) -> list[TriggerRepository]:
+        """The global trigger repositories"""
+        response = self.session.get("/global/repositories/triggers")
+        return [TriggerRepository(**repo) for repo in response.json()]
+
+    def find_trigger_repository(self, uri: str) -> TriggerRepository | None:
+        """The global trigger repository with that uri, if any"""
+        stored_uri = normalise_repo_uri(uri)
+        for repo in self.get_trigger_repositories():
+            if normalise_repo_uri(repo.uri) == stored_uri:
+                return repo
+        return None
+
+    def get_or_create_trigger_repository(self, uri: str, provider_id: int, secret_label: str) -> TriggerRepository:
+        """Reuse the global trigger repository with that uri if there is one, else create it on the provider"""
+        repo = self.find_trigger_repository(uri)
+        if repo:
+            self.logger.info(f"Reusing existing repository {repo.uri} ({repo.id})")
+            return repo
+        return self.create_repository(provider_id, repo_path_of(uri), secret_label)
+
+    def patch_trigger_repository(self, repository_id: int, data: dict) -> TriggerRepository:
+        """Update a global trigger repository: any of provider_id and secret_label (its uri cannot change)"""
+        self.logger.info(f"Updating trigger repository {repository_id}")
+        return TriggerRepository(**self.session.patch(f"/global/repositories/triggers/{repository_id}", json=data).json())
+
+    def find_repository(self, uri: str, project_id: int) -> ProjectTriggerRepository | None:
+        """The project's trigger repository with that uri, if any"""
+        stored_uri = normalise_repo_uri(uri)
+        for assignment in self.get_project_trigger_repositories(project_id):
+            if normalise_repo_uri(assignment.trigger_repository.uri) == stored_uri:
+                return assignment
+        return None
+
+    def get_or_assign_repository(
+        self,
+        project_id: int,
+        repo: TriggerRepository,
+        watch_dir: str,
+        base_branch: str,
+    ) -> ProjectTriggerRepository:
+        """Reuse the project's repository if there is one, else assign it"""
+        assignment = self.find_repository(repo.uri, project_id)
+        if assignment:
+            self.logger.info(f"Reusing existing repository {repo.uri} in project {project_id}")
+            return assignment
+        self.logger.info(f"Assigning repository {repo.uri} to project {project_id}")
+        data = {"watch_dir": watch_dir, "base_branch": base_branch}
+        response = self.session.put(f"/projects/{project_id}/repositories/triggers/{repo.id}", json=data)
+        return ProjectTriggerRepository(**response.json())
+
+    def put_project_trigger_repository(
+        self, project_id: int, repository_id: int, watch_dir: str, base_branch: str, enabled: bool
+    ) -> ProjectTriggerRepository:
+        """
+        Assign a global trigger repository to a project, with enabled as given. A PUT also replaces the settings
+        of an assignment that exists: change one with patch_project_trigger_repository.
+        """
+        self.logger.info(f"Assigning repository {repository_id} to project {project_id}")
+        data = {"watch_dir": watch_dir, "base_branch": base_branch, "enabled": enabled}
+        response = self.session.put(f"/projects/{project_id}/repositories/triggers/{repository_id}", json=data)
+        return ProjectTriggerRepository(**response.json())
+
+    def get_results_repositories(self) -> list[ResultsRepository]:
+        """The global results repositories"""
+        response = self.session.get("/global/repositories/results")
+        return [ResultsRepository(**repo) for repo in response.json()]
+
+    def find_results_repository(self, uri: str) -> ResultsRepository | None:
+        """The global results repository with that uri, if any"""
+        stored_uri = normalise_repo_uri(uri)
+        for repo in self.get_results_repositories():
+            if normalise_repo_uri(repo.uri) == stored_uri:
+                return repo
+        return None
+
+    def create_results_repository(self, provider_id: int, repo_path: str, secret_label: str) -> ResultsRepository:
+        """Create a global results repository"""
+        self.logger.info(f"Creating results repository {repo_path} on provider {provider_id}")
+        data = {"provider_id": provider_id, "repo_path": repo_path, "secret_label": secret_label}
+        response = self.session.post("/global/repositories/results", json=data)
+        return ResultsRepository(**response.json())
+
+    def patch_results_repository(self, repository_id: int, data: dict) -> ResultsRepository:
+        """Update a global results repository: any of provider_id and secret_label (its uri cannot change)"""
+        self.logger.info(f"Updating results repository {repository_id}")
+        return ResultsRepository(**self.session.patch(f"/global/repositories/results/{repository_id}", json=data).json())
+
+    def get_or_create_results_repository(self, uri: str, provider_id: int, secret_label: str) -> ResultsRepository:
+        """Reuse the global results repository with that uri if there is one, else create it on the provider"""
+        repo = self.find_results_repository(uri)
+        if repo:
+            self.logger.info(f"Reusing existing results repository {repo.uri} ({repo.id})")
+            return repo
+        return self.create_results_repository(provider_id, repo_path_of(uri), secret_label)
+
+    def get_sensor_status(self, name: str) -> str:
+        """The sensor's status on the node, RUNNING or STOPPED: nexus-api's GET /dagster/sensors/<name>"""
+        self.logger.info(f"Fetching the status of sensor {name}")
+        return self.session.get(f"/dagster/sensors/{name}").json()["status"]
+
+    def get_project_results_repositories(self, project_id: int) -> list[ProjectResultsRepository]:
+        """The project's results repositories (it has at most one), inactive ones included"""
+        response = self.session.get(f"/projects/{project_id}/repositories/results")
+        return [ProjectResultsRepository(**a) for a in response.json()]
+
+    def put_project_results_repository(
+        self, project_id: int, repository_id: int, target_dir: str, base_branch: str, enabled: bool
+    ) -> ProjectResultsRepository:
+        """
+        Assign a global results repository to a project that has none, with enabled as given, which needs the
+        project disabled. A PUT also resets what the body omits (enabled, owned_by_federated_node) of an assignment
+        that exists: change one with patch_project_results_repository.
+        """
+        self.logger.info(f"Assigning results repository {repository_id} to project {project_id}")
+        data = {"target_dir": target_dir, "base_branch": base_branch, "enabled": enabled}
+        response = self.session.put(f"/projects/{project_id}/repositories/results/{repository_id}", json=data)
+        return ProjectResultsRepository(**response.json())
+
+    def patch_project_results_repository(self, project_id: int, repository_id: int, data: dict) -> ProjectResultsRepository:
+        """Update a project's results repository: any of target_dir, base_branch, enabled"""
+        self.logger.info(f"Updating results repository {repository_id} of project {project_id}")
+        response = self.session.patch(f"/projects/{project_id}/repositories/results/{repository_id}", json=data)
+        return ProjectResultsRepository(**response.json())
+
+    def get_or_assign_results_repository(
+        self, project_id: int, repo: ResultsRepository, target_dir: str, base_branch: str,
+        owned_by_federated_node: bool | None = None,
+    ) -> ProjectResultsRepository:
+        """Reuse the project's results repository if there is one, else assign the repository"""
+        assignments = self.get_project_results_repositories(project_id)
+        if assignments:
+            self.logger.info(
+                f"Reusing existing results repository {assignments[0].results_repository.id} in project {project_id}"
+            )
+            return assignments[0]
+        self.logger.info(f"Assigning results repository {repo.uri} to project {project_id}")
+        data = {"target_dir": target_dir, "base_branch": base_branch}
+        if owned_by_federated_node is not None:
+            data["owned_by_federated_node"] = owned_by_federated_node
+        response = self.session.put(f"/projects/{project_id}/repositories/results/{repo.id}", json=data)
+        return ProjectResultsRepository(**response.json())

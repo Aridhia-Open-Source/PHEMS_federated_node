@@ -58,3 +58,8 @@ def validate_api_uri(api_uri: str, uri: str) -> str:
     if _netloc_without_default_port(parsed).lower() != expected:
         raise ValueError(f"api_uri {api_uri!r} must be on the host {expected}")
     return api_uri
+
+
+def repo_path_of(uri: str) -> str:
+    """Where the repository is on its provider (owner/name): the last two segments of its uri"""
+    return "/".join(normalise_repo_uri(uri).split("/")[-2:])

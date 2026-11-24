@@ -993,6 +993,7 @@ pydantic==2.12.5 \
     --hash=sha256:e561593fccf61e8a20fc46dfc2dfe075b8be7d0188df33f221ad1f0139180f9d
     # via
     #   dagster-shared
+    #   nexus-client (../nexus/client/pyproject.toml)
     #   phems (pyproject.toml)
     #   pydantic-settings
 pydantic-core==2.41.5 \
@@ -1121,7 +1122,9 @@ pydantic-core==2.41.5 \
 pydantic-settings==2.14.2 \
     --hash=sha256:a20c97b37910b6550d5ea50fbcc2d4187defe58cd57070b73863d069419c9440 \
     --hash=sha256:c19dd64b19097f1de80184f0cc7b0272a13ae6e170cbf240a3e27e381ed14a5f
-    # via phems (pyproject.toml)
+    # via
+    #   nexus-client (../nexus/client/pyproject.toml)
+    #   phems (pyproject.toml)
 pygments==2.19.2 \
     --hash=sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887 \
     --hash=sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b
@@ -1227,6 +1230,7 @@ requests==2.32.5 \
     #   dagster-graphql
     #   gql
     #   kubernetes
+    #   nexus-client (../nexus/client/pyproject.toml)
     #   phems (pyproject.toml)
     #   requests-oauthlib
     #   requests-toolbelt

@@ -34,7 +34,7 @@ MARKS = {CREATE: "+", UPDATE: "~", UNCHANGED: "=", CONFIRM: "!", BLOCKED: "x", E
 @contextmanager
 def quiet_backend_logs():
     """The backend and Gitea clients log every call at INFO, which would bury the plan and the lines of apply and delete"""
-    loggers = [logging.getLogger(name) for name in ("app", "fncli")]
+    loggers = [logging.getLogger(name) for name in ("app", "nexus_client", "fncli")]
     levels = [logger.level for logger in loggers]
     for logger in loggers:
         logger.setLevel(logging.WARNING)

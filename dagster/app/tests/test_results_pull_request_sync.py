@@ -18,7 +18,7 @@ from app.definitions.sensors.task.pull_request_sync import (
     sync_results_pull_requests_job,
 )
 from app.delivery.results import MAX_ERROR_LENGTH
-from app.models import (
+from nexus_client.models import (
     GitProvider,
     Project,
     ProjectResultsRepository,

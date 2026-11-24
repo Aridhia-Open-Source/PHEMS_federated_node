@@ -17,7 +17,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from fncli.backend import repo_path_of
+from nexus_client.git_uri import repo_path_of
 from fncli.nodefile.schema import NodeFile, ProjectSpec, SecretSpec, normalise_dir
 
 CREATE, UPDATE, UNCHANGED, CONFIRM, BLOCKED, ENSURE = "create", "update", "unchanged", "confirm", "blocked", "ensure"

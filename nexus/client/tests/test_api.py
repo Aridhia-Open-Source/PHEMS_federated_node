@@ -4,11 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.backend import BackendAPI
-from app.models import (
+from nexus_client.api import BackendAPI
+from nexus_client.models import (
     Dataset, GitToken, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TaskResources, TriggerRepository,
 )
-from app.tests.conftest import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response
+from tests.samples import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response
 
 
 
@@ -237,17 +237,15 @@ class TestPullRequests:
 
 
 class TestDatasets:
-    def test_get_datasets_unwraps_pagination(self, api, session):
-        session.get.return_value = make_response({"items": [SAMPLE_DATASET]})
+    def test_get_datasets_reads_every_page(self, api, session):
+        session.get.side_effect = [
+            make_response({"items": [SAMPLE_DATASET], "pages": 2}),
+            make_response({"items": [SAMPLE_DATASET], "pages": 2}),
+        ]
 
         datasets = api.get_datasets()
 
-        assert [type(d) for d in datasets] == [Dataset]
-
-    def test_get_datasets_accepts_a_bare_list(self, api, session):
-        session.get.return_value = make_response([SAMPLE_DATASET])
-
-        assert len(api.get_datasets()) == 1
+        assert [type(d) for d in datasets] == [Dataset, Dataset]
 
     def test_get_dataset(self, api, session):
         session.get.return_value = make_response(SAMPLE_DATASET)

@@ -1,8 +1,8 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.git_provider import GitProvider
-from app.models.secret import Secret
-from app.models.pull_request_trigger import PullRequestTrigger
+from nexus_client.models.git_provider import GitProvider
+from nexus_client.models.secret import Secret
+from nexus_client.models.pull_request_trigger import PullRequestTrigger
 
 
 class TriggerRepository(BaseModel):

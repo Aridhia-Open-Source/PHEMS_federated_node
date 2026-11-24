@@ -97,14 +97,18 @@ class BaseHttpAdapter(HTTPAdapter):
     ):
         self.base_url = base_url
         self.timeout = timeout or self.default_timeout
-        super().__init__(**{**kwargs, 'max_retries': max_retries})
+        # Mounted, so a 429 (and a dropped connection) is retried with backoff before the response comes back
+        super().__init__(**{**kwargs, 'max_retries': max_retries or self.default_retry})
 
     @property
     def default_retry(self):
         return Retry(
             total=self.retry_limit,
             backoff_factor=self.backoff_factor,
-            status_forcelist=self.retry_status_forcelist
+            status_forcelist=self.retry_status_forcelist,
+            # When the retries run out the last response comes back, so raise_for_status and the
+            # OAuth adapter still see the status rather than a urllib3 MaxRetryError
+            raise_on_status=False,
         )
 
     def send(self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None):

@@ -68,7 +68,7 @@ def test_a_task_with_a_dataset_and_a_config_gets_a_secret_and_a_configmap_labell
 
 def test_the_response_has_the_shape_dagsters_task_resources_parses(client, system_headers, project, dataset_task, k8s_client):
     """
-    dagster/app/tests/contract/task_resources_response.json is a sample response; Dagster's tests parse it into
+    nexus/client/tests/contract/task_resources_response.json is a sample response; the nexus client's tests parse it into
     TaskResources. This test fails when the real response gains or loses a key, so the two sides move together.
     """
     dataset_task.spec.config = {}
