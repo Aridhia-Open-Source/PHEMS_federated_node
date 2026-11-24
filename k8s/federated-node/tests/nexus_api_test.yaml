@@ -156,24 +156,6 @@ tests:
           path: data.PGHOST
           value: db.default.svc
 
-  - it: passes the owner groups as a comma-separated list
-    template: nexus-api-configmap.yaml
-    asserts:
-      - equal:
-          path: data.OWNER_GROUPS
-          value: service-account
-
-  - it: takes several owner groups
-    template: nexus-api-configmap.yaml
-    set:
-      nexus:
-        api:
-          ownerGroups: [service-account, ops]
-    asserts:
-      - equal:
-          path: data.OWNER_GROUPS
-          value: service-account,ops
-
   - it: tells Dagster where it is
     template: dagster-env-config.yaml
     asserts:

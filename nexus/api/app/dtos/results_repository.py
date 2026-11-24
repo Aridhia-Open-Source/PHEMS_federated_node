@@ -17,8 +17,6 @@ class ResultsRepositoryDTO(DTO):
     enabled: bool
     revoked: bool
     owner: UserRefDTO | None
-    # The group whose members alone may change it, null when it is open (ADR 0036)
-    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: ResultsRepository):
@@ -31,7 +29,6 @@ class ResultsRepositoryDTO(DTO):
             enabled=obj.enabled,
             revoked=obj.revoked,
             owner=UserRefDTO.of(obj.owner),
-            owner_group=obj.owner_group,
         )
 
 
@@ -46,8 +43,6 @@ class ProjectResultsRepositoryDTO(DTO):
     revoked: bool
     active: bool
     owner: UserRefDTO | None
-    # The group whose members alone may change it, null when it is open (ADR 0036)
-    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: ProjectResultsRepository):
@@ -61,7 +56,6 @@ class ProjectResultsRepositoryDTO(DTO):
             revoked=obj.revoked,
             active=obj.active,
             owner=UserRefDTO.of(obj.owner),
-            owner_group=obj.owner_group,
         )
 
 

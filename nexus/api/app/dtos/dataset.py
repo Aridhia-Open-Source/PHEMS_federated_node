@@ -29,8 +29,6 @@ class DatasetDTO(DTO):
     slug: str
     url: str
     owner: UserRefDTO | None
-    # The group whose members alone may change it, null when it is open (ADR 0036)
-    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: Dataset):
@@ -52,7 +50,6 @@ class DatasetDTO(DTO):
             slug=slug,
             url=f"https://{settings.node.public_url}/global/datasets/{obj.id}",
             owner=UserRefDTO.of(obj.owner),
-            owner_group=obj.owner_group,
         )
 
 
@@ -64,8 +61,6 @@ class ProjectDatasetDTO(DTO):
     revoked: bool
     active: bool
     owner: UserRefDTO | None
-    # The group whose members alone may change it, null when it is open (ADR 0036)
-    owner_group: str | None
 
     @classmethod
     def from_model(cls, obj: ProjectDataset):
@@ -76,7 +71,6 @@ class ProjectDatasetDTO(DTO):
             revoked=obj.revoked,
             active=obj.active,
             owner=UserRefDTO.of(obj.owner),
-            owner_group=obj.owner_group,
         )
 
 

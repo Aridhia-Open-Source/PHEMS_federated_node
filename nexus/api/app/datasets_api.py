@@ -19,7 +19,7 @@ from app.dtos.base import page_of
 from app.dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.rules.ownership import get_for_write, set_owner
+from app.rules.ownership import set_owner
 from app.database.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller
 from app.models.dataset import Dataset
@@ -102,14 +102,14 @@ def get_dataset(dataset_id: int):
 
 
 @router.delete('/{dataset_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_dataset(dataset_id: int, force: bool = False, caller: Caller = Depends(get_caller)):
+def delete_dataset(dataset_id: int, force: bool = False):
     """
     DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
         unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
         other datasets may share it. Admin only.
     """
-    ds = get_for_write(session, Dataset, dataset_id, caller)
-    delete_global(ds, ds.project_assignments, force, caller)
+    ds = Dataset.get_by_id(dataset_id)
+    delete_global(ds, ds.project_assignments, force)
 
 
 @router.patch('/{dataset_id}', response_model=DatasetDTO)
@@ -120,7 +120,7 @@ def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), call
     one already in use. Enabling the dataset is a 409 while its secret (the new one, if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the dataset from every project at once, or restores it:
     the tasks that use it fail and nothing of theirs is delivered while it is revoked. It does not change `enabled`.
     """
-    ds = get_for_write(session, Dataset, dataset_id, caller)
+    ds = Dataset.get_by_id(dataset_id)
 
     _reject_project(body)
     _reject_credentials(body)
