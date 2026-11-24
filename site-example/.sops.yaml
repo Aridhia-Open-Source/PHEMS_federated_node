@@ -1,7 +1,7 @@
 # SOPS rules for the site repository: Secrets are committed encrypted, and Flux decrypts them on apply with
 # the age key in its sops-age Secret. Only data and stringData are encrypted, so the rest stays readable.
 # A site: replace AGE_PUBLIC_KEY with its own key's public half (`age-keygen -y key.agekey`).
-# The dev cluster: `mise run flux up` fills in the dev key (bootstrap/sops/age.agekey).
+# The dev cluster: `mise run flux up` fills in the dev key (bootstrap/sops/kind-fn.agekey).
 creation_rules:
   - path_regex: .*secret.*\.yaml$
     encrypted_regex: ^(data|stringData)$
