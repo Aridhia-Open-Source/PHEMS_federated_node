@@ -32,14 +32,14 @@ gitea_api() {
   curl -fsS -X "$method" -H "$GITEA_AUTH_HEADER" -H "Content-Type: application/json" "$GITEA_URL/api/v1$path" "$@"
 }
 
-# gitea_ensure_repo NAME: create the admin's repository NAME with Actions on. Prints "created" or "exists".
+# gitea_ensure_repo NAME: create the admin's private repository NAME with Actions on. Prints "created" or "exists".
 gitea_ensure_repo() {
   local name="$1"
   if gitea_api GET "/repos/$GITEA_ADMIN_USER/$name" >/dev/null 2>&1; then
     echo exists
     return
   fi
-  gitea_api POST /user/repos -d "{\"name\": \"$name\", \"default_branch\": \"main\"}" >/dev/null
+  gitea_api POST /user/repos -d "{\"name\": \"$name\", \"default_branch\": \"main\", \"private\": true}" >/dev/null
   gitea_api PATCH "/repos/$GITEA_ADMIN_USER/$name" -d '{"has_actions": true}' >/dev/null
   echo created
 }
