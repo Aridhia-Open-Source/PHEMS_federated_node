@@ -1,11 +1,22 @@
 name: Docs
 
-# Every branch publishes its own docs: each docs/versions/<version>/ folder on the branch
-# goes to gh-pages docs/docs/<branch>/<version>/, served at
+# Branch previews: each docs/versions/<version>/ folder on a branch is built into
+# gh-pages docs/docs/<branch>/<version>/, served at
 # https://<owner>.github.io/<repo>/docs/<branch>/<version>/ (slashes in the branch name
-# become dashes). The version dropdown (mike) lists only the versions that branch has, and
-# /docs/<branch>/ opens the newest. A deleted branch takes its docs with it.
+# become dashes; dagster-develop and dagster-main are beta/develop and beta/main). The
+# version dropdown (mike) lists only the versions that branch has, and /docs/<branch>/
+# opens the newest.
 # Pull requests build every version with --strict.
+# One publish job does all the publishing: every run rebuilds the previews of the trunk
+# branches, every open pull request, every branch that ran this workflow in the last hour
+# and the branch that triggered it (unchanged commits are reused from gh-pages), and writes
+# the whole docs/docs tree to gh-pages in a single commit. Many pushes at once therefore
+# end with one writer, the newest run, which has everything, instead of racing on gh-pages;
+# the older runs see a newer one and finish early, green, so no pull request shows a
+# cancelled check. Other branches keep their last preview until the branch is deleted; a
+# deleted branch's preview goes at the next run.
+
+run-name: Docs previews (${{ github.event_name }}) ${{ github.head_ref || github.ref_name }}
 
 on:
   pull_request:
@@ -26,7 +37,6 @@ on:
       - ".github/workflows/docs.yml"
       - "webserver/app/static/openapi.json"
       - "nexus/api/openapi.json"
-  delete:
   workflow_dispatch:
 
 permissions:
@@ -58,126 +68,268 @@ jobs:
   publish:
     if: contains(fromJSON('["push","workflow_dispatch"]'), github.event_name) && github.ref_type == 'branch'
     runs-on: ubuntu-latest
-    # One publish per branch at a time; the newest wins. The chart release (build.yml) also
-    # pushes gh-pages, so the push retries on a rejection instead of sharing a lock with it.
-    concurrency:
-      group: docs-${{ github.ref }}
-      cancel-in-progress: true
+    permissions:
+      actions: read
+      contents: write
+      deployments: write
+      pull-requests: read
+    # No concurrency group: GitHub cancels the runs it replaces, and a cancelled publish on a
+    # pull request's last commit turns the whole pull request red. Instead each run looks for
+    # a newer publish run (its run-name starts with "Docs previews") at the start and again
+    # just before pushing, and stops, successfully, if there is one: the newest run rebuilds
+    # every branch, so it carries this run's work too. The chart release (build.yml) also
+    # pushes gh-pages, so the push below retries on a rejection.
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NO_MKDOCS_2_WARNING: "1"
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
+
+      - name: Stop if a newer run will publish everything
+        id: gate
+        run: |
+          newer=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/docs.yml/runs?per_page=100" \
+            | jq --argjson id "$GITHUB_RUN_ID" '[.workflow_runs[] | select(.id > $id and .status != "completed" and (.event == "push" or .event == "workflow_dispatch") and (.display_title | startswith("Docs previews")))] | length') || exit 1
+          if [ "${newer:-0}" -gt 0 ]; then
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            echo "A newer docs run is in progress and publishes this branch too, nothing to do here."
+            echo "Superseded by a newer docs run, which publishes this branch too." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - if: steps.gate.outputs.superseded != 'true'
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: docs-requirements.txt
-      - run: pip install -r docs-requirements.txt
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Publish to gh-pages docs/docs/<branch>
-        run: |
-          # The 2.x line sits under beta/ until beta ships; other branches: / becomes -
-          case "$GITHUB_REF_NAME" in
-            dagster-develop) slug=beta/develop ;;
-            dagster-main) slug=beta/main ;;
-            *) slug="${GITHUB_REF_NAME//\//-}" ;;
-          esac
-          prefix="docs/docs/$slug"
-          site_url="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/docs/$slug/"
-          versions=$(for config in docs/versions/*/mkdocs.yml; do basename "$(dirname "$config")"; done | sort -V)
-          newest=$(tail -1 <<< "$versions")
-          # Canonical links and the sitemap point at this branch's site; mike adds the version
-          for v in $versions; do
-            sed -i "s|^site_url: .*|site_url: $site_url|" "docs/versions/$v/mkdocs.yml"
-          done
+      - if: steps.gate.outputs.superseded != 'true'
+        run: pip install -r docs-requirements.txt
 
-          # One-time migration, removable once develop and dagster-develop have both
-          # published with this file: the docs used to sit flat in docs/docs (one folder per
-          # version listed in docs/docs/versions.json) with the 2.x docs under docs/docs/beta
-          # and the branch previews under docs/preview. Remove only those; gh-pages also holds
-          # the Helm chart repository and Swagger UI.
-          remove_old_layout() {
-            git cat-file -e gh-pages:docs/docs/versions.json 2>/dev/null || return 0
-            rm -rf pages
-            git worktree add -q --detach pages gh-pages
-            old=$(jq -r '.[] | (.version, .aliases[]) | select(length > 0) | "docs/docs/" + .' pages/docs/docs/versions.json)
-            if grep -q Redirecting pages/docs/docs/index.html 2>/dev/null; then
-              git -C pages rm -q docs/docs/index.html
-            fi
-            git -C pages rm -rq --ignore-unmatch -- $old docs/docs/versions.json docs/docs/beta docs/preview
-            git -C pages commit -q -m "Remove the old flat docs layout"
-            git branch -f gh-pages "$(git -C pages rev-parse HEAD)"
-            git worktree remove --force pages
+      - name: Build the branch previews into site/docs
+        if: steps.gate.outputs.superseded != 'true'
+        run: |
+          # No -e: one branch failing to build must not stop the others.
+          set +e
+          set -uo pipefail
+          repo_url="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}/docs"
+          work="$RUNNER_TEMP/docs"
+          rm -rf "$work" site
+          mkdir -p "$work/prev" site/docs
+          : > "$work/results.tsv"
+
+          # What a branch's output depends on besides its own commit: the installed tools and
+          # the layout below. Bump layout-N when this job changes what a preview contains.
+          tools=$({ pip freeze; echo layout-1; } | sha256sum | cut -c1-12)
+
+          # The 2.x line sits under beta/ until beta ships; other branches: / becomes -
+          slug_of() {
+            case "$1" in
+              dagster-develop) echo beta/develop ;;
+              dagster-main) echo beta/main ;;
+              *) echo "${1//\//-}" ;;
+            esac
           }
 
-          # main only: /docs/ opens main's docs
-          write_root_redirect() {
-            rm -rf pages
-            git worktree add -q --detach pages gh-pages
-            cat > pages/docs/docs/index.html <<'HTML'
+          # branch, commit, result, deployment state (success|failure|none), preview url or -
+          record() { printf '%s\t%s\t%s\t%s\t%s\n' "$@" >> "$work/results.tsv"; }
+
+          # Copy a branch's published preview from gh-pages into site/docs (the cache, and what
+          # keeps a preview alive when its branch is not rebuilt). Fails if there is none.
+          restore_previous() {
+            local slug=$1
+            git cat-file -e "origin/gh-pages:docs/docs/$slug/versions.json" 2>/dev/null || return 1
+            rm -rf "$work/prev/docs" "site/docs/$slug"
+            if git archive origin/gh-pages "docs/docs/$slug" | tar -x -C "$work/prev"; then
+              mkdir -p "$(dirname "site/docs/$slug")"
+              mv "$work/prev/docs/docs/$slug" "site/docs/$slug" && return 0
+            fi
+            rm -rf "$work/prev/docs" "site/docs/$slug"
+            return 1
+          }
+
+          # The mike redirect page: $1 is the folder to open
+          redirect_page() {
+          cat <<HTML
           <!DOCTYPE html>
           <html>
           <head>
             <meta charset="utf-8">
             <title>Redirecting</title>
-            <meta http-equiv="refresh" content="0; url=main/">
+            <noscript>
+              <meta http-equiv="refresh" content="1; url=$1/" />
+            </noscript>
+            <script>
+              window.location.replace(
+                "$1/" + window.location.search + window.location.hash
+              );
+            </script>
           </head>
           <body>
-            Redirecting to <a href="main/">main/</a>...
+            Redirecting to <a href="$1/">$1/</a>...
           </body>
           </html>
           HTML
-            git -C pages add docs/docs/index.html
-            if ! git -C pages diff --cached --quiet; then
-              git -C pages commit -q -m "Docs root redirects to /docs/main/"
-              git branch -f gh-pages "$(git -C pages rev-parse HEAD)"
-            fi
-            git worktree remove --force pages
           }
 
-          # A branch's docs go when the branch is deleted, but only once the cleanup job's
-          # delete trigger is on main (GitHub runs delete workflows from the default branch).
-          # Until then, and for anything a missed delete left behind, every publish removes
-          # the docs of branches that no longer exist.
-          prune_deleted_branches() {
-            live=$(git ls-remote --heads origin | sed 's|.*refs/heads/||' | while read -r b; do
-              case "$b" in
-                dagster-develop) echo beta/develop ;;
-                dagster-main) echo beta/main ;;
-                *) echo "${b//\//-}" ;;
-              esac
-            done)
-            [ -n "$live" ] || { echo "No branches listed, not pruning"; return 1; }
-            rm -rf pages
-            git worktree add -q --detach pages gh-pages
-            for dir in $(cd pages/docs/docs && ls -d */ beta/*/ 2>/dev/null | sed 's|/$||'); do
-              [ "$dir" = beta ] && continue
-              grep -qxF "$dir" <<< "$live" || git -C pages rm -rq "docs/docs/$dir"
+          # Build every version of branch $1 into $work/out/$2, then move it to site/docs/$2.
+          # Returns 0 built, 2 no docs on the branch, 1 failed. Sets built_sha.
+          build_branch() {
+            local b=$1 slug=$2 src="$work/src/$2" out="$work/out/$2" versions v cfg p
+            local paths=(docs/versions)
+            rm -rf "$src" "$out"
+            mkdir -p "$src" "$out"
+            git fetch -q --depth=1 origin "+refs/heads/$b:refs/remotes/origin/$b" || return 1
+            built_sha=$(git rev-parse "refs/remotes/origin/$b") || return 1
+            git cat-file -e "$built_sha:docs/versions" 2>/dev/null || return 2
+            # The hooks, and the openapi.json that the swagger-ui pages link to
+            for p in docs/hooks nexus/api/openapi.json webserver/app/static/openapi.json; do
+              if git cat-file -e "$built_sha:$p" 2>/dev/null; then paths+=("$p"); fi
             done
-            if ! git -C pages diff --cached --quiet; then
-              git -C pages commit -q -m "Remove the docs of deleted branches"
-              git branch -f gh-pages "$(git -C pages rev-parse HEAD)"
-            fi
-            git worktree remove --force pages
-          }
-
-          # Commit onto the latest gh-pages and push; if another job pushed in between,
-          # start again from the new gh-pages, up to 5 times.
-          for attempt in 1 2 3 4 5; do
-            git fetch origin gh-pages --depth=1
-            git branch -f gh-pages FETCH_HEAD
-            remove_old_layout
-            prune_deleted_branches
+            git archive "$built_sha" "${paths[@]}" | tar -x -C "$src" || return 1
+            versions=$(for cfg in "$src"/docs/versions/*/mkdocs.yml; do
+              [ -f "$cfg" ] && basename "$(dirname "$cfg")"
+            done | sort -V)
+            [ -n "$versions" ] || return 2
             for v in $versions; do
-              mike deploy -F "docs/versions/$v/mkdocs.yml" --deploy-prefix "$prefix" "$v"
+              cfg="$src/docs/versions/$v/mkdocs.yml"
+              # Canonical links and the sitemap point at this branch's site, with the version
+              sed -i "s|^site_url: .*|site_url: $repo_url/$slug/$v/|" "$cfg"
+              mkdocs build -q -f "$cfg" -d "$out/$v" || return 1
             done
-            mike set-default -F "docs/versions/$newest/mkdocs.yml" --deploy-prefix "$prefix" "$newest"
-            if [ "$GITHUB_REF_NAME" = main ]; then write_root_redirect; fi
-            if git push origin gh-pages; then
-              echo "Docs: $site_url" >> "$GITHUB_STEP_SUMMARY"
+            # The mike version dropdown file (newest first) and the redirect to the newest
+            printf '%s\n' $versions | sort -rV | jq -R '{version: ., title: ., aliases: []}' | jq -s . > "$out/versions.json" || return 1
+            redirect_page "$(tail -1 <<< "$versions")" > "$out/index.html"
+            echo "$built_sha $tools" > "$out/.built"
+            rm -rf "site/docs/$slug"
+            mkdir -p "$(dirname "site/docs/$slug")"
+            mv "$out" "site/docs/$slug"
+          }
+
+          git fetch -q --depth=1 origin +refs/heads/gh-pages:refs/remotes/origin/gh-pages || { echo "::error::Cannot fetch gh-pages"; exit 1; }
+
+          declare -A tip owner
+          while read -r sha ref; do tip["${ref#refs/heads/}"]=$sha; done < <(git ls-remote --heads origin)
+          [ "${#tip[@]}" -gt 0 ] || { echo "::error::No branches listed"; exit 1; }
+
+          # Pull requests from forks have no branch here
+          gh pr list --state open --limit 200 --json headRefName,isCrossRepository \
+            --jq '.[] | select(.isCrossRepository | not) | .headRefName' > "$work/pr-branches.txt" \
+            || { echo "::error::Cannot list pull requests"; exit 1; }
+          # Branches whose run was replaced by a newer one are still waiting for their preview
+          recent=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/docs.yml/runs?per_page=100&created=%3E%3D$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)" \
+            --jq '.workflow_runs[].head_branch') \
+            || { echo "::error::Cannot list recent runs"; exit 1; }
+          branches=$(printf '%s\n' dagster-develop dagster-main main "$(cat "$work/pr-branches.txt")" "$recent" "$GITHUB_REF_NAME" | awk 'NF && !seen[$0]++')
+
+          while read -r b <&3; do
+            sha=${tip[$b]:-}
+            if [ -z "$sha" ]; then
+              record "$b" - "skipped (no such branch on origin)" none -
+              continue
+            fi
+            slug=$(slug_of "$b")
+            if [ -n "${owner[$slug]:-}" ]; then
+              record "$b" "$sha" "skipped (same folder as ${owner[$slug]})" none -
+              continue
+            fi
+            owner[$slug]=$b
+            url="$repo_url/$slug/"
+            # Unchanged since the last publish: reuse what is on gh-pages
+            if [ "$(git show "origin/gh-pages:docs/docs/$slug/.built" 2>/dev/null)" = "$sha $tools" ] && restore_previous "$slug"; then
+              record "$b" "$sha" "skipped (unchanged)" success "$url"
+              continue
+            fi
+            echo "::group::Build $b ($slug)"
+            built_sha=$sha
+            build_branch "$b" "$slug"
+            rc=$?
+            echo "::endgroup::"
+            case $rc in
+              0) record "$b" "$built_sha" built success "$url" ;;
+              2) record "$b" "$built_sha" "skipped (no docs/versions on the branch)" none - ;;
+              *)
+                echo "::warning title=Docs preview failed::$b did not build, see its log group"
+                if restore_previous "$slug"; then
+                  record "$b" "$built_sha" "failed (last good preview kept)" failure "$url"
+                else
+                  record "$b" "$built_sha" failed failure -
+                fi ;;
+            esac
+          done 3<<< "$branches"
+
+          # Other branches that still exist keep their last preview, as before; only the
+          # previews of deleted branches go.
+          carried=0
+          while read -r b <&3; do
+            slug=$(slug_of "$b")
+            [ -z "${owner[$slug]:-}" ] || continue
+            owner[$slug]=$b
+            if restore_previous "$slug"; then carried=$((carried + 1)); fi
+          done 3< <(printf '%s\n' "${!tip[@]}")
+
+          # main only: /docs/ opens main's docs
+          if [ -d site/docs/main ]; then redirect_page main > site/docs/index.html; fi
+
+          {
+            echo "### Docs previews"
+            echo
+            echo "| Branch | Result | Preview |"
+            echo "|---|---|---|"
+            while IFS=$'\t' read -r b sha result state url; do
+              if [ "$url" = - ]; then link=-; else link="[$url]($url)"; fi
+              echo "| \`$b\` | $result | $link |"
+            done < "$work/results.tsv"
+            echo
+            awk -F'\t' -v carried="$carried" '
+              $3 == "built" { built++ }
+              $3 ~ /^skipped/ { skipped++ }
+              $3 ~ /^failed/ { failed++ }
+              END { printf "%d built, %d skipped, %d failed. %d other branch previews kept as they were.\n", built, skipped, failed, carried }
+            ' "$work/results.tsv"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Publish site/docs to gh-pages docs/docs
+        id: push
+        if: steps.gate.outputs.superseded != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          count=$(find site/docs -name versions.json | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::Nothing was built, leaving gh-pages as it is"
+            exit 1
+          fi
+          # One commit replaces docs/docs (the chart repository and the rest of gh-pages stay).
+          # If the chart release pushed in between, start again from the new gh-pages.
+          for attempt in 1 2 3 4 5; do
+            # A newer run started while this one was building: it publishes everything instead
+            newer=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/docs.yml/runs?per_page=100" \
+              | jq --argjson id "$GITHUB_RUN_ID" '[.workflow_runs[] | select(.id > $id and .status != "completed" and (.event == "push" or .event == "workflow_dispatch") and (.display_title | startswith("Docs previews")))] | length')
+            if [ "${newer:-0}" -gt 0 ]; then
+              echo "superseded=true" >> "$GITHUB_OUTPUT"
+              echo "A newer docs run started, leaving the publish to it"
+              echo "Built, but a newer docs run started, so it publishes instead." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            git fetch -q --depth=1 origin +refs/heads/gh-pages:refs/remotes/origin/gh-pages
+            rm -rf pages
+            git worktree prune
+            git worktree add -q --no-checkout --detach pages refs/remotes/origin/gh-pages
+            git -C pages read-tree HEAD
+            git -C pages rm -rq --cached --ignore-unmatch docs/docs
+            mkdir -p pages/docs
+            cp -a site/docs pages/docs/docs
+            git -C pages add -A -f docs/docs
+            if git -C pages diff --cached --quiet HEAD; then
+              echo "gh-pages already has these previews"
+              echo "gh-pages already had these $count previews." >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            git -C pages commit -q -m "Publish docs previews ($GITHUB_REF_NAME ${GITHUB_SHA::7}, $count branches)"
+            if git -C pages push -q origin HEAD:gh-pages; then
+              echo "Published $count previews to gh-pages."
+              echo "Published $count previews to gh-pages." >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             echo "gh-pages moved, retrying ($attempt/5)"
@@ -185,41 +337,30 @@ jobs:
           done
           exit 1
 
-  # A deleted branch takes its docs with it. GitHub runs delete workflows from the default
-  # branch's copy of this file, so this starts working once the file is on main.
-  cleanup:
-    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
-    runs-on: ubuntu-latest
-    # github.ref is the default branch on a delete, so the group uses the deleted ref. It is
-    # the same group as publish, so a publish still running for that branch is cancelled.
-    concurrency:
-      group: docs-refs/heads/${{ github.event.ref }}
-      cancel-in-progress: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-      - name: Remove docs/docs/<branch>
-        env:
-          BRANCH: ${{ github.event.ref }}
+      # A failing status must not fail the run: the previews are already live.
+      - name: Set the docs-preview deployment status on each open pull request
+        if: steps.gate.outputs.superseded != 'true' && steps.push.outputs.superseded != 'true'
+        continue-on-error: true
         run: |
-          # The 2.x line sits under beta/ until beta ships; other branches: / becomes -
-          case "$BRANCH" in
-            dagster-develop) slug=beta/develop ;;
-            dagster-main) slug=beta/main ;;
-            *) slug="${BRANCH//\//-}" ;;
-          esac
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for attempt in 1 2 3 4 5; do
-            [ -d "docs/docs/$slug" ] || exit 0
-            git rm -rq "docs/docs/$slug"
-            git commit -q -m "Remove the docs of branch $BRANCH"
-            if git push origin HEAD:gh-pages; then
-              exit 0
+          set +e
+          results="$RUNNER_TEMP/docs/results.tsv"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          while IFS=$'\t' read -r b sha result state url <&3; do
+            [ "$state" != none ] || continue
+            grep -qxF -- "$b" "$RUNNER_TEMP/docs/pr-branches.txt" || continue
+            id=$(gh api "repos/$GITHUB_REPOSITORY/deployments?sha=$sha&environment=docs-preview&per_page=1" --jq '.[0].id // empty')
+            if [ -z "$id" ]; then
+              id=$(jq -n --arg ref "$sha" '{ref: $ref, environment: "docs-preview", description: "Docs preview", auto_merge: false, required_contexts: [], transient_environment: true, production_environment: false}' \
+                | gh api -X POST "repos/$GITHUB_REPOSITORY/deployments" --input - --jq .id)
             fi
-            git fetch origin gh-pages --depth=1
-            git reset -q --hard FETCH_HEAD
-            sleep $((attempt * 5))
-          done
-          exit 1
+            if [ -z "$id" ]; then echo "::warning::No deployment for $b"; continue; fi
+            last=$(gh api "repos/$GITHUB_REPOSITORY/deployments/$id/statuses?per_page=1" --jq '.[0].state // empty')
+            [ "$last" != "$state" ] || continue
+            if [ "$state" = success ]; then
+              gh api -X POST "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" -f state=success \
+                -f description="Docs preview" -f environment_url="$url" -f log_url="$run_url" --silent
+            else
+              gh api -X POST "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" -f state=failure \
+                -f description="Docs build failed" -f log_url="$run_url" --silent
+            fi || echo "::warning::Deployment status failed for $b"
+          done 3< "$results"
