@@ -1,4 +1,4 @@
-# 0042. Several node instances in one cluster, routed by hostname
+# 0042. Multi-Instance Clusters
 
 Status: Proposed, 2026-11-17.
 
