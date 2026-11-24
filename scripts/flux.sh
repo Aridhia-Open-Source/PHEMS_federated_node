@@ -111,8 +111,18 @@ case "$COMMAND" in
       # Encrypt the example Secret for this cluster's age key, as a site does before it commits one
       sed -i "s/AGE_PUBLIC_KEY/$(age_public_key)/" "$SEED"/.sops.yaml
       # The first user's login from .dev.env (scripts/load_env.sh), as a site writes its own
-      sed -i -e "s|FIRST_USER_EMAIL|$KEYCLOAK_FIRST_USER_EMAIL|" -e "s|FIRST_USER_PASSWORD|$KEYCLOAK_FIRST_USER_PASSWORD|" \
-        "$SEED"/first-user-secret.yaml
+      # (written as JSON strings, which are YAML, so no character in them needs escaping)
+      EMAIL="$KEYCLOAK_FIRST_USER_EMAIL" PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" python3 - "$SEED"/first-user-secret.yaml <<'PY'
+import json
+import os
+import sys
+
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+for placeholder, variable in (("FIRST_USER_EMAIL", "EMAIL"), ("FIRST_USER_PASSWORD", "PASSWORD")):
+    text = text.replace(f": {placeholder}\n", f": {json.dumps(os.environ[variable])}\n")
+open(path, "w", encoding="utf-8").write(text)
+PY
       # From the repo root, so a mise shim still finds the sops version mise.toml pins
       sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/first-user-secret.yaml"
       git -C "$SEED" init -q -b main
