@@ -1,7 +1,15 @@
-"""HTTP session and adapter classes for backend API communication."""
+"""
+The outbound HTTP layer every federated node service uses (ADR 0039).
+
+A default (connect, read) timeout a service or a call can override; only a 429 is retried, for every method, and a
+read timeout never is; a timeout or a connection failure is a `ClientTimeout` or a `ClientError`, never a raw
+`requests` exception. A status error still raises `requests.HTTPError`, for callers that read the status.
+"""
 
 import logging
 import time
+from contextlib import contextmanager
+from http.cookiejar import DefaultCookiePolicy
 from pathlib import Path
 
 from urllib3.util import Retry
@@ -11,6 +19,29 @@ from requests.adapters import HTTPAdapter
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_TIMEOUT = (3, 10)
+
+
+class ClientError(Exception):
+    """A service this one calls could not be reached, or answered with an error of its own."""
+
+
+class ClientTimeout(ClientError):
+    """A service this one calls did not answer in time."""
+
+
+@contextmanager
+def transport_errors():
+    """A timeout or a connection failure in the block is a ClientTimeout or a ClientError. A status error is not."""
+    try:
+        yield
+    except requests.HTTPError:
+        raise
+    except requests.Timeout as err:
+        raise ClientTimeout(f"The service did not answer in time: {err}") from err
+    except requests.RequestException as err:
+        raise ClientError(f"The service is unreachable: {type(err).__name__}") from err
+
 
 class HttpClient:
     """Basic HTTP client with bearer token auth."""
@@ -18,11 +49,26 @@ class HttpClient:
 
     SUPPORTED_AUTH_TYPES = ["bearer"]
 
-    def __init__(self, base_uri: str, token: str = "", session=None):
+    def __init__(self, base_uri: str, token: str = "", session=None, timeout: tuple[float, float] = DEFAULT_TIMEOUT):
         self._base_uri = base_uri.rstrip("/")
-        self._session = session or requests.Session()
+        self._session = session or self.new_session()
+        self._timeout = timeout
         self._token = token
         self.setup_auth()
+
+    @staticmethod
+    def new_session(keep_cookies: bool = False) -> Session:
+        """
+        A session with the 429 retry mounted. It keeps no cookies unless asked to, as one client serves every request
+        of a service; only a client that signs in the way a browser does needs them.
+        """
+        session = Session()
+        if not keep_cookies:
+            session.cookies.set_policy(DefaultCookiePolicy(allowed_domains=[]))
+        adapter = RetryAdapter()
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        return session
 
     @property
     def token(self) -> str:
@@ -59,7 +105,9 @@ class HttpClient:
         **kwargs,
     ) -> requests.Response:
         url = f"{self._base_uri}/{path.lstrip('/')}"
-        response = self._session.request(method, url, timeout=10, **kwargs)
+        kwargs.setdefault("timeout", self._timeout)
+        with transport_errors():
+            response = self._session.request(method, url, **kwargs)
         if raise_for_status:
             response.raise_for_status()
         return response
@@ -80,12 +128,12 @@ class HttpClient:
         return self.request("DELETE", path, **kwargs)
 
 
-class BaseHttpAdapter(HTTPAdapter):
-    """Base HTTP adapter with default retry logic."""
+class RetryAdapter(HTTPAdapter):
+    """Base HTTP adapter: the default timeout, and a 429 retried with backoff."""
 
     retry_limit = 3
     backoff_factor = 0.5
-    default_timeout = 10
+    default_timeout = DEFAULT_TIMEOUT
     retry_status_forcelist = {429}
     # urllib3 honours Retry-After up to 6 hours by default; a long 429 would stall a sensor tick or an operator handler
     retry_after_max = 5
@@ -99,15 +147,20 @@ class BaseHttpAdapter(HTTPAdapter):
     ):
         self.base_url = base_url
         self.timeout = timeout or self.default_timeout
-        # Mounted, so a 429 (and a dropped connection) is retried with backoff before the response comes back
+        # Mounted, so a 429 is retried with backoff before the response comes back
         super().__init__(**{**kwargs, 'max_retries': max_retries or self.default_retry})
 
     @property
     def default_retry(self):
         return Retry(
             total=self.retry_limit,
+            # Only a 429 is retried: a read that timed out may have done its work (a created user), so it is not
+            read=0,
+            connect=0,
             backoff_factor=self.backoff_factor,
             status_forcelist=self.retry_status_forcelist,
+            # A 429 means the request was not processed, so retrying a POST is safe
+            allowed_methods=None,
             retry_after_max=self.retry_after_max,
             # When the retries run out the last response comes back, so raise_for_status and the
             # OAuth adapter still see the status rather than a urllib3 MaxRetryError
@@ -125,7 +178,7 @@ class BaseHttpAdapter(HTTPAdapter):
 class BaseSession(Session):
     """Base session with base URL support."""
 
-    timeout = 10
+    timeout = DEFAULT_TIMEOUT
     default_raise_for_status = True
 
     @property
@@ -134,7 +187,7 @@ class BaseSession(Session):
 
     def __init__(
         self,
-        adapter: BaseHttpAdapter,
+        adapter: RetryAdapter,
         *args,
         **kwargs
     ):
@@ -147,7 +200,8 @@ class BaseSession(Session):
 
     def request(self, method, url, *args, raise_for_status: bool | None = None, **kwargs):
         full_url = f"{self.base_url}/{url.lstrip('/')}"
-        response = super().request(method, full_url, *args, **kwargs)
+        with transport_errors():
+            response = super().request(method, full_url, *args, **kwargs)
         return self.handle_response(response, raise_for_status)
 
     def handle_response(self, response, raise_for_status: bool | None = None):
@@ -163,7 +217,7 @@ class BaseSession(Session):
         self.mount("https://", self.adapter)
 
 
-class OAuthAdapter(BaseHttpAdapter):
+class OAuthAdapter(RetryAdapter):
     """HTTP adapter that handles login and automatic token refresh on 401/403/429."""
 
     oauth_status_codes = {401, 403, 429}

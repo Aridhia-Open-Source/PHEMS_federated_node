@@ -194,11 +194,10 @@ dagster/fncli/
   nodefile/         the node file and the context file: schema, loader, diff, backend state, apply and delete executors
   gitea.py          Gitea admin client on top of app.gitea
   k8s.py            host-side kubeconfig loading
-  sensors.py        the Dagster GraphQL client
 ```
 
 fncli imports the nexus-api client and its models from the shared `nexus/fednode` package (`fednode.clients.nexus.client`,
-`fednode.clients.nexus.models`, ...) and the git clients from `app` (`app.gitea`). Anything only the CLI needs lives here,
+`fednode.clients.nexus.models`, ...), the Dagster client (`fednode.clients.dagster.client`) and the git clients from `app` (`app.gitea`). Anything only the CLI needs lives here,
 never in `dagster/app` or `nexus/fednode`.
 
 ## Simulation (several providers, repositories and projects)

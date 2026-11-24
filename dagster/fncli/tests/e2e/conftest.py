@@ -44,7 +44,7 @@ from fncli.k8s import (
     set_configmap_value,
 )
 from fncli.nodefile.loader import load_context, load_node_file
-from fncli.sensors import DagsterAPI
+from fednode.clients.dagster.client import DagsterClient
 
 logger = logging.getLogger("e2e")
 
@@ -209,7 +209,7 @@ def set_sensor_interval(seconds: int, retry_seconds: int) -> tuple[str | None, s
 QUIET_SENSORS = ["git_pull_request_ingest_sensor", "git_pull_request_evaluate_sensor", "task_launcher_sensor"]
 
 
-def tick_ids(api: DagsterAPI, sensor: str) -> set[str]:
+def tick_ids(api: DagsterClient, sensor: str) -> set[str]:
     return {tick["id"] for tick in api.get_sensor_ticks(sensor)}
 
 
@@ -241,7 +241,7 @@ def fast_sensors(request):
 def quiet_wait(ticks: int = 3, sensors: list[str] = QUIET_SENSORS):
     """The wait of the "nothing happens" checks: until each sensor has run `ticks` new ticks, so "nothing happened" was
     seen across ticks that really ran (a stopped or stuck sensor fails here instead of passing the check)."""
-    api = DagsterAPI(DagsterConfig().dagster_url)
+    api = DagsterClient(DagsterConfig().dagster_url)
     before = {sensor: tick_ids(api, sensor) for sensor in sensors}
     logger.info(f"Waiting for {ticks} new ticks of {len(sensors)} sensors to see that nothing happens")
 

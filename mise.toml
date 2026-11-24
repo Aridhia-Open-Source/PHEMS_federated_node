@@ -33,8 +33,9 @@ run = [
   "mise -C nexus/api exec -- python -m pip install -r requirements-dev.txt",
   "mise -C dagster exec -- python -m pip install -r requirements.txt",
   "mise -C dagster exec -- python -m pip install --no-deps -e '.[cli]'",
-  # The shared nexus-api client, editable; its dependencies come with Dagster's
+  # The shared fednode package, editable; its dependencies come with each component's
   "mise exec -- python -m pip install --no-deps -e ./nexus/fednode",
+  "mise -C nexus/api exec -- python -m pip install --no-deps -e ../fednode",
   "mise -C dagster exec -- python -m pip install --no-deps -e ../nexus/fednode",
   # pip-compile resolves for the Python it runs on, so each component's own interpreter gets it
   "mise -C nexus/api exec -- python -m pip install pip-tools",

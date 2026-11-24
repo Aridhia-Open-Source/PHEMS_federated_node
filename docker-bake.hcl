@@ -63,8 +63,9 @@ target "keycloak-fn" {
 }
 
 target "nexus-api-fn" {
-  context = "nexus/api"
-  tags    = tags("nexus-api-fn")
+  context  = "nexus/api"
+  contexts = { fednode = "nexus/fednode" }
+  tags     = tags("nexus-api-fn")
 }
 
 target "nexus-ui-fn" {

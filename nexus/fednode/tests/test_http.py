@@ -5,12 +5,15 @@ import requests
 from urllib3.util import Retry
 
 from fednode.http import (
+    DEFAULT_TIMEOUT,
     BackendAdapter,
     BackendSession,
-    BaseHttpAdapter,
+    ClientError,
+    ClientTimeout,
     HttpClient,
     OAuthAdapter,
     PasswordFileAdapter,
+    RetryAdapter,
 )
 
 
@@ -103,28 +106,119 @@ class TestHttpClient:
         assert methods == ["GET", "POST", "PATCH", "PUT", "DELETE"]
 
 
-class TestBaseHttpAdapter:
-    def test_default_retry_settings(self):
-        retry = BaseHttpAdapter(base_url="https://backend").default_retry
+class TestHttpClientTransport:
+    def test_the_default_timeout_is_connect_3_read_10(self):
+        session = MagicMock()
+        session.request.return_value = response()
 
-        assert 429 in retry.status_forcelist
+        HttpClient("https://api.github.com", session=session).get("path")
+
+        assert session.request.call_args.kwargs["timeout"] == (3, 10) == DEFAULT_TIMEOUT
+
+    def test_a_client_can_override_the_timeout(self):
+        session = MagicMock()
+        session.request.return_value = response()
+
+        HttpClient("https://api.github.com", session=session, timeout=(3, 30)).get("path")
+
+        assert session.request.call_args.kwargs["timeout"] == (3, 30)
+
+    def test_a_call_can_override_the_timeout(self):
+        session = MagicMock()
+        session.request.return_value = response()
+
+        HttpClient("https://api.github.com", session=session).get("path", timeout=(1, 2))
+
+        assert session.request.call_args.kwargs["timeout"] == (1, 2)
+
+    @pytest.mark.parametrize("error", [requests.ReadTimeout("slow"), requests.ConnectTimeout("slow")])
+    def test_a_timeout_is_a_client_timeout(self, error):
+        session = MagicMock()
+        session.request.side_effect = error
+
+        with pytest.raises(ClientTimeout):
+            HttpClient("https://api.github.com", session=session).get("path")
+
+    @pytest.mark.parametrize("error", [requests.ConnectionError("refused"), requests.exceptions.SSLError("bad")])
+    def test_a_connection_failure_is_a_client_error(self, error):
+        session = MagicMock()
+        session.request.side_effect = error
+
+        with pytest.raises(ClientError) as raised:
+            HttpClient("https://api.github.com", session=session).get("path")
+
+        assert not isinstance(raised.value, ClientTimeout)
+
+    def test_a_client_timeout_is_a_client_error(self):
+        assert issubclass(ClientTimeout, ClientError)
+
+    def test_a_status_error_is_still_an_http_error(self):
+        session = MagicMock()
+        resp = response(500)
+        resp.raise_for_status.side_effect = requests.HTTPError("500", response=resp)
+        session.request.return_value = resp
+
+        with pytest.raises(requests.HTTPError):
+            HttpClient("https://api.github.com", session=session).get("path")
+
+    def test_the_default_session_retries_a_429_and_keeps_no_cookies(self):
+        session = HttpClient("https://api.github.com").new_session()
+
+        adapter = session.get_adapter("https://api.github.com")
+        assert isinstance(adapter, RetryAdapter)
+        assert session.get_adapter("http://gitea") is adapter
+        assert session.cookies._policy.allowed_domains() == ()
+
+    def test_a_session_can_keep_cookies(self):
+        session = HttpClient.new_session(keep_cookies=True)
+
+        assert session.cookies._policy.allowed_domains() is None
+
+
+class TestRetryAdapter:
+    def test_default_retry_settings(self):
+        retry = RetryAdapter(base_url="https://backend").default_retry
+
+        assert retry.total == 3
+        assert retry.backoff_factor == 0.5
+        assert retry.status_forcelist == {429}
         assert retry.retry_after_max == 5
-        assert 429 in retry.status_forcelist
+
+    @pytest.mark.parametrize("method", ["GET", "POST", "PATCH", "PUT", "DELETE"])
+    def test_a_429_is_retried_for_every_method(self, method):
+        retry = RetryAdapter(base_url="https://backend").default_retry
+
+        assert retry.is_retry(method, 429)
+
+    @pytest.mark.parametrize("status", [500, 502, 503, 504])
+    def test_no_other_status_is_retried(self, status):
+        retry = RetryAdapter(base_url="https://backend").default_retry
+
+        assert not retry.is_retry("GET", status)
+
+    def test_a_timed_out_read_and_a_failed_connection_are_not_retried(self):
+        retry = RetryAdapter(base_url="https://backend").default_retry
+
+        assert retry.read == 0
+        assert retry.connect == 0
+
+    def test_the_default_timeout_is_connect_3_read_10(self):
+        assert RetryAdapter(base_url="https://backend").timeout == (3, 10)
 
     def test_the_default_retry_is_mounted(self):
-        adapter = BaseHttpAdapter(base_url="https://backend")
+        adapter = RetryAdapter(base_url="https://backend")
 
         assert adapter.max_retries.total == 3
-        assert 429 in adapter.max_retries.status_forcelist
+        assert adapter.max_retries.status_forcelist == {429}
         assert adapter.max_retries.raise_on_status is False
 
     def test_a_given_retry_replaces_the_default(self):
-        adapter = BaseHttpAdapter(base_url="https://backend", max_retries=Retry(total=7))
+        adapter = RetryAdapter(base_url="https://backend", max_retries=Retry(total=7))
 
         assert adapter.max_retries.total == 7
 
     def test_timeout_is_applied_to_sends(self):
-        adapter = BaseHttpAdapter(base_url="https://backend", timeout=5)
+        adapter = RetryAdapter(base_url="https://backend", timeout=5)
 
         with patch("requests.adapters.HTTPAdapter.send") as send:
             adapter.send(MagicMock())
@@ -132,7 +226,7 @@ class TestBaseHttpAdapter:
         assert send.call_args.kwargs["timeout"] == 5
 
     def test_caller_timeout_wins(self):
-        adapter = BaseHttpAdapter(base_url="https://backend", timeout=5)
+        adapter = RetryAdapter(base_url="https://backend", timeout=5)
 
         with patch("requests.adapters.HTTPAdapter.send") as send:
             adapter.send(MagicMock(), timeout=1)
@@ -141,8 +235,26 @@ class TestBaseHttpAdapter:
 
 
 class TestBaseSession:
+    @pytest.mark.parametrize(
+        "error,expected",
+        [(requests.ReadTimeout("slow"), ClientTimeout), (requests.ConnectionError("refused"), ClientError)],
+    )
+    def test_transport_failures_are_client_errors(self, error, expected):
+        session = BackendSession(adapter=RetryAdapter(base_url="https://backend"))
+
+        with patch("requests.Session.request", side_effect=error):
+            with pytest.raises(expected):
+                session.get("/datasets")
+
+    def test_a_status_error_is_still_an_http_error(self):
+        session = BackendSession(adapter=RetryAdapter(base_url="https://backend"))
+
+        with patch("requests.Session.request", side_effect=requests.HTTPError("401")):
+            with pytest.raises(requests.HTTPError):
+                session.get("/datasets")
+
     def test_relative_urls_are_resolved_against_the_adapter_base_url(self):
-        session = BackendSession(adapter=BaseHttpAdapter(base_url="https://backend"))
+        session = BackendSession(adapter=RetryAdapter(base_url="https://backend"))
 
         with patch("requests.Session.request", return_value=response()) as request:
             session.get("/datasets")
@@ -150,12 +262,12 @@ class TestBaseSession:
         assert request.call_args.args[1] == "https://backend/datasets"
 
     def test_base_url_comes_from_the_adapter(self):
-        session = BackendSession(adapter=BaseHttpAdapter(base_url="https://backend"))
+        session = BackendSession(adapter=RetryAdapter(base_url="https://backend"))
 
         assert session.base_url == "https://backend"
 
     def test_errors_raise_by_default(self):
-        session = BackendSession(adapter=BaseHttpAdapter(base_url="https://backend"))
+        session = BackendSession(adapter=RetryAdapter(base_url="https://backend"))
         resp = response(500)
 
         with patch("requests.Session.request", return_value=resp):
@@ -164,7 +276,7 @@ class TestBaseSession:
         resp.raise_for_status.assert_called_once()
 
     def test_raise_for_status_can_be_disabled_per_request(self):
-        session = BackendSession(adapter=BaseHttpAdapter(base_url="https://backend"))
+        session = BackendSession(adapter=RetryAdapter(base_url="https://backend"))
         resp = response(404)
 
         with patch("requests.Session.request", return_value=resp):
@@ -173,7 +285,7 @@ class TestBaseSession:
         resp.raise_for_status.assert_not_called()
 
     def test_the_adapter_is_mounted_for_both_schemes(self):
-        adapter = BaseHttpAdapter(base_url="https://backend")
+        adapter = RetryAdapter(base_url="https://backend")
         session = BackendSession(adapter=adapter)
 
         assert session.adapters["http://"] is adapter

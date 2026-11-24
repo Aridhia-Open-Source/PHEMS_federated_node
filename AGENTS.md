@@ -17,7 +17,7 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
     `app/healthcheck_api.py` (probes and the health roll-ups), `app/dagster_api.py`.
   - `app/health/` - the health checks the healthcheck routes call; `app/clients/secret_store.py` - the secret stores.
   - `app/dtos/` - Pydantic response DTOs (ADR 0016); `app/models/` - SQLAlchemy models.
-  - `app/clients/` - the Keycloak, Kubernetes, Dagster and outbound clients, and token checks.
+  - `app/clients/` - the Keycloak, Kubernetes and outbound clients, and token checks; the Dagster client is `fednode.clients.dagster` (`nexus/fednode`, ADR 0039).
   - `app/repos/` - git tokens and addresses, pull request fan-out. `app/tasks/` - task config, resources and limits.
   - `app/rules/` - state rules, ownership, authorization. `app/database/` - the model base, queries, soft delete.
   - `app/helpers/` - errors, request wrappers and the env-derived constants still in `const.py`.

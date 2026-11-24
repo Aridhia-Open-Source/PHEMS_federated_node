@@ -19,6 +19,7 @@ package-dir = {"fednode" = "."}
 packages = [
     "fednode",
     "fednode.clients",
+    "fednode.clients.dagster",
     "fednode.clients.git",
     "fednode.clients.nexus",
     "fednode.clients.nexus.models",

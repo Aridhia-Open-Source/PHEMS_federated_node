@@ -18,6 +18,9 @@ services:
     build:
       context: .
       dockerfile: build/test.Dockerfile
+      # The shared fednode package, as docker-bake.hcl passes it
+      additional_contexts:
+        fednode: ../fednode
     depends_on:
       db:
         condition: service_healthy
@@ -25,7 +28,7 @@ services:
       - db
     volumes:
       # Sample responses shared with the nexus client, read by the contract tests
-      - ../client/tests/contract:/contract:ro
+      - ../fednode/tests/contract:/contract:ro
     environment:
       PGHOST:
       PGDATABASE:

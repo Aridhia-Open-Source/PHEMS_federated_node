@@ -10,7 +10,7 @@
 # - Helm deployed (mise run deploy)
 # Then: tilt up
 
-load('ext://restart_process', 'docker_build_with_restart', 'custom_build_with_restart')
+load('ext://restart_process', 'custom_build_with_restart')
 load('ext://dotenv', 'dotenv')
 
 # Load environment config: .generated.env (scripts/configure.sh) first, so .dev.env wins
@@ -54,19 +54,33 @@ k8s_yaml(local(
 # ==============================================================================
 # Image ref has NO tag: Tilt assigns its own tag and injects it into the
 # deployment, matching by the tag-stripped name. uvicorn --reload picks up synced code itself.
-docker_build_with_restart(
+# The image also takes the shared fednode package (nexus/fednode) from the fednode named build context,
+# which docker_build has none of, so it is a custom build, like Dagster's.
+NEXUS_API_BUILD_CMD = ' '.join(
+  ['docker buildx build --load --build-context fednode=nexus/fednode'] + BUILD_SECRET + ['-t {ref} nexus/api'])
+custom_build_with_restart(
   '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
-  'nexus/api',
-  extra_flags=BUILD_SECRET,
+  NEXUS_API_BUILD_CMD.format(ref='$EXPECTED_REF'),
+  deps=[
+    'nexus/api/app',
+    'nexus/api/requirements.txt',
+    'nexus/api/alembic.ini',
+    'nexus/api/migrations',
+    'nexus/api/Dockerfile',
+    'nexus/api/.dockerignore',
+    'nexus/fednode',
+  ],
   entrypoint=[
     'uvicorn', '--factory', 'app:create_app', '--reload',
+    '--reload-dir=/nexus', '--reload-dir=/opt/fednode',
     '--host=0.0.0.0', '--port=5000',
   ],
-  only=[
-    'app',
-    'requirements.txt',
-    'alembic.ini',
-    'migrations',
+  ignore=[
+    'nexus/fednode/tests',
+    '**/.pytest_cache',
+    '**/__pycache__',
+    '**/*.pyc',
+    '**/*.egg-info',
   ],
   live_update=[
     # Dependency / packaging changes => full rebuild
@@ -74,9 +88,12 @@ docker_build_with_restart(
       'nexus/api/requirements.txt',
       'nexus/api/alembic.ini',
       'nexus/api/migrations',
+      'nexus/fednode/pyproject.toml',
     ]),
     # Python code changes => sync into the running container
     sync('nexus/api/app', '/nexus/app'),
+    # The package is installed editable from here (nexus/api/Dockerfile)
+    sync('nexus/fednode', '/opt/fednode'),
   ],
 )
 

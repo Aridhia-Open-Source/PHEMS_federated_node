@@ -47,7 +47,7 @@ from fncli.cmds.secret import init_git_secret, verify_gitea_accepts_bearer_token
 from fncli.cmds.sensor import ALL_SENSORS
 from fncli.cmds.state import snapshot
 from fncli.nodefile.loader import Context
-from fncli.sensors import DagsterAPI
+from fednode.clients.dagster.client import DagsterClient
 
 logger = logging.getLogger("simulate")
 
@@ -306,7 +306,7 @@ def simulate_setup_command(context):
 def simulate_run_command(seed, prs_per_repo, timeout, context):
     """Start the sensors, merge the planned pull requests in all trigger repositories at once, wait, and check."""
     target = open_simulation(context)
-    dagster_api = DagsterAPI(DagsterConfig().dagster_url)
+    dagster_api = DagsterClient(DagsterConfig().dagster_url)
     for name in ALL_SENSORS:
         dagster_api.start_sensor(name)
     plan = simulation.make_plan(LAYOUT, seed, prs_per_repo)

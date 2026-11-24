@@ -15,7 +15,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import click
-import requests
 
 from fncli.cmds.common import (
     DagsterConfig,
@@ -31,7 +30,8 @@ from fncli.cmds.repository import step_repo_config
 from fncli.cmds.sensor import SENSORS
 from fncli.cmds.verify import RUN_TO_TASK_STATUS, Links, Report, delivered, is_push_only, verify_task
 from fednode.clients.nexus.models import TriggerState
-from fncli.sensors import DagsterAPI
+from fednode.clients.dagster.client import DagsterClient
+from fednode.http import ClientError
 
 logger = logging.getLogger("pr")
 
@@ -153,7 +153,7 @@ def create_gitea_pr_command(branch, kind, context, project):
     return create_pr(step_repo_config("trigger", context, project), branch, kind)
 
 
-def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
+def stuck_sensors(dagster_api: DagsterClient, stage: str) -> list[str]:
     """The sensors of the stage the PR is stuck at that are not running."""
     return [
         name
@@ -162,7 +162,7 @@ def stuck_sensors(dagster_api: DagsterAPI, stage: str) -> list[str]:
     ]
 
 
-def wait_for_delivery(backend_api, dagster_api: DagsterAPI, project_id: int, task_id: int):
+def wait_for_delivery(backend_api, dagster_api: DagsterClient, project_id: int, task_id: int):
     """
     Print each change of the task's delivery step until it is delivered (its results PR is opened by the
     results PR sensor or, with that sensor stopped (a push-only node), the results are pushed) or fails
@@ -194,7 +194,7 @@ def watch_pr(config: TriggerRepoConfig, number: int, timeout: int):
     """
     backend_api = build_backend_api(config)
     dagster_url = DagsterConfig().dagster_url
-    dagster_api = DagsterAPI(dagster_url)
+    dagster_api = DagsterClient(dagster_url)
     project = find_project(config, backend_api)
     repo = backend_api.find_repository(config.repo_uri, project.id)
     links = Links(config.web_url, dagster_url, repo.repo_path, config.pulls_page)
@@ -225,7 +225,7 @@ def watch_pr(config: TriggerRepoConfig, number: int, timeout: int):
                     stage = "status"
                     lines["run"] = f"Run {run['runId']}: {run['status']}"
                     lines["run_link"] = f"Dagster run: {links.run(run['runId'])}"
-        except requests.exceptions.ConnectionError as error:
+        except ClientError as error:
             connection_errors += 1
             if connection_errors >= MAX_CONNECTION_ERRORS:
                 logger.info(f"{connection_errors} connection errors in a row, giving up: {error}")

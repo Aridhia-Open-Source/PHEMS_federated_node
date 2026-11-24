@@ -49,7 +49,7 @@ class GiteaWebClient(HttpClient):
     """
 
     def __init__(self, username: str, password: str, session=None, base_uri: str = ""):
-        super().__init__(base_uri, session=session)
+        super().__init__(base_uri, session=session or self.new_session(keep_cookies=True))
         self.username = username
         self.password = password
 
