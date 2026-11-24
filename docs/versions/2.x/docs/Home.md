@@ -54,3 +54,4 @@ You also need a git host for the trigger and results repositories: GitHub (with 
 
 What changed in each release is in the [release notes](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/releases).
 <!-- docs publish test tmp/docs-test-1 1 -->
+<!-- docs publish test tmp/docs-test-1 2 -->
