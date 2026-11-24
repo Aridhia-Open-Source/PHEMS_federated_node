@@ -9,6 +9,7 @@ set -euo pipefail
 # Usage:
 #   ./scripts/flux.sh publish 0.0.1-dev  # package this chart as that version, push it to the kind registry
 #   ./scripts/flux.sh up       # install Flux, push site-example/ to Gitea as fn-site, let Flux adopt the release
+#   ./scripts/flux.sh sops-key # make the dev age key (once) and load it into Flux, so it decrypts SOPS files
 #   ./scripts/flux.sh status   # Flux objects, and the release's helm history
 #   ./scripts/flux.sh down     # remove Flux and the fn-site repository; the release stays, deploy works again
 #   ./scripts/flux.sh check    # fail if Flux manages the release (deploy.sh and teardown.sh call it)
@@ -26,11 +27,31 @@ SITE_REPO=fn-site
 HR_NAME=federated-node
 # Flux's own objects (the site repository and its Kustomization) live with Flux
 FLUX_NS=flux-system
+# SOPS: the age key Flux decrypts the site repository's encrypted files with. Its private half stays out of
+# git (bootstrap/ is gitignored) and in the cluster as this Secret.
+AGE_KEY_FILE=bootstrap/sops/age.agekey
+SOPS_SECRET=sops-age
 SITE_URL_IN_CLUSTER="http://gitea.$NAMESPACE.svc:4000/$GITEA_ADMIN_USER/$SITE_REPO.git"
 
 # Is a HelmRelease managing the dev release? Quiet when Flux is not installed.
 flux_manages_release() {
   [ -n "$(kubectl get helmreleases.helm.toolkit.fluxcd.io -n "$NAMESPACE" -o name 2>/dev/null)" ]
+}
+
+# Make the age key if there is none, and load its private half as the Secret Flux decrypts with
+load_sops_key() {
+  if [ ! -f "$AGE_KEY_FILE" ]; then
+    mkdir -p "$(dirname "$AGE_KEY_FILE")"
+    age-keygen -o "$AGE_KEY_FILE"
+  fi
+  kubectl create secret generic "$SOPS_SECRET" -n "$FLUX_NS" \
+    --from-file=age.agekey="$AGE_KEY_FILE" \
+    --dry-run=client -o yaml | kubectl apply -f -
+  echo "Age key $AGE_KEY_FILE loaded as $FLUX_NS/$SOPS_SECRET, public key $(age_public_key)"
+}
+
+age_public_key() {
+  age-keygen -y "$AGE_KEY_FILE"
 }
 
 case "$COMMAND" in
@@ -69,6 +90,7 @@ case "$COMMAND" in
     echo "=== Installing Flux ======================================================"
     flux check --pre
     flux install
+    load_sops_key
 
     echo
     echo "=== Site repository $GITEA_ADMIN_USER/$SITE_REPO =========================="
@@ -77,7 +99,14 @@ case "$COMMAND" in
       # A fresh history: the site repository is the site's, not a copy of this one
       SEED="$(mktemp -d)"
       trap 'rm -rf "$SEED"; kill "${GITEA_PF_PID:-}" 2>/dev/null || true' EXIT
-      cp "$SITE_DIR"/*.yaml "$SEED"/
+      cp "$SITE_DIR"/*.yaml "$SITE_DIR"/.sops.yaml "$SEED"/
+      # Encrypt the example Secret for this cluster's age key, as a site does before it commits one
+      sed -i "s/AGE_PUBLIC_KEY/$(age_public_key)/" "$SEED"/.sops.yaml
+      # The first user's login from .dev.env (scripts/load_env.sh), as a site writes its own
+      sed -i -e "s|FIRST_USER_EMAIL|$KEYCLOAK_FIRST_USER_EMAIL|" -e "s|FIRST_USER_PASSWORD|$KEYCLOAK_FIRST_USER_PASSWORD|" \
+        "$SEED"/first-user-secret.yaml
+      # From the repo root, so a mise shim still finds the sops version mise.toml pins
+      sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/first-user-secret.yaml"
       git -C "$SEED" init -q -b main
       git -C "$SEED" add .
       git -C "$SEED" -c user.name=fn-dev -c user.email=fn-dev@example.org commit -q -m "Site: node pinned to its first release"
@@ -102,6 +131,8 @@ case "$COMMAND" in
       --source="GitRepository/$SITE_REPO" \
       --path=./ \
       --prune=true \
+      --decryption-provider=sops \
+      --decryption-secret="$SOPS_SECRET" \
       --interval=1m
 
     echo
@@ -115,6 +146,13 @@ case "$COMMAND" in
     echo "Flux now owns $RELEASE_NAME: mise run deploy and teardown refuse until mise run flux down."
     echo "Site repository: $GITEA_URL/$GITEA_ADMIN_USER/$SITE_REPO"
     echo "The loop: docs/versions/2.x/docs/GitOps-Delivery.md"
+    ;;
+
+  ###############################################################################
+  # SOPS-KEY
+  ###############################################################################
+  sops-key)
+    load_sops_key
     ;;
 
   ###############################################################################
@@ -165,7 +203,7 @@ case "$COMMAND" in
     ;;
 
   *)
-    echo "usage: $0 publish VERSION|up|status|down|check" >&2
+    echo "usage: $0 publish VERSION|up|sops-key|status|down|check" >&2
     exit 2
     ;;
 esac

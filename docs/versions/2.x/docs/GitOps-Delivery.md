@@ -10,11 +10,20 @@ How a node is upgraded, reverted and configured from a git repository with Flux 
 ## On a site
 
 1. Install the node's prerequisites and Flux (`flux install`).
-2. Copy `site-example/` into a repository in the node's Gitea. In `helmrepository.yaml` set `url: oci://ghcr.io/aridhia-open-source/charts` and drop `insecure`. In `values.yaml` drop the `image` and `tag` lines and set the site's own values. Secret values never go in it: they stay in Kubernetes Secrets, referenced by name.
+2. Copy `site-example/` into a repository in the node's Gitea. In `helmrepository.yaml` set `url: oci://ghcr.io/aridhia-open-source/charts` and drop `insecure`. In `values.yaml` drop the `image` and `tag` lines and set the site's own values. Secret values never go in it: they stay in Kubernetes Secrets, referenced by name. `first-user-secret.yaml` holds placeholders: fill in the first user's login and encrypt it (see Secrets below) before the first commit.
 3. Point Flux at it: `flux create source git` and `flux create kustomization`, as `scripts/flux.sh up` does.
 4. Upgrade: bump `version` in `helmrelease.yaml` and merge. Revert: `git revert` that commit. A failed upgrade is retried twice, then rolled back.
 5. Config: edit `values.yaml` and merge. The values ConfigMap name carries a hash of its content, so every values change upgrades the release.
 6. An upgrade that breaks Gitea also stops Flux from pulling the fix, since the site repository lives there. Recover by hand: `flux suspend helmrelease federated-node -n fn`, `helm rollback <release> <last good revision> -n fn`, push the fix to the site repository, `flux resume helmrelease federated-node -n fn`.
+
+### Secrets (SOPS)
+
+Secrets go in the site repository encrypted with [SOPS](https://getsops.io) and an age key; Flux decrypts them on apply. Only `data` and `stringData` are encrypted, so the rest of each Secret stays readable in review.
+
+1. Make the site's age key and load it into Flux: `mise run flux sops-key` (against the site's `kubectl` context). The private half is kept in `bootstrap/sops/age.agekey` (gitignored) and in the cluster as Secret `flux-system/sops-age`; back it up, it is the only way to decrypt.
+2. In `.sops.yaml`, replace `AGE_PUBLIC_KEY` with the public key it printed.
+3. Point the Kustomization at the key: add `--decryption-provider=sops --decryption-secret=sops-age` to `flux create kustomization`.
+4. Write a Secret like `first-user-secret.yaml`, encrypt it in place (`sops encrypt -i my-secret.yaml`, file names matching `*secret*.yaml`), list it in `kustomization.yaml`, commit. Edit it later with `sops my-secret.yaml`.
 
 ### Site repository hosted elsewhere
 
@@ -42,6 +51,8 @@ mise run flux publish 0.0.1-dev   # this chart, as version 0.0.1-dev, into the k
 mise run flux up                  # install Flux, push site-example/ to Gitea as gitea_admin/fn-site, adopt the release
 mise run flux status              # Flux objects and the release's helm history
 ```
+
+`up` also makes the dev age key (`bootstrap/sops/age.agekey`, kept across runs), loads it into Flux and fills `first-user-secret.yaml` from `.dev.env` and encrypts it with that key before the first push. Flux decrypts it into `keycloak-first-user`, which the Keycloak realm controller reads. To add a Secret in the loop, run `sops encrypt -i` in your clone of fn-site (its `.sops.yaml` has your key); `SOPS_AGE_KEY_FILE=<repo>/bootstrap/sops/age.agekey sops <file>` edits one.
 
 `site-example/helmrelease.yaml` uses the release name and namespace `mise run deploy` used, so Flux adopts that release rather than installing a second node. From then on `mise run deploy` and `mise run teardown` refuse until `mise run flux down`, which removes Flux and the site repository and leaves the release as it is.
 
