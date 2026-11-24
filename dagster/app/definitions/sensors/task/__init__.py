@@ -4,7 +4,7 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
 from fednode.clients.nexus.client import BackendAPI
-from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS, BackendConfig
+from app.config import settings
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.task.delivery import (
     deliver_results_job,
@@ -23,8 +23,8 @@ from fednode.http import BackendSession, PasswordFileAdapter
 
 
 @dg.sensor(
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=DEFAULT_SENSOR_STATUS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
+    default_status=settings.sensors.initial_status,
     required_resource_keys={"backend_api"},
     job_name="k8s_pipes_job",
 )
@@ -45,7 +45,7 @@ def _record_run_status(context: RunStatusSensorContext):
     if context.dagster_run.tags.get("fn/trigger") != "task":
         return
 
-    backend_config = BackendConfig()
+    backend_config = settings.backend
     backend_adapter = PasswordFileAdapter(
         base_url=backend_config.uri,
         username=backend_config.user,
@@ -59,9 +59,9 @@ def _record_run_status(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.QUEUED,
-    default_status=DEFAULT_SENSOR_STATUS,
+    default_status=settings.sensors.initial_status,
     monitored_jobs=[k8s_pipes_job],
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
 )
 def task_queued_sensor(context: RunStatusSensorContext):
     """Mark the task QUEUED when its run is queued."""
@@ -70,9 +70,9 @@ def task_queued_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.STARTED,
-    default_status=DEFAULT_SENSOR_STATUS,
+    default_status=settings.sensors.initial_status,
     monitored_jobs=[k8s_pipes_job],
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
 )
 def task_started_sensor(context: RunStatusSensorContext):
     """Mark the task RUNNING when its run starts."""
@@ -81,9 +81,9 @@ def task_started_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.SUCCESS,
-    default_status=DEFAULT_SENSOR_STATUS,
+    default_status=settings.sensors.initial_status,
     monitored_jobs=[k8s_pipes_job],
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
 )
 def task_success_sensor(context: RunStatusSensorContext):
     """Mark the task SUCCESS when its run succeeds."""
@@ -92,9 +92,9 @@ def task_success_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.FAILURE,
-    default_status=DEFAULT_SENSOR_STATUS,
+    default_status=settings.sensors.initial_status,
     monitored_jobs=[k8s_pipes_job],
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
 )
 def task_failure_sensor(context: RunStatusSensorContext):
     """Mark the task FAILED when its run fails."""
@@ -103,9 +103,9 @@ def task_failure_sensor(context: RunStatusSensorContext):
 
 @dg.run_status_sensor(
     run_status=dg.DagsterRunStatus.CANCELED,
-    default_status=DEFAULT_SENSOR_STATUS,
+    default_status=settings.sensors.initial_status,
     monitored_jobs=[k8s_pipes_job],
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
 )
 def task_canceled_sensor(context: RunStatusSensorContext):
     """Mark the task CANCELED when its run is canceled."""

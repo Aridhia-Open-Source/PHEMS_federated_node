@@ -11,7 +11,7 @@ import dagster as dg
 from dagster import SensorEvaluationContext
 
 from fednode.clients.nexus.client import BackendAPI
-from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS
+from app.config import settings
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.base import BaseSensor
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
@@ -71,8 +71,8 @@ class TaskReconcileSensor(BaseSensor):
 
 
 @dg.sensor(
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=DEFAULT_SENSOR_STATUS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
+    default_status=settings.sensors.initial_status,
     required_resource_keys={"backend_api"},
 )
 def task_reconcile_sensor(context: SensorEvaluationContext):

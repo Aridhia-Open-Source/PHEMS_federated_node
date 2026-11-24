@@ -2,13 +2,13 @@ import dagster as dg
 
 from fednode.clients.nexus.client import BackendAPI
 from fednode.http import BackendSession, PasswordFileAdapter
-from app.config import BackendConfig
+from app.config import BackendConfig, settings
 from app.definitions.sensors.git.base import GitAPIFactory
 
 
 @dg.resource
 def backend_config() -> BackendConfig:
-    return BackendConfig()
+    return settings.backend
 
 
 @dg.resource(required_resource_keys={"backend_config"})

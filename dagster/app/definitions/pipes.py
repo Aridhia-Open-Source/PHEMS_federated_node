@@ -8,7 +8,7 @@ from dagster import OpExecutionContext as OpExecCtx
 from dagster._core.pipes.client import PipesClientCompletedInvocation
 
 from fednode.clients.nexus.client import BackendAPI
-from app.config import PipesSecurityContextConfig
+from app.config import settings
 from fednode.clients.nexus.models import TaskResources
 
 logging.basicConfig(level=logging.INFO)
@@ -77,20 +77,20 @@ class K8sPipe:
         self.task_id = context.dagster_run.tags['fn/task_id']
         self.project_id = int(context.dagster_run.tags['fn/project_id'])
         self.config = context.op_config
-        self.namespace = os.environ["DAGSTER_DEPLOYMENT_NAMESPACE"]
+        self.namespace = settings.task_pods.namespace
         # Task pods run apart from the release namespace, which holds the backend,
         # Keycloak and the Dagster infrastructure.
-        self.task_namespace = os.environ.get("DAGSTER_TASK_NAMESPACE") or self.namespace
-        self.pvc_name = os.environ["DAGSTER_ARTIFACTS_PVC_NAME"]
-        self.mnt_base_path = os.environ["DAGSTER_ARTIFACT_MOUNT_PATH"]
-        self.active_deadline_seconds = int(os.environ["DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS"])
+        self.task_namespace = settings.task_pods.task_namespace or self.namespace
+        self.pvc_name = settings.artifacts_volume.pvc_name
+        self.mnt_base_path = settings.artifacts_volume.mount_path
+        self.active_deadline_seconds = settings.task_pods.active_deadline_seconds
         self.image = self.config['docker_image']
         self.image_pull_secret = self.config.get('image_pull_secret')
         self.task_config = self.config.get('config')
         self.name = f"pipes-{self.run_id}"
         self.artifact_path = f"{self.mnt_base_path}/{self.run_id}"
-        self.security_context = PipesSecurityContextConfig().to_pod_security_context()
-        self.container_security_context = PipesSecurityContextConfig().to_container_security_context()
+        self.security_context = settings.pipes.to_pod_security_context()
+        self.container_security_context = settings.pipes.to_container_security_context()
         self.dataset = self._setup_dataset()
         self.env = self._setup_env(ext_env)
         self.compute = self.config.get('compute')

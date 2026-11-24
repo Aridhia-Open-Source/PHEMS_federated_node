@@ -5,6 +5,14 @@ from dagster import DagsterInstance, build_sensor_context
 from dagster._core.storage.dagster_run import DagsterRun
 from dagster._core.events import DagsterEvent, DagsterEventType
 
+from app.config import settings
+
+
+@pytest.fixture(autouse=True)
+def fresh_settings():
+    """Settings are read once per process; read them again from each test's environment."""
+    vars(settings).clear()
+
 
 # ---------------------------------------------------------------------------
 # Sample data
