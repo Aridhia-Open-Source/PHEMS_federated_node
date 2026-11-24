@@ -1,4 +1,4 @@
-# 0040. QA test cases as YAML, set up and torn down through the operator
+# 0040. YAML QA Test Cases
 
 Status: Proposed, 2026-11-23.
 
