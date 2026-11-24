@@ -3,7 +3,8 @@
 #   1. kustomize build: what Flux applies builds.
 #   2. helm template: the pinned chart renders with the site's values, which also checks them against the
 #      chart's values schema. The chart comes from the HelmRepository url and the HelmRelease version.
-#   3. SOPS: every file .sops.yaml says to encrypt is encrypted, and its data/stringData values are too.
+#   3. SOPS: every file .sops.yaml says to encrypt is encrypted, and its data/stringData values are too; and so
+#      is every Secret the kustomize build outputs, whatever its file is called.
 # Needs helm, kustomize and yq (ci/install-tools.sh). No cluster, no keys and no cloud credentials.
 #
 # Overrides:
@@ -76,5 +77,12 @@ while IFS= read -r regex; do
     fi
   done < <(find . -path ./.git -prune -o -type f \( -name '*.yaml' -o -name '*.yml' \) -print)
 done < <(yq '.creation_rules[].path_regex' .sops.yaml)
+
+# A Secret in a file .sops.yaml does not match would reach the repository in plain text: check the build output
+plain="$(yq ea '[select(.kind == "Secret") | select(.sops.mac == null or ([(.data // {}, .stringData // {}) | .[] | select(test("^ENC\[") | not)] | length) != 0) | .metadata.name] | join(", ")' "$TMP/built.yaml")"
+if [ -n "$plain" ]; then
+  echo "NOT ENCRYPTED: Secret(s) in the kustomize build with plain or no sops values: $plain (sops encrypt -i the file, and name it so .sops.yaml matches)"
+  failed=1
+fi
 [ "$failed" = "0" ] || exit 1
-echo "ok: $checked encrypted file(s)"
+echo "ok: $checked encrypted file(s), every built Secret encrypted"
