@@ -67,7 +67,7 @@
           "main"
         ],
         "summary": "Login",
-        "description": "POST /login endpoint.\n    Given a form, logs the user in: {\"token\": <access token>, \"refresh_token\": ...}.\n    Send the token as the Bearer; when it expires, swap the refresh token at /refresh_token.",
+        "description": "POST /login endpoint.\n    Given a form, logs the user in, returning a refresh_token from Keycloak",
         "operationId": "login_login_post",
         "requestBody": {
           "content": {
@@ -110,7 +110,7 @@
           "main"
         ],
         "summary": "Refresh Token",
-        "description": "POST /refresh_token endpoint.\n    Given the refresh token as the Bearer, returns a new pair, the same response as /login",
+        "description": "POST /refresh_token endpoint.\n    Given a token, exchanges it for a new one. Returns the same\n    response as /login",
         "operationId": "refresh_token_refresh_token_post",
         "responses": {
           "200": {
@@ -2541,17 +2541,18 @@
           "users"
         ],
         "summary": "Create User",
-        "description": "POST /global/users endpoint. Creates a KC user, and sets a temp\n    password for them. The role is Users (default) or Administrator, which only the SuperUser may give.",
+        "description": "POST /global/users endpoint. Creates a KC user, and sets a temp\n    password for them.",
         "operationId": "create_user_global_users_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NewUserRequest"
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Data"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -2933,7 +2934,7 @@
           "trigger_repositories"
         ],
         "summary": "Post Token",
-        "description": "POST /global/repositories/triggers/<id>/token \u2014 a short-lived read token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
+        "description": "POST /global/repositories/triggers/<id>/token \u2014 a short-lived read token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
         "operationId": "post_token_global_repositories_triggers__repo_id__token_post",
         "parameters": [
           {
@@ -4159,7 +4160,7 @@
           "results_repositories"
         ],
         "summary": "Post Token",
-        "description": "POST /global/repositories/results/<id>/token \u2014 a short-lived write token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
+        "description": "POST /global/repositories/results/<id>/token \u2014 a short-lived write token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
         "operationId": "post_token_global_repositories_results__repo_id__token_post",
         "parameters": [
           {
@@ -5074,6 +5075,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5093,7 +5105,8 @@
           "updated_at",
           "slug",
           "url",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "DatasetDTO"
       },
@@ -5191,6 +5204,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5204,7 +5228,8 @@
           "revoked",
           "created_at",
           "updated_at",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "GitProviderDTO"
       },
@@ -5593,62 +5618,6 @@
         "title": "NewUserDTO",
         "description": "The response of creating a user: the temporary password is shown once."
       },
-      "NewUserRequest": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "title": "Email"
-          },
-          "username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Username"
-          },
-          "firstName": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Firstname"
-          },
-          "lastName": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Lastname"
-          },
-          "role": {
-            "type": "string",
-            "enum": [
-              "Users",
-              "Administrator"
-            ],
-            "title": "Role",
-            "default": "Users"
-          }
-        },
-        "type": "object",
-        "required": [
-          "email"
-        ],
-        "title": "NewUserRequest",
-        "description": "POST /global/users. The username defaults to the email; the role is Users or Administrator."
-      },
       "NodeHealthDTO": {
         "properties": {
           "status": {
@@ -5939,6 +5908,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5951,7 +5931,8 @@
           "default_dataset_id",
           "created_at",
           "updated_at",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectDTO"
       },
@@ -5985,6 +5966,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5994,7 +5986,8 @@
           "enabled",
           "revoked",
           "active",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectDatasetDTO",
         "description": "A project's resource for a global dataset, the dataset nested. Addressed by the dataset's id."
@@ -6153,6 +6146,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6165,7 +6169,8 @@
           "enabled",
           "revoked",
           "active",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectResultsRepositoryDTO",
         "description": "A project's resource for a global results repository, the repository nested. Addressed by the repository's id."
@@ -6343,6 +6348,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6352,7 +6368,8 @@
           "enabled",
           "revoked",
           "active",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectSecretDTO",
         "description": "A project's resource for a global secret, the reference nested. Addressed by the secret's label. Never carries values."
@@ -6446,6 +6463,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6460,7 +6488,8 @@
           "enabled",
           "revoked",
           "active",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "ProjectTriggerRepositoryDTO",
         "description": "A project's resource for a global trigger repository, the repository nested. Addressed by the repository's id."
@@ -7090,6 +7119,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7101,7 +7141,8 @@
           "secret",
           "enabled",
           "revoked",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "ResultsRepositoryDTO"
       },
@@ -7207,6 +7248,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7220,7 +7272,8 @@
           "enabled",
           "created_at",
           "updated_at",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "SecretDTO"
       },
@@ -7860,6 +7913,17 @@
                 "type": "null"
               }
             ]
+          },
+          "owner_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7872,7 +7936,8 @@
           "enabled",
           "revoked",
           "pr_cursor",
-          "owner"
+          "owner",
+          "owner_group"
         ],
         "title": "TriggerRepositoryDTO"
       },
