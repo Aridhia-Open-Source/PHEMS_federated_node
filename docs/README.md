@@ -43,6 +43,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0035](../project/decisions/0035-api-authorization-oidc-authentication.md) | Keycloak Authentication | An OIDC provider signs people in and supplies a user id, one node role and groups; nexus-api decides every access per record from its own database. |
 | [0036](../project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md) | Roles and Accounts | Keycloak is the provider shipped; five fixed realm roles; kc-init creates the system accounts; SuperUser bypasses grants, not the application's rules. |
 | [0037](../project/decisions/0037-cedar-authorization-grants-and-policies.md) | Cedar Authz Grants | A `grants` table per record (owner, read, write, execute, assign, optional expiry); Cedar policies say what each allows; every route declares an `Access` check. |
+| [0031](../project/decisions/0031-gitops-deployment-with-flux.md) | GitOps deployment with Flux | OpenTofu only for infrastructure we own; versioned OCI releases; Flux in each site's cluster reads a client-owned site repository; rollback by Flux or git revert. |
 
 ## Other docs by topic
 
