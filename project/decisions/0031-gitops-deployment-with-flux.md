@@ -1,4 +1,4 @@
-# 0031. GitOps deployment with Flux
+# 0031. GitOps Flux Deployment
 
 Status: Proposed, 2026-11-11.
 
