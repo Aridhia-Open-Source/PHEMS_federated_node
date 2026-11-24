@@ -27,7 +27,6 @@ from urllib.parse import urlparse
 import click
 from kubernetes import client as k8s
 from kubernetes.client.rest import ApiException
-from kubernetes.config import load_kube_config
 
 from fncli import simulation
 from fncli.backend import FncliBackendAPI
@@ -48,6 +47,7 @@ from fncli.cmds.sensor import ALL_SENSORS
 from fncli.cmds.state import snapshot
 from fncli.nodefile.loader import Context
 from fednode.clients.dagster.client import DagsterClient
+from fednode.clients.kubernetes.client import KubernetesClient
 
 logger = logging.getLogger("simulate")
 
@@ -134,8 +134,7 @@ def apply_alias(target: Target):
         metadata=k8s.V1ObjectMeta(name=ALIAS_SERVICE, namespace=namespace, labels={"app": "fncli-simulation"}),
         spec=k8s.V1ServiceSpec(type="ExternalName", external_name=external_name),
     )
-    load_kube_config()
-    api = k8s.CoreV1Api()
+    api = KubernetesClient(in_cluster=False)
     try:
         api.create_namespaced_service(namespace, body)
     except ApiException as error:
@@ -146,9 +145,8 @@ def apply_alias(target: Target):
 
 
 def delete_alias(target: Target):
-    load_kube_config()
     try:
-        k8s.CoreV1Api().delete_namespaced_service(ALIAS_SERVICE, target.gitea_config().namespace)
+        KubernetesClient(in_cluster=False).delete_namespaced_service(ALIAS_SERVICE, target.gitea_config().namespace)
         logger.info(f"Deleted alias service {ALIAS_SERVICE}")
     except ApiException as error:
         if error.status != 404:

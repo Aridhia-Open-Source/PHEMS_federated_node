@@ -192,8 +192,7 @@ def client():
 # K8s
 @fixture
 def k8s_config(mocker):
-    mocker.patch('kubernetes.config.load_kube_config', return_value=Mock())
-    mocker.patch('app.clients.kubernetes.config.load_kube_config', Mock())
+    mocker.patch('fednode.clients.kubernetes.client.load_kubernetes_config', return_value=None)
 
 @fixture
 def v1_mock(mocker):

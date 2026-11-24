@@ -5,6 +5,8 @@ import re
 import string
 import time
 
+from fednode.clients.kubernetes.mounted import MountedSecret
+
 from fednode.clients.keycloak.admin import KeycloakAdmin
 from fednode.clients.keycloak.login import KeycloakLogin
 
@@ -43,14 +45,7 @@ def read_secret(name: str, default: str = "") -> str:
     Falls back to the environment so local runs and docker-compose, which have no mount, keep
     working unchanged.
     """
-    try:
-        with open(os.path.join(KC_SECRETS_PATH, name), encoding="utf-8") as handle:
-            return handle.read().strip()
-    except FileNotFoundError:
-        return os.getenv(name, default)
-    except OSError as exc:
-        logger.warning("Could not read secret %s (%s), falling back to the environment", name, exc)
-        return os.getenv(name, default)
+    return MountedSecret(KC_SECRETS_PATH).read(name, default)
 
 
 def keycloak_secret() -> str:

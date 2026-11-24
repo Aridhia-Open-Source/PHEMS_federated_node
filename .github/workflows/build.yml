@@ -387,15 +387,31 @@ jobs:
       - dagster-tests
     if: >-
       !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
-    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
-    with:
-      TAG: ${{ needs.init.outputs.tag }}
-      IMAGE: alpine
-      BUILD_PATH: build/alpine/
-      HASH_SUFFIX: false
-      DOCKER_ACR: ${{ vars.DOCKER_CR }}
-    secrets:
-      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.DOCKER_CR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set lower case owner name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> "${GITHUB_ENV}"
+        env:
+          OWNER: '${{ github.repository_owner }}'
+      - name: Build and push alpine image
+        uses: docker/build-push-action@v5
+        with:
+          context: build/alpine
+          file: build/alpine/Dockerfile
+          build-contexts: fednode=nexus/fednode
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/alpine:${{ needs.init.outputs.tag }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
   # The steps of Aridhia-Open-Source/pipelines build-docker.yml (HASH_SUFFIX false), inline because the
   # image needs the fednode named build context (nexus/fednode), which that workflow cannot pass.
   build-kc-init-image:

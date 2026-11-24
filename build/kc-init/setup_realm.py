@@ -9,10 +9,11 @@ import requests
 from fednode.http import ClientError
 from requests.exceptions import ConnectionError
 
-from kubernetes import client
 from kubernetes import config
 from kubernetes.watch import Watch
 from kubernetes.client.exceptions import ApiException
+
+from fednode.clients.kubernetes.client import KubernetesClient
 
 from common import (
     create_user, delete_bootstrap_user,
@@ -29,11 +30,9 @@ logger = logging.getLogger('realm_init')
 
 def init_k8s():
     if os.getenv('KUBERNETES_SERVICE_HOST'):
-        # Get configuration for an in-cluster setup
-        config.load_incluster_config()
+        return KubernetesClient(in_cluster=True)
     elif os.path.exists(config.KUBE_CONFIG_DEFAULT_LOCATION):
-        # Get config from outside the cluster. Mostly DEV
-        config.load_kube_config()
+        return KubernetesClient(in_cluster=False)
     else:
         setup_keycloak()
         exit(0)
@@ -204,7 +203,7 @@ def setup_keycloak():
     logger.info("Done!")
 
 
-init_k8s()
+v1 = init_k8s()
 logger.info("Running realm setup at startup")
 health_check()
 setup_keycloak()
@@ -213,13 +212,13 @@ setup_keycloak()
 while True:
     watcher = Watch()
     for kc_pod in watcher.stream(
-        client.CoreV1Api().list_namespaced_pod,
+        v1.list_namespaced_pod,
         settings.keycloak_namespace,
         label_selector="app=keycloak"
     ):
         try:
             # Double check the pods, as the ready replicas do include the terminating ones
-            pods = client.CoreV1Api().list_namespaced_pod(
+            pods = v1.list_namespaced_pod(
                 settings.keycloak_namespace,
                 label_selector="app=keycloak"
             )

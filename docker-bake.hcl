@@ -48,8 +48,9 @@ target "dagster-fn" {
 }
 
 target "alpine-fn" {
-  context = "build/alpine"
-  tags    = tags("alpine-fn")
+  context  = "build/alpine"
+  contexts = { fednode = "nexus/fednode" }
+  tags     = tags("alpine-fn")
 }
 
 target "kc-init-fn" {

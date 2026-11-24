@@ -26,7 +26,8 @@ pushd "$DIR" > /dev/null
 # Consumers of the shared fednode package compile its dependencies into their own hashed file (ADR 0039)
 SOURCES=(pyproject.toml)
 case "$(realpath --relative-to="$ROOT" .)" in
-    dagster | nexus/api | build/kc-init) SOURCES+=("$(realpath --relative-to=. "$ROOT/nexus/fednode/pyproject.toml")") ;;
+    dagster | nexus/api | build/kc-init | build/alpine)
+        SOURCES+=("$(realpath --relative-to=. "$ROOT/nexus/fednode/pyproject.toml")") ;;
 esac
 
 # The component's own Python (its mise.toml), which `mise run setup` gives pip-tools
