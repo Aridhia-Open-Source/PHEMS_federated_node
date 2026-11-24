@@ -285,6 +285,14 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p artifacts
 
+      # The site pipelines' check (site-example/ci) against this chart. Its secret is a
+      # placeholder until a site encrypts it, so the SOPS step is skipped here.
+      - name: Validate site-example
+        working-directory: site-example
+        run: |
+          export PATH="$(ci/install-tools.sh):$PATH"
+          CHART_PATH=../k8s/federated-node SKIP_SOPS=1 ci/validate.sh
+
       - name: Run Python Tests
         working-directory: nexus/api
         run: |

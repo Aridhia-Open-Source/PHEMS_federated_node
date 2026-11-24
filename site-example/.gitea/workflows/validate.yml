@@ -1,0 +1,18 @@
+# Site repository check on Gitea Actions: runs ci/validate.sh on every pull request (ADR 0031).
+# Needs no secrets. The runner image needs bash, curl and git (the default act_runner images have them).
+# Where the runner cannot reach github.com, point the checkout at a mirror of actions/checkout, or set
+# DEFAULT_ACTIONS_URL in the Gitea config.
+name: validate
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: ci/install-tools.sh >> "$GITHUB_PATH"
+      - name: Validate
+        run: ci/validate.sh

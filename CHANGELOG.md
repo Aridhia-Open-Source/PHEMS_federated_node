@@ -1,5 +1,6 @@
 # Releases Changelog
 ## Unreleased
+- Pull request checks for a site repository on GitHub Actions, Azure DevOps and Gitea Actions: `site-example/ci/validate.sh` runs kustomize build, `helm template` of the pinned chart with the site's values, and fails on unencrypted SOPS files; `site-example/renovate.json` opens chart version bumps ([#726](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/726), ADR 0031)
 - SOPS-encrypted Secrets in the site repository, decrypted by Flux with an age key; `mise run flux sops-key` makes the key and loads it, `mise run flux up` encrypts the `site-example` Secret with it ([#725](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/725), ADR 0031)
 - `mise run mirror-to-gitea URL` keeps a pull mirror of a site repository in the cluster's Gitea, for Flux to pull from ([#702](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/702), ADR 0031)
 - Run behind a TLS-intercepting proxy, or with a private CA ([#652](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/652), ADR 0033, `PROXY_CA_SETUP.md`):

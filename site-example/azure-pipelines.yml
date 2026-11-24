@@ -1,0 +1,19 @@
+# Site repository check on Azure DevOps: runs ci/validate.sh on every pull request (ADR 0031).
+# Needs no service connection and no secrets. For an Azure Repos repository, pull requests run it through a
+# branch policy (build validation) on main; for a GitHub repository, the pr trigger below does.
+trigger:
+  branches:
+    include: [main]
+pr:
+  branches:
+    include: [main]
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+  - bash: echo "##vso[task.prependpath]$(ci/install-tools.sh)"
+    displayName: Install tools
+  - bash: ci/validate.sh
+    displayName: Validate
