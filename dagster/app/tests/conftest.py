@@ -5,7 +5,7 @@ from dagster import DagsterInstance, build_sensor_context
 from dagster._core.storage.dagster_run import DagsterRun
 from dagster._core.events import DagsterEvent, DagsterEventType
 
-from app.config import settings
+from app.settings import settings
 
 
 @pytest.fixture(autouse=True)
@@ -245,5 +245,5 @@ def success_event():
 @pytest.fixture
 def artifacts_env(monkeypatch):
     """The artifacts volume as the chart sets it in the environment."""
-    monkeypatch.setenv("DAGSTER_ARTIFACTS_PVC_NAME", "artifacts-pvc")
-    monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/mnt/dagster/artifacts")
+    monkeypatch.setenv("ARTIFACTS_PVC_NAME", "artifacts-pvc")
+    monkeypatch.setenv("ARTIFACTS_MOUNT_PATH", "/mnt/dagster/artifacts")

@@ -4,7 +4,7 @@ import dagster as dg
 
 from app.definitions import defs
 from app.definitions.jobs import JOBS, k8s_pipes_job, noop_job
-from app.config import settings
+from app.settings import settings
 from app.definitions.sensors import SENSORS
 
 

@@ -2,20 +2,24 @@ import dagster as dg
 
 from fednode.clients.nexus.client import BackendAPI
 from fednode.http import BackendSession, PasswordFileAdapter
-from app.config import BackendConfig, settings
+from app.settings import settings
+from app.settings.groups import NexusSettings
 from app.definitions.sensors.git.base import GitAPIFactory
 
 
 @dg.resource
-def backend_config() -> BackendConfig:
-    return settings.backend
+def backend_config() -> NexusSettings:
+    return settings.services.nexus
 
 
 @dg.resource(required_resource_keys={"backend_config"})
 def backend_api(context) -> BackendAPI:
     config = context.resources.backend_config
-    adapter = PasswordFileAdapter(base_url=config.uri, username=config.user, password_file=config.password_file)
+    timeout = (settings.http.connect_timeout, settings.http.read_timeout)
+    adapter = PasswordFileAdapter(base_url=config.uri, username=config.user, password_file=config.password_file,
+                                  timeout=timeout)
     session = BackendSession(adapter=adapter)
+    session.timeout = timeout
     return BackendAPI(session=session)
 
 

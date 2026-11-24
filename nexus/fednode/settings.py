@@ -14,6 +14,7 @@ class EnvSettings(BaseSettings):
 
 
 class NodeSettings(EnvSettings):
+    """Node identity."""
     model_config = SettingsConfigDict(env_prefix="NODE_")
 
     id: str | None = None
@@ -21,6 +22,7 @@ class NodeSettings(EnvSettings):
 
 
 class NamespacesSettings(EnvSettings):
+    """Kubernetes namespaces."""
     model_config = SettingsConfigDict(env_prefix="NAMESPACES_")
 
     deployment: str | None = None
@@ -30,6 +32,7 @@ class NamespacesSettings(EnvSettings):
 
 
 class HttpSettings(EnvSettings):
+    """Outbound HTTP timeouts."""
     model_config = SettingsConfigDict(env_prefix="HTTP_")
 
     connect_timeout: float | None = None
@@ -37,6 +40,7 @@ class HttpSettings(EnvSettings):
 
 
 class DatabaseSettings(EnvSettings):
+    """Owned database connection."""
     model_config = SettingsConfigDict(env_prefix="DATABASE_")
 
     host: str | None = None
@@ -48,6 +52,7 @@ class DatabaseSettings(EnvSettings):
 
 
 class NexusSettings(EnvSettings):
+    """Nexus service connection."""
     model_config = SettingsConfigDict(env_prefix="SERVICES_NEXUS_")
 
     uri: str | None = None
@@ -56,12 +61,14 @@ class NexusSettings(EnvSettings):
 
 
 class DagsterSettings(EnvSettings):
+    """Dagster service connection."""
     model_config = SettingsConfigDict(env_prefix="SERVICES_DAGSTER_")
 
     uri: str | None = None
 
 
 class KeycloakSettings(EnvSettings):
+    """Keycloak service connection."""
     model_config = SettingsConfigDict(env_prefix="SERVICES_KEYCLOAK_")
 
     url: str | None = None

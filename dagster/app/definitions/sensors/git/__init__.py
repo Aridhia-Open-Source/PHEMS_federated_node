@@ -4,7 +4,7 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 
 from fednode.clients.nexus.client import BackendAPI
-from app.config import settings
+from app.settings import settings
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.ingest_job import ingest_pull_requests_job
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor

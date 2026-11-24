@@ -10,10 +10,12 @@ cd "$(dirname "$0")"
 db="${NEXUS_TEST_DB:-test_app}"
 docker exec nexus-test-db psql -U admin -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
     || docker exec nexus-test-db createdb -U admin "$db"
-export PGHOST=localhost PGPORT=55432 NEXUS_DB_USER=admin NEXUS_DB_PASSWORD=test_app NEXUS_DB_NAME="$db"
-export KEYCLOAK_URL=http://keycloak:8080 KEYCLOAK_REALM=FederatedNode KEYCLOAK_CLIENT=global KEYCLOAK_ADMIN=admin
-export KEYCLOAK_ADMIN_PASSWORD=password1 KEYCLOAK_SERVICE_USER=fn-service KEYCLOAK_SERVICE_PASSWORD=servicepass1
-export KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2 SECRETS_NAMESPACE=default TASK_NAMESPACE=tasks
-export KEYCLOAK_NAMESPACE=keycloak PUBLIC_URL=localhost:5000 PYTHONPATH="$PWD"
-export TASK_COMPUTE_MAX_CPU=4 TASK_COMPUTE_MAX_MEMORY=16Gi TASK_COMPUTE_DEFAULT_LIMIT_CPU=2 TASK_COMPUTE_DEFAULT_LIMIT_MEMORY=4Gi
+export DATABASE_HOST=localhost DATABASE_PORT=55432 DATABASE_USER=admin DATABASE_PASSWORD=test_app DATABASE_NAME="$db"
+export SERVICES_KEYCLOAK_URL=http://keycloak:8080 SERVICES_KEYCLOAK_REALM=FederatedNode
+export SERVICES_KEYCLOAK_CLIENT=global SERVICES_KEYCLOAK_ADMIN=admin
+export SERVICES_KEYCLOAK_SERVICE_USER=fn-service SERVICES_KEYCLOAK_SERVICE_PASSWORD=servicepass1
+export SERVICES_KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2 SERVICES_DAGSTER_URI=http://dagster:3000
+export NAMESPACES_SECRETS=default NAMESPACES_TASKS=tasks NODE_HOSTNAME=localhost:5000 PYTHONPATH="$PWD"
+export TASKS_LIMITS_MAX_CPU=4 TASKS_LIMITS_MAX_MEMORY=16Gi
+export TASKS_LIMITS_DEFAULT_LIMIT_CPU=2 TASKS_LIMITS_DEFAULT_LIMIT_MEMORY=4Gi
 exec timeout 600 "${NEXUS_VENV:-/tmp/nexus-venv}/bin/pytest" -p no:cacheprovider --no-cov -q -n "${NEXUS_TEST_WORKERS:-auto}" "$@"

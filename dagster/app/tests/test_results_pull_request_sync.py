@@ -6,7 +6,7 @@ import requests
 
 import dagster as dg
 
-from app.config import settings
+from app.settings import settings
 from app.definitions.sensors.base import IN_FLIGHT
 from app.definitions.sensors.task import JOBS, SENSORS
 from app.definitions.sensors.task.pull_request_sync import (
@@ -301,7 +301,7 @@ def test_a_result_is_synced_against_its_own_repository_listed_once():
 
 
 def test_a_result_whose_attempts_ran_out_is_not_synced(monkeypatch):
-    monkeypatch.setattr(settings.sensors, "delivery_max_attempts", 3)
+    monkeypatch.setattr(settings.results, "max_attempts", 3)
 
     yielded, _, _, _, _ = sync_sensor([result(9, "PUSHED", attempts=2), result(10, "PUSHED", attempts=3)], [])
 

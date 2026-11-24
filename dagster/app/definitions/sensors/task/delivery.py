@@ -4,7 +4,7 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
 from fednode.clients.nexus.client import BackendAPI
-from app.config import settings
+from app.settings import settings
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.base import LaunchingSensor, artifacts_volume_tags, run_key
 from app.delivery.results import FINAL, ResultsDelivery
@@ -16,7 +16,7 @@ def deliver_results(context: OpExecCtx):
     """Push the results of a task to its project's results repository."""
     ResultsDelivery(
         backend_api=cast(BackendAPI, context.resources.backend_api),
-        config=settings.results_delivery,
+        config=settings,
         log=context.log,
     )(
         context.op_config["project_id"], context.op_config["task_id"], context.op_config["run_id"]
@@ -45,7 +45,7 @@ def task_results_delivery_sensor(context: RunStatusSensorContext):
     """
     Launch the delivery of a task's results when its run succeeds. It fires once per task
     attempt, so the run key deliver/<task>/<attempt> is exactly once. A failed delivery is
-    retried by results_delivery_retry_sensor, up to DAGSTER_DELIVERY_MAX_ATTEMPTS attempts.
+    retried by results_delivery_retry_sensor, up to RESULTS_MAX_ATTEMPTS attempts.
     """
     tags = context.dagster_run.tags
     if tags.get("fn/trigger") != "task":
@@ -64,7 +64,7 @@ def task_results_delivery_sensor(context: RunStatusSensorContext):
 class ResultsDeliveryRetrySensor(LaunchingSensor):
     """
     Relaunches deliver_results_job for each result whose delivery failed and is not final, until it
-    has DAGSTER_DELIVERY_MAX_ATTEMPTS failed attempts: after that it stays FAILED until relaunched by
+    has RESULTS_MAX_ATTEMPTS failed attempts: after that it stays FAILED until relaunched by
     hand (reset `attempts` with a PATCH, or re-run deliver_results_job). A branch
     already pushed is not pushed again. Only results whose project results repository
     is active are retried. The run key names the result and has no state, see run_key: a failing
@@ -86,7 +86,7 @@ class ResultsDeliveryRetrySensor(LaunchingSensor):
             result
             for project in self.backend_api.get_projects()
             for result in self.backend_api.get_results_by_state(project.id, ResultState.FAILED.value, active_resource=True)
-            if result.step not in FINAL and result.attempts < settings.sensors.delivery_max_attempts
+            if result.step not in FINAL and result.attempts < settings.results.max_attempts
         ]
 
     def describe(self, item: PullRequestResult) -> str:

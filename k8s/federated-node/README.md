@@ -49,6 +49,18 @@ The necessary values are:
 |proxy|httpsProxy|Optional. Address of the proxy for OUTBOUND `https://` calls. The proxy is off unless this or `httpProxy` is set|
 |proxy|noProxy|Optional. More hosts and domains that skip the proxy, comma separated. In-cluster addresses always skip it|
 
+### Service settings
+
+The chart supplies the API and Dagster settings as environment variables. Direct container deployments must rename
+their old variables: `PUBLIC_URL` to `NODE_HOSTNAME`, namespace variables to `NAMESPACES_*`,
+`OUTBOUND_*_TIMEOUT` to `HTTP_*_TIMEOUT`, `DAGSTER_WEBSERVER_URI` to `SERVICES_DAGSTER_URI`,
+`KEYCLOAK_*`/`KC_SECRETS_PATH` to `SERVICES_KEYCLOAK_*`, `TASK_COMPUTE_*` to `TASKS_LIMITS_*`, and
+`PGHOST`, `PGPORT`, `NEXUS_DB_*`, `DB_SSL` to `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_*`, `DATABASE_SSL`.
+Dagster uses `SERVICES_NEXUS_URI`, `SERVICES_NEXUS_USER`, `SERVICES_NEXUS_PASSWORD_FILE`, `ARTIFACTS_*`,
+`TASKS_ACTIVE_DEADLINE_SECONDS`, `TASKS_SECURITY_*`, `RESULTS_MAX_ATTEMPTS` and `SENSORS_*`.
+Mounted Secret keys retain their existing names. The chart supplies a Dagster URI even when Dagster is disabled;
+this does not enable Dagster. Database chart values remain `db.*` and `nexus.api.db.*`.
+
 ### Existing secrets
 Most secrets are created by the chart: the per-service database passwords are generated on first
 install, reused on every upgrade, and placed in whichever namespace needs them. Read them back with

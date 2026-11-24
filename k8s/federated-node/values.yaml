@@ -470,7 +470,7 @@ dagster:
         envConfigMaps:
           - name: dagster-env-config
 
-        # The Keycloak password is a mounted file read at every login (DAGSTER_KC_PASSWORD_FILE in
+        # The Keycloak password is a mounted file read at every login (SERVICES_NEXUS_PASSWORD_FILE in
         # dagster-env-config), so a credential rotation reaches a running run. Mount the whole
         # secret as a directory: a subPath mount never refreshes. Only the user comes in as env.
         volumes:
@@ -484,7 +484,7 @@ dagster:
         runK8sConfig:
           containerConfig:
             env:
-              - name: DAGSTER_KC_USER
+              - name: SERVICES_NEXUS_USER
                 valueFrom:
                   secretKeyRef:
                     name: dagster-keycloak-creds

@@ -4,7 +4,7 @@ import dagster as dg
 import pytest
 from dagster_k8s.job import DagsterK8sJobConfig, construct_dagster_k8s_job, get_user_defined_k8s_config
 
-from app.config import settings
+from app.settings import settings
 from app.definitions.sensors import base
 from app.definitions.sensors.base import IN_FLIGHT, LaunchingSensor, artifacts_volume_tags, run_in_flight, run_key
 
@@ -36,8 +36,8 @@ def test_a_delivery_run_gets_only_its_task_runs_folder_read_only(artifacts_env):
 
 
 def test_the_volume_tag_follows_the_chart_values(monkeypatch):
-    monkeypatch.setenv("DAGSTER_ARTIFACTS_PVC_NAME", "other-claim")
-    monkeypatch.setenv("DAGSTER_ARTIFACT_MOUNT_PATH", "/data")
+    monkeypatch.setenv("ARTIFACTS_PVC_NAME", "other-claim")
+    monkeypatch.setenv("ARTIFACTS_MOUNT_PATH", "/data")
 
     pod = run_pod(artifacts_volume_tags("run-1"))
 

@@ -5,7 +5,7 @@ follows appVersion - a subchart value cannot be templated. Run pods inherit it v
 DAGSTER_CURRENT_IMAGE, so the run launcher sets no job_image.
 
 It logs in to nexus-api as dagster, from dagster-keycloak-creds (keycloak-secrets.yaml). The password
-is a mounted file read at every login (DAGSTER_KC_PASSWORD_FILE in dagster-env-config), not env, so the
+is a mounted file read at every login (SERVICES_NEXUS_PASSWORD_FILE in dagster-env-config), not env, so the
 credential rotation reaches it without a restart (a directory mount: a subPath one never refreshes).
 Run pods mount it the same way (dagster.runLauncher in values.yaml).
 
@@ -115,7 +115,7 @@ spec:
                 secretKeyRef:
                   name: {{ include "dagsterDbSecretName" . }}
                   key: {{ include "dagsterDbSecretKey" . }}
-            - name: DAGSTER_KC_USER
+            - name: SERVICES_NEXUS_USER
               valueFrom:
                 secretKeyRef:
                   name: dagster-keycloak-creds

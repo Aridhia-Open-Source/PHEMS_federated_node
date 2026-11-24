@@ -1,4 +1,4 @@
-from app.config import settings
+from app.settings import settings
 
 
 def build_sql_uri(
@@ -15,7 +15,7 @@ def build_sql_uri(
     params['host'] = host or settings.database.host
     params['port'] = port or settings.database.port
     params['database'] = database or settings.database.name
-    params['ssl'] = ssl or settings.database.ssl
+    params['ssl'] = ssl if ssl is not None else settings.database.ssl
 
     template = "postgresql://{username}:{password}@{host}:{port}/{database}{ssl}"
     return template.format(**params)

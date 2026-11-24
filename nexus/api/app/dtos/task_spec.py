@@ -5,24 +5,13 @@ from pydantic import (
     BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
 )
 
-from app.config import settings
+from app.settings import settings
 from app.tasks.compute import convert_cpu_values_to_int, convert_memory_values_to_int
-from app.tasks.limits import (
-    CPU_RESOURCE_REGEX,
-    MEMORY_RESOURCE_REGEX,
-    SPEC_RAW_MAX_BYTES,
-    TASK_ENV_KEY_REGEX,
-    TASK_ENV_MAX_BYTES,
-    TASK_ENV_RESERVED_KEYS,
-    TASK_ENV_RESERVED_PREFIXES,
-    TASK_IMAGE_MAX_LENGTH,
-    TASK_NAME_MAX_LENGTH,
-    TASK_TAG_KEY_REGEX,
-)
+from app.tasks import limits
 from app.helpers.exceptions import InvalidRequest
 
-EnvKey = Annotated[str, StringConstraints(pattern=TASK_ENV_KEY_REGEX)]
-TagKey = Annotated[str, StringConstraints(pattern=TASK_TAG_KEY_REGEX)]
+EnvKey = Annotated[str, StringConstraints(pattern=limits.TASK_ENV_KEY_REGEX)]
+TagKey = Annotated[str, StringConstraints(pattern=limits.TASK_TAG_KEY_REGEX)]
 
 
 class ComputeQuantities(BaseModel):
@@ -30,10 +19,10 @@ class ComputeQuantities(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     cpu: str | None = Field(
-        default=None, pattern=CPU_RESOURCE_REGEX, description="CPU in cores or millicores, e.g. 2, 0.5 or 500m"
+        default=None, pattern=limits.CPU_RESOURCE_REGEX, description="CPU in cores or millicores, e.g. 2, 0.5 or 500m"
     )
     memory: str | None = Field(
-        default=None, pattern=MEMORY_RESOURCE_REGEX,
+        default=None, pattern=limits.MEMORY_RESOURCE_REGEX,
         description="Memory as a whole number with an optional unit, e.g. 512Mi, 4Gi or 2e9"
     )
 
@@ -61,7 +50,7 @@ class Compute(BaseModel):
 
     @model_validator(mode="after")
     def _validate_quantities(self):
-        compute = settings.kubernetes.task_limits
+        compute = settings.tasks.limits
         for resource, convert, node_max, default_limit in (
             ("cpu", convert_cpu_values_to_int, compute.max_cpu, compute.default_limit_cpu),
             ("memory", convert_memory_values_to_int, compute.max_memory, compute.default_limit_memory),
@@ -91,7 +80,7 @@ class PrSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     image: str = Field(
-        min_length=1, max_length=TASK_IMAGE_MAX_LENGTH, description="The container image the task runs"
+        min_length=1, max_length=limits.TASK_IMAGE_MAX_LENGTH, description="The container image the task runs"
     )
     dataset: str | None = Field(
         default=None,
@@ -103,16 +92,16 @@ class PrSpec(BaseModel):
     env: dict[EnvKey, Any] = Field(
         default_factory=dict,
         description=(
-            f"Environment variables of the task. A name has to match {TASK_ENV_KEY_REGEX}, and can't be "
-            f"{', '.join(sorted(TASK_ENV_RESERVED_KEYS))} or start with {' or '.join(TASK_ENV_RESERVED_PREFIXES)}, "
-            f"in any letter case. The env as JSON is at most {TASK_ENV_MAX_BYTES} bytes"
+            f"Environment variables of the task. A name has to match {limits.TASK_ENV_KEY_REGEX}, and can't be "
+            f"{', '.join(sorted(limits.TASK_ENV_RESERVED_KEYS))} or start with {' or '.join(limits.TASK_ENV_RESERVED_PREFIXES)}, "
+            f"in any letter case. The env as JSON is at most {limits.TASK_ENV_MAX_BYTES} bytes"
         ),
         # pydantic states the key pattern as patternProperties only, a key that doesn't match it is still not allowed
         json_schema_extra={"additionalProperties": False},
     )
     tags: dict[TagKey, str] = Field(
         default_factory=dict,
-        description=f"Tags copied onto the task's run. A key has to match {TASK_TAG_KEY_REGEX}, a value is text",
+        description=f"Tags copied onto the task's run. A key has to match {limits.TASK_TAG_KEY_REGEX}, a value is text",
         json_schema_extra={"additionalProperties": False},
     )
     config: dict | None = Field(
@@ -128,10 +117,10 @@ class PrSpec(BaseModel):
     def _validate_env(cls, env: dict) -> dict:
         for key in env:
             upper = key.upper()
-            if upper in TASK_ENV_RESERVED_KEYS or upper.startswith(TASK_ENV_RESERVED_PREFIXES):
+            if upper in limits.TASK_ENV_RESERVED_KEYS or upper.startswith(limits.TASK_ENV_RESERVED_PREFIXES):
                 raise ValueError(f"env key {key} is reserved")
-        if len(json.dumps(env).encode()) > TASK_ENV_MAX_BYTES:
-            raise ValueError(f"env is over the {TASK_ENV_MAX_BYTES} bytes limit")
+        if len(json.dumps(env).encode()) > limits.TASK_ENV_MAX_BYTES:
+            raise ValueError(f"env is over the {limits.TASK_ENV_MAX_BYTES} bytes limit")
         return env
 
 
@@ -144,7 +133,7 @@ class PrSpecFile(BaseModel):
         default=None,
         description=(
             "The client's own: any JSON value, not validated, kept with the task and delivered with the results. "
-            f"The whole spec file is at most {SPEC_RAW_MAX_BYTES} bytes"
+            f"The whole spec file is at most {limits.SPEC_RAW_MAX_BYTES} bytes"
         ),
     )
 
@@ -155,7 +144,7 @@ class TaskSpecRequest(PrSpec):
     pull request spec file's metadata and, for the API only, a name, params and a repository. What is
     kept is the image, dataset, env, tags, config, compute and metadata, as a TaskSpec.
     """
-    name: str | None = Field(default=None, max_length=TASK_NAME_MAX_LENGTH)
+    name: str | None = Field(default=None, max_length=limits.TASK_NAME_MAX_LENGTH)
     params: dict = {}
     # The client's own, any JSON value, not checked
     metadata: Any = None

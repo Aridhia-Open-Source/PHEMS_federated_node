@@ -6,7 +6,7 @@ import logging
 from kubernetes.client.exceptions import ApiException
 
 from app.clients.kubernetes import KubernetesClient
-from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
+from app.settings import settings
 from app.helpers.exceptions import InvalidRequest
 from app.models.secret_provider_type import SecretProviderType
 
@@ -18,8 +18,8 @@ SECRET_LABELS = {"type": "k8s_secret"}
 class K8sSecretProvider:
     """Writes and deletes secrets in Kubernetes."""
 
-    namespace = SECRETS_NAMESPACE
-    quarantine_namespace = QUARANTINE_NAMESPACE
+    namespace = settings.namespaces.secrets
+    quarantine_namespace = settings.namespaces.quarantine
 
     def set(self, key: str, namespace: str, values: dict[str, str]):
         """The caller is the authority on the content, so it overwrites what is there."""
@@ -51,11 +51,11 @@ class K8sSecretProvider:
 
     def quarantine(self, key: str, namespace: str):
         """Moves a secret from its namespace into the quarantine namespace."""
-        self._move(key, namespace, self.quarantine_namespace)
+        self._move(key, namespace, self.namespaces.quarantine)
 
     def restore(self, key: str, namespace: str):
         """Moves a secret from the quarantine namespace back into its namespace."""
-        self._move(key, self.quarantine_namespace, namespace)
+        self._move(key, self.namespaces.quarantine, namespace)
 
     def _move(self, key: str, source: str, target: str):
         """
@@ -89,11 +89,11 @@ class SecretProvider:
 
     @property
     def namespace(self) -> str | None:
-        return self.provider.namespace
+        return self.provider.namespaces.secrets
 
     @property
     def quarantine_namespace(self) -> str | None:
-        return self.provider.quarantine_namespace
+        return self.provider.namespaces.quarantine
 
     def set(self, key: str, namespace: str, values: dict[str, str]):
         self.provider.set(key, namespace, values)

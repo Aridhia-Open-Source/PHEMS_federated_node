@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 from kubernetes.client.exceptions import ApiException
 
-from app.config import settings
+from app.settings import settings
 from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.models.secret import Secret
@@ -20,9 +20,9 @@ SEC = "/global/secrets"
 DS = "/global/datasets"
 TRIG = "/global/repositories/triggers"
 RES = "/global/repositories/results"
-NS = settings.kubernetes.namespaces.secrets
+NS = settings.namespaces.secrets
 KEY = "fn-secret-test-creds"
-Q = settings.kubernetes.namespaces.quarantine
+Q = settings.namespaces.quarantine
 VALUE = {"TOKEN": base64.b64encode(b"t").decode()}
 KINDS = [(DS, "global_dataset"), (TRIG, "global_trigger_repo"), (RES, "global_results_repo")]
 

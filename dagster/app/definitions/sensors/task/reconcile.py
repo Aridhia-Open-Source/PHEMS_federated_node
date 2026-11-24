@@ -11,7 +11,7 @@ import dagster as dg
 from dagster import SensorEvaluationContext
 
 from fednode.clients.nexus.client import BackendAPI
-from app.config import settings
+from app.settings import settings
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.base import BaseSensor
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor

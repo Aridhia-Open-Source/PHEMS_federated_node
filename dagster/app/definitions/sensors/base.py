@@ -6,7 +6,7 @@ from typing import Any, Iterable, Union
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
-from app.config import settings
+from app.settings import settings
 
 IN_FLIGHT = [dg.DagsterRunStatus.NOT_STARTED, dg.DagsterRunStatus.QUEUED, dg.DagsterRunStatus.STARTING,
              dg.DagsterRunStatus.STARTED]
@@ -32,7 +32,7 @@ def artifacts_volume_tags(run_id: str | None = None) -> dict[str, str]:
     Without run_id, the whole volume read-write: a task's run pod creates the run's folder in it. With one, only
     that run's folder, read-only, at the path delivery reads it from.
     """
-    config = settings.artifacts_volume
+    config = settings.artifacts
     mount = {"name": config.pvc_name, "mountPath": config.mount_path}
     if run_id:
         mount = {**mount, "mountPath": f"{config.mount_path}/{run_id}", "subPath": run_id, "readOnly": True}

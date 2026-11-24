@@ -11,7 +11,7 @@ from http import HTTPStatus
 from kubernetes.client import V1ConfigMap, V1ObjectMeta, V1Secret
 from kubernetes.client.exceptions import ApiException
 
-from app.config import settings
+from app.settings import settings
 from app.helpers.exceptions import InvalidRequest
 from app.clients.kubernetes import KubernetesClient
 from app.models.task import Task
@@ -57,12 +57,13 @@ def create_run_resources(task: Task, run_id: str) -> dict[str, str | None]:
 
 
 def _create(create, body, what: str):
+    namespace = settings.namespaces.tasks
     try:
-        create(settings.kubernetes.namespaces.tasks, body)
+        create(namespace, body)
     except ApiException as exc:
         if exc.status != HTTPStatus.CONFLICT:
             raise
-        raise InvalidRequest(f"{what} already exists in {settings.kubernetes.namespaces.tasks}", HTTPStatus.CONFLICT) from exc
+        raise InvalidRequest(f"{what} already exists in {namespace}", HTTPStatus.CONFLICT) from exc
 
 
 def delete_run_resources(run_id: str):
@@ -72,5 +73,6 @@ def delete_run_resources(run_id: str):
     """
     k8s = KubernetesClient()
     selector = f"{RUN_LABEL}={run_id}"
-    k8s.delete_collection_namespaced_secret(settings.kubernetes.namespaces.tasks, label_selector=selector)
-    k8s.delete_collection_namespaced_config_map(settings.kubernetes.namespaces.tasks, label_selector=selector)
+    namespace = settings.namespaces.tasks
+    k8s.delete_collection_namespaced_secret(namespace, label_selector=selector)
+    k8s.delete_collection_namespaced_config_map(namespace, label_selector=selector)

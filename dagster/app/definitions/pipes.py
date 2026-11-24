@@ -8,27 +8,12 @@ from dagster import OpExecutionContext as OpExecCtx
 from dagster._core.pipes.client import PipesClientCompletedInvocation
 
 from fednode.clients.nexus.client import BackendAPI
-from app.config import settings
+from app.settings import settings
+from app.settings import groups as task_settings
 from fednode.clients.nexus.models import TaskResources
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Analytical containers flushing results to the shared volume need longer than the
-# 30s default to exit before SIGKILL.
-TERMINATION_GRACE_PERIOD_SECONDS = 300
-
-# What the pod, the Secret and the ConfigMap of a run are labelled with, so nexus-api finds the Secret and the
-# ConfigMap to delete when the task ends (RUN_LABEL and TASK_LABEL in nexus/api/app/tasks/task_resources.py).
-RUN_LABEL = "fn/run_id"
-TASK_LABEL = "fn/task_id"
-
-# A task's config, when its spec has one, is a single read-only file in the task pod, from a ConfigMap that
-# nexus-api makes for the run and deletes when the task ends. The file is the ConfigMap's one key (CONFIG_FILE_NAME
-# in nexus/api/app/tasks/task_resources.py).
-CONFIG_FILE_NAME = "config.json"
-CONFIG_FILE_PATH = f"/etc/task/{CONFIG_FILE_NAME}"
-CONFIG_VOLUME_NAME = "task-config"
 
 # ODBC driver per dataset type, as the legacy node's connection_string helper (and the task
 # images, e.g. ghcr.io/aridhia-open-source/r-base) name them.
@@ -77,20 +62,20 @@ class K8sPipe:
         self.task_id = context.dagster_run.tags['fn/task_id']
         self.project_id = int(context.dagster_run.tags['fn/project_id'])
         self.config = context.op_config
-        self.namespace = settings.task_pods.namespace
+        self.namespace = settings.namespaces.deployment
         # Task pods run apart from the release namespace, which holds the backend,
         # Keycloak and the Dagster infrastructure.
-        self.task_namespace = settings.task_pods.task_namespace or self.namespace
-        self.pvc_name = settings.artifacts_volume.pvc_name
-        self.mnt_base_path = settings.artifacts_volume.mount_path
-        self.active_deadline_seconds = settings.task_pods.active_deadline_seconds
+        self.task_namespace = settings.namespaces.tasks
+        self.pvc_name = settings.artifacts.pvc_name
+        self.mnt_base_path = settings.artifacts.mount_path
+        self.active_deadline_seconds = settings.tasks.active_deadline_seconds
         self.image = self.config['docker_image']
         self.image_pull_secret = self.config.get('image_pull_secret')
         self.task_config = self.config.get('config')
         self.name = f"pipes-{self.run_id}"
         self.artifact_path = f"{self.mnt_base_path}/{self.run_id}"
-        self.security_context = settings.pipes.to_pod_security_context()
-        self.container_security_context = settings.pipes.to_container_security_context()
+        self.security_context = settings.tasks.security.to_pod_security_context()
+        self.container_security_context = settings.tasks.security.to_container_security_context()
         self.dataset = self._setup_dataset()
         self.env = self._setup_env(ext_env)
         self.compute = self.config.get('compute')
@@ -112,7 +97,7 @@ class K8sPipe:
             'ARTIFACT_PATH': self.artifact_path,
         }
         if self.task_config is not None:
-            env['CONFIG_PATH'] = CONFIG_FILE_PATH
+            env['CONFIG_PATH'] = task_settings.CONFIG_FILE_PATH
         if self.dataset:
             if self.dataset['read_schema']:
                 env['CDM_SCHEMA'] = self.dataset['read_schema']
@@ -131,12 +116,12 @@ class K8sPipe:
         result = self.client.run(
             base_pod_spec=base_pod_spec,
             # The name is not ours to set: PipesK8sClient overrides the one in base_pod_meta
-            base_pod_meta={"labels": {RUN_LABEL: self.run_id, TASK_LABEL: self.task_id}},
+            base_pod_meta={"labels": {task_settings.RUN_LABEL: self.run_id, task_settings.TASK_LABEL: self.task_id}},
             namespace=self.task_namespace,
             context=self.context,
             image=self.image,
             # The pod is killed at its deadline, and Kubernetes then takes up to the grace period to stop it
-            pod_wait_timeout=self.active_deadline_seconds + TERMINATION_GRACE_PERIOD_SECONDS,
+            pod_wait_timeout=self.active_deadline_seconds + task_settings.TERMINATION_GRACE_PERIOD_SECONDS,
         )
 
         self.log("Pipes op completed")
@@ -207,7 +192,7 @@ class K8sPipe:
         spec = {
             "automountServiceAccountToken": False,
             "restartPolicy": "Never",
-            "terminationGracePeriodSeconds": TERMINATION_GRACE_PERIOD_SECONDS,
+            "terminationGracePeriodSeconds": task_settings.TERMINATION_GRACE_PERIOD_SECONDS,
             # Kubernetes kills a pod past this, which is what ends a hung task: the Pipes client
             # follows the pod's logs until the container exits, so its own timeout cannot.
             "activeDeadlineSeconds": self.active_deadline_seconds,
@@ -238,7 +223,7 @@ class K8sPipe:
             }
         ]
         if self.task_config is not None:
-            volumes.append({"name": CONFIG_VOLUME_NAME, "configMap": {"name": resources.config_map}})
+            volumes.append({"name": task_settings.CONFIG_VOLUME_NAME, "configMap": {"name": resources.config_map}})
         return volumes
 
     def _pod_env(self, resources: TaskResources):
@@ -266,7 +251,12 @@ class K8sPipe:
         ]
         if self.task_config is not None:
             mounts.append(
-                {"name": CONFIG_VOLUME_NAME, "mountPath": CONFIG_FILE_PATH, "subPath": CONFIG_FILE_NAME, "readOnly": True}
+                {
+                    "name": task_settings.CONFIG_VOLUME_NAME,
+                    "mountPath": task_settings.CONFIG_FILE_PATH,
+                    "subPath": task_settings.CONFIG_FILE_NAME,
+                    "readOnly": True,
+                }
             )
         return mounts
 

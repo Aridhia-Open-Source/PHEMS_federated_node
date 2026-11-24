@@ -11,7 +11,7 @@ from fastapi import APIRouter, Body
 from fednode.clients.dagster.client import DagsterClient
 
 from app.dtos.sensor import SensorDTO
-from app.helpers.const import DAGSTER_WEBSERVER_URI
+from app.settings import settings
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 
 router = APIRouter(prefix='/dagster', tags=["dagster"])
@@ -21,7 +21,8 @@ STATUSES = ("RUNNING", "STOPPED")
 
 @lru_cache
 def dagster() -> DagsterClient:
-    return DagsterClient(DAGSTER_WEBSERVER_URI)
+    timeout = (settings.http.connect_timeout, settings.http.read_timeout)
+    return DagsterClient(settings.services.dagster.uri, timeout=timeout)
 
 
 def dto_of(sensors: list[dict]) -> list[SensorDTO]:

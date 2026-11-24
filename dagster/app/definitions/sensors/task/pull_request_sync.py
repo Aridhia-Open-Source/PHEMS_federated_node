@@ -14,7 +14,7 @@ from dagster import OpExecutionContext as OpExecCtx, SensorEvaluationContext
 
 from fednode.clients.git.provider import GitProvider
 from fednode.clients.nexus.client import BackendAPI
-from app.config import settings
+from app.settings import settings
 from app.definitions.sensors.base import LaunchingSensor, run_in_flight, run_key
 from app.definitions.sensors.git.base import GitAPIFactory, GitSensor
 from app.delivery.results import MAX_ERROR_LENGTH, results_title
@@ -33,7 +33,7 @@ def get_synced_results(backend_api: BackendAPI) -> list[PullRequestResult]:
             *backend_api.get_results_by_step(project.id, [PullRequestResultStep.PUSHED.value]),
             *backend_api.get_results_by_step(project.id, [PullRequestResultStep.OPENED.value]),
         )
-        if result.attempts < settings.sensors.delivery_max_attempts
+        if result.attempts < settings.results.max_attempts
     ]
 
 

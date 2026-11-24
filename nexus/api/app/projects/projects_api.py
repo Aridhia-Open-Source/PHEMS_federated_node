@@ -31,9 +31,7 @@ from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.dtos.base import page_of
 from app.dtos.dataset import ProjectDatasetDTO
-from app.dtos.results_repository import (
-    ProjectResultsRepositoryDTO, ProjectResultsRepositoryPatchRequest, ProjectResultsRepositoryRequest,
-)
+from app.dtos import results_repository
 from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
 from app.rules.ownership import get_for_write, require_member, require_members, set_owner
@@ -382,7 +380,7 @@ def _check_results_loop(assignment: ProjectResultsRepository):
         raise
 
 
-@router.get('/{project_id}/repositories/results', response_model=list[ProjectResultsRepositoryDTO])
+@router.get('/{project_id}/repositories/results', response_model=list[results_repository.ProjectResultsRepositoryDTO])
 def list_project_results_repositories(project_id: int):
     """
     GET /projects/<project_id>/repositories/results endpoint. The project's results repository
@@ -390,20 +388,20 @@ def list_project_results_repositories(project_id: int):
     """
     Project.get_by_id(project_id)
     resources = ProjectResultsRepository.query.filter_by(project_id=project_id).order_by(ProjectResultsRepository.id)
-    return [ProjectResultsRepositoryDTO.from_model(a) for a in resources]
+    return [results_repository.ProjectResultsRepositoryDTO.from_model(a) for a in resources]
 
 
-@router.get('/{project_id}/repositories/results/{repository_id}', response_model=ProjectResultsRepositoryDTO)
+@router.get('/{project_id}/repositories/results/{repository_id}', response_model=results_repository.ProjectResultsRepositoryDTO)
 def get_project_results_repository(project_id: int, repository_id: int):
     """
     GET /projects/<project_id>/repositories/results/<repository_id> endpoint. The repository is the global one's id.
     """
-    return ProjectResultsRepositoryDTO.from_model(_results_resource(project_id, repository_id))
+    return results_repository.ProjectResultsRepositoryDTO.from_model(_results_resource(project_id, repository_id))
 
 
-@router.put('/{project_id}/repositories/results/{repository_id}', response_model=ProjectResultsRepositoryDTO)
+@router.put('/{project_id}/repositories/results/{repository_id}', response_model=results_repository.ProjectResultsRepositoryDTO)
 def put_project_results_repository(
-    project_id: int, repository_id: int, response: Response, req: ProjectResultsRepositoryRequest,
+    project_id: int, repository_id: int, response: Response, req: results_repository.ProjectResultsRepositoryRequest,
     caller: Caller = Depends(get_caller)
 ):
     """
@@ -442,12 +440,12 @@ def put_project_results_repository(
     _check_results_loop(resource)
     db.session.commit()
     response.status_code = HTTPStatus.CREATED if created else HTTPStatus.OK
-    return ProjectResultsRepositoryDTO.from_model(resource)
+    return results_repository.ProjectResultsRepositoryDTO.from_model(resource)
 
 
-@router.patch('/{project_id}/repositories/results/{repository_id}', response_model=ProjectResultsRepositoryDTO)
+@router.patch('/{project_id}/repositories/results/{repository_id}', response_model=results_repository.ProjectResultsRepositoryDTO)
 def patch_project_results_repository(
-    project_id: int, repository_id: int, req: ProjectResultsRepositoryPatchRequest, caller: Caller = Depends(get_caller)
+    project_id: int, repository_id: int, req: results_repository.ProjectResultsRepositoryPatchRequest, caller: Caller = Depends(get_caller)
 ):
     """
     PATCH /projects/<project_id>/repositories/results/<repository_id> endpoint. Changes where
@@ -463,7 +461,7 @@ def patch_project_results_repository(
     )
     body = req.model_dump(exclude_unset=True)
     if not body:
-        raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectResultsRepositoryPatchRequest.model_fields))}")
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(results_repository.ProjectResultsRepositoryPatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
 
@@ -477,7 +475,7 @@ def patch_project_results_repository(
     db.session.flush()
     _check_results_loop(resource)
     db.session.commit()
-    return ProjectResultsRepositoryDTO.from_model(resource)
+    return results_repository.ProjectResultsRepositoryDTO.from_model(resource)
 
 
 @router.delete('/{project_id}/repositories/results/{repository_id}', status_code=HTTPStatus.NO_CONTENT)

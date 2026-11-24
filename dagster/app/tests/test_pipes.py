@@ -9,24 +9,24 @@ from fednode.clients.nexus.models import TaskResources
 from app.definitions.pipes import (
     K8sPipe,
     K8sPipesResponse,
-    TERMINATION_GRACE_PERIOD_SECONDS,
     _dict_to_pod_env,
 )
+from app.settings.groups import TERMINATION_GRACE_PERIOD_SECONDS
 
 
 PIPES_ENV = {
-    "DAGSTER_DEPLOYMENT_NAMESPACE": "fn",
-    "DAGSTER_TASK_NAMESPACE": "tasks",
-    "DAGSTER_ARTIFACTS_PVC_NAME": "artifacts-pvc",
-    "DAGSTER_ARTIFACT_MOUNT_PATH": "/mnt/dagster/artifacts",
-    "DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS": "21600",
+    "NAMESPACES_DEPLOYMENT": "fn",
+    "NAMESPACES_TASKS": "tasks",
+    "ARTIFACTS_PVC_NAME": "artifacts-pvc",
+    "ARTIFACTS_MOUNT_PATH": "/mnt/dagster/artifacts",
+    "TASKS_ACTIVE_DEADLINE_SECONDS": "21600",
 }
 
 SECURITY_CONTEXT_ENV = (
-    "DAGSTER_PIPES_FS_GROUP",
-    "DAGSTER_PIPES_RUN_AS_USER",
-    "DAGSTER_PIPES_RUN_AS_GROUP",
-    "DAGSTER_PIPES_SUPPLEMENTAL_GROUPS",
+    "TASKS_SECURITY_FS_GROUP",
+    "TASKS_SECURITY_RUN_AS_USER",
+    "TASKS_SECURITY_RUN_AS_GROUP",
+    "TASKS_SECURITY_SUPPLEMENTAL_GROUPS",
 )
 
 DATASET_CONFIG = {
@@ -89,8 +89,8 @@ class TestBasePodSpec:
         assert "securityContext" not in make_pipe()._build_base_pod_spec(RESOURCES)
 
     def test_security_context_from_env(self, pipes_env, monkeypatch):
-        monkeypatch.setenv("DAGSTER_PIPES_RUN_AS_USER", "1001")
-        monkeypatch.setenv("DAGSTER_PIPES_FS_GROUP", "2001")
+        monkeypatch.setenv("TASKS_SECURITY_RUN_AS_USER", "1001")
+        monkeypatch.setenv("TASKS_SECURITY_FS_GROUP", "2001")
 
         spec = make_pipe()._build_base_pod_spec(RESOURCES)
 
@@ -113,7 +113,7 @@ class TestBasePodSpec:
         assert make_pipe()._build_base_pod_spec(RESOURCES)["activeDeadlineSeconds"] == 21600
 
     def test_missing_deadline_is_not_defaulted(self, pipes_env, monkeypatch):
-        monkeypatch.delenv("DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS")
+        monkeypatch.delenv("TASKS_ACTIVE_DEADLINE_SECONDS")
 
         with pytest.raises(ValidationError):
             make_pipe()
@@ -161,18 +161,20 @@ class TestNamespaces:
         assert pipe.namespace == "fn"
         assert pipe.task_namespace == "tasks"
 
-    def test_task_namespace_falls_back_to_the_deployment_one(self, pipes_env, monkeypatch):
-        monkeypatch.delenv("DAGSTER_TASK_NAMESPACE")
+    def test_task_namespace_is_required(self, pipes_env, monkeypatch):
+        monkeypatch.delenv("NAMESPACES_TASKS")
 
-        assert make_pipe().task_namespace == "fn"
+        with pytest.raises(ValidationError):
+            make_pipe()
 
-    def test_empty_task_namespace_falls_back_to_the_deployment_one(self, pipes_env, monkeypatch):
-        monkeypatch.setenv("DAGSTER_TASK_NAMESPACE", "")
+    def test_empty_task_namespace_is_rejected(self, pipes_env, monkeypatch):
+        monkeypatch.setenv("NAMESPACES_TASKS", "")
 
-        assert make_pipe().task_namespace == "fn"
+        with pytest.raises(ValidationError):
+            make_pipe()
 
     def test_missing_required_env_is_not_defaulted(self, pipes_env, monkeypatch):
-        monkeypatch.delenv("DAGSTER_ARTIFACTS_PVC_NAME")
+        monkeypatch.delenv("ARTIFACTS_PVC_NAME")
 
         with pytest.raises(ValidationError):
             make_pipe()

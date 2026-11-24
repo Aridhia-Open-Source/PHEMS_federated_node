@@ -8,7 +8,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, Body
 
-from app.config import settings
+from app.settings import SettingsDep, settings
 from app.dtos.user import NewUserDTO, UserDTO
 from app.helpers.exceptions import InvalidRequest
 from app.clients.keycloak import Keycloak
@@ -17,7 +17,7 @@ router = APIRouter(prefix='/global/users', tags=["users"])
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=NewUserDTO)
-def create_user(data: dict = Body(default_factory=dict)):
+def create_user(settings: SettingsDep, data: dict = Body(default_factory=dict)):
     """
     POST /global/users endpoint. Creates a KC user, and sets a temp
         password for them.
@@ -39,7 +39,7 @@ def create_user(data: dict = Body(default_factory=dict)):
         "username": user_info["username"],
         "tempPassword": user_info["password"],
         "info": "The user should change the temp password at " \
-            f"https://{settings.node.public_url}/global/users/reset-password"
+            f"https://{settings.node.hostname}/global/users/reset-password"
     }
 
 
@@ -58,5 +58,5 @@ def get_users_list():
             "lastName": user.get("lastName", ''),
             "role": kc.get_user_role(user["id"]),
             "needs_to_reset_password": user.get("requiredActions", []) != []
-        } for user in ls_users if user["username"] not in (settings.keycloak.admin, settings.keycloak.service_user)
+        } for user in ls_users if user["username"] not in (settings.services.keycloak.admin, settings.services.keycloak.service_user)
     ]
