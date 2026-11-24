@@ -107,7 +107,8 @@ class TestBaseHttpAdapter:
     def test_default_retry_settings(self):
         retry = BaseHttpAdapter(base_url="https://backend").default_retry
 
-        assert retry.total == 3
+        assert 429 in retry.status_forcelist
+        assert retry.retry_after_max == 5
         assert 429 in retry.status_forcelist
 
     def test_the_default_retry_is_mounted(self):

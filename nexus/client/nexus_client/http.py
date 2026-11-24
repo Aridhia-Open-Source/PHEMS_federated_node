@@ -87,6 +87,8 @@ class BaseHttpAdapter(HTTPAdapter):
     backoff_factor = 0.5
     default_timeout = 10
     retry_status_forcelist = {429}
+    # urllib3 honours Retry-After up to 6 hours by default; a long 429 would stall a sensor tick or an operator handler
+    retry_after_max = 5
 
     def __init__(
         self,
@@ -106,6 +108,7 @@ class BaseHttpAdapter(HTTPAdapter):
             total=self.retry_limit,
             backoff_factor=self.backoff_factor,
             status_forcelist=self.retry_status_forcelist,
+            retry_after_max=self.retry_after_max,
             # When the retries run out the last response comes back, so raise_for_status and the
             # OAuth adapter still see the status rather than a urllib3 MaxRetryError
             raise_on_status=False,
