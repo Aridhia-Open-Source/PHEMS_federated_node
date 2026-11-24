@@ -11,6 +11,8 @@ kind = "0.33.0"
 kubectl = "1.37.2"
 helm = "3.22.1"
 tilt = "0.37.8"
+# Flux CLI for `mise run flux` (ADR 0031)
+flux2 = "2.9.6"
 # scripts/devcontainer_check.sh: builds and starts the dev container without VS Code
 "npm:@devcontainers/cli" = "0.90.0"
 
@@ -83,7 +85,7 @@ run = 'if [ "$usage_project" = dagster ]; then PROJECT=dagster ./scripts/pylint.
 description = "Run the Dagster tests the way CI does"
 run = "cd dagster && ./run_tests.sh ci"
 
-# mise run helm lint | template | tests | deps
+# mise run helm lint | template | tests | deps [--values FILE]
 # charts/ is gitignored, so a fresh checkout has no subcharts and helm refuses to lint or
 # render: lint and template build them first. template renders with no cluster access, which
 # guards against a lookup that ArgoCD or CI cannot do.
@@ -93,10 +95,11 @@ usage = '''
 arg "<action>" help="lint, template, tests or deps" {
   choices "lint" "template" "tests" "deps"
 }
+flag "--values <file>" default="k8s/federated-node/dev.example.values.yml" help="lint, template: values file, e.g. site-example/values.yaml"
 '''
 run = '''
 deps() { (cd k8s/federated-node && { helm dependency build || helm dependency update; }); }
-values=k8s/federated-node/dev.example.values.yml
+values="$usage_values"
 case "$usage_action" in
   deps) deps ;;
   tests) ./scripts/run_helm_tests.sh ;;
@@ -104,6 +107,19 @@ case "$usage_action" in
   template) deps && helm template fn k8s/federated-node -f "$values" >/dev/null ;;
 esac
 '''
+
+# mise run flux publish VERSION | up | status | down
+# Flux delivering the dev node from a test site repository in Gitea (scripts/flux.sh, GitOps-Delivery.md)
+[tasks.flux]
+description = "Flux in the dev cluster: publish VERSION (chart to the kind registry), up (adopt the release from site-example), status, down"
+quiet = true
+usage = '''
+arg "<action>" help="publish, up, status or down" {
+  choices "publish" "up" "status" "down"
+}
+arg "[version]" help="publish: chart version, e.g. 0.0.1-dev"
+'''
+run = './scripts/flux.sh "$usage_action" ${usage_version:+"$usage_version"}'
 
 [tasks.show-db-passwords]
 description = "Print the generated database passwords"

@@ -1,0 +1,41 @@
+# The node, pinned to one chart version. Same release name and namespace as `mise run deploy`
+# (.dev.env RELEASE_NAME and NAMESPACE), so Flux adopts that release instead of installing a second
+# node. No targetNamespace: it would prefix the release name.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: federated-node
+  namespace: fn
+spec:
+  releaseName: fn-dev
+  interval: 5m
+  # deploy.sh allows 30m; Flux also waits for the pods to be ready
+  timeout: 30m
+  chart:
+    spec:
+      chart: federated-node
+      # Bump this to upgrade the node; git revert to go back
+      version: "0.0.1-dev"
+      sourceRef:
+        kind: HelmRepository
+        name: fn-charts
+      interval: 1m
+  # The chart's crds/ are created on install and replaced on upgrade (the chart's pre-upgrade hook also applies them)
+  install:
+    crds: CreateReplace
+  # A failed upgrade is retried twice, then rolled back to the last good revision
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 2
+      strategy: rollback
+      remediateLastFailure: true
+  valuesFrom:
+    - kind: ConfigMap
+      name: federated-node-values
+      valuesKey: values.yaml
+    # The first user's email, from the Secret deploy.sh made from .dev.env (it is not in values.yaml)
+    - kind: Secret
+      name: keycloak-first-user
+      valuesKey: EMAIL
+      targetPath: firstUserSecret.email

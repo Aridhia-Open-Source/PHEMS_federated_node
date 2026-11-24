@@ -1,0 +1,91 @@
+# The site's values, for the dev cluster: k8s/federated-node/dev.example.values.yml with the nginx UI
+# instead of the Vite dev server. No secret values: the dev Secrets already exist in the cluster.
+#
+# Images: the dev builds in the kind registry, pinned to latest, so a chart bump changes only the chart.
+# A site drops the image and tag lines: the chart defaults to the ghcr.io images at its appVersion,
+# so bumping the chart version in helmrelease.yaml moves the images with it.
+
+local_development: true
+create_db_deployment: true
+
+taskNetworkPolicy:
+  datasetEgress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: experiments
+          podSelector:
+            matchLabels:
+              app: experiments-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+
+host: phems-federatednode.net
+nodeId: dev-node
+
+db:
+  host: &dbHost db.fn.svc
+
+storage:
+  capacity: 1Gi
+  local:
+    dbpath: /data/db
+    artifacts: /data/dagster/artifacts
+
+nexus:
+  api:
+    image: localhost:5001/nexus-api-fn
+    tag: &devTag "latest"
+  ui:
+    enabled: true
+    devServer: false
+    image: localhost:5001/nexus-ui-fn
+    tag: *devTag
+
+alpine:
+  image: localhost:5001/alpine-fn
+  tag: *devTag
+
+keycloak:
+  image: localhost:5001/keycloak-fn
+  tag: *devTag
+  initializer:
+    image: localhost:5001/kc-init-fn
+    tag: *devTag
+
+integrations:
+  domains:
+    - http://localhost:8088
+    - https://phems-federatednode.net
+
+firstUserSecret:
+  name: keycloak-first-user
+  passKey: PASSWORD
+  firstName: Dev
+  lastName: User
+  # Overridden by the keycloak-first-user Secret's EMAIL (helmrelease.yaml valuesFrom); here for the schema
+  email: dev.user+admin@example.org
+
+fnDagster:
+  image: localhost:5001/dagster-fn
+  tag: *devTag
+  createDB: true
+  sensors:
+    minIntervalSeconds: 5
+    retryIntervalSeconds: 10
+
+dagster:
+  enabled: true
+  postgresql:
+    postgresqlHost: *dbHost
+
+# Hosts the site repository Flux pulls from
+gitea:
+  enabled: true
+  admin:
+    user: gitea_admin
+    email: admin@example.com
+    secret:
+      name: gitea-admin
+      key: password
