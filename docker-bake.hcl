@@ -53,8 +53,9 @@ target "alpine-fn" {
 }
 
 target "kc-init-fn" {
-  context = "build/kc-init"
-  tags    = tags("kc-init-fn")
+  context  = "build/kc-init"
+  contexts = { fednode = "nexus/fednode" }
+  tags     = tags("kc-init-fn")
 }
 
 target "keycloak-fn" {

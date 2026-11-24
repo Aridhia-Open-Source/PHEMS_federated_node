@@ -5,6 +5,7 @@ from typing import List
 from urllib.parse import quote
 import requests
 import time
+from fednode.clients.keycloak.login import KeycloakLogin
 from requests import Response
 
 
@@ -58,17 +59,7 @@ def login(kc_url: str, kc_user: str, kc_pass: str, realm: str = "master",
     cannot reach the Keycloak server configuration or any other realm.
     """
     logger.info(f"Logging in as '{kc_user}' against the {realm} realm...")
-    url = f"{kc_url}/realms/{realm}/protocol/openid-connect/token"
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded'
-    }
-
-    response = requests.post(url, headers=headers, data={
-        'client_id': 'admin-cli',
-        'grant_type': 'password',
-        'username': kc_user,
-        'password': kc_pass
-    })
+    response = KeycloakLogin(kc_url, realm).password_grant('admin-cli', kc_user, kc_pass)
     if not response.ok:
         if expected_to_fail:
             # A failure here is a normal, expected outcome (see _authenticate): on a first install

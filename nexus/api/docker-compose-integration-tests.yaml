@@ -52,6 +52,9 @@ services:
     build:
       context: ../../build/kc-init
       dockerfile: Dockerfile
+      # The shared fednode package, as docker-bake.hcl passes it
+      additional_contexts:
+        fednode: ../fednode
     entrypoint: ["/bin/sh"]
     command: ["-c", "python3 /scripts/setup_realm.py"]
     links:

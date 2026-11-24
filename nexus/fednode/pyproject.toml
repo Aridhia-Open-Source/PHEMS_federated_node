@@ -21,6 +21,7 @@ packages = [
     "fednode.clients",
     "fednode.clients.dagster",
     "fednode.clients.git",
+    "fednode.clients.keycloak",
     "fednode.clients.nexus",
     "fednode.clients.nexus.models",
 ]

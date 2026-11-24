@@ -6,6 +6,7 @@
 import os
 import logging
 import requests
+from fednode.http import ClientError
 from requests.exceptions import ConnectionError
 
 from kubernetes import client
@@ -237,5 +238,5 @@ while True:
             logging.info("Setting up credentials")
             setup_keycloak()
 
-        except (ApiException, ConnectionError) as e:
+        except (ApiException, ConnectionError, ClientError) as e:
             logger.error(e)
