@@ -1,0 +1,18 @@
+# Site repository check on GitHub Actions: runs ci/validate.sh on every pull request (ADR 0031).
+# Needs no secrets: it reads the repository and pulls the public chart.
+name: validate
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: ci/install-tools.sh >> "$GITHUB_PATH"
+      - name: Validate
+        run: ci/validate.sh
