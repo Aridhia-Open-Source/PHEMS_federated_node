@@ -7,6 +7,10 @@ import requests
 
 from app.config import settings
 from app.helpers.exceptions import DagsterError
+from app.clients.outbound import CONNECT_TIMEOUT, OutboundError, session
+
+# Sensor mutations wait on the Dagster daemon, so the read timeout is longer than the default
+DAGSTER_HTTP = session("dagster", timeout=(CONNECT_TIMEOUT, 30))
 
 SENSORS_QUERY = """
 query Sensors {
@@ -58,14 +62,13 @@ ERROR_TYPES = ("PythonError", "SensorNotFoundError", "UnauthorizedError")
 def graphql(query: str, variables: dict | None = None) -> dict:
     """Run a query against Dagster, returning its data. Anything but data is a DagsterError."""
     try:
-        response = requests.post(
+        response = DAGSTER_HTTP.post(
             f"{settings.node.dagster_webserver_uri}/graphql",
             json={"query": query, "variables": variables or {}},
-            timeout=30,
         )
         response.raise_for_status()
         body = response.json()
-    except (requests.exceptions.RequestException, ValueError) as err:
+    except (OutboundError, requests.exceptions.RequestException, ValueError) as err:
         raise DagsterError(f"Dagster is unreachable: {err}") from err
     if body.get("errors"):
         raise DagsterError(f"Dagster GraphQL error: {body['errors'][0]['message']}")

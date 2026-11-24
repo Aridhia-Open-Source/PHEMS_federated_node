@@ -4,15 +4,17 @@ import random
 import re
 import string
 import time
-import requests
-
 from app.helpers.exceptions import AuthenticationError, KeycloakError
 from app.config import settings
+from app.clients import outbound
 
 logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
 
 PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
+
+
+KEYCLOAK_HTTP = outbound.session("keycloak")
 
 
 def read_secret(name: str, fallback: str) -> str:
@@ -89,7 +91,7 @@ def user_tokens(**grant) -> dict:
     A password or refresh_token grant for the global client, without the admin calls Keycloak() makes:
     {"token": <access token>, "refresh_token": ...}. Clients send the access token (ADR 0035).
     """
-    response = requests.post(
+    response = KEYCLOAK_HTTP.post(
         URLS["get_token"], data={"client_id": settings.keycloak.client, "client_secret": keycloak_secret(), **grant}, timeout=30
     )
     if not response.ok:
@@ -133,7 +135,7 @@ class Keycloak:
         if not client_id:
             client_id = self.client_id
 
-        secret_resp = requests.get(
+        secret_resp = KEYCLOAK_HTTP.get(
             URLS["client_secret"] % client_id,
             headers={
                 "Authorization": f"Bearer {self.admin_token}"
@@ -165,7 +167,7 @@ class Keycloak:
                 'password': password
             }
 
-        response_auth = requests.post(
+        response_auth = KEYCLOAK_HTTP.post(
             URLS["get_token"],
             data=payload,
             headers={
@@ -245,7 +247,7 @@ class Keycloak:
         if client_name is None:
             client_name = self.client_name
 
-        client_id_resp = requests.get(
+        client_id_resp = KEYCLOAK_HTTP.get(
             URLS["client"],
             params = {"clientId": client_name},
             headers=headers
@@ -266,7 +268,7 @@ class Keycloak:
 
         Raises a specific exception if not found
         """
-        realm_resp = requests.get(
+        realm_resp = KEYCLOAK_HTTP.get(
             URLS["roles"] + f"/{role_name}",
             headers={
                 'Authorization': f'Bearer {self.admin_token}',
@@ -295,7 +297,7 @@ class Keycloak:
         # Make sure the role exists before creating the user
         role = self.get_role(kwargs.get("role", "Users"))
 
-        user_response = requests.post(
+        user_response = KEYCLOAK_HTTP.post(
             URLS["user"],
             json={
                 "firstName": kwargs.get("firstName", ""),
@@ -336,7 +338,7 @@ class Keycloak:
         """
         if isinstance(role, str):
             role = self.get_role(role)
-        user_role_response = requests.post(
+        user_role_response = KEYCLOAK_HTTP.post(
             URLS["user_role"] % user_id,
             json=[role],
             headers=self._post_json_headers()
@@ -349,7 +351,7 @@ class Keycloak:
         """
         Method to return a dictionary representing a Keycloak user
         """
-        user_response = requests.get(
+        user_response = KEYCLOAK_HTTP.get(
             URLS["user"],
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
@@ -377,7 +379,7 @@ class Keycloak:
         """
         Method to return a dictionary representing a Keycloak user
         """
-        user_response = requests.get(
+        user_response = KEYCLOAK_HTTP.get(
             URLS["user"],
             params= {
                 "username": username,
@@ -395,7 +397,7 @@ class Keycloak:
         Method to return a dictionary representing a Keycloak user,
         using their email
         """
-        user_response = requests.get(
+        user_response = KEYCLOAK_HTTP.get(
             URLS["user"],
             params= {
                 "email": email,
@@ -412,7 +414,7 @@ class Keycloak:
         """
         From a user id, get all of their realm roles
         """
-        role_response = requests.get(
+        role_response = KEYCLOAK_HTTP.get(
             URLS["user_role"] % user_id,
             headers={"Authorization": f"Bearer {self.admin_token}"}
         )
@@ -432,7 +434,7 @@ class Keycloak:
         if not re.match("Account is not fully set up", auth_user.json().get("error_description", "")):
             raise AuthenticationError("Incorrect credentials")
 
-        res_pass_resp = requests.put(
+        res_pass_resp = KEYCLOAK_HTTP.put(
             URLS["user_reset"] % user_id,
             json={
                 "type": "password",

@@ -5,17 +5,27 @@ These won't have any restrictions and won't go through
 """
 from http import HTTPStatus
 
-import requests
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.dtos.healthcheck import NodeHealthDTO
 from app.rules.authz import Access, Action
 from app.helpers.exceptions import AuthenticationError, InvalidRequest
-from app.clients.keycloak import URLS, user_tokens
+from app.clients.keycloak import KEYCLOAK_HTTP, URLS, user_tokens
+from app.clients.outbound import OutboundError, ttl_cache
 
 # Unchecked: probes and getting a token, before there is a caller
 router = APIRouter(tags=["main"], dependencies=[Depends(Access(action=Action.UNCHECKED))])
+
+# /health_check is open to anyone: a short timeout and one Keycloak call per window keep a flood off Keycloak
+HEALTH_CHECK_TIMEOUT = (2, 3)
+HEALTH_CHECK_CACHE_SECONDS = 5
+
+
+@ttl_cache(HEALTH_CHECK_CACHE_SECONDS)
+def keycloak_is_up() -> bool:
+    """Whether Keycloak answers, asked at most once per HEALTH_CHECK_CACHE_SECONDS."""
+    return KEYCLOAK_HTTP.get(URLS["health_check"], timeout=HEALTH_CHECK_TIMEOUT).ok
 
 
 @router.get('/', include_in_schema=False)
@@ -45,14 +55,11 @@ def health_check():
         Checks the connection to keycloak and returns a jsonized summary
     """
     try:
-        kc_request = requests.get(URLS["health_check"], timeout=30)
-        kc_status = kc_request.ok
-        status_text = "ok" if kc_request.ok else "non operational"
-        code = HTTPStatus.OK if kc_request.ok else HTTPStatus.BAD_GATEWAY
-    except requests.exceptions.ConnectionError:
+        kc_status = keycloak_is_up()
+    except OutboundError:
         kc_status = False
-        status_text = "non operational"
-        code = HTTPStatus.BAD_GATEWAY
+    status_text = "ok" if kc_status else "non operational"
+    code = HTTPStatus.OK if kc_status else HTTPStatus.BAD_GATEWAY
 
     return JSONResponse({"status": status_text, "keycloak": kc_status}, status_code=code)
 

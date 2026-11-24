@@ -3,10 +3,26 @@ import logging
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from app.config import settings
+from urllib3.exceptions import HTTPError, TimeoutError as Urllib3TimeoutError
 from app.helpers.exceptions import KubernetesException
+from app.clients.outbound import CONNECT_TIMEOUT, READ_TIMEOUT, OutboundError, OutboundTimeout
 
 logger = logging.getLogger('kubernetes_helper')
 logger.setLevel(logging.INFO)
+
+
+class OutboundApiClient(client.ApiClient):
+    """An ApiClient whose calls have the outbound layer's default timeout and typed errors (ADR 0038)."""
+
+    def call_api(self, *args, **kwargs):
+        if kwargs.get("_request_timeout") is None:
+            kwargs["_request_timeout"] = (CONNECT_TIMEOUT, READ_TIMEOUT)
+        try:
+            return super().call_api(*args, **kwargs)
+        except Urllib3TimeoutError as err:
+            raise OutboundTimeout("kubernetes did not answer in time") from err
+        except HTTPError as err:
+            raise OutboundError(f"kubernetes is unreachable: {type(err).__name__}") from err
 
 
 class KubernetesBase:
@@ -17,7 +33,7 @@ class KubernetesBase:
         else:
             # Get config from outside the cluster. Mostly DEV
             config.load_kube_config()
-        super().__init__()
+        super().__init__(api_client=OutboundApiClient())
 
     @classmethod
     def encode_secret_value(cls, value:str) -> str:
