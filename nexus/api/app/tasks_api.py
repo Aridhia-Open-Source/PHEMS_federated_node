@@ -212,12 +212,17 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
     return TaskDTO.from_model(task)
 
 
-@router.post('/{task_id}/retry', response_model=TaskDTO, dependencies=[Depends(Access(model=Project, action=Action.WRITE))])
-def retry_task(project_id: int, task_id: int):
+@router.post(
+    '/{task_id}/retry', response_model=TaskDTO, dependencies=[Depends(Access(model=Project, action=Action.EXECUTE))]
+)
+def retry_task(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
-    POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
+    POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt.
+    Needs `execute` on the project and, as when the task was created, on the dataset it runs on.
     """
     task = get_project_task(project_id, task_id)
+    if task.spec.dataset:
+        require(caller, Action.EXECUTE, task.spec.dataset)
 
     if task.status not in RETRYABLE:
         raise InvalidRequest(f"Only a {TaskStatus.FAILED} or {TaskStatus.CANCELED} task can be retried")
@@ -234,7 +239,7 @@ def retry_task(project_id: int, task_id: int):
     return TaskDTO.from_model(task)
 
 
-@router.post('/{task_id}/cancel', dependencies=[Depends(Access(model=Project, action=Action.WRITE))])
+@router.post('/{task_id}/cancel', dependencies=[Depends(Access(model=Project, action=Action.EXECUTE))])
 def cancel_tasks(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/cancel endpoint. Cancels a task either scheduled or running one

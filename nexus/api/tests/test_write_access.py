@@ -117,6 +117,16 @@ def test_running_a_task_needs_execute_on_the_project(client, project, mocker):
     assert "execute" in response.json()["error"]
 
 
+def test_retrying_or_cancelling_a_task_needs_execute_on_the_project_not_write(client, project):
+    url = f"/projects/{project.id}/tasks/999"
+    grant(client, f"/projects/{project.id}", "write")
+    assert client.post(f"{url}/retry", json={}, headers=as_("other_token")).status_code == 409
+    assert client.post(f"{url}/cancel", json={}, headers=as_("other_token")).status_code == 409
+    grant(client, f"/projects/{project.id}", "execute")
+    assert client.post(f"{url}/retry", json={}, headers=as_("other_token")).status_code == 404
+    assert client.post(f"{url}/cancel", json={}, headers=as_("other_token")).status_code != 409
+
+
 def test_nobody_runs_a_task_on_a_revoked_dataset_not_even_the_superuser(client, enabled_project, global_dataset, mocker):
     Dataset.get_by_id(global_dataset.id).revoked = True
     db.session.commit()
