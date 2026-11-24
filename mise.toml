@@ -139,6 +139,16 @@ arg "[version]" help="publish: chart version, e.g. 0.0.1-dev"
 '''
 run = './scripts/flux.sh "$usage_action" ${usage_version:+"$usage_version"}'
 
+# mise run mirror-to-gitea [SITE_REPO_URL]
+# A pull mirror of the site repository in the cluster's Gitea, for Flux to pull from (scripts/mirror_to_gitea.sh)
+[tasks.mirror-to-gitea]
+description = "Mirror a site repository into the cluster's Gitea as fn-site (SITE_REPO_TOKEN for a private one); no URL: sync the mirror now"
+quiet = true
+usage = '''
+arg "[url]" help="site repository to mirror, e.g. https://github.com/org/site.git"
+'''
+run = './scripts/mirror_to_gitea.sh ${usage_url:+"$usage_url"}'
+
 [tasks.show-db-passwords]
 description = "Print the generated database passwords"
 quiet = true

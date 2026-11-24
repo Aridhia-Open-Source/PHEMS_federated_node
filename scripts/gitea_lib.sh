@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ###############################################################################
-# Sourced by flux.sh: reach the dev cluster's Gitea as its admin.
+# Sourced by flux.sh and mirror_to_gitea.sh: reach the dev cluster's Gitea as its admin.
 # Uses GITEA_URL (default http://localhost:4000, the Tilt / portfwd port-forward) when it answers,
 # else starts a port-forward of its own for the life of the script.
 ###############################################################################
