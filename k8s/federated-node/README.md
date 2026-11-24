@@ -92,6 +92,18 @@ this change cannot be enabled, rotated or deleted, and its health check errors. 
 On a dev cluster, run `fncli experiment setup` (or tear down and deploy) instead. Then delete the old
 copy: `kubectl delete secret fn-secret-<label> -n <release namespace>`.
 
+### Operator namespace
+With `operator.enabled`, the nexus operator (ADR 0032) runs in its own namespace,
+`global.namespaces.operator` (default `fn-operator`), which the chart creates. It holds the operator's
+Deployment, the node config custom resources (`nodeConfig`, or `kubectl apply -f config/` in dev), their
+NodeSecret source Secrets, and the operator's Keycloak login (`operator-keycloak-creds`). The operator
+watches that namespace and `operator.watchNamespaces` only, and has no access to the release namespace, so a
+NodeSecret cannot copy `kc-secrets` or a database password into nexus-api.
+
+## Node config CRDs
+Helm installs `crds/` on a first install only, so a pre-upgrade hook (`templates/crds-upgrade-hook.yaml`)
+applies them with `kubectl apply --server-side` on every `helm upgrade`. No extra step is needed.
+
 ## Custom CA
 
 Set `customCA` when the node calls out to something signed by a private or self-signed CA, or sits behind a TLS-intercepting proxy: a git host, an identity provider, a container registry. The CA is added to each workload's system CAs and certificates are still verified. There is no option to skip verification. This is separate from `tls.secretName`, the certificate the node serves.

@@ -6,6 +6,7 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
 
 - The Federated Node (FN): a Kubernetes-deployed service that runs analysis tasks against local datasets and delivers the results back through git.
 - `nexus-api` (FastAPI) owns the record and the rules: projects, datasets, repositories, secrets, triggers, tasks, results. Keycloak handles users and tokens. `nexus-ui` is a React admin UI for it.
+- Node config (providers, secrets, repositories, datasets, projects) is Kubernetes custom resources; the nexus operator (Kopf) syncs them into nexus-api (ADR 0032). In dev they are the files in `config/`, applied with `kubectl apply -f`.
 - Dagster pipelines ingest merged pull requests from GitHub or Gitea, launch a task per pull request, and deliver results as a pushed branch plus a results pull request.
 - Shipped as one Helm chart (`k8s/federated-node`) with Traefik (Gateway API), Keycloak, Postgres, and optional Dagster and Gitea (both `enabled: false` by default).
 
@@ -27,6 +28,8 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
   - `definitions/` - `jobs.py`, `ops.py`, `pipes.py`, `resources.py`, `run_config.py`.
   - `delivery/` - results packaging and git push; `github.py`, `gitea.py` - git clients.
   - `backend.py` - the nexus-api client; `models/` - Dagster-side models of API responses.
+- `nexus/operator/` - the Kopf operator: `nexus_operator/sync.py` (one sync and delete per kind), `main.py` (handlers); CRDs in `k8s/federated-node/crds/`.
+- `config/` - dev node config as custom resources (`kubectl apply -f config/`; `fncli gitea setup -f` makes their Gitea repos and Secrets first).
 - `dagster/fncli/` - `fncli`, the dev/ops CLI (ADR 0018); commands in `cmds/`, e2e suites in `tests/e2e/`.
 - `k8s/federated-node/` - the Helm chart: `templates/`, `values.yaml`, `values.schema.json`, `dev.example.values.yml`, helm-unittest suites in `tests/`.
 - `build/` - images for Keycloak, `kc-init`, an Alpine helper, and the helm-unittest runner.
@@ -81,9 +84,10 @@ Tests and lint:
 
 - nexus-api: `cd nexus/api && ./run_tests.sh local tests/test_projects_api.py` (docker compose with Postgres; second argument is the pytest path). Faster venv runs: `nexus/api/run_local_tests.sh` (setup in its header).
 - Dagster app and fncli: `cd dagster && ./run_tests.sh local fncli/tests/test_cli.py` (docker compose; pytest `testpaths` are `app/tests` and `fncli/tests`). `mise run tests-dagster` runs all in CI mode.
+- Operator: `./nexus/operator/run_tests.sh [tests/test_sync.py]` (`mise run tests-operator`).
 - UI: `cd nexus/ui && npm ci && npm test` (vitest); `npm run typecheck` for types.
 - Chart: `mise run helm lint`, `mise run helm template` (no cluster needed), `mise run helm tests` (helm-unittest).
-- Lint: `mise run pylint` (nexus-api), `mise run pylint dagster`, `mise run hadolint` (Dockerfiles).
+- Lint: `mise run pylint` (nexus-api), `mise run pylint dagster`, `mise run pylint operator`, `mise run hadolint` (Dockerfiles).
 - End-to-end: `pytest dagster --e2e [success|failure|failure_long] -v` from the repo root. Needs a running dev cluster deployed from the branch under test, and `.dev.env`; see `dagster/fncli/tests/e2e/README.md`. Without `--e2e` these tests are skipped.
 
 ## Conventions
@@ -98,7 +102,7 @@ Tests and lint:
 - Generated, machine-local files (env, values, fncli contexts, test CAs) live in the repo and are gitignored, in the standard place for their kind (`.generated.env`, `k8s/federated-node/generated.values.yaml`, `bootstrap/`), never under `~/`. The one exception is `~/.fn/data`, the cluster's volume data shared by every worktree.
 - API responses are built through DTOs; state changes go through the transition tables in `nexus/api/app/rules/state_rules.py` (ADR 0005, a refused move is a 409).
 - nexus-api decides, Dagster carries out decisions (ADR 0021); Dagster and fncli parse API responses into their own models.
-- CI (`.github/workflows/build.yml`) runs pylint, hadolint, helm lint/template/unittest, nexus-api tests, Dagster tests and Keycloak integration tests.
+- CI (`.github/workflows/build.yml`) runs pylint, hadolint, helm lint/template/unittest, nexus-api tests, Dagster tests, operator tests and Keycloak integration tests.
 
 ## Working tips for agents
 

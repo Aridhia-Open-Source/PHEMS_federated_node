@@ -3,7 +3,7 @@ set -euo pipefail
 
 ###############################################################################
 # Doctor - checks the dev environment `mise run setup` builds: mise itself, the
-# three virtualenvs (root, nexus/api, dagster) and where fncli resolves.
+# four virtualenvs (root, nexus/api, dagster, nexus/operator) and where fncli resolves.
 # One line per check, marked ✓ or ✗ (never colour alone). Prints every check,
 # then exits 1 if any failed.
 # Usage: doctor.sh   (or mise run doctor)
@@ -22,7 +22,7 @@ else
   echo "$out"
 fi
 
-for venv in .venv nexus/api/.venv dagster/.venv; do
+for venv in .venv nexus/api/.venv dagster/.venv nexus/operator/.venv; do
   dir=$(dirname "$venv")
   if [ ! -x "$venv/bin/python" ]; then
     bad "$venv: missing, run mise run setup"

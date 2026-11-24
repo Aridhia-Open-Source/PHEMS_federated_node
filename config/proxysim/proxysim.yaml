@@ -1,0 +1,69 @@
+# The node config of scripts/proxy-sim-sensors.sh: a Gitea provider with an outside-looking name, the two OAuth-app
+# NodeSecrets, the repositories and the project. mitmproxy answers TLS for gitea.proxysim.test and forwards to the
+# in-cluster Gitea, so every call the node makes to these repositories crosses the proxy. The script's HOST must be the
+# host below. The dataset demo-db is the demo experiment's (fncli experiment setup demo). In its own directory, so
+# `kubectl apply -f config/` leaves it out.
+#   fncli gitea setup -f config/proxysim/proxysim.yaml; kubectl apply -f config/proxysim/proxysim.yaml   (the script's setup)
+#   kubectl delete -f config/proxysim/proxysim.yaml                                                      (its down)
+apiVersion: fn.aridhia.com/v1alpha1
+kind: GitProvider
+metadata:
+  name: proxysim-gitea
+  namespace: fn-operator
+spec:
+  type: gitea
+  uri: https://gitea.proxysim.test
+  apiUri: https://gitea.proxysim.test/api/v1
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: NodeSecret
+metadata:
+  name: proxysim-trigger-creds
+  namespace: fn-operator
+spec:
+  fromSecret: {name: proxysim-trigger-creds}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: NodeSecret
+metadata:
+  name: proxysim-results-creds
+  namespace: fn-operator
+spec:
+  fromSecret: {name: proxysim-results-creds}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Repository
+metadata:
+  name: proxysim-trigger
+  namespace: fn-operator
+spec:
+  type: trigger
+  uri: https://gitea.proxysim.test/gitea_admin/proxysim-trigger
+  secret: proxysim-trigger-creds
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Repository
+metadata:
+  name: proxysim-results
+  namespace: fn-operator
+spec:
+  type: results
+  uri: https://gitea.proxysim.test/gitea_admin/proxysim-results
+  secret: proxysim-results-creds
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Project
+metadata:
+  name: proxysim
+  namespace: fn-operator
+spec:
+  datasets: [demo-db]                              # the experiments chart's, in namespace experiments
+  repositories:
+    triggers:
+      - repository: https://gitea.proxysim.test/gitea_admin/proxysim-trigger
+        watchDir: specs/
+        baseBranch: main
+    results:
+      repository: https://gitea.proxysim.test/gitea_admin/proxysim-results
+      targetDir: results/
+      baseBranch: main

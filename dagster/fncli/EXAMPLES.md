@@ -13,7 +13,7 @@ Run from the repo root.
 
 ## Test the trigger → task → run flow
 
-Each section is one step. Run them in order. `apply` does the whole of the first one.
+Each section is one step. Run them in order. `kubectl apply` of the node config does the whole of the first one.
 
 fncli calls three things. Each line below says which:
 
@@ -27,12 +27,14 @@ fncli logs in first with `POST /login` on nexus-api, then makes its backend call
 
 Every command that talks to the node reads `bootstrap/context.yaml` first (`cp bootstrap/examples/context.yaml bootstrap/context.yaml`). The commands that work on a project (`verify-project`, `project-show`, `open-pr`, `merge-results-pr`, ...) take `--project NAME`, else the context's `defaults.project`, and read its repositories and dataset from the node. The examples below are for the e2e project: `export FNCLI_DEFAULT_PROJECT=fn-dev` once, or add `--project fn-dev` to each.
 
-To watch the pull request part one confirmed step at a time, run `fncli apply -f examples/globals-gitea.yaml` and `fncli apply -f examples/projects/demo-gitea.yaml`, then `fncli demo -f examples/projects/demo-gitea.yaml` (see Demo in [README.md](README.md)), then `fncli delete -f examples/projects/demo-gitea.yaml` and `fncli delete -f examples/globals-gitea.yaml --all`. The demo creates and deletes nothing.
+To watch the pull request part one confirmed step at a time, run `fncli gitea setup -f config/gitea.yaml -f config/demo.yaml` and `kubectl apply -f config/`, then `fncli demo --project demo-gitea` (see Demo in [README.md](README.md)), then `kubectl delete -f config/demo.yaml`. The demo creates and deletes nothing.
 
 A PR in the Gitea trigger repo, through a task, to a merged results PR in the Gitea results repo:
 
 ```bash
-fncli apply -f examples/globals-e2e.yaml -y && fncli apply -f examples/projects/e2e.yaml -y && fncli verify-project
+fncli experiment deploy && fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml
+kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml && kubectl get fn -n fn-operator   # wait for every row to be synced
+fncli verify-project
 fncli start-sensor --group all
 fncli trigger triggers/examples/demo.json --project fn-dev --pr --merge --watch --timeout 300
 
@@ -54,15 +56,16 @@ If something sticks: `fncli sensor-status`, and nexus-api and Dagster pod logs.
 
 ### 1. Set up the dev project
 
-- `fncli diff -f examples/globals-e2e.yaml` shows what the next step would do, and changes nothing. The same for `examples/projects/e2e.yaml`, once the global file is applied.
-- `fncli apply -f examples/globals-e2e.yaml`, then `fncli apply -f examples/projects/e2e.yaml` (each asks, `-y` does not). Each first checks that kubectl points at the context's cluster. In this order:
-  - Backend: `GET` of every secret, provider, repository, dataset and project, to compare with the file.
-  - Backend: stores each secret that is missing (`POST /global/secrets`): the OAuth credentials of a Gitea application it has made and authorized for the admin user (Gitea: `POST user/applications/oauth2`, then the authorization over HTTP), or the values it read from the places the file names. A secret that exists is left alone (`--rotate LABEL` rewrites it: `PATCH /global/secrets/{label}`).
+- `fncli experiment deploy` first: the stand-in dataset `dev-dataset` reads the demo database's login, which the experiments chart makes.
+- `fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml`. It first checks that kubectl points at the context's cluster. Then:
+  - Gitea: creates the trigger repo and the results repo if they don't exist.
+  - Gitea: for each NodeSecret the repositories name, creates an OAuth application of the NodeSecret's name for the admin user (`POST user/applications/oauth2`, then the authorization over HTTP), and writes its credentials into the Kubernetes Secret the NodeSecret's `fromSecret` names. A Secret that exists is left alone (`--rotate NODESECRET` rewrites it).
+- `kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml` (`kubectl diff -f` with the same files shows what it would change). The nexus operator then syncs each resource to the backend, in dependency order, and reports it in the resource's status (`kubectl get fn -n fn-operator`: Synced and Message):
+  - Backend: stores each secret (`POST /global/secrets`) from the Kubernetes Secret its NodeSecret names. A resource whose Secret is missing stays unsynced, with the reason in its Message.
   - Backend: registers the Gitea host as a git provider (`POST /global/providers`) if it is missing, or changes what differs (`PATCH /global/providers/{id}`).
-  - Gitea: creates the trigger repo and the results repo if they don't exist (when the file has a `gitea:` section with `create_repositories`).
   - Backend: registers the trigger repo (`POST /global/repositories/triggers`, with the provider's id and the repo's `owner/name` path) and the results repo (`POST /global/repositories/results`) if they are missing.
   - Backend: registers the dataset (`POST /global/datasets`) if it is missing.
-  - Backend: creates the project disabled (`POST /projects`), assigns the datasets in the file's order (`PUT /projects/{id}/datasets/{dataset_id}`, the first becomes the default), the trigger repos (`PUT /projects/{id}/repositories/triggers/{repository_id}`) and the results repo (`PUT /projects/{id}/repositories/results/{repository_id}`), and enables it (`PATCH /projects/{id}`).
+  - Backend: creates the project disabled (`POST /projects`), assigns the datasets in the resource's order (`PUT /projects/{id}/datasets/{dataset_id}`, the first becomes the default), the trigger repos (`PUT /projects/{id}/repositories/triggers/{repository_id}`) and the results repo (`PUT /projects/{id}/repositories/results/{repository_id}`), and enables it (`PATCH /projects/{id}`).
   - An assignment that exists is changed with `PATCH` and only the fields that differ, never `PUT`, which would reset its `enabled`.
 - `fncli verify-git-secret --entity trigger` and `--entity results`: asks nexus-api for a token and calls Gitea with it.
 - `fncli project-healthcheck`: Backend `GET /projects/{id}/healthcheck`.
@@ -148,15 +151,14 @@ Optional, check that every merged PR of the trigger repo ran in Dagster and nexu
 
 ### 5. Tear down
 
-- `fncli delete -f examples/projects/e2e.yaml -y`, then `fncli delete -f examples/globals-e2e.yaml --all -y`
-  - Backend: `DELETE /projects/{id}`, which also removes the tasks, triggers and the dataset, results repository and trigger repository assignments under it. A file with projects, without `--all`, does only that.
-  - Backend: with `--all`, the deletes that follow (`DELETE /global/repositories/triggers/{id}`, `DELETE /global/repositories/results/{id}`, `DELETE /global/datasets/{id}`, `DELETE /global/secrets/{label}`, `DELETE /global/providers/{id}` (kept when other repositories are on it)). They soft delete, and never with `?force=true`: what a project outside the file still uses is a 409, skipped with the backend's message, and the command exits 1.
-  - Gitea: nothing. The repos and the OAuth apps stay.
-  - Does not prompt, because of `-y`.
+- `kubectl delete -f config/e2e/fn-dev.yaml -f config/e2e/dev-dataset.yaml`
+  - Backend: the operator soft-deletes each record, never with `?force=true`: `DELETE /projects/{id}`, which also removes the tasks, triggers and the dataset, results repository and trigger repository assignments under it, then `DELETE /global/repositories/triggers/{id}`, `DELETE /global/repositories/results/{id}`, `DELETE /global/datasets/{id}` and `DELETE /global/secrets/{label}`. What a project outside the files still uses is a 409: the resource stays `Terminating`, with the backend's message in its status, until that project is deleted.
+  - Gitea: nothing. The repos, the OAuth apps and the Kubernetes Secrets stay.
+  - `config/gitea.yaml` is not in the delete, so the git provider stays.
 
 ## What to expect
 
-- `apply`: the healthcheck is `ok`.
+- After `kubectl apply`: every resource is synced and the healthcheck is `ok`.
 - Ingest tick: "Saved N new pull requests to database", one poll per trigger repository however many projects are assigned to it.
 - Watched PR: `YIELDED` with a Task, then the run succeeds.
 - Unwatched PR: no trigger (the PR list for the project resource has only the watched and the invalid PR).

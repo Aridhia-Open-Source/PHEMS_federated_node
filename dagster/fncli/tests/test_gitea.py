@@ -1,8 +1,15 @@
+from pathlib import Path
 from unittest.mock import MagicMock
 
+import click
 import pytest
+import yaml
 
+from fncli.cmds import gitea as gitea_cmd
+from fncli.context import Context, Defaults, NodeSpec
 from fncli.gitea import OAUTH_REDIRECT_URI, GiteaAdminAPI, GiteaWebClient, hidden_inputs
+
+CONFIG = Path(__file__).resolve().parents[3] / "config"
 
 CALLBACK = "http://localhost/fn-callback"
 CONSENT_PAGE = """
@@ -210,3 +217,85 @@ def test_authorize_oauth_app_logs_in_authorizes_and_exchanges_the_code():
     assert tokens == {
         "client_id": "cid", "client_secret": "sec", "access_token": "a", "refresh_token": "r", "expires_in": 3600,
     }
+
+
+# --- fncli gitea setup (cmds/gitea.py) ---------------------------------------------------------------------------
+
+CONTEXT = Context(Path("context.yaml"), NodeSpec(url="http://localhost:5000", kube_context="kind-fn", keycloak_namespace="keycloak"), Defaults())
+PROVIDER = {"kind": "GitProvider", "spec": {"type": "gitea", "uri": "http://gitea.fn.svc:4000"}}
+
+
+@pytest.fixture
+def setup(monkeypatch):
+    """gitea_setup with the cluster and Gitea faked: the Secrets that exist, and what was written"""
+    fake = MagicMock()
+    fake.existing = set()
+    fake.written = {}
+    fake.gitea.authorize_oauth_app.side_effect = lambda name: {
+        "client_id": f"{name}-id", "client_secret": f"{name}-secret", "refresh_token": f"{name}-refresh",
+    }
+    monkeypatch.setattr(gitea_cmd, "check_kube_context", lambda context: None)
+    monkeypatch.setattr(gitea_cmd, "list_node_config", lambda plural: [PROVIDER])
+    monkeypatch.setattr(gitea_cmd, "build_gitea_api", lambda config: fake.gitea)
+    monkeypatch.setattr(
+        gitea_cmd, "k8s_secret_version", lambda name, namespace: "1" if (namespace, name) in fake.existing else None
+    )
+    monkeypatch.setattr(
+        gitea_cmd, "write_k8s_secret", lambda name, namespace, values: fake.written.update({(namespace, name): values})
+    )
+    return fake
+
+
+def test_setup_makes_the_repositories_and_a_secret_per_node_secret_from_its_oauth_app(setup):
+    gitea_cmd.gitea_setup(CONTEXT, [CONFIG / "demo.yaml"], ())
+
+    assert [call.args for call in setup.gitea.get_or_create_repo.call_args_list] == [
+        ("demo-trigger-repo",), ("demo-results-repo",),
+    ]
+    assert setup.written[("fn-operator", "demo-trigger-repo-creds")] == {
+        "CLIENT_ID": "demo-trigger-repo-creds-id", "CLIENT_SECRET": "demo-trigger-repo-creds-secret",
+        "REFRESH_TOKEN": "demo-trigger-repo-creds-refresh",
+    }
+    assert set(setup.written) == {("fn-operator", "demo-trigger-repo-creds"), ("fn-operator", "demo-results-repo-creds")}
+
+
+def test_a_secret_that_exists_is_kept_unless_rotated(setup):
+    setup.existing = {("fn-operator", "demo-trigger-repo-creds"), ("fn-operator", "demo-results-repo-creds")}
+
+    gitea_cmd.gitea_setup(CONTEXT, [CONFIG / "demo.yaml"], ())
+    assert setup.written == {}
+
+    gitea_cmd.gitea_setup(CONTEXT, [CONFIG / "demo.yaml"], ("demo-trigger-repo-creds",))
+    assert set(setup.written) == {("fn-operator", "demo-trigger-repo-creds")}
+
+
+def test_rotating_a_node_secret_not_in_the_files_is_an_error(setup):
+    with pytest.raises(click.ClickException, match="--rotate: nope"):
+        gitea_cmd.gitea_setup(CONTEXT, [CONFIG / "demo.yaml"], ("nope",))
+
+
+def test_github_repositories_are_left_alone(setup):
+    gitea_cmd.gitea_setup(CONTEXT, [CONFIG / "github" / "demo-github.yaml"], ())
+
+    setup.gitea.get_or_create_repo.assert_not_called()
+    assert setup.written == {}
+
+
+def test_a_gitea_repository_of_another_owner_is_refused(setup, tmp_path):
+    docs = list(yaml.safe_load_all((CONFIG / "demo.yaml").read_text()))
+    docs[2]["spec"]["uri"] = "http://gitea.fn.svc:4000/someone/demo-trigger-repo"
+    path = tmp_path / "demo.yaml"
+    path.write_text(yaml.safe_dump_all(docs))
+
+    with pytest.raises(click.ClickException, match="Not owned by the Gitea admin user gitea_admin"):
+        gitea_cmd.gitea_setup(CONTEXT, [path], ())
+
+
+@pytest.mark.parametrize("path", sorted(str(p.relative_to(CONFIG)) for p in CONFIG.rglob("*.yaml")))
+def test_every_committed_gitea_node_secret_reads_a_secret_of_its_own(path):
+    """Gitea tells OAuth apps apart by name, which is the NodeSecret's: one app per NodeSecret, one Secret each"""
+    docs = list(yaml.safe_load_all((CONFIG / path).read_text()))
+    secrets = [doc for doc in docs if doc["kind"] == "NodeSecret" and "fromSecret" in doc["spec"]]
+
+    assert len({secret["spec"]["fromSecret"]["name"] for secret in secrets}) == len(secrets)
+    assert all(doc["metadata"]["namespace"] for doc in docs)

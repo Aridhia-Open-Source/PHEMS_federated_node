@@ -127,6 +127,15 @@ superuserSecret:
   userKey: USERNAME
   passKey: PASSWORD
 
+# The nexus operator (ADR 0032). It runs in fn-operator (global.namespaces.operator), where config/ puts its
+# resources, and also watches experiments, where `fncli experiment` puts its dataset resources; deploy.sh creates
+# that namespace first, for the operator's Role there.
+operator:
+  enabled: true
+  image: localhost:5001/nexus-operator-fn
+  tag: *devTag
+  watchNamespaces: [experiments]
+
 ## Subcharts
 
 ### Dagster - Federated Node side

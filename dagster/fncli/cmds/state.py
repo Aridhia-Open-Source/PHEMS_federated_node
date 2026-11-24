@@ -10,8 +10,7 @@ import logging
 
 import click
 
-from fncli.cmds.common import BackendConfig, build_admin_backend_api
-from fncli.cmds.nodefile import context_option, step_project_option, step_target
+from fncli.cmds.target import context_option, step_project_option, step_target
 from fncli.cmds.repository import get_backend_repo_record
 from fncli.backend import FncliBackendAPI
 
@@ -43,7 +42,7 @@ def get(api: FncliBackendAPI, path: str, **params):
 def find_project(api: FncliBackendAPI, name: str):
     project = api.find_project(name)
     if project is None:
-        raise click.ClickException(f"Project {name} not found, run fncli apply first")
+        raise click.ClickException(f"Project {name} not found, kubectl apply -f config/ first")
     return project
 
 
@@ -158,7 +157,7 @@ def snapshot(api: FncliBackendAPI, name: str) -> dict:
 
 def set_project(
     api: FncliBackendAPI, name: str, enabled: str | None, backfill: bool, expect: int | None,
-    revoked: str | None = None, admin_api: FncliBackendAPI | None = None,
+    revoked: str | None = None,
 ) -> int:
     data = {}
     if enabled is not None:
@@ -170,14 +169,13 @@ def set_project(
     if not data:
         raise click.UsageError("Give --enabled, --revoked and/or --backfill")
     project = find_project(api, name)
-    # Revoking is admin only, as for a project resource
-    writer = admin_api if "revoked" in data else api
-    return report(call(writer, "PATCH", f"/projects/{project.id}", json=data), expect)
+    # Revoking is admin only: the login fncli is given must be an Administrator
+    return report(call(api, "PATCH", f"/projects/{project.id}", json=data), expect)
 
 
 def set_resource(
     api: FncliBackendAPI, name: str, kind: str, enabled: str | None, revoked: str | None, expect: int | None,
-    target_dir: str | None = None, base_branch: str | None = None, admin_api: FncliBackendAPI | None = None,
+    target_dir: str | None = None, base_branch: str | None = None,
 ) -> int:
     data = {}
     if enabled is not None:
@@ -196,14 +194,13 @@ def set_resource(
         raise click.UsageError("Give --enabled, --revoked, --target-dir and/or --base-branch")
     project = find_project(api, name)
     key = resource_key(kind, first_resource(api, project.id, kind))
-    # Revoking is admin only: the system user the rest of fncli logs in as is refused with a 403
-    writer = admin_api if "revoked" in data else api
-    return report(call(writer, "PATCH", resource_path(kind, project.id, key), json=data), expect)
+    # Revoking is admin only: the login fncli is given must be an Administrator
+    return report(call(api, "PATCH", resource_path(kind, project.id, key), json=data), expect)
 
 
 def set_global(
     api: FncliBackendAPI, name: str, kind: str, enabled: str | None, expect: int | None,
-    revoked: str | None = None, admin_api: FncliBackendAPI | None = None,
+    revoked: str | None = None,
 ) -> int:
     """Turn the global resource behind the project's resource on or off, or revoke it from every project."""
     data = {}
@@ -217,8 +214,7 @@ def set_global(
         raise click.UsageError("Give --enabled and/or --revoked")
     project = find_project(api, name)
     key = resource_key(kind, first_resource(api, project.id, kind))
-    writer = admin_api if "revoked" in data else api
-    return report(call(writer, "PATCH", global_path(kind, key), json=data), expect)
+    return report(call(api, "PATCH", global_path(kind, key), json=data), expect)
 
 
 def set_secret(api: FncliBackendAPI, label: str, enabled: str, expect: int | None) -> int:
@@ -247,7 +243,7 @@ def project_show_command(context, project):
 
 @click.command("project-set")
 @click.option("--enabled", type=BOOL, default=None)
-@click.option("--revoked", type=BOOL, default=None, help="Admin only (logs in as the first Keycloak user). Takes effect immediately.")
+@click.option("--revoked", type=BOOL, default=None, help="Needs an Administrator login. Takes effect immediately.")
 @click.option(
     "--backfill", is_flag=True, default=False,
     help="With --enabled true on a disabled project: create the triggers of the pull requests stored while it was off, instead of skipping them.",
@@ -258,14 +254,13 @@ def project_show_command(context, project):
 def project_set_command(enabled, revoked, backfill, context, project, expect):
     """Enable or disable the project, or revoke or restore it. Enabling skips what was merged while it was off, unless --backfill."""
     name, backend_api = step_target(context, project)
-    admin_api = build_admin_backend_api(BackendConfig(node=context.node)) if revoked is not None else None
-    finish(set_project(backend_api, name, enabled, backfill, expect, revoked, admin_api))
+    finish(set_project(backend_api, name, enabled, backfill, expect, revoked))
 
 
 @click.command("resource-set")
 @click.argument("kind", type=click.Choice(KINDS))
 @click.option("--enabled", type=BOOL, default=None)
-@click.option("--revoked", type=BOOL, default=None, help="Admin only (logs in as the first Keycloak user). Takes effect immediately.")
+@click.option("--revoked", type=BOOL, default=None, help="Needs an Administrator login. Takes effect immediately.")
 @click.option("--target-dir", default=None, help="The results resource's target directory. Tasks created before the change then fail.")
 @click.option("--base-branch", default=None, help="The trigger or results resource's branch: the one the project watches, or the one its results pull requests go into.")
 @context_option
@@ -274,8 +269,7 @@ def project_set_command(enabled, revoked, backfill, context, project, expect):
 def resource_set_command(kind, enabled, revoked, target_dir, base_branch, context, project, expect):
     """Set the enabled and/or revoked flag, the target directory of a results resource or the base branch of a trigger or results resource, of the project's resource of that KIND."""
     name, backend_api = step_target(context, project)
-    admin_api = build_admin_backend_api(BackendConfig(node=context.node)) if revoked is not None else None
-    finish(set_resource(backend_api, name, kind, enabled, revoked, expect, target_dir, base_branch, admin_api))
+    finish(set_resource(backend_api, name, kind, enabled, revoked, expect, target_dir, base_branch))
 
 
 @click.command("global-set")
@@ -283,7 +277,7 @@ def resource_set_command(kind, enabled, revoked, target_dir, base_branch, contex
 @click.option("--enabled", type=BOOL, default=None)
 @click.option(
     "--revoked", type=BOOL, default=None,
-    help="Trigger and results only, from every project at once. Admin only (logs in as the first Keycloak user).",
+    help="Trigger and results only, from every project at once. Needs an Administrator login.",
 )
 @context_option
 @step_project_option
@@ -291,8 +285,7 @@ def resource_set_command(kind, enabled, revoked, target_dir, base_branch, contex
 def global_set_command(kind, enabled, revoked, context, project, expect):
     """Turn the global resource behind the project's resource of that KIND on or off, or revoke or restore it."""
     name, backend_api = step_target(context, project)
-    admin_api = build_admin_backend_api(BackendConfig(node=context.node)) if revoked is not None else None
-    finish(set_global(backend_api, name, kind, enabled, expect, revoked, admin_api))
+    finish(set_global(backend_api, name, kind, enabled, expect, revoked))
 
 
 def secret_label_of(api: FncliBackendAPI, project_name: str, entity: str) -> str:

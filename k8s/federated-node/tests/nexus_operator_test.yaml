@@ -1,0 +1,186 @@
+suite: nexus operator
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+set:
+  operator:
+    enabled: true
+    watchNamespaces: [experiments]
+tests:
+  - it: renders nothing when the operator is off
+    template: nexus-operator-deployment.yaml
+    set:
+      operator.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: refuses the release namespace in watchNamespaces
+    template: requirements-check.yaml
+    set:
+      operator.watchNamespaces: [federatednode]
+    asserts:
+      - failedTemplate:
+          errorPattern: must not include the release namespace
+
+  - it: runs one replica with Recreate in its own namespace, watching it and watchNamespaces, not the release namespace
+    template: nexus-operator-deployment.yaml
+    documentSelector:
+      path: kind
+      value: Deployment
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: fn-operator
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value: [--namespace=fn-operator, --namespace=experiments]
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^ghcr.io/aridhia-open-source/nexus_operator:.+
+      - notExists:
+          path: spec.template.spec.containers[0].envFrom
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: operator-keycloak-creds
+            mountPath: /etc/secrets/operator
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: operator-keycloak-creds
+            secret:
+              secretName: operator-keycloak-creds
+
+  - it: mounts fn-operator's password into realm-init beside kc-secrets
+    template: keycloak-realm-controller.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: kc-secrets
+            projected:
+              sources:
+                - secret:
+                    name: kc-secrets
+                - secret:
+                    name: operator-keycloak-creds
+
+  - it: makes its own namespace
+    template: operator-namespace.yaml
+    asserts:
+      - isKind:
+          of: Namespace
+      - equal:
+          path: metadata.name
+          value: fn-operator
+
+  - it: makes no namespace when the operator is off
+    template: operator-namespace.yaml
+    set:
+      operator.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: has a Role in each watched namespace, none in the release namespace
+    template: nexus-operator-roles.yaml
+    asserts:
+      - hasDocuments:
+          count: 4
+      - equal:
+          path: metadata.namespace
+          value: fn-operator
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: experiments
+        documentIndex: 2
+      - notEqual:
+          path: metadata.namespace
+          value: federatednode
+      - equal:
+          path: subjects[0].namespace
+          value: fn-operator
+        documentIndex: 1
+
+  - it: takes its namespace from global.namespaces.operator
+    template: nexus-operator-roles.yaml
+    set:
+      global.namespaces.operator: node-config
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: node-config
+        documentIndex: 0
+
+  - it: strips the finalizers in a pre-delete hook
+    template: nexus-operator-uninstall-hook.yaml
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-delete
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-10"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'for ns in fn-operator experiments'
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'kubectl scale deployment nexus-operator -n fn-operator'
+      - equal:
+          path: metadata.namespace
+          value: fn-operator
+
+  - it: creates the hook's RBAC before its Job
+    template: nexus-operator-uninstall-hook.yaml
+    documentSelector:
+      path: kind
+      value: RoleBinding
+      matchMany: true
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-20"
+
+  - it: makes the fn-operator login
+    template: keycloak-secrets.yaml
+    documentSelector:
+      path: metadata.name
+      value: operator-keycloak-creds
+      matchMany: true
+    asserts:
+      - equal:
+          path: data.OPERATOR_KC_USER
+          value: Zm4tb3BlcmF0b3I=
+      - notEqual:
+          path: metadata.namespace
+          value: federatednode
+
+  - it: puts the fn-operator login in the operator namespace, and nothing else there
+    template: keycloak-secrets.yaml
+    documentSelector:
+      path: metadata.namespace
+      value: fn-operator
+    asserts:
+      - equal:
+          path: metadata.name
+          value: operator-keycloak-creds
+
+  - it: renders no uninstall hook while the operator is off and was not running
+    template: nexus-operator-uninstall-hook.yaml
+    set:
+      operator.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

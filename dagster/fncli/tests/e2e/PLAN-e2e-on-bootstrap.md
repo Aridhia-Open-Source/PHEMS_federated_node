@@ -1,8 +1,10 @@
 # Plan: the e2e suites on bootstrap files
 
+> Superseded: the node-file commands (the former diff, apply and delete) are gone; node config is `kubectl apply` of the resources in `config/` (ADR 0032). This plan is kept as history.
+
 > Done since: the step commands take `--context` and `--project` and read the project from the node, no `TEST_*` or `NEXUS_API_URL` is read, and the suites use the project of `projects/e2e.yaml` on the node of `examples/context.yaml` (`Fncli` in conftest.py). The text below is the plan as written.
 >
-> Names since the layout change: `e2e.yaml` is `bootstrap/examples/globals-e2e.yaml` (global resources) plus `projects/e2e.yaml` (the project); the `node:` block is `bootstrap/examples/context.yaml` (the suites pass `--context` with it); `TEST_PR_IMAGE` and friends are gone: a pull request adds a trigger file (`triggers/examples/demo.json`) with `--trigger`.
+> Names since the layout change: `e2e.yaml` is `the former globals-e2e.yaml` (global resources) plus `projects/e2e.yaml` (the project); the `node:` block is `bootstrap/examples/context.yaml` (the suites pass `--context` with it); `TEST_PR_IMAGE` and friends are gone: a pull request adds a trigger file (`triggers/examples/demo.json`) with `--trigger`.
 
 
 Status: plan only, 2026-11-09. Read against `fncli-declarative-config` (b4d68379). Nothing here has been run.
@@ -23,7 +25,7 @@ Rule for every step below: never start `--e2e` while one is running (`pgrep -f p
 - Setup, run as one test each: `apply -f e2e.yaml -y`, `verify-git-secret` for trigger and results, `project-healthcheck`.
 - Teardown, in this order: `delete -f projects/e2e-second-projects.yaml -y`, `delete -f e2e.yaml --all -y`, then `delete_gitea_leftovers` (Python: deletes the Gitea repos and OAuth apps the node file names).
 - Reads env: `NEXUS_API_URL`, `KEYCLOAK_NAMESPACE` (every backend client), `TEST_PROJECT_NAME` (`Fncli.snapshot`, healthcheck, verify), `NAMESPACE` (Gitea admin password, sensor configmap), `GITEA_URL`, `DAGSTER_URL`.
-- Hard-codes `SECOND_PROJECT = "QaTwo"`, a second copy of a name that is in projects/e2e-second-projects.yaml.
+- Hard-codes `SECOND_PROJECT = "qa-two"`, a second copy of a name that is in projects/e2e-second-projects.yaml.
 - `Fncli.run` prints to the terminal and asserts exit 0. It cannot assert on `diff` text or on an expected exit 1.
 - `cli.main(standalone_mode=False)` returns an exit code but raises a `ClickException`, so a refused command needs its own helper.
 
@@ -54,7 +56,7 @@ Rule for every step below: never start `--e2e` while one is running (`pgrep -f p
 ### test_failure_paths_long.py (64 tests, tasks run to the end)
 
 - Same setup and teardown, same admin preflight.
-- Second project: `apply -f projects/e2e-second-projects.yaml --project QaTwo`, `resource-set trigger --revoked --project QaTwo`, `delete -f projects/e2e-second-projects.yaml`.
+- Second project: `apply -f projects/e2e-second-projects.yaml --project qa-two`, `resource-set trigger --revoked --project qa-two`, `delete -f projects/e2e-second-projects.yaml`.
 - Lost token: `delete-gitea-token` (token name from `GITEA_TOKEN_NAME`, default `fn-sensor`), `sensor-status`, `project-healthcheck` (expects exit 1), `apply -f e2e.yaml --rotate <label>`, `verify-git-secret`.
 - Failing task: `commit-gitea-file --kind failing`.
 - Backfill: `project-set --enabled false`, then `project-set --enabled true --backfill`.
@@ -77,7 +79,7 @@ Rule for every step below: never start `--e2e` while one is running (`pgrep -f p
 
 ### Scenario state is files, reached with `apply`
 
-- Baseline: `bootstrap/examples/globals-e2e.yaml` and `projects/e2e.yaml`. No new committed file for the baseline.
+- Baseline: `the former globals-e2e.yaml` and `projects/e2e.yaml`. No new committed file for the baseline.
 - Second projects: slim projects/e2e-second-projects.yaml to the node block and the two projects. Its datasets, repositories and secrets resolve from the node (cross-file). Checked: the slim file loads, and against a node without the dev entries it plans one blocked row per project ("dataset dev-dataset is not in the file or on the node").
 - Variants: a `variant(base, edit)` helper in conftest. It loads the YAML, edits the dict, writes it to a tmp path. No new committed files. The e2e files hold no relative paths or `env_file`, so a tmp copy is safe.
 - If someone adds `node.env_file` to an e2e file: `open_node` calls `load_dotenv(..., override=True)`, which changes `os.environ` for the rest of the pytest process.
@@ -159,18 +161,18 @@ Each item is one or a few single-step tests, in order, in the existing style.
   - `apply --rotate <trigger label>`: its `CLIENT_SECRET` and `REFRESH_TOKEN` change; `verify-git-secret` passes; the results and dataset secrets are unchanged.
   - `--rotate not-a-label` fails with the label named and the backend unchanged.
 - **`delete` without and with `--all`.**
-  - Apply the second projects. `delete -f e2e.yaml -y`: the dev project is gone, repositories, dataset, secrets, provider stay, QaTwo and QaThree stay, the Gitea repositories exist. `diff` then shows the project as `+` and the rest unchanged.
+  - Apply the second projects. `delete -f e2e.yaml -y`: the dev project is gone, repositories, dataset, secrets, provider stay, qa-two and qa-three stay, the Gitea repositories exist. `diff` then shows the project as `+` and the rest unchanged.
   - Without `--gitea`, Gitea repositories and OAuth apps remain after `delete --all`. With `--gitea` they are gone.
   - `delete --all` with none of the file's entries on the node prints "Nothing to delete." and exits 0.
-- **409 skip for shared globals.** With the dev project and QaTwo applied: `delete -f e2e.yaml --all -y` exits 1.
-  - Output has "Skipped, the backend refused" and names QaTwo.
+- **409 skip for shared globals.** With the dev project and qa-two applied: `delete -f e2e.yaml --all -y` exits 1.
+  - Output has "Skipped, the backend refused" and names qa-two.
   - The dev project is gone; the repositories and the dataset are still on the node.
   - Then `delete -f second -y` and `delete -f e2e.yaml --all -y` exit 0 and none of the files' entries are on the node.
 - **Wrong kube context refused.** A variant with `kube_context: kind-other`: `diff`, `apply -y`, `delete --all -y` each raise a `ClickException` that names both contexts. Backend state is identical before and after. (The variant never changes the real kubectl context.)
 - **Cross-file reference blocked, then resolved.**
-  - With none of e2e.yaml's entries on the node: `diff -f second` has blocked rows for QaTwo and QaThree; `apply -f second -y` exits 1 and creates nothing.
+  - With none of e2e.yaml's entries on the node: `diff -f second` has blocked rows for qa-two and qa-three; `apply -f second -y` exits 1 and creates nothing.
   - Apply e2e.yaml; `diff -f second` shows `+` for both projects and the dataset and repository rows as "on the node, not in this file".
-  - `apply -f second --project QaTwo -y` creates QaTwo only. `apply -f second -y` adds QaThree. Both have the dev project's dataset and repositories.
+  - `apply -f second --project qa-two -y` creates qa-two only. `apply -f second -y` adds qa-three. Both have the dev project's dataset and repositories.
 
 Not repeated here because the unit tests already cover them with a fake backend: the plan format, the loader errors, the ordering, `--project` limiting.
 

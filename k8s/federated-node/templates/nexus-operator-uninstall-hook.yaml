@@ -1,0 +1,95 @@
+{{- $operatorNs := include "operator_namespace" . }}
+{{- /* The upgrade that turns the operator off: its Deployment is still there (lookup is empty without a cluster) */}}
+{{- $turningOff := and (not (.Values.operator).enabled) (lookup "apps/v1" "Deployment" $operatorNs "nexus-operator") }}
+{{- if or (.Values.operator).enabled $turningOff }}
+{{- /*
+  Uninstall is not a delete (ADR 0032). Before `helm uninstall` removes anything, this Job stops the
+  operator and strips the finalizers from every fn.aridhia.com resource it watches, so the resources
+  go without the operator soft-deleting their nexus-api records and the uninstall does not hang.
+  The CRDs carry helm.sh/resource-policy: keep.
+  The same Job runs before the upgrade that sets operator.enabled false, which removes the operator and
+  the nodeConfig resources together: without it they would wait on their finalizers for good.
+*/}}
+{{- /* The RBAC goes before the Job: Helm breaks a weight tie by name, which depends on the release name. */}}
+{{- $hook := dict "helm.sh/hook" (ternary "pre-upgrade" "pre-delete" (not (empty $turningOff))) "helm.sh/hook-weight" "-20" "helm.sh/hook-delete-policy" "before-hook-creation,hook-succeeded" }}
+{{- $jobHook := merge (dict "helm.sh/hook-weight" "-10") $hook }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nexus-operator-uninstall
+  namespace: {{ $operatorNs }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+{{- range (include "operatorNamespaces" . | fromJsonArray) }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $.Release.Name }}-nexus-operator-uninstall
+  namespace: {{ . }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+rules:
+- apiGroups: ["fn.aridhia.com"]
+  resources: ["gitproviders", "nodesecrets", "repositories", "datasets", "projects"]
+  verbs: ["get", "list", "patch"]
+{{- if eq . $operatorNs }}
+- apiGroups: ["apps"]
+  resources: ["deployments", "deployments/scale"]
+  resourceNames: ["nexus-operator"]
+  verbs: ["get", "patch"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $.Release.Name }}-nexus-operator-uninstall
+  namespace: {{ . }}
+  annotations:
+    {{- toYaml $hook | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: nexus-operator-uninstall
+    namespace: {{ $operatorNs }}
+roleRef:
+  kind: Role
+  name: {{ $.Release.Name }}-nexus-operator-uninstall
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nexus-operator-uninstall
+  namespace: {{ $operatorNs }}
+  annotations:
+    {{- toYaml $jobHook | nindent 4 }}
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 300
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: nexus-operator-uninstall
+      containers:
+        - name: strip-finalizers
+          image: {{ include "fn-alpine" . }}
+          imagePullPolicy: {{ .Values.pullPolicy }}
+          {{- include "nonRootSC" . | nindent 10 }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              kubectl scale deployment nexus-operator -n {{ $operatorNs }} --replicas=0
+              kubectl wait pod -l app=nexus-operator -n {{ $operatorNs }} --for=delete --timeout=120s || true  # no pod left is the goal
+              for ns in {{ include "operatorNamespaces" . | fromJsonArray | join " " }}; do
+                for kind in gitproviders nodesecrets repositories datasets projects; do
+                  # A CRD deleted by hand, or never applied, has nothing to strip
+                  for name in $(kubectl get "$kind.fn.aridhia.com" -n "$ns" -o name 2>/dev/null || true); do
+                    kubectl patch "$name" -n "$ns" --type=merge -p '{"metadata":{"finalizers":null}}'
+                  done
+                done
+              done
+{{- end }}

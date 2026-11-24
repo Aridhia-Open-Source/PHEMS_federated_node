@@ -5,8 +5,8 @@ from typing import Literal
 from nexus_client.git_uri import normalise_repo_uri, repo_path_of
 from nexus_client.http import BackendSession
 from nexus_client.models import (
-    GitProvider, GitToken, ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
-    ResultsRepository, Task,
+    GitProvider, GitToken, ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project,
+    ProjectResultsRepository, ResultsRepository, Task,
     TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision, TaskResources
 )
 
@@ -14,11 +14,25 @@ default_logger = logging.getLogger(__name__)
 
 
 class BackendAPI:
-    """Backend API client. All requests auto-refresh tokens on 401/403."""
+    """
+    nexus-api client for Dagster, fncli and the operator. All requests auto-refresh tokens on 401/403.
+    Deletes never force: one that would take a project's resources with it is refused with a 409.
+    """
 
     def __init__(self, session: BackendSession, logger=None):
         self.session = session
         self.logger = logger or default_logger
+
+    def _get_all_pages(self, path: str, **filters: str) -> list[dict]:
+        """Every item of a paginated list endpoint, filtered by nexus-api's query options"""
+        items = []
+        page = 1
+        while True:
+            data = self.session.get(path, params={**filters, "page": page, "size": 100}).json()
+            items.extend(data["items"])
+            if page >= data["pages"]:
+                return items
+            page += 1
 
     def login(self, username: str, password: str) -> dict:
         """Login and return token"""
@@ -314,6 +328,11 @@ class BackendAPI:
         response = self.session.post("/global/datasets", json=data)
         return Dataset(**response.json())
 
+    def get_datasets(self) -> list[Dataset]:
+        """Get all datasets, over every page"""
+        self.logger.info("Fetching datasets")
+        return [Dataset(**ds) for ds in self._get_all_pages("/global/datasets")]
+
     def get_dataset(self, dataset_id: int) -> Dataset:
         """Get single dataset"""
         self.logger.info(f"Fetching dataset {dataset_id}")
@@ -327,9 +346,9 @@ class BackendAPI:
         return ProjectDataset(**response.json())
 
     def delete_dataset(self, dataset_id: int) -> None:
-        """Delete a dataset, and with it (force) every project's resource for it"""
+        """Delete a dataset no project has, else a 409 names the projects"""
         self.logger.info(f"Deleting dataset {dataset_id}")
-        self.session.delete(f"/global/datasets/{dataset_id}", params={"force": "true"})
+        self.session.delete(f"/global/datasets/{dataset_id}")
 
     def create_repository(self, provider_id: int, repo_path: str, secret_label: str) -> TriggerRepository:
         """Create a global trigger repository"""
@@ -352,19 +371,9 @@ class BackendAPI:
         return ProjectTriggerRepository(**response.json())
 
     def delete_repository(self, repo_id: int) -> None:
-        """Delete a repository, and with it (force) every project's resource for it"""
-        self.session.delete(f"/global/repositories/triggers/{repo_id}", params={"force": "true"})
-
-    def _get_all_pages(self, path: str, **filters: str) -> list[dict]:
-        """Every item of a paginated list endpoint, filtered by nexus-api's query options"""
-        items = []
-        page = 1
-        while True:
-            data = self.session.get(path, params={**filters, "page": page, "size": 100}).json()
-            items.extend(data["items"])
-            if page >= data["pages"]:
-                return items
-            page += 1
+        """Delete a global trigger repository no project has, else a 409 names the projects"""
+        self.logger.info(f"Deleting trigger repository {repo_id}")
+        self.session.delete(f"/global/repositories/triggers/{repo_id}")
 
     def get_dataset_healthcheck(self, dataset_id: int) -> dict:
         """Whether the node can connect to the dataset's database with its secret: {"status": "ok", "health_check": {"message", ...}, ...}"""
@@ -378,15 +387,15 @@ class BackendAPI:
                 return dataset
         return None
 
-    def get_datasets(self) -> list[Dataset]:
-        """Get all datasets, over every page"""
-        self.logger.info("Fetching datasets")
-        return [Dataset(**ds) for ds in self._get_all_pages("/global/datasets")]
-
     def get_project_datasets(self, project_id: int) -> list[ProjectDataset]:
         """The project's datasets, inactive ones included"""
         self.logger.info(f"Fetching datasets of project {project_id}")
         return [ProjectDataset(**a) for a in self.session.get(f"/projects/{project_id}/datasets").json()]
+
+    def delete_project_dataset(self, project_id: int, dataset_id: int) -> None:
+        """Unassign the dataset from the project (a soft delete), not the dataset itself"""
+        self.logger.info(f"Unassigning dataset {dataset_id} from project {project_id}")
+        self.session.delete(f"/projects/{project_id}/datasets/{dataset_id}")
 
     def find_project_dataset(self, name: str, project_id: int) -> ProjectDataset | None:
         """The project's dataset of that name, if any"""
@@ -574,6 +583,11 @@ class BackendAPI:
         response = self.session.put(f"/projects/{project_id}/repositories/triggers/{repository_id}", json=data)
         return ProjectTriggerRepository(**response.json())
 
+    def delete_project_trigger_repository(self, project_id: int, repository_id: int) -> None:
+        """Unassign the trigger repository from the project (a soft delete), not the repository itself"""
+        self.logger.info(f"Unassigning repository {repository_id} from project {project_id}")
+        self.session.delete(f"/projects/{project_id}/repositories/triggers/{repository_id}")
+
     def get_results_repositories(self) -> list[ResultsRepository]:
         """The global results repositories"""
         response = self.session.get("/global/repositories/results")
@@ -636,6 +650,11 @@ class BackendAPI:
         response = self.session.patch(f"/projects/{project_id}/repositories/results/{repository_id}", json=data)
         return ProjectResultsRepository(**response.json())
 
+    def delete_project_results_repository(self, project_id: int, repository_id: int) -> None:
+        """Unassign the project's results repository (a soft delete), not the repository itself"""
+        self.logger.info(f"Unassigning results repository {repository_id} from project {project_id}")
+        self.session.delete(f"/projects/{project_id}/repositories/results/{repository_id}")
+
     def get_or_assign_results_repository(
         self, project_id: int, repo: ResultsRepository, target_dir: str, base_branch: str,
         owned_by_federated_node: bool | None = None,
@@ -653,3 +672,8 @@ class BackendAPI:
             data["owned_by_federated_node"] = owned_by_federated_node
         response = self.session.put(f"/projects/{project_id}/repositories/results/{repo.id}", json=data)
         return ProjectResultsRepository(**response.json())
+
+    def delete_results_repository(self, repo_id: int) -> None:
+        """Delete a global results repository no project has, else a 409 names the projects"""
+        self.logger.info(f"Deleting results repository {repo_id}")
+        self.session.delete(f"/global/repositories/results/{repo_id}")

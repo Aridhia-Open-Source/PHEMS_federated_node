@@ -2,7 +2,7 @@ import pytest
 import yaml
 
 from fncli.cmds.common import ResultsRepoConfig, TriggerRepoConfig
-from fncli.nodefile.schema import NodeSpec
+from fncli.context import NodeSpec
 
 # Only the deploy settings are read from the env now: the node, the project and its repositories come from the context
 # file and the node

@@ -1,7 +1,6 @@
 """`fncli demo` (fncli.cmds.demo): the walk, its steps and what it needs on the node, with the node and backend faked."""
 
 import os
-from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -14,11 +13,31 @@ import yaml
 from nexus_client.http import BackendSession, BaseSession
 from fncli.cmds import demo
 from fncli.cmds.demo import Demo, Step, demo_command, step_names
-from fncli.nodefile.loader import limit_to_project, load_node_file
-from fncli.tests.test_nodefile_diff import make_node, node_data, synced_state
+from fncli.node_config import load_resources, of_kind
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-EXAMPLES = REPO_ROOT / "bootstrap" / "examples"
+CONFIG = REPO_ROOT / "config"
+
+
+def project_resource(name="demo-gitea", synced=True, generation=2, observed=2, message="") -> dict:
+    """A Project resource as the cluster returns it, with the operator's status"""
+    return {
+        "metadata": {"name": name, "namespace": "fn-operator", "generation": generation},
+        "spec": {
+            "datasets": ["shared"],
+            "repositories": {
+                "triggers": [{
+                    "repository": "http://gitea.fn.svc:4000/gitea_admin/trigger-repo", "watchDir": "specs/",
+                    "baseBranch": "main",
+                }],
+                "results": {
+                    "repository": "http://gitea.fn.svc:4000/gitea_admin/results-repo", "targetDir": "results/",
+                    "baseBranch": "main",
+                },
+            },
+        },
+        "status": {"synced": synced, "observedGeneration": observed, "message": message},
+    }
 
 
 class FakeApi:
@@ -42,15 +61,6 @@ def restore_env():
 
 
 @pytest.fixture
-def node_state(monkeypatch):
-    """What the backend holds: the node file below, applied. A test replaces .state to put the node out of step."""
-    state = synced_state()
-    holder = SimpleNamespace(state=replace(state, projects=[replace(state.projects[0], name="demo-gitea")]))
-    monkeypatch.setattr(demo, "read_state", lambda api: holder.state)
-    return holder
-
-
-@pytest.fixture
 def context_file(tmp_path, monkeypatch):
     """The context file the commands find through FNCLI_CONTEXT, and the triggers/ folder with the default trigger file"""
     path = tmp_path / "context.yaml"
@@ -69,34 +79,23 @@ def context_file(tmp_path, monkeypatch):
 
 @pytest.fixture
 def opened(monkeypatch):
-    """What demo_command opened the node with: the project it asked for, in a list"""
+    """The Project resources demo_command read, as (namespace, name)"""
     return []
 
 
 @pytest.fixture
-def node_file(tmp_path, monkeypatch, node_state, context_file, opened):
-    """A node file for the demo holding only its project, and the node it was opened on, which has the dataset"""
-    path = tmp_path / "demo.yaml"
-    data = node_data()
-    data["projects"][0]["name"] = "demo-gitea"
-    # Only the project, as the real files are: the providers and repositories are on the node
-    only_projects = {"version": 1, "projects": data["projects"]}
-    path.write_text(yaml.safe_dump(only_projects))
-    node = make_node(only_projects)
+def resources(monkeypatch, context_file, opened):
+    """The cluster's Project resources by name, and a node that has the dataset. A test changes them."""
+    resources = {"demo-gitea": project_resource(), "demo-other": project_resource("demo-other")}
     api = FakeApi()
 
-    def open_node(context, file, project):
-        opened.append(project)
-        return node, api
+    def get_node_config(plural, namespace, name):
+        opened.append((namespace, name))
+        return resources.get(name)
 
-    monkeypatch.setattr(demo, "open_node", open_node)
-    return path
-
-
-def demo_node():
-    data = node_data()
-    data["projects"][0]["name"] = "demo-gitea"
-    return make_node({"version": 1, "projects": data["projects"]})
+    monkeypatch.setattr(demo, "get_node_config", get_node_config)
+    monkeypatch.setattr(demo, "open_target", lambda context: api)
+    return resources
 
 
 def recorder(ran, name, error=None):
@@ -128,9 +127,9 @@ def names(ran):
 
 
 @pytest.fixture
-def run_demo(node_file):
+def run_demo(resources):
     def run(*args, input=None):
-        return CliRunner().invoke(demo_command, ["-f", str(node_file), *args], input=input)
+        return CliRunner().invoke(demo_command, list(args), input=input)
 
     return run
 
@@ -140,8 +139,7 @@ def test_yes_runs_every_step_in_order(ran, run_demo, opened):
 
     assert result.exit_code == 0, result.output
     assert names(ran) == ["one", "two", "three"]
-    assert opened == ["demo-gitea"]
-    assert "Using the defaults" not in result.output
+    assert opened == [("fn-operator", "demo-gitea")]
     assert "Step 3: title of three" in result.output
     assert result.output.rstrip().endswith("Done.")
 
@@ -231,7 +229,7 @@ def test_the_files_names_fill_in_the_steps_text_and_none_of_them_goes_in_the_env
     monkeypatch.setattr(
         demo, "STEPS",
         [Step("t", "project {project}", "fncli x", lambda ctx, demo: seen.update(
-            project=demo.project.name, dataset=demo.project.datasets[0], env=dict(os.environ)
+            project=demo.project, dataset=demo.spec["datasets"][0], env=dict(os.environ)
         ))],
     )
 
@@ -244,58 +242,43 @@ def test_the_files_names_fill_in_the_steps_text_and_none_of_them_goes_in_the_env
     assert "project demo-gitea" in result.output
 
 
-def test_the_demo_runs_when_the_node_matches_the_file(ran, run_demo):
-    # The synced node still lists the Gitea repositories to ensure: apply makes those in Gitea, so they are no change
+def test_the_demo_runs_when_the_project_resource_is_synced(ran, run_demo):
     result = run_demo("--yes")
 
     assert result.exit_code == 0, result.output
-    assert "does not match" not in result.output
+    assert "not synced" not in result.output
     assert names(ran) == ["one", "two", "three"]
 
 
 @pytest.mark.parametrize(
-    "mark, change",
+    "status",
     [
-        ("+", lambda state: replace(state, projects=[])),
-        ("~", lambda state: replace(state, projects=[replace(state.projects[0], enabled=False)])),
-        ("!", lambda state: replace(state, projects=[replace(state.projects[0], results=None)])),
-        ("x", lambda state: replace(state, projects=[replace(state.projects[0], default_dataset="other")])),
+        {"synced": False, "message": "dataset shared not found"},
+        {"generation": 3, "message": "dataset shared not found"},
     ],
-    ids=["create", "update", "confirm", "blocked"],
+    ids=["not-synced", "older-generation"],
 )
-def test_the_demo_refuses_with_exit_1_while_the_plan_has_a_change(mark, change, ran, run_demo, node_state):
-    node_state.state = change(node_state.state)
-
-    result = run_demo("--yes")
-
-    assert result.exit_code == 1
-    assert "does not match" in result.output
-    assert f"{mark} project       demo-gitea" in result.output
-    assert "Run `fncli apply -f " in result.output
-    assert ran == []
-
-
-def test_the_refusal_lists_only_the_rows_that_would_change(ran, run_demo, node_state):
-    node_state.state = replace(node_state.state, projects=[])
-
-    result = run_demo("--yes")
-
-    assert "  + project" in result.output
-    assert "= " not in result.output
-    assert "gitea repo" not in result.output
-
-
-def test_the_plan_is_checked_whatever_step_it_starts_at(ran, run_demo, node_state):
-    node_state.state = replace(node_state.state, projects=[])
+def test_the_demo_refuses_with_exit_1_until_the_operator_has_synced_the_project(status, ran, run_demo, resources):
+    resources["demo-gitea"] = project_resource(**status)
 
     result = run_demo("--yes", "--from", "3")
 
     assert result.exit_code == 1
+    assert "Project demo-gitea is not synced to the node yet: dataset shared not found" in result.output
+    assert "kubectl get fn -n fn-operator" in result.output
     assert ran == []
 
 
-def test_a_dataset_that_is_not_on_the_node_stops_the_demo_before_any_step(ran, run_demo, node_file, monkeypatch):
-    monkeypatch.setattr(demo, "open_node", lambda context, file, project: (demo_node(), FakeApi(datasets=())))
+def test_a_project_with_no_resource_stops_the_demo(ran, run_demo):
+    result = run_demo("--yes", "--project", "nope")
+
+    assert result.exit_code == 1
+    assert "No Project resource nope in namespace fn" in result.output
+    assert ran == []
+
+
+def test_a_dataset_that_is_not_on_the_node_stops_the_demo_before_any_step(ran, run_demo, monkeypatch):
+    monkeypatch.setattr(demo, "open_target", lambda context: FakeApi(datasets=()))
 
     result = run_demo("--yes")
 
@@ -305,52 +288,39 @@ def test_a_dataset_that_is_not_on_the_node_stops_the_demo_before_any_step(ran, r
     assert ran == []
 
 
-def two_projects(node_file):
-    data = yaml.safe_load(node_file.read_text())
-    data["projects"].append(dict(data["projects"][0], name="demo-other"))
-    node_file.write_text(yaml.safe_dump(data))
-
-
-def test_a_file_with_several_projects_uses_the_default_project_and_says_so_on_the_first_line(ran, run_demo, node_file, opened):
-    two_projects(node_file)
-
+def test_without_a_project_flag_the_default_project_is_used_and_said_on_the_first_line(ran, run_demo, opened):
     result = run_demo("--yes")
 
     assert result.exit_code == 0, result.output
-    assert result.output.splitlines()[0].endswith(": project demo-gitea")
     assert result.output.splitlines()[0].startswith("Using the defaults of ")
-    assert opened == ["demo-gitea"]
+    assert result.output.splitlines()[0].endswith(": project demo-gitea")
 
 
-def test_a_project_flag_beats_the_default_and_says_nothing(ran, run_demo, node_file, opened):
-    two_projects(node_file)
-
+def test_a_project_flag_beats_the_default_and_says_nothing(ran, run_demo, opened):
     result = run_demo("--yes", "--project", "demo-other")
 
     assert "Using the defaults" not in result.output
-    assert opened == ["demo-other"]
+    assert opened == [("fn-operator", "demo-other")]
 
 
-def test_the_env_default_project_beats_the_context_file(ran, run_demo, node_file, opened, monkeypatch):
-    two_projects(node_file)
+def test_the_env_default_project_beats_the_context_file(ran, run_demo, opened, monkeypatch):
     monkeypatch.setenv("FNCLI_DEFAULT_PROJECT", "demo-other")
 
     result = run_demo("--yes")
 
     assert result.output.splitlines()[0].endswith(": project demo-other")
-    assert opened == ["demo-other"]
+    assert opened == [("fn-operator", "demo-other")]
 
 
-def test_a_file_with_several_projects_and_no_default_needs_the_project_flag(ran, run_demo, node_file, context_file):
-    two_projects(node_file)
+def test_no_project_flag_and_no_default_is_a_usage_error(ran, run_demo, context_file):
     context_file.write_text(yaml.safe_dump(
         {"node": {"url": "http://localhost:5000", "kube_context": "kind-fn", "keycloak_namespace": "keycloak"}}
     ))
 
     result = run_demo("--yes")
 
-    assert result.exit_code == 1
-    assert "has 2 projects: pick one with --project (demo-gitea, demo-other)" in result.output
+    assert result.exit_code == 2
+    assert "Give --project" in result.output
     assert ran == []
 
 
@@ -374,7 +344,7 @@ def test_the_pull_request_step_triggers_the_demo_project_by_pr_with_the_trigger_
     monkeypatch.setattr(demo, "trigger_pr", lambda *args, **options: calls.append((args, options)))
 
     demo.trigger_by_pr(None, SimpleNamespace(
-        context="the context", api="the api", project=SimpleNamespace(name="demo-gitea"), trigger_file=Path("t.json")
+        context="the context", api="the api", project="demo-gitea", trigger_file=Path("t.json")
     ))
 
     assert calls == [
@@ -455,7 +425,7 @@ def test_merge_results_pr_gets_the_number_of_the_latest_results_pr(ran, monkeypa
 
     with click.Context(click.Command("demo")) as ctx:
         demo.merge_results_pr(
-            ctx, SimpleNamespace(context="the context", api="the api", project=SimpleNamespace(name="demo-gitea"))
+            ctx, SimpleNamespace(context="the context", api="the api", project="demo-gitea")
         )
 
     assert ran == [("merge-results-pr", {"number": 7, "context": "the context", "project": "demo-gitea"})]
@@ -485,7 +455,7 @@ def test_the_steps_are_the_checks_and_the_pull_request_walk_in_order():
 
 
 def test_no_step_creates_or_deletes_anything_on_the_node():
-    assert not [step for step in demo.STEPS if step.line.startswith(("fncli apply", "fncli delete", "fncli project-set"))]
+    assert not [step for step in demo.STEPS if step.line.startswith(("kubectl", "fncli project-set"))]
     assert not hasattr(demo, "TEARDOWN_STEP")
 
 
@@ -498,23 +468,24 @@ def test_every_step_shows_the_command_it_runs():
         assert step.line.startswith(("fncli ", "GET /global/datasets"))
 
 
-@pytest.mark.parametrize("name", ["demo-gitea", "demo-github"])
+DEMO_FILES = {"demo-gitea": CONFIG / "demo.yaml", "demo-github": CONFIG / "github" / "demo-github.yaml"}
+
+
+@pytest.mark.parametrize("name", DEMO_FILES)
 def test_every_text_and_command_fills_in_from_the_demo_files(name):
-    path = EXAMPLES / "projects" / f"{name}.yaml"
-    node = limit_to_project(load_node_file(path), name)
-    values = step_names(Demo("the context", path, Path("triggers/examples/demo.json"), node, None, node.projects[0]))
+    project = of_kind(load_resources([DEMO_FILES[name]]), "Project")[0]
+    values = step_names(Demo("the context", Path("triggers/examples/demo.json"), None, name, project["spec"]))
 
     for step in demo.STEPS:
         assert step.text.format_map(values) and step.line.format_map(values)
 
 
-@pytest.mark.parametrize("name", ["demo-gitea", "demo-github"])
+@pytest.mark.parametrize("name", DEMO_FILES)
 def test_the_demo_files_assign_the_demo_dataset_without_holding_it(name):
-    node = load_node_file(EXAMPLES / "projects" / f"{name}.yaml")
+    resources = load_resources([DEMO_FILES[name]])
 
-    assert node.datasets == []
-    assert [project.datasets for project in node.projects] == [["demo-db"]]
-    assert not [label for label in node.secrets if "dataset" in label]
+    assert of_kind(resources, "Dataset") == []
+    assert [(p["metadata"]["name"], p["spec"]["datasets"]) for p in of_kind(resources, "Project")] == [(name, ["demo-db"])]
 
 
 def test_steps_are_separated_by_a_line(ran, run_demo):

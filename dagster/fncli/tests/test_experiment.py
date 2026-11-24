@@ -15,14 +15,13 @@ import yaml
 
 from fncli.cmds import experiment
 from fncli.cmds.experiment import (
-    Database, ExperimentConfig, check_dataset, experiment_group, load_database, load_project,
+    Database, ExperimentConfig, experiment_group, load_database, load_project,
 )
-from fncli.nodefile.loader import load_node_file
-from fncli.tests.test_nodefile_diff import node_data
+from fncli.node_config import load_resources, of_kind
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 EXPERIMENTS = REPO_ROOT / "experiments"
-EXAMPLES = REPO_ROOT / "bootstrap" / "examples"
+CONFIG = REPO_ROOT / "config"
 NODE = {"url": "http://localhost:5000", "kube_context": "kind-fn", "keycloak_namespace": "keycloak"}
 
 PROJECT_ENV = """\
@@ -31,50 +30,28 @@ RUN_TIMEOUT=60
 TRIGGER = {"spec": {"image": "localhost:5001/x-fn:latest", "env": {"BASE": "1"}}}
 
 
-def dataset_data(database="x-db", secret="db-datasets-x", namespace="experiments") -> dict:
-    """What an experiment's dataset.yaml holds: its dataset, and a secret read from the chart's"""
-    label = f"{database}-dataset-creds"
-    return {
-        "version": 1,
-        "secrets": {label: {"values": {
-            key: {"k8s_secret": {"name": secret, "namespace": namespace, "key": key.lower()}}
-            for key in ("USERNAME", "PASSWORD")
-        }}},
-        "datasets": [{
-            "name": database, "type": "postgres", "host": "db-datasets.experiments.svc", "port": 5432,
-            "read_schema": "cdm", "write_schema": "results", "secret": label,
-        }],
-    }
-
-
-def globals_data() -> dict:
-    """What bootstrap/examples/globals-NAME.yaml holds: the provider, secrets and repositories, with no project or dataset"""
-    data = node_data()
-    del data["projects"], data["datasets"], data["secrets"]["dataset-creds"]
-    return data
-
-
-def project_data(database="x-db") -> dict:
-    """What bootstrap/examples/projects/NAME.yaml holds: only the project, the dataset by name"""
-    project = node_data()["projects"][0]
-    return {"version": 1, "projects": [dict(project, name="exp", datasets=[database])]}
+def project_resource(name="exp") -> dict:
+    """What config/experiments/NAME.yaml holds, as far as the commands read it: the Project resource"""
+    return {"apiVersion": "fn.aridhia.com/v1alpha1", "kind": "Project", "metadata": {"name": name, "namespace": "fn-operator"},
+            "spec": {"datasets": ["x-db"], "repositories": {}}}
 
 
 def write_experiment(root: Path, name: str, database: str, user: str, secret: str, project_env: str | None = None,
                      node_project: bool = False):
     folder = root / "experiments" / name
     folder.mkdir(parents=True)
-    values = {"dbs": {name: {"name": database, "user": user, "secret": {"name": secret, "key": "password"}}}}
+    values = {"dbs": {name: {
+        "name": database, "user": user, "secret": {"name": secret, "key": "password"},
+        "readSchema": "cdm", "writeSchema": "results",
+    }}}
     (folder / "values.yaml").write_text(yaml.safe_dump(values))
-    (folder / "dataset.yaml").write_text(yaml.safe_dump(dataset_data(database, secret)))
     if project_env is not None:
         (folder / "project.env").write_text(project_env)
         (folder / "trigger.json").write_text(json.dumps(TRIGGER))
     if node_project:
-        examples = root / "bootstrap" / "examples"
-        (examples / "projects").mkdir(parents=True, exist_ok=True)
-        (examples / f"globals-{name}.yaml").write_text(yaml.safe_dump(globals_data()))
-        (examples / "projects" / f"{name}.yaml").write_text(yaml.safe_dump(project_data(database)))
+        config = root / "config" / "experiments"
+        config.mkdir(parents=True, exist_ok=True)
+        (config / f"{name}.yaml").write_text(yaml.safe_dump(project_resource()))
 
 
 @pytest.fixture(autouse=True)
@@ -125,6 +102,10 @@ class Commands:
 def commands(monkeypatch):
     commands = Commands()
     monkeypatch.setattr(experiment.subprocess, "run", commands)
+    # The wait polls kubectl get; test_node_config.py covers it
+    monkeypatch.setattr(
+        experiment.node_config, "wait_synced", lambda *targets: commands.calls.append((["wait-synced", *targets], {})),
+    )
     return commands
 
 
@@ -137,7 +118,7 @@ class FakeApi:
 
 @pytest.fixture
 def steps(monkeypatch):
-    """The node-file and fncli steps the experiment commands chain, replaced by ones that note what they were given and see."""
+    """The fncli steps the experiment commands chain, replaced by ones that note what they were given and see."""
     steps = []
 
     def step(name):
@@ -146,18 +127,15 @@ def steps(monkeypatch):
 
         return click.Command(name, callback=callback)
 
-    def node_file_step(name):
-        def run(context, path, *args, **options):
-            steps.append((name, {"file": path.name, "args": args, "node": context.node.url, **options}, dict(os.environ)))
-
-        return run
+    def gitea_setup(context, paths, rotate):
+        steps.append(("gitea-setup", {"files": [path.name for path in paths], "rotate": rotate, "node": context.node.url}, dict(os.environ)))
 
     def trigger_pr(context, api, project, path, **options):
         # The file is a temporary one: note what it held
         steps.append(("trigger-pr", {"project": project, "trigger": json.loads(path.read_text()), **options}, dict(os.environ)))
 
-    monkeypatch.setattr(experiment, "apply_node_file", node_file_step("apply"))
-    monkeypatch.setattr(experiment, "delete_node_file", node_file_step("delete"))
+    monkeypatch.setattr(experiment, "gitea_setup", gitea_setup)
+    monkeypatch.setattr(experiment, "check_kube_context", lambda context: None)
     monkeypatch.setattr(experiment, "start_sensor_command", step("start-sensor"))
     monkeypatch.setattr(experiment, "trigger_pr", trigger_pr)
     monkeypatch.setattr(experiment, "open_target", lambda context: FakeApi())
@@ -247,79 +225,39 @@ def test_the_example_trigger_files_are_spec_files():
     assert failing["spec"]["env"] == {"DEMO_FORCE_EXIT_CODE": "1"}
 
 
-def test_the_database_is_read_from_values_yaml_and_the_schemas_from_dataset_yaml():
+def test_the_database_and_its_schemas_are_read_from_values_yaml():
     assert load_database("x") == Database("x-db", "x_user", "db-datasets-x", "cdm", "results")
 
 
-def test_a_dataset_yaml_that_names_another_dataset_than_values_yaml_is_refused(repo):
-    data = dataset_data(database="other-db", secret="db-datasets-x")
-    (repo / "experiments" / "x" / "dataset.yaml").write_text(yaml.safe_dump(data))
+@pytest.mark.parametrize("name", ["demo", "uc1", "attacker"])
+def test_every_committed_experiment_gives_its_database_and_schemas(name, monkeypatch):
+    monkeypatch.setattr(experiment, "experiments_dir", lambda: EXPERIMENTS)
 
-    with pytest.raises(click.ClickException) as error:
-        load_database("x")
+    database = load_database(name)
 
-    assert "its datasets are ['other-db'], but dbs.x.name in values.yaml is x-db" in error.value.message
-    assert "secret" not in error.value.message
+    assert (database.read_schema, database.write_schema) == ("cdm", "results")
 
 
-def test_a_dataset_yaml_that_reads_another_secret_or_namespace_than_the_chart_makes_is_refused(repo):
-    path = repo / "experiments" / "x" / "dataset.yaml"
-    for data in (dataset_data(secret="db-datasets-other"), dataset_data(namespace="fn")):
-        path.write_text(yaml.safe_dump(data))
-
-        with pytest.raises(click.ClickException) as error:
-            load_database("x")
-
-        assert "dbs.x.secret.name in values.yaml is db-datasets-x in namespace experiments" in error.value.message
-        assert "datasets are" not in error.value.message
-
-
-def test_a_dataset_whose_secret_is_not_in_the_dataset_file_is_refused(repo):
-    data = dataset_data()
-    data["secrets"] = {}
-    (repo / "experiments" / "x" / "dataset.yaml").write_text(yaml.safe_dump(data))
-
-    with pytest.raises(click.ClickException, match="its dataset's secret reads \\[\\]"):
-        load_database("x")
-
-
-def test_an_experiment_without_a_dataset_yaml_is_an_error(repo):
-    (repo / "experiments" / "y" / "dataset.yaml").unlink()
-
-    with pytest.raises(click.ClickException, match="No dataset.yaml for y"):
-        load_database("y")
-
-
-@pytest.mark.parametrize("name", sorted(path.parent.name for path in EXPERIMENTS.glob("*/dataset.yaml")))
-def test_every_committed_experiment_names_what_its_chart_makes(name):
-    entry = yaml.safe_load((EXPERIMENTS / name / "values.yaml").read_text())["dbs"][name]
-    node = load_node_file(EXPERIMENTS / name / "dataset.yaml")
-
-    check_dataset(name, entry, node)
-
-    assert node.projects == [] and node.repositories.triggers == [] and node.providers == []
-
-
-def test_every_committed_node_project_is_assigned_a_dataset_that_an_experiment_makes():
+def test_every_committed_project_is_assigned_a_dataset_that_an_experiment_makes():
     made = {
-        dataset.name
-        for path in EXPERIMENTS.glob("*/dataset.yaml") for dataset in load_node_file(path).datasets
+        yaml.safe_load(path.read_text())["dbs"][path.parent.name]["name"]
+        for path in EXPERIMENTS.glob("*/values.yaml") if path.parent.name != "chart"
     }
-    files = list((EXAMPLES / "projects").glob("*.yaml"))
-    assigned = {
-        name for path in files if not path.name.startswith("e2e")
-        for project in load_node_file(path).projects for name in project.datasets
-    }
+    files = [CONFIG / "demo.yaml", CONFIG / "github" / "demo-github.yaml", *(CONFIG / "experiments").glob("*.yaml")]
+    assigned = {name for project in of_kind(load_resources(files), "Project") for name in project["spec"]["datasets"]}
 
-    assert files and assigned <= made, assigned - made
+    assert assigned and assigned <= made, assigned - made
 
 
-def test_every_committed_experiment_with_a_node_project_has_its_globals_and_the_other_way_round():
-    projects = {path.stem for path in (EXAMPLES / "projects").glob("*.yaml")}
-    globals_ = {path.stem.removeprefix("globals-") for path in EXAMPLES.glob("globals-*.yaml")}
-    experiments = {path.parent.name for path in EXPERIMENTS.glob("*/dataset.yaml")}
+def test_uc1_and_attacker_have_their_node_config():
+    assert {"uc1", "attacker"} <= {path.stem for path in (CONFIG / "experiments").glob("*.yaml")}
 
-    assert {"uc1", "attacker"} <= projects & globals_ & experiments
+
+def test_the_chart_makes_a_dataset_and_its_node_secret_for_every_database():
+    template = (EXPERIMENTS / "chart" / "templates" / "node-config.yaml").read_text()
+
+    assert "kind: Dataset" in template and "kind: NodeSecret" in template
+    assert "range $key, $db := .Values.dbs" in template
 
 
 def test_up_installs_the_release_with_every_experiments_database(repo, commands):
@@ -354,31 +292,28 @@ def test_seed_needs_no_project_env_and_no_context(repo, commands, steps, monkeyp
     assert commands.lines[2].endswith("-U y_user -d y-db")
 
 
-def test_setup_checks_the_names_and_the_release_then_applies_the_dataset_the_globals_and_the_project(commands, steps):
+def test_setup_checks_the_release_waits_for_the_dataset_then_sets_up_gitea_and_applies_the_project(repo, commands, steps):
     invoke("setup", "x")
 
-    assert commands.lines == ["helm status experiments --namespace experiments"]
-    assert [(name, options["file"], options["yes"]) for name, options, _ in steps] == [
-        ("apply", "dataset.yaml", True), ("apply", "globals-x.yaml", True), ("apply", "x.yaml", True),
+    files = f"-f {repo}/config/gitea.yaml -f {repo}/config/experiments/x.yaml"
+    assert commands.lines == [
+        "helm status experiments --namespace experiments",
+        "wait-synced -n experiments "
+        "datasets.fn.aridhia.com/x-db nodesecrets.fn.aridhia.com/x-db-dataset-creds",
+        f"kubectl apply {files}",
+        f"wait-synced {files}",
     ]
-    assert all(options["args"] == (None,) and options["node"] == NODE["url"] for _, options, _ in steps)
+    assert [(name, options["files"], options["rotate"]) for name, options, _ in steps] == [("gitea-setup", ["x.yaml"], ())]
 
 
-def test_setup_of_an_experiment_with_no_node_project_applies_only_its_dataset(commands, steps):
+def test_setup_of_an_experiment_with_no_node_project_only_waits_for_its_dataset(commands, steps):
     invoke("setup", "y")
 
-    assert [(name, options["file"]) for name, options, _ in steps] == [("apply", "dataset.yaml")]
-
-
-def test_setup_stops_on_names_that_do_not_match_before_anything_else(repo, commands, steps):
-    path = repo / "experiments" / "x" / "dataset.yaml"
-    path.write_text(yaml.safe_dump(dataset_data(database="other-db")))
-
-    result = CliRunner().invoke(experiment_group, ["setup", "x"])
-
-    assert result.exit_code == 1
-    assert "does not match values.yaml" in result.output
-    assert commands.calls == [] and steps == []
+    assert commands.lines[1:] == [
+        "wait-synced -n experiments "
+        "datasets.fn.aridhia.com/y-db nodesecrets.fn.aridhia.com/y-db-dataset-creds",
+    ]
+    assert steps == []
 
 
 @pytest.mark.parametrize("command", ["seed", "setup"])
@@ -504,38 +439,29 @@ def test_build_bakes_the_experiments_image_from_the_repo_root_and_pushes_it(repo
     assert commands.calls[0][1]["cwd"] == repo
 
 
-def test_teardown_deletes_the_node_project_then_the_globals_then_the_dataset_each_with_its_globals(commands, steps):
+def test_teardown_deletes_the_node_config_and_leaves_the_dataset(repo, commands, steps):
     invoke("teardown", "x", "-y")
 
-    assert [(name, options["file"], options["with_globals"], options["yes"]) for name, options, _ in steps] == [
-        ("delete", "x.yaml", True, True), ("delete", "globals-x.yaml", True, True), ("delete", "dataset.yaml", True, True),
-    ]
+    assert commands.lines == [f"kubectl delete --ignore-not-found --timeout=180s -f {repo}/config/experiments/x.yaml"]
+    assert steps == []
+
+
+def test_teardown_of_an_experiment_with_no_node_project_does_nothing(commands, steps):
+    invoke("teardown", "y", "-y")
+
     assert commands.calls == []
 
 
-def test_teardown_of_an_experiment_with_no_node_project_deletes_only_its_dataset(steps):
-    invoke("teardown", "y", "-y")
-
-    assert [(name, options["file"]) for name, options, _ in steps] == [("delete", "dataset.yaml")]
-
-
-def test_down_finds_every_experiment_by_its_dataset_yaml_then_uninstalls_the_release(repo, commands, steps):
+def test_down_tears_down_every_experiment_then_uninstalls_the_release(repo, commands, steps):
     write_experiment(repo, "z", "z-db", "z_user", "db-datasets-z", node_project=True)
 
     invoke("down", "-y")
 
-    assert [options["file"] for _, options, _ in steps] == [
-        "x.yaml", "globals-x.yaml", "dataset.yaml", "dataset.yaml", "z.yaml", "globals-z.yaml", "dataset.yaml",
+    assert commands.lines == [
+        f"kubectl delete --ignore-not-found --timeout=180s -f {repo}/config/experiments/x.yaml",
+        f"kubectl delete --ignore-not-found --timeout=180s -f {repo}/config/experiments/z.yaml",
+        "helm uninstall experiments --namespace experiments",
     ]
-    assert commands.lines == ["helm uninstall experiments --namespace experiments"]
-
-
-def test_down_does_not_need_a_project_env_to_find_an_experiment(repo, commands, steps):
-    assert not list((repo / "experiments" / "y").glob("project.env"))
-
-    invoke("down", "-y")
-
-    assert [options["file"] for _, options, _ in steps] == ["x.yaml", "globals-x.yaml", "dataset.yaml", "dataset.yaml"]
 
 
 def test_the_chart_and_the_other_folders_of_experiments_are_not_experiments(repo, commands):
@@ -583,20 +509,16 @@ def test_a_failing_run_local_stops_the_port_forward_and_does_not_show_the_passwo
     forward.terminate.assert_called_once()
 
 
-@pytest.mark.parametrize("name, node_files", [
-    ("demo", []), ("uc1", ["globals-uc1.yaml", "uc1.yaml"]), ("attacker", ["globals-attacker.yaml", "attacker.yaml"]),
-])
-def test_setup_and_teardown_work_on_the_committed_experiments(name, node_files, commands, steps, monkeypatch):
-    """The demo has no node project of its own, uc1 and attacker have one: each is its dataset first, and the reverse on the way out"""
+@pytest.mark.parametrize("name, applied", [("demo", False), ("uc1", True), ("attacker", True)])
+def test_setup_and_teardown_work_on_the_committed_experiments(name, applied, commands, steps, monkeypatch):
+    """The demo has no node project of its own, uc1 and attacker have one"""
     monkeypatch.setattr(experiment, "experiments_dir", lambda: REPO_ROOT / "experiments")
 
     invoke("setup", name)
     invoke("teardown", name, "-y")
 
-    assert [(step, options["file"]) for step, options, _ in steps] == [
-        *[("apply", file) for file in ["dataset.yaml", *node_files]],
-        *[("delete", file) for file in [*reversed(node_files), "dataset.yaml"]],
-    ]
+    assert [options["files"] for _, options, _ in steps] == ([[f"{name}.yaml"]] if applied else [])
+    assert any(line.startswith("kubectl delete") for line in commands.lines) == applied
 
 
 def test_down_goes_through_every_committed_experiment_and_uninstalls_the_release(commands, steps, monkeypatch):
@@ -604,9 +526,6 @@ def test_down_goes_through_every_committed_experiment_and_uninstalls_the_release
 
     invoke("down", "-y")
 
-    assert [options["file"] for _, options, _ in steps] == [
-        "attacker.yaml", "globals-attacker.yaml", "dataset.yaml",
-        "dataset.yaml",
-        "uc1.yaml", "globals-uc1.yaml", "dataset.yaml",
+    assert [line.rsplit("/", 1)[-1] for line in commands.lines] == [
+        "attacker.yaml", "uc1.yaml", "helm uninstall experiments --namespace experiments",
     ]
-    assert commands.lines == ["helm uninstall experiments --namespace experiments"]

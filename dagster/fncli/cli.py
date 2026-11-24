@@ -1,12 +1,12 @@
 """
 Federated node dev tooling. `.dev.env` is found by searching up from the current directory, and
 --env-file (or FNCLI_ENV_FILE) names a second env file that wins over it. Which node, and the defaults of the
-commands, are in bootstrap/context.yaml (bootstrap/examples/context.yaml); the node itself is set up from node files
-(bootstrap/examples), not from the env:
+commands, are in bootstrap/context.yaml (bootstrap/examples/context.yaml); the node's config is the fn.aridhia.com
+resources in config/, which kubectl applies and the nexus operator syncs (ADR 0032), not the env:
 
     fncli --help
-    fncli diff -f examples/globals-github.yaml
-    fncli apply -f examples/globals-github.yaml
+    fncli gitea setup -f config/gitea.yaml -f config/demo.yaml
+    kubectl apply -f config/
 """
 
 import logging
@@ -15,7 +15,7 @@ import sys
 import click
 from dotenv import find_dotenv, load_dotenv
 
-from fncli.cmds import actions, demo, experiment, hello_world, nodefile, pr, project, secret, sensor, simulate, state, trigger, verify
+from fncli.cmds import actions, demo, experiment, gitea, hello_world, pr, project, secret, sensor, simulate, state, trigger, verify
 
 
 @click.group()
@@ -39,6 +39,6 @@ def cli(env_file):
     )
 
 
-for module in (hello_world, actions, trigger, project, secret, pr, sensor, state, simulate, verify, demo, experiment, nodefile):
+for module in (hello_world, actions, trigger, project, secret, pr, sensor, state, simulate, verify, demo, experiment, gitea):
     for command in module.COMMANDS:
         cli.add_command(command)

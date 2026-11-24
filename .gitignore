@@ -49,7 +49,7 @@ mise.local.toml
 site/
 .venv-docs/
 docs/versions/*/.mkdocs.local.yml
-# fncli node files (bootstrap) and trigger files (triggers): your own stay local, the examples are committed
+# fncli context files (bootstrap, which node fncli talks to) and trigger files (triggers): your own stay local, the examples are committed
 /bootstrap/*
 !/bootstrap/examples/
 /triggers/*

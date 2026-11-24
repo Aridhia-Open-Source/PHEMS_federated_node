@@ -2,12 +2,12 @@
 `open-pr` opens a PR of a given kind in the project's trigger repo, chained from the step commands in
 cmds/pr.py: what the end-to-end suites use for the kinds the sensor must ignore or
 reject. To trigger a project's task with a trigger file, use `fncli trigger` (cmds/trigger.py). The project's setup and
-teardown are `fncli apply` and `fncli delete` (cmds/nodefile.py).
+teardown are `kubectl apply` and `kubectl delete` of its resources in config/ (ADR 0032).
 """
 
 import click
 
-from fncli.cmds.nodefile import context_option, step_project_option
+from fncli.cmds.target import context_option, step_project_option
 from fncli.cmds.pr import (
     KINDS,
     commit_file,

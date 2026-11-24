@@ -101,6 +101,9 @@ echo
 echo "=== Creating Namespace ==================================================="
 kubectl create namespace "$NAMESPACE" \
   --dry-run=client -o yaml | kubectl apply -f -
+# The operator's Role in experiments (dev values operator.watchNamespaces) needs the namespace to exist
+kubectl create namespace experiments \
+  --dry-run=client -o yaml | kubectl apply -f -
 
 # The keycloak namespace is created by a chart pre-install hook, not here.
 
@@ -128,6 +131,12 @@ fi
 # CUSTOM_CA_FILE (optional): a CA the release trusts for outbound TLS. See custom_ca.sh.
 source ./scripts/custom_ca.sh
 custom_ca_prepare
+
+echo
+echo "=== Applying CRDs ======================================================="
+# Helm installs the chart's crds/ on a first install but never upgrades them (ADR 0032). The chart's
+# pre-upgrade hook applies them on upgrade too.
+kubectl apply -f k8s/federated-node/crds/
 
 echo
 echo "=== Deploying Helm Release =============================================="
@@ -163,6 +172,11 @@ if [ "$RELEASE_EXISTS" = "true" ]; then
     "deployment/${RELEASE_NAME}-${DAGSTER_USER_DEPLOYMENT:-dagster-fn}" \
     "deployment/${RELEASE_NAME}-dagster-daemon" \
     "deployment/${RELEASE_NAME}-dagster-webserver"
+  # Only with operator.enabled. It runs in its own namespace (global.namespaces.operator).
+  OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-fn-operator}"
+  if kubectl get deployment nexus-operator -n "$OPERATOR_NAMESPACE" > /dev/null 2>&1; then
+    kubectl rollout restart -n "$OPERATOR_NAMESPACE" deployment/nexus-operator
+  fi
 fi
 
 kubectl config set-context \

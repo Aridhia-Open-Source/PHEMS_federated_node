@@ -21,7 +21,7 @@ _.file = [".generated.env", ".dev.env"]
 _.python.venv = { path = ".venv", create = true }
 
 [tasks.setup]
-description = "Install the pinned tools, the fncli virtualenv and the nexus/api and dagster virtualenvs"
+description = "Install the pinned tools, the fncli virtualenv and the nexus/api, dagster and nexus/operator virtualenvs"
 run = [
   "command -v pyenv >/dev/null && mise sync python --pyenv || true",
   "mise install",
@@ -36,9 +36,14 @@ run = [
   # The shared nexus-api client, editable; its dependencies come with Dagster's
   "mise exec -- python -m pip install --no-deps -e ./nexus/client",
   "mise -C dagster exec -- python -m pip install --no-deps -e ../nexus/client",
+  "mise -C nexus/operator install",
+  "mise -C nexus/operator exec -- python -m pip install -r requirements.txt",
+  "mise -C nexus/operator exec -- python -m pip install -e '.[dev]'",
+  "mise -C nexus/operator exec -- python -m pip install --no-deps -e ../client",
   # pip-compile resolves for the Python it runs on, so each component's own interpreter gets it
   "mise -C nexus/api exec -- python -m pip install pip-tools",
   "mise -C dagster exec -- python -m pip install pip-tools",
+  "mise -C nexus/operator exec -- python -m pip install pip-tools",
   "mise -C build exec -- python -m pip install pip-tools",
   # Print only, never edits the shell config. `mise run` works without activation;
   # activating adds automatic tool and venv switching on cd.
@@ -58,7 +63,7 @@ run = [
 ]
 
 [tasks.doctor]
-description = "Check mise, the three virtualenvs (pip check) and where fncli resolves"
+description = "Check mise, the four virtualenvs (pip check) and where fncli resolves"
 run = "./scripts/doctor.sh"
 
 [tasks.configure]
@@ -74,17 +79,27 @@ description = "Lint the Dockerfiles"
 run = "./scripts/run_hadolint.sh"
 
 [tasks.pylint]
-description = "Lint nexus-api, or Dagster with `mise run pylint dagster`"
+description = "Lint nexus-api, or Dagster / the operator with `mise run pylint dagster|operator`"
 usage = '''
-arg "[project]" default="nexus-api" help="nexus-api or dagster" {
-  choices "nexus-api" "dagster"
+arg "[project]" default="nexus-api" help="nexus-api, dagster or operator" {
+  choices "nexus-api" "dagster" "operator"
 }
 '''
-run = 'if [ "$usage_project" = dagster ]; then PROJECT=dagster ./scripts/pylint.sh; else ./scripts/pylint.sh; fi'
+run = '''
+case "$usage_project" in
+  dagster) PROJECT=dagster ./scripts/pylint.sh ;;
+  operator) PROJECT=nexus/operator ./scripts/pylint.sh ;;
+  *) ./scripts/pylint.sh ;;
+esac
+'''
 
 [tasks.tests-dagster]
 description = "Run the Dagster tests the way CI does"
 run = "cd dagster && ./run_tests.sh ci"
+
+[tasks.tests-operator]
+description = "Run the operator tests the way CI does"
+run = "./nexus/operator/run_tests.sh"
 
 # mise run helm lint | template | tests | deps
 # charts/ is gitignored, so a fresh checkout has no subcharts and helm refuses to lint or

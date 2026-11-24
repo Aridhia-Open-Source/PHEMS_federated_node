@@ -1,0 +1,80 @@
+# A dataset. metadata.name is its nexus-api name; secret is the NodeSecret with its credentials.
+# Static YAML: Helm installs crds/ before the templates (ADR 0032) but never upgrades them, so on upgrade the
+# chart's pre-upgrade hook (templates/crds-upgrade-hook.yaml), Flux (crds: CreateReplace) or scripts/deploy.sh apply them.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: datasets.fn.aridhia.com
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  group: fn.aridhia.com
+  scope: Namespaced
+  names:
+    kind: Dataset
+    listKind: DatasetList
+    plural: datasets
+    singular: dataset
+    categories:
+      - fn
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Synced
+          type: boolean
+          jsonPath: .status.synced
+        - name: Message
+          type: string
+          jsonPath: .status.message
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required: [type, host, port, secret]
+              properties:
+                type:
+                  type: string
+                  minLength: 1
+                host:
+                  type: string
+                  minLength: 1
+                port:
+                  type: integer
+                  minimum: 1
+                  maximum: 65535
+                readSchema:
+                  type: string
+                writeSchema:
+                  type: string
+                secret:
+                  type: string
+                  minLength: 1
+                  description: The NodeSecret with the dataset's credentials
+            status:
+              type: object
+              properties:
+                synced:
+                  type: boolean
+                nexusId:
+                  type: integer
+                message:
+                  type: string
+                observedGeneration:
+                  type: integer
+                  format: int64
+                sourceVersions:
+                  type: object
+                  description: NodeSecret only, source Secret name -> its resourceVersion last sent
+                  additionalProperties:
+                    type: string

@@ -1,0 +1,142 @@
+## nodeConfig rendered as custom resources for the operator (ADR 0032).
+suite: Node config resources
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-local.yaml
+templates:
+  - templates/node-config.yaml
+set:
+  operator:
+    enabled: true
+tests:
+  - it: renders nothing while the operator is off, since nothing would remove the resources' finalizers
+    values:
+      - values/values-local.yaml
+      - values/values-node-config.yaml
+    set:
+      operator.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders nothing with an empty nodeConfig
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders one resource per entry
+    values:
+      - values/values-local.yaml
+      - values/values-node-config.yaml
+    asserts:
+      - hasDocuments:
+          count: 7
+      - equal:
+          path: metadata.namespace
+          value: fn-operator
+      - isKind:
+          of: GitProvider
+        documentSelector:
+          path: metadata.name
+          value: github
+      - equal:
+          path: spec
+          value: {type: github, uri: "https://github.com"}
+        documentSelector:
+          path: metadata.name
+          value: github
+      - equal:
+          path: metadata.name
+          value: analysis-repo-creds
+        documentSelector:
+          path: metadata.name
+          value: analysis-repo-creds
+      - equal:
+          path: spec.values.PGUSER.secretKeyRef.key
+          value: username
+        documentSelector:
+          path: metadata.name
+          value: omop-db-creds
+      - isKind:
+          of: Dataset
+        documentSelector:
+          path: metadata.name
+          value: omop-cdm
+      - equal:
+          path: spec.port
+          value: 5432
+        documentSelector:
+          path: metadata.name
+          value: omop-cdm
+      - isKind:
+          of: Project
+        documentSelector:
+          path: metadata.name
+          value: cohort-study
+      - equal:
+          path: spec.repositories.triggers[0].watchDir
+          value: specs/
+        documentSelector:
+          path: metadata.name
+          value: cohort-study
+
+  - it: types a repository by its list and names it by its type and the uri's slug unless named
+    values:
+      - values/values-local.yaml
+      - values/values-node-config.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: results
+        documentSelector:
+          path: metadata.name
+          value: results
+      - equal:
+          path: spec.type
+          value: results
+        documentSelector:
+          path: metadata.name
+          value: results
+      - equal:
+          path: metadata.name
+          value: trigger-github-com-example-org-analysis-requests
+        documentSelector:
+          path: metadata.name
+          value: trigger-github-com-example-org-analysis-requests
+      - equal:
+          path: spec
+          value:
+            type: trigger
+            uri: https://github.com/example-org/analysis-requests
+            secret: analysis-repo-creds
+        documentSelector:
+          path: metadata.name
+          value: trigger-github-com-example-org-analysis-requests
+
+  - it: names one uri listed as both trigger and results apart
+    set:
+      nodeConfig:
+        repositories:
+          triggers:
+            - uri: https://github.com/example-org/both
+              secret: creds
+          results:
+            - uri: https://github.com/example-org/both
+              secret: creds
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: spec.type
+          value: trigger
+        documentSelector:
+          path: metadata.name
+          value: trigger-github-com-example-org-both
+      - equal:
+          path: spec.type
+          value: results
+        documentSelector:
+          path: metadata.name
+          value: results-github-com-example-org-both

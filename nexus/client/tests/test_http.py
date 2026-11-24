@@ -1,3 +1,5 @@
+import threading
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -243,6 +245,38 @@ class TestOAuthAdapter:
 
         assert result.status_code == 401
         assert adapter.refresh_tokens.call_count == 1
+
+    def test_a_token_another_thread_already_refreshed_is_used_without_a_second_login(self, adapter):
+        adapter.access_token = "newer"
+        request = MagicMock()
+        request.headers = {"Authorization": "Bearer stale"}
+
+        with patch("nexus_client.http.time.sleep"):
+            with patch("requests.adapters.HTTPAdapter.send", return_value=response(200)):
+                result = adapter._retry_on_auth_failure(request, response(401), timeout=1)
+
+        assert result.status_code == 200
+        assert request.headers["Authorization"] == "Bearer newer"
+        adapter.refresh_tokens.assert_not_called()
+
+    def test_threads_that_see_the_same_token_fail_log_in_once(self, adapter):
+        adapter.access_token = "stale"
+        logins = []
+
+        def slow_refresh():
+            logins.append(1)
+            time.sleep(0.05)
+            adapter.access_token = f"token{len(logins)}"
+
+        adapter.refresh_tokens = MagicMock(side_effect=slow_refresh)
+        threads = [threading.Thread(target=adapter._refresh_unless_changed, args=("stale",)) for _ in range(5)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert len(logins) == 1
+        assert adapter.access_token == "token1"
 
     def test_refresh_tokens_is_abstract(self):
         adapter = OAuthAdapter(base_url="https://backend", username="u", password="p")

@@ -52,6 +52,10 @@
   {{ fail "Move `namespaces` under `global`: the chart reads global.namespaces, so a top-level copy would be ignored. Use:\n\n  global:\n    namespaces:\n      keycloak: ...\n      tasks: ...\n" }}
 {{- end }}
 
+{{- if and (.Values.operator).enabled (has .Release.Namespace ((.Values.operator).watchNamespaces | default list)) }}
+  {{ fail (printf "operator.watchNamespaces must not include the release namespace (%s): it holds the node's own credentials" .Release.Namespace) }}
+{{- end }}
+
 {{- /* --- Cluster-state checks --- */ -}}
 
 {{- if eq (include "fn.clusterReachable" .) "true" }}

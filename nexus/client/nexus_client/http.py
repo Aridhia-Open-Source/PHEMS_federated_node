@@ -1,6 +1,7 @@
 """HTTP session and adapter classes for backend API communication."""
 
 import logging
+import threading
 import time
 from pathlib import Path
 
@@ -164,7 +165,11 @@ class BaseSession(Session):
 
 
 class OAuthAdapter(BaseHttpAdapter):
-    """HTTP adapter that handles login and automatic token refresh on 401/403/429."""
+    """
+    HTTP adapter that handles login and automatic token refresh on 401/403/429.
+    Safe to share between threads (the operator's handlers): one lock around the refresh, so threads that saw the
+    same token fail log in once, and the rest send the token that login got.
+    """
 
     oauth_status_codes = {401, 403, 429}
     oauth_backoff_factor = 0.5
@@ -175,11 +180,12 @@ class OAuthAdapter(BaseHttpAdapter):
         self.username = username
         self.password = password
         self._access_token = None
+        self._token_lock = threading.Lock()
 
     @property
     def access_token(self):
         if not self._access_token:
-            self.refresh_tokens()
+            self._refresh_unless_changed(None)
         return self._access_token
 
     @access_token.setter
@@ -189,6 +195,12 @@ class OAuthAdapter(BaseHttpAdapter):
     def refresh_tokens(self):
         """Refresh tokens"""
         raise NotImplementedError
+
+    def _refresh_unless_changed(self, failed_token):
+        """Refresh, unless another thread already replaced the token that failed while this one waited for the lock"""
+        with self._token_lock:
+            if self._access_token == failed_token:
+                self.refresh_tokens()
 
     def send(self, request, stream=False, timeout=None, verify=True, cert=None, proxies=None):
         if self.access_token:
@@ -213,7 +225,8 @@ class OAuthAdapter(BaseHttpAdapter):
             backoff = self.oauth_backoff_factor * (2 ** (attempt - 1))
             self._log_refresh_error(response, attempt, backoff)
             time.sleep(backoff)
-            self.refresh_tokens()
+            sent = request.headers.get("Authorization", "").removeprefix("Bearer ") or None
+            self._refresh_unless_changed(sent)
 
             request.headers["Authorization"] = f"Bearer {self.access_token}"
             response = super().send(request, timeout=timeout, **kwargs)

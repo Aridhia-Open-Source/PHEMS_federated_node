@@ -3,6 +3,7 @@
 # - nexus-api
 # - Dagster user code
 # - Dagster daemon and webserver
+# - the nexus operator (nexus/operator), when the chart deploys it (operator.enabled)
 
 #
 # Prerequisites:
@@ -24,6 +25,8 @@ DOCKER_REGISTRY = 'localhost:5001'
 CA_FILE = os.getenv('CUSTOM_CA_FILE', '')
 BUILD_SECRET = ['--secret', 'id=proxy_ca,src=' + os.path.abspath(CA_FILE)] if CA_FILE else []
 NAMESPACE = os.getenv('NAMESPACE', 'fn')
+# The nexus operator runs in its own namespace (chart global.namespaces.operator)
+OPERATOR_NAMESPACE = os.getenv('OPERATOR_NAMESPACE', 'fn-operator')
 RELEASE_NAME = os.getenv('RELEASE_NAME', 'fn-dev')
 # The code server is part of the Federated Node chart (templates/dagster-code-server.yaml),
 # so it is <release>-<fnDagster.codeServer.name>, not the dagster subchart's
@@ -42,8 +45,9 @@ allow_k8s_contexts('kind-fn')
 # K8s resources are managed by Helm via `mise run deploy`. Tilt needs to know about
 # them to inject the restart wrapper.
 k8s_yaml(local(
-  'python3 scripts/tilt_manifests.py {ns} nexus-api {dagster} nexus-ui'.format(
+  'python3 scripts/tilt_manifests.py {ns} nexus-api {dagster} nexus-ui {operator_ns} nexus-operator'.format(
     ns=NAMESPACE,
+    operator_ns=OPERATOR_NAMESPACE,
     dagster=DAGSTER_DEPLOYMENT,
   ),
   quiet=True,
@@ -155,6 +159,35 @@ local_resource(
   ignore=DAGSTER_BUILD_IGNORE,
   labels=['dev'],
 )
+
+# ==============================================================================
+# NEXUS OPERATOR (nexus/operator)
+# ==============================================================================
+# Only when the chart deploys it (operator.enabled): Tilt refuses an image no manifest uses.
+# Like Dagster, a custom build for the nexus-client named context; the client and the operator are
+# installed editable (nexus/operator/Dockerfile), so code is synced and kopf restarted. The chart's
+# --namespace args are appended to the entrypoint.
+if str(local('kubectl get deployment nexus-operator -n {} --ignore-not-found -o name'.format(OPERATOR_NAMESPACE), quiet=True)).strip():
+  custom_build_with_restart(
+    '{}/nexus-operator-fn'.format(DOCKER_REGISTRY),
+    'docker buildx build --load --build-context nexus-client=nexus/client -t $EXPECTED_REF nexus/operator',
+    deps=['nexus/operator', 'nexus/client'],
+    entrypoint=[
+      'kopf', 'run', '-m', 'nexus_operator.main', '--standalone', '--liveness=http://0.0.0.0:8080/healthz',
+    ],
+    ignore=['nexus/operator/tests', 'nexus/client/tests', '**/.venv', '**/__pycache__', '**/*.egg-info'],
+    live_update=[
+      fall_back_on([
+        'nexus/operator/requirements.txt',
+        'nexus/operator/pyproject.toml',
+        'nexus/operator/Dockerfile',
+        'nexus/client/pyproject.toml',
+      ]),
+      sync('nexus/operator/nexus_operator', '/opt/nexus/operator/nexus_operator'),
+      sync('nexus/client/nexus_client', '/opt/nexus/client/nexus_client'),
+    ],
+  )
+  k8s_resource('nexus-operator', labels=['dev'])
 
 # ==============================================================================
 # NEXUS ADMIN UI

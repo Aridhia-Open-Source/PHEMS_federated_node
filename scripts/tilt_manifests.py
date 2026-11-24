@@ -22,9 +22,12 @@ Transformations applied for dev workflow:
   The dagster user-deployment keeps the args Helm gave it: the image has no
   entrypoint, so they are the command that Tilt's restart wrapper runs.
 
-Usage: tilt_manifests.py <namespace> <nexus-api-deploy> <dagster-deploy> <nexus-ui-deploy>
+Usage: tilt_manifests.py <namespace> <nexus-api-deploy> <dagster-deploy> <nexus-ui-deploy> <operator-namespace> <nexus-operator-deploy>
 
-nexus-ui is optional in the chart (nexus.ui.enabled), so a missing one is skipped.
+The operator runs in its own namespace (chart global.namespaces.operator), so it is fetched from there.
+
+nexus-ui and the operator are optional in the chart (nexus.ui.enabled, operator.enabled), so a missing one is
+skipped.
 """
 import json
 import subprocess
@@ -33,21 +36,23 @@ import sys
 RUN_IMAGE_TAG = "tilt-run"
 
 
-def main():
-    ns, nexus_api, dagster, nexus_ui = sys.argv[1:]
-
+def get_deployments(ns: str, *names: str) -> list:
     out = subprocess.run(
-        ["kubectl", "get", "deployment", nexus_api, dagster, nexus_ui, "-n", ns,
-         "--ignore-not-found", "-o", "json"],
+        ["kubectl", "get", "deployment", *names, "-n", ns, "--ignore-not-found", "-o", "json"],
         capture_output=True,
         text=True,
     )
-    if out.returncode != 0:
-        # No deployments yet (e.g. before `mise run deploy`): emit empty list.
-        items = []
-    else:
-        doc = json.loads(out.stdout)
-        items = doc.get("items", [doc])
+    if out.returncode != 0 or not out.stdout.strip():
+        # No deployments yet (e.g. before `mise run deploy`): none.
+        return []
+    doc = json.loads(out.stdout)
+    return doc.get("items", [doc])
+
+
+def main():
+    ns, nexus_api, dagster, nexus_ui, operator_ns, nexus_operator = sys.argv[1:]
+
+    items = get_deployments(ns, nexus_api, dagster, nexus_ui) + get_deployments(operator_ns, nexus_operator)
 
     for item in items:
         name = item["metadata"]["name"]

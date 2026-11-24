@@ -1,0 +1,99 @@
+## The pre-upgrade hook that applies crds/, since Helm installs them once and never upgrades them.
+## Its own suite because a test-level `release` block does not clear a suite-level `upgrade: true`.
+suite: CRDs upgrade hook
+release:
+  namespace: federatednode
+  name: federatednode
+  revision: 2
+  upgrade: true
+templates:
+  - templates/crds-upgrade-hook.yaml
+values:
+  - values/values-local.yaml
+set:
+  operator:
+    enabled: false
+tests:
+  - it: renders with the operator off, every part a pre-upgrade hook and the Job last
+    asserts:
+      - hasDocuments:
+          count: 5
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-weight"]
+          value: "-25"
+        documentSelector:
+          path: kind
+          value: Job
+
+  - it: carries the five CRDs in the ConfigMap
+    documentSelector:
+      path: kind
+      value: ConfigMap
+    asserts:
+      - exists:
+          path: data["dataset.yaml"]
+      - exists:
+          path: data["git-provider.yaml"]
+      - exists:
+          path: data["node-secret.yaml"]
+      - exists:
+          path: data["project.yaml"]
+      - exists:
+          path: data["repository.yaml"]
+      - matchRegex:
+          path: data["project.yaml"]
+          pattern: "name: projects.fn.aridhia.com"
+
+  - it: limits the ClusterRole to CRDs, and to the five by name where the verb allows
+    documentSelector:
+      path: kind
+      value: ClusterRole
+    asserts:
+      - equal:
+          path: rules
+          value:
+            - apiGroups: ["apiextensions.k8s.io"]
+              resources: ["customresourcedefinitions"]
+              verbs: ["create", "list"]
+            - apiGroups: ["apiextensions.k8s.io"]
+              resources: ["customresourcedefinitions"]
+              resourceNames:
+                - datasets.fn.aridhia.com
+                - gitproviders.fn.aridhia.com
+                - nodesecrets.fn.aridhia.com
+                - projects.fn.aridhia.com
+                - repositories.fn.aridhia.com
+              verbs: ["get", "patch", "update"]
+
+  - it: binds the ClusterRole to the Job's service account
+    documentSelector:
+      path: kind
+      value: ClusterRoleBinding
+    asserts:
+      - equal:
+          path: subjects[0]
+          value:
+            kind: ServiceAccount
+            name: fn-crds-upgrade
+            namespace: federatednode
+      - equal:
+          path: roleRef.name
+          value: federatednode-crds-upgrade
+
+  - it: applies the mounted CRDs server-side as that service account
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: fn-crds-upgrade
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: ^kubectl apply --server-side --force-conflicts .* -f /crds$
+      - equal:
+          path: spec.template.spec.volumes[0].configMap.name
+          value: fn-crds

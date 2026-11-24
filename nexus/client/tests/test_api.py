@@ -101,7 +101,7 @@ class TestRepositories:
     def test_delete_repository(self, api, session):
         api.delete_repository(3)
 
-        session.delete.assert_called_once_with("/global/repositories/triggers/3", params={"force": "true"})
+        session.delete.assert_called_once_with("/global/repositories/triggers/3")
 
 
 class TestPullRequests:
@@ -428,3 +428,20 @@ class TestResults:
         api.get_results_by_state(1, "FAILED", active_resource=True)
 
         session.get.assert_called_once_with("/projects/1/results", params={"state": "FAILED", "active_resource": "true"})
+
+
+class TestDeletes:
+    """Never forced (ADR 0032): a delete that would take a project's resources with it is refused with a 409"""
+
+    @pytest.mark.parametrize("call, path", [
+        (lambda api: api.delete_dataset(4), "/global/datasets/4"),
+        (lambda api: api.delete_repository(3), "/global/repositories/triggers/3"),
+        (lambda api: api.delete_results_repository(5), "/global/repositories/results/5"),
+        (lambda api: api.delete_project_dataset(9, 4), "/projects/9/datasets/4"),
+        (lambda api: api.delete_project_trigger_repository(9, 3), "/projects/9/repositories/triggers/3"),
+        (lambda api: api.delete_project_results_repository(9, 5), "/projects/9/repositories/results/5"),
+    ])
+    def test_each_delete_calls_its_route_without_force(self, api, session, call, path):
+        call(api)
+
+        session.delete.assert_called_once_with(path)

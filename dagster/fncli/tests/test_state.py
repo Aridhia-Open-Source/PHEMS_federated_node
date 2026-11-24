@@ -1,4 +1,4 @@
-"""Which backend login `resource-set` uses: revoking is admin only, everything else uses the dagster system user."""
+"""What `resource-set`, `project-set` and `global-set` send, with the one login fncli is given (revoking needs an Administrator)."""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -19,22 +19,22 @@ def calls(monkeypatch):
     return made
 
 
-def test_revoking_uses_the_admin_login(calls):
-    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+def test_revoking_uses_the_login_given(calls):
+    api = MagicMock(name="api")
 
-    state.set_resource(system, "p", "trigger", None, "true", None, admin_api=admin)
+    state.set_resource(api, "p", "trigger", None, "true", None)
 
     ((used, method, path, kwargs),) = calls
-    assert used is admin and method == "PATCH" and path.endswith("/7") and kwargs["json"] == {"revoked": True}
+    assert used is api and method == "PATCH" and path.endswith("/7") and kwargs["json"] == {"revoked": True}
 
 
-def test_other_changes_keep_the_system_login_even_when_an_admin_is_given(calls):
-    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+def test_other_changes_use_the_login_given(calls):
+    api = MagicMock(name="api")
 
-    state.set_resource(system, "p", "results", "false", None, None, target_dir="out/", admin_api=admin)
+    state.set_resource(api, "p", "results", "false", None, None, target_dir="out/")
 
     ((used, _, _, kwargs),) = calls
-    assert used is system and kwargs["json"] == {"enabled": False, "target_dir": "out/"}
+    assert used is api and kwargs["json"] == {"enabled": False, "target_dir": "out/"}
 
 
 def test_target_dir_is_only_for_the_results_resource(calls):
@@ -85,40 +85,40 @@ def test_project_set_command_options():
     assert {param.name for param in state.project_set_command.params} == {"enabled", "revoked", "backfill", "project", "expect", "context"}
 
 
-def test_revoking_a_project_uses_the_admin_login(calls):
-    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+def test_revoking_a_project_uses_the_login_given(calls):
+    api = MagicMock(name="api")
 
-    state.set_project(system, "p", None, False, None, revoked="true", admin_api=admin)
+    state.set_project(api, "p", None, False, None, revoked="true")
 
     ((used, method, path, kwargs),) = calls
-    assert used is admin and (method, path, kwargs["json"]) == ("PATCH", "/projects/1", {"revoked": True})
+    assert used is api and (method, path, kwargs["json"]) == ("PATCH", "/projects/1", {"revoked": True})
 
 
-def test_enabling_a_project_keeps_the_system_login_even_when_an_admin_is_given(calls):
-    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+def test_enabling_a_project_uses_the_login_given(calls):
+    api = MagicMock(name="api")
 
-    state.set_project(system, "p", "true", False, None, admin_api=admin)
+    state.set_project(api, "p", "true", False, None)
 
     ((used, _, _, kwargs),) = calls
-    assert used is system and kwargs["json"] == {"enabled": True}
+    assert used is api and kwargs["json"] == {"enabled": True}
 
 
-def test_revoking_a_global_resource_uses_the_admin_login(calls):
-    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+def test_revoking_a_global_resource_uses_the_login_given(calls):
+    api = MagicMock(name="api")
 
-    state.set_global(system, "p", "results", None, None, revoked="false", admin_api=admin)
+    state.set_global(api, "p", "results", None, None, revoked="false")
 
     ((used, method, path, kwargs),) = calls
-    assert used is admin and (method, path, kwargs["json"]) == ("PATCH", "/global/repositories/results/7", {"revoked": False})
+    assert used is api and (method, path, kwargs["json"]) == ("PATCH", "/global/repositories/results/7", {"revoked": False})
 
 
-def test_turning_a_global_resource_off_keeps_the_system_login(calls):
-    system, admin = MagicMock(name="system"), MagicMock(name="admin")
+def test_turning_a_global_resource_off_uses_the_login_given(calls):
+    api = MagicMock(name="api")
 
-    state.set_global(system, "p", "secret", "false", None, admin_api=admin)
+    state.set_global(api, "p", "secret", "false", None)
 
     ((used, _, path, kwargs),) = calls
-    assert used is system and path == "/global/secrets/7" and kwargs["json"] == {"enabled": False}
+    assert used is api and path == "/global/secrets/7" and kwargs["json"] == {"enabled": False}
 
 
 def test_turning_a_secret_off_sends_enabled_false(calls):

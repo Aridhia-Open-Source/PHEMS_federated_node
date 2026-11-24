@@ -46,7 +46,7 @@ from threading import Barrier
 import pytest
 from requests import HTTPError
 
-from fncli.cmds.common import build_admin_backend_api, build_gitea_api
+from fncli.cmds.common import build_backend_api, build_gitea_api
 from fncli.cmds.repository import init_gitea_repo
 from fncli.cmds.secret import verify_gitea_accepts_bearer_token
 from fncli.cmds.state import (
@@ -70,11 +70,13 @@ from fncli.tests.e2e.conftest import (
     logger,
     merge_pr,
     merge_watched_pr,
+    patch_project,
     pr_of,
     pull_requests,
     quiet_wait,
     record_counts,
     record_stored,
+    set_spec,
     stored_without_a_trigger,
     summary,
     teardown_step,
@@ -97,11 +99,12 @@ def flow():
 def test_admin_login(fncli):
     """Revoking is admin only: log in as the first Keycloak user once, here, so a bad login fails with its cause."""
     try:
-        build_admin_backend_api(fncli.config).session.adapter.access_token
+        with fncli.as_admin():
+            build_backend_api(fncli.config).session.adapter.access_token
     except Exception as error:
         pytest.fail(
-            "admin login failed: check the first Keycloak user exists and KEYCLOAK_FIRST_USER_EMAIL in .dev.env "
-            f"matches the chart ({type(error).__name__}: {error})"
+            "admin login failed: check the first Keycloak user exists and the keycloak-first-user Secret "
+            f"matches it ({type(error).__name__}: {error})"
         )
 
 
@@ -212,7 +215,8 @@ def test_revoked_resource_record_counts(fncli, flow):
 
 
 def test_revoked_resource_revoke_resource(fncli):
-    fncli.call(resource_set_command, kind="trigger", revoked="true", expect=200)
+    with fncli.as_admin():
+        fncli.call(resource_set_command, kind="trigger", revoked="true", expect=200)
 
 
 def test_revoked_resource_inactive(fncli):
@@ -240,7 +244,8 @@ def test_revoked_resource_nothing_ingested_while_revoked(fncli, flow):
 
 
 def test_revoked_resource_unrevoke_resource(fncli):
-    fncli.call(resource_set_command, kind="trigger", revoked="false", expect=200)
+    with fncli.as_admin():
+        fncli.call(resource_set_command, kind="trigger", revoked="false", expect=200)
 
 
 def test_revoked_resource_missed_pr_not_replayed(fncli, flow):
@@ -257,7 +262,8 @@ def test_revoked_project_record_counts(fncli, flow):
 
 
 def test_revoked_project_revoke_project(fncli):
-    fncli.call(project_set_command, revoked="true", expect=200)
+    with fncli.as_admin():
+        fncli.call(project_set_command, revoked="true", expect=200)
 
 
 def test_revoked_project_is_revoked(fncli):
@@ -274,7 +280,8 @@ def test_revoked_project_pr_stored_without_a_task(fncli, flow):
 
 
 def test_revoked_project_restore_project(fncli):
-    fncli.call(project_set_command, revoked="false", expect=200)
+    with fncli.as_admin():
+        fncli.call(project_set_command, revoked="false", expect=200)
 
 
 def test_revoked_project_missed_pr_not_replayed(fncli, flow):
@@ -289,8 +296,9 @@ def test_disabled_resource_record_counts(fncli, flow):
     record_counts(fncli, flow, "disabled_resource_before")
 
 
-def test_disabled_resource_switch_off_resource(fncli):
-    fncli.call(resource_set_command, kind="trigger", enabled="false", expect=200)
+def test_disabled_resource_switch_off_resource():
+    """Through the Project custom resource: nexus-api refuses the change through the API (ADR 0032)"""
+    patch_project(set_spec("repositories/triggers/0/enabled", False))
 
 
 def test_disabled_resource_inactive(fncli):
@@ -306,8 +314,8 @@ def test_disabled_resource_nothing_ingested_while_off(fncli, flow):
     fncli.assert_counts(flow["disabled_resource_before"], "trigger resource switched off")
 
 
-def test_disabled_resource_switch_on_resource(fncli):
-    fncli.call(resource_set_command, kind="trigger", enabled="true", expect=200)
+def test_disabled_resource_switch_on_resource():
+    patch_project(set_spec("repositories/triggers/0/enabled", True))
 
 
 def test_disabled_resource_missed_pr_not_replayed(fncli, flow):
@@ -359,7 +367,8 @@ def test_revoked_global_record_counts(fncli, flow):
 
 
 def test_revoked_global_revoke_global(fncli):
-    fncli.call(global_set_command, kind="trigger", revoked="true", expect=200)
+    with fncli.as_admin():
+        fncli.call(global_set_command, kind="trigger", revoked="true", expect=200)
 
 
 def test_revoked_global_resource_inactive(fncli):
@@ -376,7 +385,8 @@ def test_revoked_global_nothing_ingested_while_revoked(fncli, flow):
 
 
 def test_revoked_global_restore_global(fncli):
-    fncli.call(global_set_command, kind="trigger", revoked="false", expect=200)
+    with fncli.as_admin():
+        fncli.call(global_set_command, kind="trigger", revoked="false", expect=200)
 
 
 def test_revoked_global_resource_active_again(fncli):

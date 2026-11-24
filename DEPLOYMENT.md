@@ -109,7 +109,7 @@ Run these from the repo root.
      -F "password=$KEYCLOAK_FIRST_USER_PASSWORD" | jq -r .token
    ```
 
-9. Build a working project and watch a pull request run end to end. `fncli apply -f FILE` then `fncli demo -f FILE` does it, the demo one confirmed step at a time. Usage is in [MANAGEMENT.md](MANAGEMENT.md#using-fncli).
+9. Build a working project and watch a pull request run end to end. `kubectl apply -f config/` of the demo resources then `fncli demo --project NAME` does it, the demo one confirmed step at a time. Usage is in [MANAGEMENT.md](MANAGEMENT.md#using-fncli).
 
 ### Day to day
 

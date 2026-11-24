@@ -17,15 +17,16 @@ The failure paths are split by what a group waits for. `failure` holds the group
 - Run against the local `kind-fn` cluster only: never a shared or production cluster.
 - Never tear the dev cluster down (`mise run teardown`) to run the suites. Use the cluster that is running (`kubectl` on context `kind-fn`, Tilt green). If there is none, create it with `mise run helm deps && mise run deploy` and `tilt up --stream` ([EXAMPLES.md](../../EXAMPLES.md)).
 - Work from the worktree that owns the cluster (`mise run deploy-owner` shows it) and do not switch branches in the main checkout.
-- Only the test project, its global resources, its Gitea repositories and the `QaTwo` project are created or changed. `fncli delete -f examples/projects/e2e.yaml -y` and then `fncli delete -f examples/globals-e2e.yaml --all -y` (the suite's teardown) remove them. The suites run on `bootstrap/examples/context.yaml`, not on your own `bootstrap/context.yaml`.
+- Only the test project, its global resources, its Gitea repositories and the `qa-two` and `qa-three` projects are created or changed. The suite's setup runs `fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml` and `kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml`, and waits for every resource to sync. Its teardown is `kubectl delete` of `config/e2e/fn-dev.yaml` and `config/e2e/dev-dataset.yaml`, then the Gitea repos, OAuth apps and Secrets are removed. The suites run on `bootstrap/examples/context.yaml`, not on your own `bootstrap/context.yaml`.
 - A failing test is a finding: the suites report, they do not fix. Record the scenario, the commands, the expected and the actual result, and the logs.
 
 ## Preflight
 
 - `kubectl config current-context` is `kind-fn`.
 - nexus-api (`:5000`), Gitea (`:4000`), Dagster (`:3000`) and Keycloak (`:8080`) answer on localhost (port-forwards or Tilt).
-- `.dev.env` exists in the repo root and defines `FNCLI_ADMIN_USER` and `FNCLI_ADMIN_PASSWORD` (the first Keycloak user, needed to revoke project resources) and the deploy settings in `.dev.env.example`. The node and the project are not in it: the suites use `bootstrap/examples/context.yaml` and the project of `bootstrap/examples/projects/e2e.yaml` (`fn-dev`), whatever your own `bootstrap/context.yaml` says.
+- `.dev.env` exists in the repo root and defines the deploy settings in `.dev.env.example`. The suites log fncli in as System (`FN_USERNAME` / `FN_PASSWORD` from the `dagster-keycloak-creds` secret) and, only to revoke, as the first Keycloak user (the `keycloak-first-user` secret). The node and the project are not in it: the suites use `bootstrap/examples/context.yaml` and the project in `config/e2e/fn-dev.yaml` (`fn-dev`), whatever your own `bootstrap/context.yaml` says.
 - The images in the cluster are built from the branch under test (`mise run deploy`), including `demo-fn`.
+- `fncli experiment deploy` has run: the dev project's stand-in dataset (`config/e2e/dev-dataset.yaml`) reads the demo database's login, which the experiments chart makes.
 - `jq` is installed when you run the scenarios by hand.
 
 ## Run

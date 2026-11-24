@@ -1,6 +1,8 @@
 """
-Fixtures and helpers for the end-to-end tests. Run against a live dev cluster with `.dev.env` present (the node is bootstrap/examples/context.yaml, the project the one in
-bootstrap/examples/projects/e2e.yaml, whatever bootstrap/context.yaml says):
+Fixtures and helpers for the end-to-end tests. Run against a live dev cluster with `.dev.env` present and the
+experiments release deployed (`fncli experiment deploy`: the stand-in dataset logs in with the demo database's role).
+The node is bootstrap/examples/context.yaml, the project fn-dev of config/e2e/fn-dev.yaml, whatever
+bootstrap/context.yaml says. Its node config is applied with kubectl and synced by the nexus operator (ADR 0032):
 
     pytest dagster --e2e -v               # all of them: the happy path, the failure paths, the long failure paths
     pytest dagster --e2e success -v       # the happy path only
@@ -16,6 +18,7 @@ import json
 import logging
 import os
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import click
@@ -24,8 +27,8 @@ from dotenv import find_dotenv, load_dotenv
 
 from nexus_client.git_uri import repo_path_of
 from fncli.cli import cli
-from fncli.cmds.common import DagsterConfig, NamespaceConfig, ProjectConfig, build_backend_api, build_gitea_api
-from fncli.cmds.nodefile import gitea_config
+from fncli import node_config
+from fncli.cmds.common import DagsterConfig, GiteaConfig, NamespaceConfig, ProjectConfig, build_backend_api, build_gitea_api
 from fncli.cmds.pr import (
     commit_gitea_file_command,
     create_gitea_branch_command,
@@ -37,13 +40,17 @@ from fncli.cmds.project import project_healthcheck_command
 from fncli.cmds.repository import load_repo_config
 from fncli.cmds.secret import verify_git_secret_command
 from fncli.cmds.state import snapshot
+from fncli.context import load_context
 from fncli.k8s import (
     ENV_CONFIGMAP,
     get_configmap_value,
+    get_k8s_secret,
+    get_node_config,
+    k8s_secret_version,
+    patch_node_config,
     restart_code_server,
     set_configmap_value,
 )
-from fncli.nodefile.loader import load_context, load_node_file
 from fncli.sensors import DagsterAPI
 
 logger = logging.getLogger("e2e")
@@ -63,40 +70,55 @@ def reached(order: list[str], value: str, minimum: str) -> bool:
     return value in order and order.index(value) >= order.index(minimum)
 
 
-# The dev project and its global resources, and the two extra projects on the same ones, as node files, on the node
-# of the example context
-BOOTSTRAP_EXAMPLES = Path(__file__).parents[4] / "bootstrap" / "examples"
-CONTEXT_FILE = BOOTSTRAP_EXAMPLES / "context.yaml"
-GLOBALS_FILE = BOOTSTRAP_EXAMPLES / "globals-e2e.yaml"
-PROJECT_FILE = BOOTSTRAP_EXAMPLES / "projects" / "e2e.yaml"
-SECOND_PROJECTS_FILE = BOOTSTRAP_EXAMPLES / "projects" / "e2e-second-projects.yaml"
+# The dev project's node config, its stand-in dataset, the Gitea provider and the second projects on the same
+# repositories, on the node of the example context
+REPO_ROOT = Path(__file__).parents[4]
+CONTEXT_FILE = REPO_ROOT / "bootstrap" / "examples" / "context.yaml"
+CONFIG = REPO_ROOT / "config"
+GITEA_FILE = CONFIG / "gitea.yaml"
+DATASET_FILE = CONFIG / "e2e" / "dev-dataset.yaml"
+PROJECT_FILE = CONFIG / "e2e" / "fn-dev.yaml"
+SECOND_PROJECTS = ["qa-two", "qa-three"]
+ROTATE_TIMEOUT = 180  # the operator sends a changed Secret on its resync timer
 
 
-def node_args(file: Path) -> list[str]:
-    return ["-f", str(file), "--context", str(CONTEXT_FILE)]
+def second_project_file(name: str) -> Path:
+    return CONFIG / "e2e" / f"{name}.yaml"
+
+
+def project_resources() -> list[dict]:
+    return node_config.load_resources([PROJECT_FILE])
 
 
 def apply_node(fncli):
-    """`fncli apply` of the dev project's node files: the secrets, provider, repositories, dataset and Gitea repositories, then the project."""
-    fncli.run("apply", *node_args(GLOBALS_FILE), "-y")
-    fncli.run("apply", *node_args(PROJECT_FILE), "-y")
+    """`fncli gitea setup` of the dev project (Gitea repositories, OAuth-app Secrets), then kubectl apply of its node
+    config with the provider and the stand-in dataset, and a wait until the operator has synced them all."""
+    fncli.run("gitea", "setup", "-f", str(GITEA_FILE), "-f", str(PROJECT_FILE), "--context", str(CONTEXT_FILE))
+    files = [GITEA_FILE, DATASET_FILE, PROJECT_FILE]
+    node_config.apply(files)
+    node_config.wait_synced(*node_config.file_args(files))
 
 
 def delete_node(fncli):
-    """`fncli delete` of the dev project, then `--all` of its global resources."""
-    fncli.run("delete", *node_args(PROJECT_FILE), "-y")
-    fncli.run("delete", *node_args(GLOBALS_FILE), "--all", "-y")
+    """kubectl delete of the dev project's node config and its stand-in dataset. The Gitea provider stays: the
+    demos are on it too."""
+    node_config.delete([PROJECT_FILE, DATASET_FILE])
 
 
 def delete_gitea_leftovers(fncli):
-    """What `fncli delete` leaves in Gitea: the repositories and the OAuth apps the node file names, so a run starts on fresh ones."""
-    node = load_node_file(GLOBALS_FILE)
-    gitea = build_gitea_api(gitea_config(load_context(CONTEXT_FILE), node))
-    for repository in node.repositories.triggers + node.repositories.results:
-        gitea.delete_repo(repo_path_of(repository.uri).split("/")[1])
-    for secret in node.secrets.values():
-        if secret.gitea_oauth:
-            gitea.delete_oauth_app(secret.gitea_oauth.app)
+    """What kubectl delete leaves: the Gitea repositories, the OAuth apps (named as their NodeSecrets) and the Secrets
+    `fncli gitea setup` wrote, so a run starts on fresh ones."""
+    resources = project_resources()
+    gitea = build_gitea_api(GiteaConfig(
+        node=fncli.context.node, gitea_url=node_config.of_kind(node_config.load_resources([GITEA_FILE]), "GitProvider")[0]["spec"]["uri"],
+    ))
+    for repository in node_config.of_kind(resources, "Repository"):
+        gitea.delete_repo(repo_path_of(repository["spec"]["uri"]).split("/")[1])
+    for secret in node_config.of_kind(resources, "NodeSecret"):
+        gitea.delete_oauth_app(secret["metadata"]["name"])
+        node_config.kubectl(
+            "delete", "secret", "--ignore-not-found", "-n", secret["metadata"]["namespace"], secret["spec"]["fromSecret"]["name"],
+        )
 
 
 def verify_git_secret(entity: str):
@@ -110,23 +132,38 @@ def project_healthcheck(fncli):
     fncli.call(project_healthcheck_command)
 
 
-def trigger_secret_label() -> str:
-    """The label of the secret the node file's trigger repository takes its git credentials from."""
-    return load_node_file(GLOBALS_FILE).repositories.triggers[0].secret
+def trigger_secret() -> dict:
+    """The NodeSecret the dev project's trigger repository takes its git credentials from"""
+    resources = project_resources()
+    label = next(r for r in node_config.of_kind(resources, "Repository") if r["spec"]["type"] == "trigger")["spec"]["secret"]
+    return next(secret for secret in node_config.of_kind(resources, "NodeSecret") if secret["metadata"]["name"] == label)
 
 
 def rotate_trigger_secret(fncli):
-    """`fncli apply --rotate` of the trigger repository's secret: its OAuth app is authorized again and the new credentials stored."""
-    fncli.run("apply", *node_args(GLOBALS_FILE), "--rotate", trigger_secret_label(), "-y")
+    """`fncli gitea setup --rotate` of the trigger repository's NodeSecret: its OAuth app is authorized again and the new
+    credentials written to its Secret. Waits until the operator has sent that version of the Secret to nexus-api."""
+    secret = trigger_secret()
+    label, namespace = secret["metadata"]["name"], secret["metadata"]["namespace"]
+    source = secret["spec"]["fromSecret"]["name"]
+    fncli.run("gitea", "setup", "-f", str(PROJECT_FILE), "--context", str(CONTEXT_FILE), "--rotate", label)
+    version = k8s_secret_version(source, namespace)
+
+    def sent():
+        status = get_node_config("nodesecrets", namespace, label).get("status", {})
+        return (status.get("sourceVersions") or {}).get(source) == version
+
+    wait_for(sent, ROTATE_TIMEOUT, f"NodeSecret {label} to send Secret {source} version {version}")
 
 
 def apply_second_project(fncli, name: str):
-    fncli.run("apply", *node_args(SECOND_PROJECTS_FILE), "--project", name, "-y")
+    """kubectl apply of a second project on the dev project's repositories and dataset, and a wait for it to sync"""
+    node_config.apply([second_project_file(name)])
+    node_config.wait_synced(*node_config.file_args([second_project_file(name)]))
 
 
 def delete_second_projects(fncli):
-    """Every project of the second-projects node file that exists; its global resources are the dev project's and stay."""
-    fncli.run("delete", *node_args(SECOND_PROJECTS_FILE), "-y")
+    """kubectl delete of every second project; the dev project's resources they use stay."""
+    node_config.delete([second_project_file(name) for name in SECOND_PROJECTS])
 
 
 # The steps that set up the dev project and that clear it, each run as one test: the id names the step
@@ -137,7 +174,7 @@ SETUP_STEPS = [
     pytest.param(project_healthcheck, id="project-healthcheck"),
 ]
 TEARDOWN_STEPS = [
-    # First: the dev project's global resources are refused (409) while a second project still uses them
+    # First: the dev project's resources are refused (409) while a second project still uses them
     pytest.param(delete_second_projects, id="delete-second-projects"),
     pytest.param(delete_node, id="delete"),
     pytest.param(delete_gitea_leftovers, id="delete-gitea-leftovers"),
@@ -260,6 +297,7 @@ def env():
 
 
 POLL_SECONDS = 2  # how often a wait for something to happen looks at the project
+SYNC_TIMEOUT = 180  # how long the operator may take to sync a patched custom resource
 
 
 def wait_for(predicate, timeout: float, describe: str, interval: float = POLL_SECONDS):
@@ -276,6 +314,28 @@ def wait_for(predicate, timeout: float, describe: str, interval: float = POLL_SE
         time.sleep(interval)
 
 
+def patch_project(*operations: dict):
+    """
+    A JSON patch of the dev project's custom resource, and a wait until the operator has synced it. nexus-api refuses
+    (409) a change to what the resource declares through the API or fncli (ADR 0032), so a group that switches the
+    project, or one of its repository assignments, off or on does it here.
+    """
+    project = node_config.of_kind(project_resources(), "Project")[0]
+    name, namespace = project["metadata"]["name"], project["metadata"]["namespace"]
+    generation = patch_node_config("projects", namespace, name, list(operations))["metadata"]["generation"]
+
+    def synced():
+        status = get_node_config("projects", namespace, name).get("status", {})
+        return status.get("synced") and status.get("observedGeneration", 0) >= generation
+
+    wait_for(synced, SYNC_TIMEOUT, f"Project {name} generation {generation} synced")
+
+
+def set_spec(path: str, value) -> dict:
+    """A JSON patch operation that sets spec/<path> of a resource"""
+    return {"op": "add", "path": f"/spec/{path}", "value": value}
+
+
 class Fncli:
     """The fncli commands and the project snapshot, against the live cluster: the dev project of PROJECT_FILE, on the
     node of CONTEXT_FILE. A step command is given that context and project, which `fncli` would otherwise take from the
@@ -284,7 +344,12 @@ class Fncli:
     def __init__(self):
         load_dotenv(find_dotenv(".dev.env", usecwd=True))
         self.context = load_context(CONTEXT_FILE)
-        self.project = load_node_file(PROJECT_FILE).projects[0].name
+        # fncli logs in as FN_USERNAME / FN_PASSWORD. The suite acts as Dagster (System), whose routes it calls (a
+        # repository's git token, the pull request writes), and as the first Keycloak user only for revoking (as_admin).
+        self.system_login = self.secret_login("dagster-keycloak-creds", "DAGSTER_KC_USER", "DAGSTER_KC_PASSWORD")
+        self.admin_login = self.secret_login("keycloak-first-user", "EMAIL", "PASSWORD")
+        os.environ["FN_USERNAME"], os.environ["FN_PASSWORD"] = self.system_login
+        self.project = node_config.of_kind(project_resources(), "Project")[0]["metadata"]["name"]
         self.config = ProjectConfig(node=self.context.node, project_name=self.project)
         self.backend_api = build_backend_api(self.config)
         # For fncli.run of a step command (verify-project, ...)
@@ -293,6 +358,23 @@ class Fncli:
     def repo_config(self, entity: str):
         """The config of the dev project's trigger or results repository, as the node has it"""
         return load_repo_config(entity, self.context, self.project, self.backend_api)
+
+    def secret_login(self, secret_name: str, user_key: str, password_key: str) -> tuple[str, str]:
+        """A login from a Secret in the Keycloak namespace"""
+        namespace = self.context.node.keycloak_namespace
+        return (
+            get_k8s_secret(secret_name=secret_name, namespace=namespace, key=user_key),
+            get_k8s_secret(secret_name=secret_name, namespace=namespace, key=password_key),
+        )
+
+    @contextmanager
+    def as_admin(self):
+        """fncli logs in as the first Keycloak user (an Administrator) inside the block, for revoking, then as System again"""
+        os.environ["FN_USERNAME"], os.environ["FN_PASSWORD"] = self.admin_login
+        try:
+            yield
+        finally:
+            os.environ["FN_USERNAME"], os.environ["FN_PASSWORD"] = self.system_login
 
     def with_node(self, command, options: dict) -> dict:
         """The command's options, given the context and the dev project if it takes them and they are not given"""
@@ -359,7 +441,7 @@ TASK_TIMEOUT = int(os.environ.get("E2E_TASK_TIMEOUT", 600))  # a task that fails
 STEP_TIMEOUT = 300
 # A task that has not finished, and a result that is still being delivered, are work in flight
 UNFINISHED_TASK = ["PENDING", "QUEUED", "RUNNING"]
-SECOND_PROJECT = "QaTwo"
+SECOND_PROJECT = SECOND_PROJECTS[0]
 # Every step a result can end at: a revoked result stays at REVOKED and is never delivered
 SETTLED_STEPS = ["OPENED", "MERGED", "CLOSED", "REVOKED", "STALE"]
 # The steps of a result that has been delivered

@@ -3,6 +3,8 @@ Config and helpers shared by the commands: what the env holds, and the Gitea and
 APIs built from it.
 """
 
+import getpass
+import os
 import subprocess
 from pathlib import Path
 from typing import ClassVar
@@ -20,7 +22,7 @@ from app.github import GH_API_BASE_URL, GithubAPI, GithubClient
 from nexus_client.models import ResultsRepository, TriggerRepository
 from fncli.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaWebClient
 from fncli.k8s import get_k8s_secret
-from fncli.nodefile.schema import NodeSpec
+from fncli.context import NodeSpec
 from nexus_client.http import BackendAdapter, BackendSession
 
 IN_CLUSTER_SUFFIX = "fn.svc"
@@ -59,6 +61,12 @@ class NamespaceConfig(EnvConfig):
     """The release namespace, a deploy setting that stays in .dev.env"""
 
     namespace: str = Field(default="", alias="NAMESPACE")
+
+
+class OperatorNamespaceConfig(EnvConfig):
+    """The nexus operator's namespace (chart global.namespaces.operator), where the node config resources are"""
+
+    namespace: str = Field(default="fn-operator", alias="OPERATOR_NAMESPACE")
 
 
 class GiteaConfig(BackendConfig, NamespaceConfig):
@@ -201,7 +209,7 @@ def get_repository(config: RepoConfig, backend_api: FncliBackendAPI) -> TriggerR
     if repository is None:
         raise click.ClickException(
             f"Backend {config.entity} repository {config.repo_uri} does not exist "
-            f"(run fncli apply first)"
+            f"(kubectl apply -f config/ first)"
         )
     return repository
 
@@ -237,29 +245,28 @@ def build_git_api(config: RepoConfig) -> GiteaAPI | GithubAPI:
     return GitAPIFactory(backend_api).for_repository(repository.model_copy(update={"provider": provider}))
 
 
+# What was typed at the prompts, so a command that builds the client twice asks once. Kept here, not in os.environ,
+# so the password never reaches the kubectl, helm and docker processes fncli starts.
+_prompted: dict[str, str] = {}
+
+
+def login() -> tuple[str, str]:
+    """
+    Who fncli logs in to nexus-api as: FN_USERNAME and FN_PASSWORD, read on every call, else asked for once. Nothing
+    is picked for you: a step on a System-only route (minting a repository's git token) needs the System user's
+    login given here like any other.
+    """
+    username = os.getenv("FN_USERNAME") or _prompted.get("username")
+    if not username:
+        username = _prompted["username"] = click.prompt("nexus-api username", err=True)
+    password = os.getenv("FN_PASSWORD") or _prompted.get("password")
+    if not password:
+        password = _prompted["password"] = getpass.getpass(f"Password for {username}: ")
+    return username, password
+
+
 def build_backend_api(config: BackendConfig) -> FncliBackendAPI:
-    """Logs in as the dagster system user, the identity the sensors use."""
-    adapter = BackendAdapter(
-        base_url=config.node.url,
-        username=get_k8s_secret(
-            secret_name="dagster-keycloak-creds",
-            namespace=config.node.keycloak_namespace,
-            key="DAGSTER_KC_USER",
-        ),
-        password=get_k8s_secret(
-            secret_name="dagster-keycloak-creds",
-            namespace=config.node.keycloak_namespace,
-            key="DAGSTER_KC_PASSWORD",
-        ),
-    )
-    return FncliBackendAPI(BackendSession(adapter))
-
-
-def build_admin_backend_api(config: BackendConfig) -> FncliBackendAPI:
-    """Logs in as the first Keycloak user (an Administrator), which deploy.sh stores in the keycloak-first-user secret."""
-    adapter = BackendAdapter(
-        base_url=config.node.url,
-        username=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.node.keycloak_namespace, key="EMAIL"),
-        password=get_k8s_secret(secret_name="keycloak-first-user", namespace=config.node.keycloak_namespace, key="PASSWORD"),
-    )
+    """Logs in to the node's nexus-api as the user login() gives."""
+    username, password = login()
+    adapter = BackendAdapter(base_url=config.node.url, username=username, password=password)
     return FncliBackendAPI(BackendSession(adapter))
