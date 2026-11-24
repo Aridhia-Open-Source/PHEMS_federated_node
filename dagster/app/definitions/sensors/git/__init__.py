@@ -4,7 +4,7 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 
 from nexus_client.api import BackendAPI
-from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS
+from app.config import settings
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.ingest_job import ingest_pull_requests_job
 from app.definitions.sensors.git.pr_ingest import PullRequestIngestSensor
@@ -13,8 +13,8 @@ from app.definitions.sensors.git.pr_evaluate import PullRequestEvaluateSensor
 
 
 @dg.sensor(
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=DEFAULT_SENSOR_STATUS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
+    default_status=settings.sensors.initial_status,
     required_resource_keys={"backend_api", "git_apis"},
     job=ingest_pull_requests_job,
 )
@@ -38,8 +38,8 @@ def git_pull_request_ingest_sensor(context: OpExecCtx):
 
 
 @dg.sensor(
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=DEFAULT_SENSOR_STATUS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
+    default_status=settings.sensors.initial_status,
     required_resource_keys={"backend_api", "git_apis"},
     job=evaluate_repository_pull_requests_job,
 )

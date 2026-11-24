@@ -4,7 +4,7 @@ import dagster as dg
 import pytest
 from dagster_k8s.job import DagsterK8sJobConfig, construct_dagster_k8s_job, get_user_defined_k8s_config
 
-from app.config import SENSOR_RETRY_INTERVAL_SECONDS
+from app.config import settings
 from app.definitions.sensors import base
 from app.definitions.sensors.base import IN_FLIGHT, LaunchingSensor, artifacts_volume_tags, run_in_flight, run_key
 
@@ -46,7 +46,7 @@ def test_the_volume_tag_follows_the_chart_values(monkeypatch):
 
 
 def test_the_run_key_has_kind_item_state_and_slot():
-    with patch.object(base.time, "time", return_value=SENSOR_RETRY_INTERVAL_SECONDS * 7 + 1):
+    with patch.object(base.time, "time", return_value=settings.sensors.retry_interval_seconds * 7 + 1):
         assert run_key("ingest", 3, "cursor") == "ingest/3/cursor/7"
         assert run_key("deliver-retry", 3) == "deliver-retry/3/7"
         assert run_key("sync") == "sync/7"
@@ -62,7 +62,7 @@ def test_the_run_key_changes_with_the_state_at_once_and_with_the_slot_over_time(
         same = run_key("k", 1, "a")
         assert run_key("k", 1, "a") == same
         assert run_key("k", 1, "b") != same
-    with patch.object(base.time, "time", return_value=100 + SENSOR_RETRY_INTERVAL_SECONDS):
+    with patch.object(base.time, "time", return_value=100 + settings.sensors.retry_interval_seconds):
         assert run_key("k", 1, "a") != same
 
 

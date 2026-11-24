@@ -1,3 +1,13 @@
+"""
+Dagster's settings read from the environment (pydantic-settings), grouped by concern.
+
+The rest of the code reads them from the one `settings` object: `settings.backend.uri`,
+`settings.sensors.min_interval_seconds`. A group is read from the environment the first time it is used, then kept.
+It is not read at import because a field left unset or empty is an error (EnvConfig), and fncli and the tests
+import this module (for EnvConfig) without the task env, such as NEXUS_API_URL.
+"""
+from functools import cached_property
+
 import dagster as dg
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,13 +43,6 @@ class SensorStatusConfig(EnvConfig):
     delivery_max_attempts: int = Field(default=5, alias="DAGSTER_DELIVERY_MAX_ATTEMPTS")
 
 
-# Read once, at import: every sensor's default_status and minimum_interval_seconds.
-DEFAULT_SENSOR_STATUS = SensorStatusConfig().initial_status
-MIN_SENSOR_INTERVAL_SECONDS = SensorStatusConfig().min_interval_seconds
-SENSOR_RETRY_INTERVAL_SECONDS = SensorStatusConfig().retry_interval_seconds
-DELIVERY_MAX_ATTEMPTS = SensorStatusConfig().delivery_max_attempts
-
-
 class ResultsDeliveryConfig(EnvConfig):
     artifact_mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
     max_zip_bytes: int = Field(default=10485760, alias="RESULTS_MAX_ZIP_BYTES")
@@ -51,6 +54,26 @@ class ArtifactsVolumeConfig(EnvConfig):
 
     pvc_name: str = Field(default="", alias="DAGSTER_ARTIFACTS_PVC_NAME")
     mount_path: str = Field(default="", alias="DAGSTER_ARTIFACT_MOUNT_PATH")
+
+
+class TaskPodsConfig(BaseSettings):
+    """
+    Where task pods run and how long they may run, as the chart sets it.
+
+    Not an EnvConfig subclass on purpose: task_namespace is legitimately unset (task pods then run in the
+    deployment's namespace), which EnvConfig.validate_required would reject. namespace and
+    active_deadline_seconds have no default, so leaving them unset is an error.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=None,
+        case_sensitive=True,
+        populate_by_name=True,
+    )
+
+    namespace: str = Field(alias="DAGSTER_DEPLOYMENT_NAMESPACE")
+    task_namespace: str = Field(default="", alias="DAGSTER_TASK_NAMESPACE")
+    active_deadline_seconds: int = Field(alias="DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS")
 
 
 class PipesSecurityContextConfig(BaseSettings):
@@ -102,3 +125,34 @@ class PipesSecurityContextConfig(BaseSettings):
             "seccompProfile": {"type": "RuntimeDefault"},
             "runAsNonRoot": True,
         }
+
+
+class Settings:
+    """All of Dagster's config, a group per concern. Each group is read once, on first use (see the module docs)."""
+
+    @cached_property
+    def backend(self) -> BackendConfig:
+        return BackendConfig()
+
+    @cached_property
+    def sensors(self) -> SensorStatusConfig:
+        return SensorStatusConfig()
+
+    @cached_property
+    def results_delivery(self) -> ResultsDeliveryConfig:
+        return ResultsDeliveryConfig()
+
+    @cached_property
+    def artifacts_volume(self) -> ArtifactsVolumeConfig:
+        return ArtifactsVolumeConfig()
+
+    @cached_property
+    def task_pods(self) -> TaskPodsConfig:
+        return TaskPodsConfig()
+
+    @cached_property
+    def pipes(self) -> PipesSecurityContextConfig:
+        return PipesSecurityContextConfig()
+
+
+settings = Settings()

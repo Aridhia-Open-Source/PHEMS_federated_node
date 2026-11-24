@@ -2,6 +2,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from app.definitions import pipes
 from nexus_client.models import TaskResources
@@ -114,7 +115,7 @@ class TestBasePodSpec:
     def test_missing_deadline_is_not_defaulted(self, pipes_env, monkeypatch):
         monkeypatch.delenv("DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS")
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValidationError):
             make_pipe()
 
     def test_container_is_locked_down(self, pipes_env):
@@ -173,7 +174,7 @@ class TestNamespaces:
     def test_missing_required_env_is_not_defaulted(self, pipes_env, monkeypatch):
         monkeypatch.delenv("DAGSTER_ARTIFACTS_PVC_NAME")
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValidationError):
             make_pipe()
 
 
