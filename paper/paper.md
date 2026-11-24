@@ -273,12 +273,14 @@ rather than listed individually in the author list:
 - Jennifer McIntosh, Sant Joan de Déu Barcelona Hospital 
 - Ruben Berrueco Moreno, Sant Joan de Déu Barcelona Hospital 
 - Claudia Ibabe Muñoz, Sant Joan de Déu Barcelona Hospital 
+- Adrian Vizoso Exposito, Sant Joan de Déu Barcelona Hospital
 - Tomi Mustonen, Tietoevry
 - Daniel Nguyen, Veil AI 
 - Ieva Poča, Children's University Hospital Latvia
 - Inese Gobiņa, Children's University Hospital Latvia
 - Antti Saarela, Tietoevry
 - Jordi Ortiz Sagrista, Genesis Biomed
+- Sebastian Hahta, HUS Helsinki University Hospital
 - Jonna Salminen, HUS Helsinki University Hospital 
 - Hannele Salonen, HUS Helsinki University Hospital
 - Nikolas Salonen, HUS Helsinki University Hospital 
@@ -321,7 +323,7 @@ Commission (grant agreement 101094195) and UK Research and Innovation
 We would like to thank the following people for their contributions to
 the Federated Node project: Hepzibah Faustina and Marco Luk for their
 assistance testing and deploying the FN; George Eddie, Ross Hannah,
-Finlo Boyle, Chi-Hao Huang for their code reviews and oversight; Eoghan
+Finlo Boyle, Chi-Hao Huang, and Liam Smith for their code reviews and oversight; Eoghan
 Forde and Deepak Sehgal for project management support; and Matt Western
 and Daniel Morris for their assistance in preparing the paper.
 
