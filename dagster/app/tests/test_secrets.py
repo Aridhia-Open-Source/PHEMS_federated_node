@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nexus_client.models import Secret, SecretProviderType
+from fednode.clients.nexus.models import Secret, SecretProviderType
 from app.secrets import K8sSecretProvider, SecretProvider, read_secret_value
 from app.tests.conftest import SAMPLE_SECRET
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 is_ci=$1
-# No path: pytest runs its testpaths (pyproject.toml), the client's tests in ../nexus/client included
+# No path: pytest runs its testpaths (pyproject.toml), the client's tests in ../nexus/fednode included
 pytest_args="${2:-}"
 
 # Each run gets its own compose project (containers, network) so parallel runs

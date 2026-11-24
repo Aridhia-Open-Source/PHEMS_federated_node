@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from nexus_client.api import BackendAPI
-from nexus_client.models import (
+from fednode.clients.nexus.client import BackendAPI
+from fednode.clients.nexus.models import (
     Dataset, GitToken, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TaskResources, TriggerRepository,
 )
 from tests.samples import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response

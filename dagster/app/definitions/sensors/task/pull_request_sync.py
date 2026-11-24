@@ -12,12 +12,12 @@ import requests
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, SensorEvaluationContext
 
-from nexus_client.api import BackendAPI
+from fednode.clients.nexus.client import BackendAPI
 from app.config import DEFAULT_SENSOR_STATUS, DELIVERY_MAX_ATTEMPTS, MIN_SENSOR_INTERVAL_SECONDS
 from app.definitions.sensors.base import LaunchingSensor, run_in_flight, run_key
 from app.definitions.sensors.git.base import GitAPI, GitAPIFactory, GitSensor
 from app.delivery.results import MAX_ERROR_LENGTH, results_title
-from nexus_client.models import PullRequestResult, PullRequestResultStep, ResultsRepository
+from fednode.clients.nexus.models import PullRequestResult, PullRequestResultStep, ResultsRepository
 
 
 def get_synced_results(backend_api: BackendAPI) -> list[PullRequestResult]:

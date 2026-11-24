@@ -4,7 +4,7 @@ import dagster as dg
 import pytest
 
 from app.definitions.sensors.git.ingest_job import MAX_BATCH_SIZE, ingest_pull_requests, ingest_pull_requests_job
-from nexus_client.models import TriggerRepository
+from fednode.clients.nexus.models import TriggerRepository
 from app.tests.conftest import SAMPLE_TRIGGER_REPOSITORY
 
 

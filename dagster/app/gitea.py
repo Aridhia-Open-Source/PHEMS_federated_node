@@ -5,7 +5,7 @@ from datetime import datetime as dt
 
 import requests
 
-from nexus_client.http import HttpClient
+from fednode.http import HttpClient
 
 GITEA_API_BASE_URL = "http://gitea.fn.svc:4000/api/v1"
 # Gitea caps a page at 50 by default (it ignores per_page and takes limit).

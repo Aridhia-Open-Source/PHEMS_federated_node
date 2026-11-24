@@ -6,7 +6,7 @@ from app.definitions.sensors.git.evaluate_job import (
     evaluate_repository_pull_requests_job,
     load_unknown_pull_requests,
 )
-from nexus_client.models import ProjectTriggerRepository, TriggerState
+from fednode.clients.nexus.models import ProjectTriggerRepository, TriggerState
 
 
 class PullRequestEvaluateSensor(LaunchingSensor, GitSensor):

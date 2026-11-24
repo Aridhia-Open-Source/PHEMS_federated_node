@@ -5,7 +5,7 @@ from dagster_k8s.utils import load_kubernetes_config
 from kubernetes import client
 from kubernetes.client import V1Secret
 
-from nexus_client.models import Secret, SecretProviderType
+from fednode.clients.nexus.models import Secret, SecretProviderType
 
 
 class K8sSecretProvider:

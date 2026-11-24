@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.definitions.sensors.git.pr_parser import PullRequestOutcome, PullRequestParser
-from nexus_client.models import PullRequestTrigger
+from fednode.clients.nexus.models import PullRequestTrigger
 
 WATCHED = "specs/a.json"
 

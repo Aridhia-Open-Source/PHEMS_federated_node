@@ -34,7 +34,7 @@ from pydantic import (
     BaseModel, ConfigDict, Discriminator, Field, Tag, field_validator, model_validator,
 )
 
-from nexus_client.git_uri import normalise_provider_uri, normalise_repo_uri, validate_api_uri
+from fednode.clients.git.uri import normalise_provider_uri, normalise_repo_uri, validate_api_uri
 from app.github import GH_API_BASE_URL
 
 REFERENCE_KINDS = ("env", "file", "k8s_secret", "generate")

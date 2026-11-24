@@ -9,7 +9,7 @@ What fncli made in Gitea (repositories, OAuth apps) is left alone.
 import requests
 
 from fncli.backend import FncliBackendAPI
-from nexus_client.git_uri import repo_path_of
+from fednode.clients.git.uri import repo_path_of
 from fncli.nodefile import lookup
 from fncli.nodefile.diff import UNCHANGED, BackendState, Change, ProjectState, users
 from fncli.nodefile.schema import NodeFile

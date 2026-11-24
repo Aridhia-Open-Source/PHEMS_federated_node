@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict
 
-from nexus_client.models.git_provider import GitProvider
-from nexus_client.models.secret import Secret
+from fednode.clients.nexus.models.git_provider import GitProvider
+from fednode.clients.nexus.models.secret import Secret
 
 
 class ResultsRepository(BaseModel):

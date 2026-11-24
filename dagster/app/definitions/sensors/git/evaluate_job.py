@@ -5,10 +5,10 @@ import requests
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 
-from nexus_client.api import BackendAPI
+from fednode.clients.nexus.client import BackendAPI
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.pr_parser import ParsedPullRequest, PullRequestOutcome, PullRequestParser
-from nexus_client.models import PullRequestTrigger, TriggerState
+from fednode.clients.nexus.models import PullRequestTrigger, TriggerState
 
 # The git provider's API rate limit is the constraint, so keep the fan-out low
 MAX_CONCURRENT_EVALUATIONS = 3

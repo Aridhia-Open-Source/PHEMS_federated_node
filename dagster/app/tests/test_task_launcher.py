@@ -8,9 +8,9 @@ from dagster import RunRequest, SkipReason
 from app.definitions.run_config import build_run_config
 from app.definitions.sensors.base import artifacts_volume_tags
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
-from nexus_client.models import Dataset, LaunchDecision, Project, Task
+from fednode.clients.nexus.models import Dataset, LaunchDecision, Project, Task
 
-# nexus-api sample responses, shared with the nexus-api tests (nexus/client/tests/contract)
+# nexus-api sample responses, shared with the nexus-api tests (nexus/fednode/tests/contract)
 CONTRACT_DIR = Path(__file__).resolve().parents[3] / "nexus" / "client" / "tests" / "contract"
 
 pytestmark = pytest.mark.usefixtures("artifacts_env")

@@ -3,11 +3,11 @@ from typing import Any, Protocol, Union
 
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
-from nexus_client.api import BackendAPI
+from fednode.clients.nexus.client import BackendAPI
 from app.definitions.sensors.base import BaseSensor
 from app.gitea import GiteaAPI, GiteaClient
 from app.github import GithubAPI, GithubClient
-from nexus_client.models import ResultsRepository, TriggerRepository
+from fednode.clients.nexus.models import ResultsRepository, TriggerRepository
 
 
 class GitAPI(Protocol):

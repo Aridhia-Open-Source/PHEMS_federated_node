@@ -2,8 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from nexus_client.models.dataset import Dataset
-from nexus_client.models.task import Task
+from fednode.clients.nexus.models.dataset import Dataset
+from fednode.clients.nexus.models.task import Task
 
 
 class LaunchDecision(BaseModel):

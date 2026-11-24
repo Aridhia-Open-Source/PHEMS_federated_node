@@ -14,14 +14,14 @@ from pydantic import Field
 from fncli.backend import FncliBackendAPI
 from app.config import EnvConfig
 from app.definitions.sensors.git.base import GitAPIFactory
-from nexus_client.git_uri import normalise_repo_uri
+from fednode.clients.git.uri import normalise_repo_uri
 from app.gitea import GiteaAPI
 from app.github import GH_API_BASE_URL, GithubAPI, GithubClient
-from nexus_client.models import ResultsRepository, TriggerRepository
+from fednode.clients.nexus.models import ResultsRepository, TriggerRepository
 from fncli.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaWebClient
 from fncli.k8s import get_k8s_secret
 from fncli.nodefile.schema import NodeSpec
-from nexus_client.http import BackendAdapter, BackendSession
+from fednode.http import BackendAdapter, BackendSession
 
 IN_CLUSTER_SUFFIX = "fn.svc"
 

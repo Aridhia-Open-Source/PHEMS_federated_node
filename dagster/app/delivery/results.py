@@ -15,10 +15,10 @@ from pathlib import Path
 
 import requests
 
-from nexus_client.api import BackendAPI
+from fednode.clients.nexus.client import BackendAPI
 from app.config import ResultsDeliveryConfig
 from app.delivery import git_push
-from nexus_client.models import (
+from fednode.clients.nexus.models import (
     PullRequestResultStep, ResultsRepository, ResultState, RunNode, RunProject, RunRecord, RunResults, RunTask,
     RunTrigger, Task, TaskTrigger, TriggerRepositoryRef,
 )

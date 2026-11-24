@@ -3,7 +3,7 @@ from typing import cast
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
-from nexus_client.api import BackendAPI
+from fednode.clients.nexus.client import BackendAPI
 from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS, BackendConfig
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.task.delivery import (
@@ -19,7 +19,7 @@ from app.definitions.sensors.task.pull_request_sync import (
 )
 from app.definitions.sensors.task.reconcile import task_reconcile_sensor
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
-from nexus_client.http import BackendSession, PasswordFileAdapter
+from fednode.http import BackendSession, PasswordFileAdapter
 
 
 @dg.sensor(

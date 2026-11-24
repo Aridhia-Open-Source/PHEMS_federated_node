@@ -1,8 +1,8 @@
 # Plan: shared clients (fednode/2, #696)
 
 Status: existing PR (shared nexus client); rework not started.
-- Rename `nexus/client` (`nexus_client`) to the `fednode` package, flattened (no doubled folder). pyproject name `fednode`.
-- Move in: `http.py` (merge `nexus_client/http.py` with nexus-api `clients/outbound.py`), `clients/nexus` (api + models),
+- Rename `nexus/fednode` (`fednode`) to the `fednode` package, flattened (no doubled folder). pyproject name `fednode`.
+- Move in: `http.py` (merge `fednode/http.py` with nexus-api `clients/outbound.py`), `clients/nexus` (api + models),
   `clients/keycloak` (login from nexus-api keycloak.py, kc-init common.py; admin API; signing keys),
   `clients/dagster` (nexus-api clients/dagster.py + fncli sensors.py), `clients/kubernetes` (KubernetesClient with explicit
   in_cluster|kubeconfig, loaded once via lru_cache on first use; MountedSecret replacing the four secret readers; valid_name

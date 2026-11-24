@@ -43,7 +43,7 @@ group "release" {
 
 target "dagster-fn" {
   context  = "dagster"
-  contexts = { nexus-client = "nexus/client" }
+  contexts = { fednode = "nexus/fednode" }
   tags     = tags("dagster-fn")
 }
 

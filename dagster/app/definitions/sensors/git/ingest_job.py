@@ -3,9 +3,9 @@ from typing import cast
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 
-from nexus_client.api import BackendAPI
+from fednode.clients.nexus.client import BackendAPI
 from app.definitions.sensors.git.base import GitAPI, GitAPIFactory
-from nexus_client.models import NewPullRequest, TriggerRepository
+from fednode.clients.nexus.models import NewPullRequest, TriggerRepository
 
 # The most pull requests the backend takes in one ingest
 MAX_BATCH_SIZE = 100

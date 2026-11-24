@@ -7,9 +7,9 @@ import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 from dagster._core.pipes.client import PipesClientCompletedInvocation
 
-from nexus_client.api import BackendAPI
+from fednode.clients.nexus.client import BackendAPI
 from app.config import PipesSecurityContextConfig
-from nexus_client.models import TaskResources
+from fednode.clients.nexus.models import TaskResources
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

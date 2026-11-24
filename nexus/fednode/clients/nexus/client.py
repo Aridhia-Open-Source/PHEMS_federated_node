@@ -2,9 +2,9 @@ import logging
 from http import HTTPStatus
 from typing import Literal
 
-from nexus_client.git_uri import normalise_repo_uri, repo_path_of
-from nexus_client.http import BackendSession
-from nexus_client.models import (
+from fednode.clients.git.uri import normalise_repo_uri, repo_path_of
+from fednode.http import BackendSession
+from fednode.clients.nexus.models import (
     GitProvider, GitToken, ProjectTriggerRepository, TriggerRepository, PullRequestTrigger, Project, ProjectResultsRepository,
     ResultsRepository, Task,
     TaskTrigger, PullRequestResult, Dataset, ProjectDataset, LaunchDecision, TaskResources

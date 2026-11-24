@@ -11,7 +11,7 @@ import click
 from fncli.cmds.common import ProjectConfig
 from fncli.cmds.nodefile import context_option, step_project_option, step_target
 from fncli.backend import FncliBackendAPI
-from nexus_client.models import Project
+from fednode.clients.nexus.models import Project
 
 logger = logging.getLogger("project")
 

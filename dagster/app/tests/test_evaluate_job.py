@@ -10,7 +10,7 @@ from app.definitions.sensors.git.evaluate_job import (
     evaluate_repository_pull_requests_job,
     load_unknown_pull_requests,
 )
-from nexus_client.models import PullRequestTrigger
+from fednode.clients.nexus.models import PullRequestTrigger
 
 WATCHED = "specs/a.json"
 SPEC_FILE = json.dumps({"spec": {"docker_image": "a/b:1"}})

@@ -26,7 +26,7 @@ pushd "$DIR" > /dev/null
 # Consumers of the shared nexus-api client compile its dependencies into their own hashed file (ADR 0032)
 SOURCES=(pyproject.toml)
 case "$(realpath --relative-to="$ROOT" .)" in
-    dagster) SOURCES+=("$(realpath --relative-to=. "$ROOT/nexus/client/pyproject.toml")") ;;
+    dagster) SOURCES+=("$(realpath --relative-to=. "$ROOT/nexus/fednode/pyproject.toml")") ;;
 esac
 
 # The component's own Python (its mise.toml), which `mise run setup` gives pip-tools

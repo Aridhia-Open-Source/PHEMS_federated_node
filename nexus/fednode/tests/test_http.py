@@ -4,7 +4,7 @@ import pytest
 import requests
 from urllib3.util import Retry
 
-from nexus_client.http import (
+from fednode.http import (
     BackendAdapter,
     BackendSession,
     BaseHttpAdapter,
@@ -224,7 +224,7 @@ class TestOAuthAdapter:
         adapter.access_token = "stale"
         responses = [response(status), response(200)]
 
-        with patch("nexus_client.http.time.sleep") as sleep:
+        with patch("fednode.http.time.sleep") as sleep:
             with patch("requests.adapters.HTTPAdapter.send", side_effect=responses):
                 result = adapter.send(request)
 
@@ -237,7 +237,7 @@ class TestOAuthAdapter:
         adapter.access_token = "stale"
         responses = [response(401), response(401)]
 
-        with patch("nexus_client.http.time.sleep"):
+        with patch("fednode.http.time.sleep"):
             with patch("requests.adapters.HTTPAdapter.send", side_effect=responses):
                 result = adapter.send(MagicMock(headers={}))
 
@@ -255,7 +255,7 @@ class TestBackendAdapter:
     def test_login_posts_the_credentials(self):
         adapter = BackendAdapter(base_url="https://backend", username="u", password="p")
 
-        with patch("nexus_client.http.requests.post", return_value=response(body={"token": "t"})) as post:
+        with patch("fednode.http.requests.post", return_value=response(body={"token": "t"})) as post:
             adapter.login()
 
         assert post.call_args.args[0] == "https://backend/login"
@@ -264,7 +264,7 @@ class TestBackendAdapter:
     def test_refresh_tokens_stores_the_token(self):
         adapter = BackendAdapter(base_url="https://backend", username="u", password="p")
 
-        with patch("nexus_client.http.requests.post", return_value=response(body={"token": "t"})):
+        with patch("fednode.http.requests.post", return_value=response(body={"token": "t"})):
             adapter.refresh_tokens()
 
         assert adapter._access_token == "t"
@@ -274,7 +274,7 @@ class TestBackendAdapter:
         resp = response(401)
         resp.raise_for_status.side_effect = requests.HTTPError("401")
 
-        with patch("nexus_client.http.requests.post", return_value=resp):
+        with patch("fednode.http.requests.post", return_value=resp):
             with pytest.raises(requests.HTTPError):
                 adapter.login()
 
@@ -285,7 +285,7 @@ class TestPasswordFileAdapter:
         password_file.write_text("old\n", encoding="utf-8")
         adapter = PasswordFileAdapter(base_url="https://backend", username="u", password_file=str(password_file))
 
-        with patch("nexus_client.http.requests.post", return_value=response(body={"token": "t"})) as post:
+        with patch("fednode.http.requests.post", return_value=response(body={"token": "t"})) as post:
             adapter.login()
             password_file.write_text("rotated", encoding="utf-8")
             adapter.login()

@@ -5,7 +5,7 @@ import pytest
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.gitea import GiteaAPI
 from app.github import GithubAPI
-from nexus_client.models import GitToken, ResultsRepository, TriggerRepository
+from fednode.clients.nexus.models import GitToken, ResultsRepository, TriggerRepository
 from app.tests.conftest import SAMPLE_PROVIDER, SAMPLE_TRIGGER_REPOSITORY
 
 

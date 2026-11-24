@@ -19,9 +19,9 @@ from typing import Callable, NamedTuple
 import click
 import requests
 
-from nexus_client.http import BackendSession
+from fednode.http import BackendSession
 from fncli.backend import FncliBackendAPI
-from nexus_client.git_uri import repo_path_of
+from fednode.clients.git.uri import repo_path_of
 from fncli.cmds.common import DagsterConfig, RepoConfig, to_host_url
 from fncli.cmds.nodefile import (
     announce_defaults, context_option, node_file_option, open_node, quiet_backend_logs, render_change,

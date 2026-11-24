@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from nexus_client.api import BackendAPI
-from nexus_client.models import Dataset, ProjectTriggerRepository, ResultsRepository, TriggerRepository
+from fednode.clients.nexus.client import BackendAPI
+from fednode.clients.nexus.models import Dataset, ProjectTriggerRepository, ResultsRepository, TriggerRepository
 
 SECRET = {"id": 3, "project_id": 1, "label": "l", "provider": "K8S", "key": "k", "namespace": "fn", "enabled": True}
 PROVIDER = {

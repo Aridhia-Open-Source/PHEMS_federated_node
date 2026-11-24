@@ -20,11 +20,11 @@ RUN --mount=type=secret,id=proxy_ca --mount=type=tmpfs,target=/ca \
     fi; \
     pip install --no-cache-dir -r requirements.txt
 
-# The shared nexus-api client, from the nexus-client named build context (docker-bake.hcl).
-# Editable and at its repo path next to DAGSTER_HOME, so Tilt syncs into it and the tests find ../nexus/client/tests.
+# The shared fednode package, from the fednode named build context (docker-bake.hcl).
+# Editable and at its repo path next to DAGSTER_HOME, so Tilt syncs into it and the tests find ../nexus/fednode/tests.
 # hadolint ignore=DL3022
-COPY --from=nexus-client . /opt/dagster/nexus/client
-RUN pip install --no-cache-dir --no-deps -e /opt/dagster/nexus/client
+COPY --from=fednode . /opt/dagster/nexus/fednode
+RUN pip install --no-cache-dir --no-deps -e /opt/dagster/nexus/fednode
 
 # Copy package source (uses .dockerignore to limit scope)
 COPY . .

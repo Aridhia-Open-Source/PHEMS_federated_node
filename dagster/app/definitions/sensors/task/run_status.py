@@ -5,9 +5,9 @@ import requests
 import dagster as dg
 from dagster import RunStatusSensorContext
 
-from nexus_client.api import BackendAPI
+from fednode.clients.nexus.client import BackendAPI
 from app.definitions.sensors.base import BaseSensor
-from nexus_client.models import TaskStatus
+from fednode.clients.nexus.models import TaskStatus
 
 
 class TaskRunStatusSensor(BaseSensor):

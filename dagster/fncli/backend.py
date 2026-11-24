@@ -1,4 +1,4 @@
-from nexus_client.api import BackendAPI
+from fednode.clients.nexus.client import BackendAPI
 
 
 class FncliBackendAPI(BackendAPI):

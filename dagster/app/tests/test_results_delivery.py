@@ -20,7 +20,7 @@ from app.definitions.sensors.task.delivery import (
 from app.delivery import git_push
 from app.definitions.sensors.base import artifacts_volume_tags
 from app.delivery.results import ResultsDelivery
-from nexus_client.models import (
+from fednode.clients.nexus.models import (
     GitProvider, GitToken, Project, PullRequestResult, ResultsRepository, RunRecord, Task, TaskTrigger,
     TriggerRepositoryRef,
 )

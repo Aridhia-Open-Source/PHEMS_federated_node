@@ -84,7 +84,7 @@ docker_build_with_restart(
 # DAGSTER USER CODE DEPLOYMENT
 # ==============================================================================
 # What the code server and the run pods use from the Dagster image, plus the shared nexus-api
-# client (nexus/client), which the image takes from the nexus-client named build context.
+# client (nexus/fednode), which the image takes from the fednode named build context.
 # Everything else under dagster/ (fncli, tests, docs, lint and CI files) is not used by either,
 # so changing it rebuilds nothing. (The build still copies fncli and conftest.py, per
 # dagster/.dockerignore.)
@@ -98,12 +98,12 @@ DAGSTER_IMAGE_FILES = [
 DAGSTER_BUILD_DEPS = ['dagster/' + f for f in DAGSTER_IMAGE_FILES] + [
   'dagster/Dockerfile',
   'dagster/.dockerignore',
-  'nexus/client',
+  'nexus/fednode',
 ]
 # Test edits and pytest runs don't rebuild or restart the code server
 DAGSTER_BUILD_IGNORE = [
   'dagster/app/tests',
-  'nexus/client/tests',
+  'nexus/fednode/tests',
   '**/.pytest_cache',
   '**/__pycache__',
   '**/*.pyc',
@@ -111,7 +111,7 @@ DAGSTER_BUILD_IGNORE = [
 ]
 # docker_build has no named build context, so the Dagster image is a custom build
 DAGSTER_BUILD_CMD = ' '.join(
-  ['docker buildx build --load --build-context nexus-client=nexus/client'] + BUILD_SECRET + ['-t {ref} dagster'])
+  ['docker buildx build --load --build-context fednode=nexus/fednode'] + BUILD_SECRET + ['-t {ref} dagster'])
 
 # The image has no ENTRYPOINT or CMD: the chart passes the whole gRPC command as the
 # container args (templates/dagster-code-server.yaml). With an empty entrypoint Tilt's
@@ -130,11 +130,11 @@ custom_build_with_restart(
       'dagster/pyproject.toml',
       'dagster/dagster.yaml',
       'dagster/workspace.yaml',
-      'nexus/client/pyproject.toml',
+      'nexus/fednode/pyproject.toml',
     ]),
     sync('dagster/app', '/opt/dagster/home/app'),
     # The client is installed editable from here (dagster/Dockerfile)
-    sync('nexus/client/nexus_client', '/opt/dagster/nexus/client/nexus_client'),
+    sync('nexus/fednode', '/opt/dagster/nexus/fednode'),
   ],
 )
 

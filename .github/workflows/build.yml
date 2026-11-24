@@ -392,7 +392,7 @@ jobs:
     secrets:
       DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   # The steps of Aridhia-Open-Source/pipelines build-docker.yml (HASH_SUFFIX false), inline because the
-  # image needs the nexus-client named build context (nexus/client), which that workflow cannot pass.
+  # image needs the fednode named build context (nexus/fednode), which that workflow cannot pass.
   build-dagster-image:
     needs:
       - init
@@ -421,7 +421,7 @@ jobs:
         with:
           context: dagster
           file: dagster/Dockerfile
-          build-contexts: nexus-client=nexus/client
+          build-contexts: fednode=nexus/fednode
           tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/dagster_fn:${{ needs.init.outputs.tag }}
           push: true
           cache-from: type=gha

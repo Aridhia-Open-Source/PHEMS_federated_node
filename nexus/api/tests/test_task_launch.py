@@ -193,7 +193,7 @@ def test_no_token_is_refused(client, project, full_task):
 def test_the_response_has_the_shape_dagsters_launch_decision_parses(
         client, system_headers, project, full_task, make_task, with_dataset):
     """
-    nexus/client/tests/contract/launch_response.json() is a sample "launch" response; Dagster's tests parse it into
+    nexus/fednode/tests/contract/launch_response.json() is a sample "launch" response; Dagster's tests parse it into
     LaunchDecision. This test fails when the real response gains or loses a key, so the two sides move together.
     """
     task = full_task if with_dataset else make_task()

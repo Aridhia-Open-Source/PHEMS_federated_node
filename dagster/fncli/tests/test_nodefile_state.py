@@ -1,6 +1,6 @@
 """Reading the backend into the diff's snapshot (fncli.nodefile.state), from a fake API."""
 
-from nexus_client.models import Dataset, GitProvider, Project, ProjectDataset, ProjectResultsRepository, ProjectTriggerRepository, ResultsRepository, TriggerRepository
+from fednode.clients.nexus.models import Dataset, GitProvider, Project, ProjectDataset, ProjectResultsRepository, ProjectTriggerRepository, ResultsRepository, TriggerRepository
 
 from fncli.nodefile.diff import DatasetState, ProjectState, ProviderState, RepositoryState, ResultsState, TriggerState
 from fncli.nodefile.state import read_state

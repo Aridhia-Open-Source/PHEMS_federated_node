@@ -1,8 +1,8 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from nexus_client.models.git_provider import GitProvider
-from nexus_client.models.secret import Secret
-from nexus_client.models.pull_request_trigger import PullRequestTrigger
+from fednode.clients.nexus.models.git_provider import GitProvider
+from fednode.clients.nexus.models.secret import Secret
+from fednode.clients.nexus.models.pull_request_trigger import PullRequestTrigger
 
 
 class TriggerRepository(BaseModel):

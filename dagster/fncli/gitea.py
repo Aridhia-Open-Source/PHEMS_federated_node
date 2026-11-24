@@ -5,7 +5,7 @@ from html.parser import HTMLParser
 from urllib.parse import parse_qs, urlparse
 
 from app.gitea import GITEA_API_BASE_URL
-from nexus_client.http import HttpClient
+from fednode.http import HttpClient
 
 default_logger = logging.getLogger(__name__)
 

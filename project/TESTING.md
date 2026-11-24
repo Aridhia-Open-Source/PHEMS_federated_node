@@ -97,7 +97,7 @@ Counts are `def test_` lines; a parametrised test counts once.
 
 ### Contract samples between nexus-api and Dagster
 
-`nexus/client/tests/contract/launch_response.json` and `tasks_response.json` are samples of two nexus-api responses. The Dagster tests (`test_task_launcher.py`) parse them into the nexus client's models. nexus-api tests (`test_task_launch.py`, `test_all_tasks_list.py`) compare the real response's keys with the sample. When the real response gains or loses a key, nexus-api test fails, so the two sides move together. They check the shape (keys), not the values, and only for these two responses.
+`nexus/fednode/tests/contract/launch_response.json` and `tasks_response.json` are samples of two nexus-api responses. The Dagster tests (`test_task_launcher.py`) parse them into the nexus client's models. nexus-api tests (`test_task_launch.py`, `test_all_tasks_list.py`) compare the real response's keys with the sample. When the real response gains or loses a key, nexus-api test fails, so the two sides move together. They check the shape (keys), not the values, and only for these two responses.
 
 ### What the Dagster tests cannot show
 
