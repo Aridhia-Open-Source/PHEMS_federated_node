@@ -113,13 +113,10 @@
             "realm-management": [
               "view-users",
               "view-clients",
-              "manage-users",
               "view-authorization",
               "query-groups",
               "query-users",
-              "manage-clients",
               "view-realm",
-              "manage-authorization",
               "query-clients",
               "view-events"
             ],
