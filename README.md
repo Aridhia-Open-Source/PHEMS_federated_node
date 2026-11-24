@@ -76,6 +76,14 @@ A node's config (git providers, secrets, repositories, datasets, projects) can l
 
 Pages: [Node config](docs/versions/2.x/docs/Node-Config.md), [Node secrets](docs/versions/2.x/docs/Node-Secrets.md). Design: [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/716).
 
+## Deploying a site with Flux
+
+A site's node is upgraded, reverted and configured by merging to a site-owned git repository. Flux, inside the node's cluster, pulls that repository from the node's own Gitea and upgrades the Helm release to the chart version it pins; Secrets are committed SOPS-encrypted. Nothing has to reach into the site. Why: [ADR 0031](project/decisions/0031-gitops-deployment-with-flux.md).
+
+- Setting up a site: [Deploy with Flux](docs/versions/2.x/docs/Deploy-With-Flux.md), then [Flux secrets](docs/versions/2.x/docs/Flux-Secrets.md).
+- Site repository kept outside the cluster: [Flux site repository mirror](docs/versions/2.x/docs/Flux-Site-Repository-Mirror.md).
+- Trying it on the dev cluster: [Flux dev loop](docs/versions/2.x/docs/Flux-Dev-Loop.md) (`mise run flux publish|up|status|down`).
+
 ## Where to go next
 
 - Deploying a node: [Deploy-Core](docs/versions/2.x/docs/Deploy-Core.md), plus the page for your platform ([Azure](docs/versions/2.x/docs/Deploy-Azure.md), [AWS](docs/versions/2.x/docs/Deploy-AWS.md), [GCP](docs/versions/2.x/docs/Deploy-GCP.md), [On-Premises](docs/versions/2.x/docs/Deploy-On-Premises.md)). Start with [Prerequisites](docs/versions/2.x/docs/Prerequisites.md).

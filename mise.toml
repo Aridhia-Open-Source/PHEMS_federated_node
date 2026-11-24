@@ -13,7 +13,7 @@ helm = "3.22.1"
 tilt = "0.37.8"
 # Flux CLI for `mise run flux` (ADR 0031)
 flux2 = "2.9.6"
-# SOPS-encrypted secrets in the site repository (`mise run flux sops-key`, GitOps-Delivery.md)
+# SOPS-encrypted secrets in the site repository (`mise run flux sops-key`, Flux-Secrets.md)
 sops = "3.13.3"
 age = "1.3.2"
 # scripts/devcontainer_check.sh: builds and starts the dev container without VS Code
@@ -130,7 +130,7 @@ esac
 '''
 
 # mise run flux publish VERSION | up | sops-key | status | down
-# Flux delivering the dev node from a test site repository in Gitea (scripts/flux.sh, GitOps-Delivery.md)
+# Flux delivering the dev node from a test site repository in Gitea (scripts/flux.sh, Flux-Dev-Loop.md)
 [tasks.flux]
 description = "Flux in the dev cluster: publish VERSION (chart to the kind registry), up (adopt the release from site-example), sops-key (load the age key Flux decrypts with), status, down"
 quiet = true

@@ -28,7 +28,7 @@ kubectl create secret generic fn-azure-storage -n federated-node \
   --from-literal=azurestorageaccountkey='<your-storage-account-key>'
 ```
 
-The chart copies it into the tasks namespace for you. Then point the chart at the secret and the share:
+Then point the chart at the secret and the share:
 
 ```yaml
 storage:
@@ -103,7 +103,7 @@ You have two choices.
 
 **Bring your own certificate.** Create the `tls` secret from [Deploy: Core](./Deploy-Core#3-create-the-namespace-and-the-secrets-you-must-provide) and set `tls.secretName`. Nothing else is needed.
 
-**Automatic renewal with cert-manager and Azure DNS.** The chart can issue and renew a Let's Encrypt certificate with a DNS-01 challenge against an Azure DNS zone. It needs a service principal with the *DNS Zone Contributor* role on the zone, and two objects in the release namespace that you create **before** you install. The install fails at the start, naming whichever is missing.
+**Automatic renewal with cert-manager and Azure DNS.** The chart can issue and renew a Let's Encrypt certificate with a DNS-01 challenge against an Azure DNS zone. It needs a service principal with the *DNS Zone Contributor* role on the zone, and two objects that you create **before** you install: the ConfigMap in the release namespace, and the secret in the cert-manager namespace (`cert-manager.namespace`), where the issuer reads it. The install fails at the start, naming whichever is missing.
 
 ```sh
 kubectl create secret generic fn-azure-ssl-sp -n federated-node \

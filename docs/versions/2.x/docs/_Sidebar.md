@@ -12,6 +12,9 @@
 - [Deploy on AWS (UNTESTED)](./Deploy-AWS)
 - [Deploy on GCP (UNTESTED)](./Deploy-GCP)
 - [Deploy on-premises (UNTESTED)](./Deploy-On-Premises)
+- [Deploy with Flux](./Deploy-With-Flux)
+  - [Flux secrets](./Flux-Secrets)
+  - [Flux site repository mirror](./Flux-Site-Repository-Mirror)
 - [Post-deploy testing](./Post-Deploy-Testing)
 - [Run locally](./Run-Locally)
 - [Auth setup](./Auth-Setup)
@@ -33,3 +36,4 @@
 **Development**
 - [Using fncli](./Using-fncli)
 - [Experiments](./Experiments)
+- [Flux dev loop](./Flux-Dev-Loop)
