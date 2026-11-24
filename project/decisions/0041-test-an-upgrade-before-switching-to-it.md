@@ -63,7 +63,7 @@ Building blocks shared by several options:
 
 ### Option 4: a throwaway copy with a copy of the production database
 
-- Flux first deploys the new version as a short-lived second release (ADR 0039) with its own in-cluster Postgres,
+- Flux first deploys the new version as a short-lived second release (ADR 0042) with its own in-cluster Postgres,
   filled from a `pg_dump` of production (nexus and Keycloak; records, not datasets, so minutes).
 - The migration and the test cases run on the copy; if green, the real release is upgraded (by Option 1 or 3);
   the copy and its data are deleted.
