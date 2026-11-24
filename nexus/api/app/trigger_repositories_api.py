@@ -24,12 +24,13 @@ from app.dtos.trigger_repository import (
     PullRequestBatchDTO, PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
 )
 from app.database.base_model import db
-from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.helpers.exceptions import InvalidRequest
 from app.repos.git_tokens import mint_token, require_token_allowed
 from app.rules.ownership import set_owner
 from app.repos.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.database.soft_delete import delete_global
-from app.helpers.wrappers import Caller, get_caller, system_only
+from app.rules.authz import SYSTEM_ONLY, Access, Action, Global
+from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
@@ -84,7 +85,7 @@ def get_pull_requests(repo_id: int):
 
 @router.post(
     '/{repo_id}/pull_requests', status_code=HTTPStatus.CREATED, response_model=PullRequestBatchDTO,
-    dependencies=[Depends(system_only)]
+    dependencies=SYSTEM_ONLY
 )
 def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dict)):
     """
@@ -113,7 +114,7 @@ def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dic
     }
 
 
-@router.post('/{repo_id}/token', response_model=GitTokenDTO, dependencies=[Depends(system_only)])
+@router.post('/{repo_id}/token', response_model=GitTokenDTO, dependencies=SYSTEM_ONLY)
 def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitTokenRequest)):
     """
     POST /global/repositories/triggers/<id>/token — a short-lived read token for the repository, minted from the
@@ -134,15 +135,19 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
 
 
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_repository(repo_id: int, force: bool = False):
+def delete_repository(
+    force: bool = False, *, repo: TriggerRepository = Depends(Access(model=TriggerRepository, action=Action.WRITE)),
+):
     """
     DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
     """
-    repo = TriggerRepository.get_by_id(repo_id)
     delete_global(repo, repo.project_assignments, force)
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO)
+@router.post(
+    '', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO,
+    dependencies=[Depends(Access(model=Global, action=Action.WRITE))],
+)
 def post_repository(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
@@ -177,7 +182,10 @@ def post_repository(body: dict = Body(default_factory=dict), caller: Caller = De
 
 
 @router.patch('/{repo_id}', response_model=TriggerRepositoryDTO)
-def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def patch_repository(
+    body: dict = Body(default_factory=dict), *,
+    repo: TriggerRepository = Depends(Access(model=TriggerRepository, action=Action.WRITE)),
+):
     """
     PATCH /global/repositories/triggers/<id> — update repository. The tasks created
     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
@@ -185,7 +193,6 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
     if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
     project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
     """
-    repo = TriggerRepository.get_by_id(repo_id)
 
     if not body:
         raise InvalidRequest("No fields provided to update")
@@ -193,8 +200,6 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
     if unknown:
         raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
     req = RepositoryPatchRequest.parse(body)
-    if 'revoked' in body and not caller.is_admin:
-        raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
 
     secret = repo.secret
     if 'secret_label' in body:

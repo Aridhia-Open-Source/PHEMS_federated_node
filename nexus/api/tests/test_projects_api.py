@@ -115,7 +115,7 @@ OPEN_ROUTES = {
 
 def needs_admin(route: RouteContext) -> bool:
     return any(
-        dep.dependency.__name__ == "_require_role"
+        getattr(dep.dependency, "__name__", "") == "_require_role"
         and "Users" not in inspect.getclosurevars(dep.dependency).nonlocals["roles"]
         for dep in route.dependencies
     )

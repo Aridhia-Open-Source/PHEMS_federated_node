@@ -2,7 +2,8 @@
 Entrypoint for nexus-api: uvicorn --factory app:create_app.
 Every router is registered here up front; a router module owns its routes and nothing else.
 Deny by default: every router needs an admin node role (or Dagster), except the ones in OPEN_ROUTERS.
-The Cedar policies (ADR 0037) are validated here: nexus-api does not start if they fail. On startup a new policy
+Every write route declares an Access check (ADR 0037): nexus-api does not start if one has none.
+The Cedar policies are validated here too: nexus-api does not start if they fail. On startup a new policy
 hash is recorded in policy_versions.
 """
 import logging
@@ -17,7 +18,7 @@ from app import (
     dagster_api, healthcheck_api, grants_api,
 )
 from app.errors import register_error_handlers
-from app.rules.authz import check_policies, record_policy_version
+from app.rules.authz import check_policies, record_policy_version, routes_without_access
 from app.helpers.wrappers import require_role
 from app.models.node_role import ADMIN_ROLES, NodeRole
 from app.middleware import JsonObjectBodyMiddleware, SessionMiddleware, TrailingSlashMiddleware
@@ -40,6 +41,17 @@ async def lifespan(_app: FastAPI):
     yield
 
 
+def routers() -> tuple:
+    """Every router, in the order they are included."""
+    return (
+        main.router, projects_api.router, datasets_api.router, tasks_api.router, results_api.router,
+        users_api.reset_password_router, users_api.router, trigger_repositories_api.router,
+        project_trigger_repositories_api.router, secrets_api.router, git_providers_api.router,
+        results_repositories_api.router, dagster_api.router, healthcheck_api.router, tasks_api.all_router,
+        *grants_api.routers,
+    )
+
+
 def create_app() -> FastAPI:
     check_policies()
     app = FastAPI(title="Federated Node", redirect_slashes=False, lifespan=lifespan)
@@ -49,13 +61,10 @@ def create_app() -> FastAPI:
     app.add_middleware(SessionMiddleware)
     app.add_middleware(TrailingSlashMiddleware)
 
-    for router in (
-        main.router, projects_api.router, datasets_api.router, tasks_api.router, results_api.router,
-        users_api.reset_password_router, users_api.router, trigger_repositories_api.router,
-        project_trigger_repositories_api.router, secrets_api.router, git_providers_api.router,
-        results_repositories_api.router, dagster_api.router, healthcheck_api.router, tasks_api.all_router,
-        *grants_api.routers,
-    ):
+    unchecked = routes_without_access(routers())
+    if unchecked:
+        raise RuntimeError(f"Routes without an Access check: {', '.join(unchecked)}")
+    for router in routers():
         gate = [Depends(require_role(*ADMIN_ROLES, NodeRole.DAGSTER))] if router not in OPEN_ROUTERS else None
         app.include_router(router, dependencies=gate)
     # After the routers: it adds the page and size parameters to every route whose response_model is a Page

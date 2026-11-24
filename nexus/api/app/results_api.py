@@ -13,7 +13,8 @@ from app.dtos.result import PullRequestResultDTO, dump_result
 from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.tasks.task_config import config_changes, results_resource, revoked_resources
-from app.helpers.wrappers import Caller, get_caller, system_only
+from app.rules.authz import SYSTEM_ONLY, Access, Action, Global
+from app.helpers.wrappers import Caller, get_caller
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.result_state import ResultState
@@ -95,7 +96,7 @@ def get_result(project_id: int, result_id: int, caller: Caller = Depends(get_cal
 
 @router.post(
     '/{project_id}/results', response_model=PullRequestResultDTO,
-    dependencies=[Depends(system_only)],
+    dependencies=SYSTEM_ONLY,
 )
 def post_result(
     project_id: int, response: Response, body: dict = Body(default_factory=dict),
@@ -186,7 +187,7 @@ def post_result(
 
 @router.patch(
     '/{project_id}/results/{result_id}', response_model=PullRequestResultDTO,
-    dependencies=[Depends(system_only)],
+    dependencies=SYSTEM_ONLY,
 )
 def patch_result(
     project_id: int, result_id: int, body: dict = Body(default_factory=dict),

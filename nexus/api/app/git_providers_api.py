@@ -14,9 +14,10 @@ from fastapi import APIRouter, Depends
 
 from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitProviderRequest
 from app.database.base_model import db
-from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.helpers.exceptions import InvalidRequest
 from app.rules.ownership import set_owner
 from app.repos.pull_request_fanout import skip_gap
+from app.rules.authz import Access, Action, Global
 from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
 
@@ -54,7 +55,10 @@ def get_provider(provider_id: int):
     return GitProviderDTO.from_model(GitProvider.get_by_id(provider_id))
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO)
+@router.post(
+    '', status_code=HTTPStatus.CREATED, response_model=GitProviderDTO,
+    dependencies=[Depends(Access(model=Global, action=Action.WRITE))],
+)
 def post_provider(req: GitProviderRequest, caller: Caller = Depends(get_caller)):
     """
     POST /global/providers/ — create a provider. The name and the uri are unique (409).
@@ -73,20 +77,20 @@ def post_provider(req: GitProviderRequest, caller: Caller = Depends(get_caller))
 
 
 @router.patch('/{provider_id}', response_model=GitProviderDTO)
-def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Caller = Depends(get_caller)):
+def patch_provider(
+    req: GitProviderPatchRequest, *,
+    provider: GitProvider = Depends(Access(model=GitProvider, action=Action.WRITE)),
+):
     """
     PATCH /global/providers/<id> — update a provider. The tasks created before
     are pinned to the old setup and fail instead of running against the new one. `revoked` (a boolean) withdraws
     the provider, and so every repository on it, from every project at once, or restores it, and does not
     change `enabled`: see helpers/task_config.revoked_resources.
     """
-    provider = GitProvider.get_by_id(provider_id)
 
     sent = req.model_fields_set
     if not sent:
         raise InvalidRequest("No fields provided to update")
-    if 'revoked' in sent and not caller.is_admin:
-        raise UnauthorizedError("Only an admin can revoke or re-grant a git provider")
 
     was_enabled, was_revoked = provider.enabled, provider.revoked
     try:
@@ -111,12 +115,11 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
 
 
 @router.delete('/{provider_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_provider(provider_id: int):
+def delete_provider(*, provider: GitProvider = Depends(Access(model=GitProvider, action=Action.WRITE))):
     """
     DELETE /global/providers/<id> — delete the provider. Refused with a 409 while a repository
     is on it.
     """
-    provider = GitProvider.get_by_id(provider_id)
     users = len(provider.trigger_repositories) + len(provider.results_repositories)
     if users:
         raise InvalidRequest(

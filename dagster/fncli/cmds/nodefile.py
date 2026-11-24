@@ -17,7 +17,7 @@ import requests
 from dotenv import load_dotenv
 
 from fncli.backend import FncliBackendAPI
-from fncli.cmds.common import BackendConfig, GiteaConfig, build_backend_api, build_gitea_api, find_under
+from fncli.cmds.common import BackendConfig, GiteaConfig, build_admin_backend_api, build_gitea_api, find_under
 from fncli.k8s import current_context
 from fncli.nodefile.apply import Applier, describe_error, missing_sources, needs_gitea, to_do, with_rotations
 from fncli.nodefile.delete import DELETE, Remover, deletions, refusal
@@ -124,7 +124,8 @@ def step_project_option(command):
 
 def open_target(context: Context, err: bool = False) -> FncliBackendAPI:
     """
-    A backend client for the context's node. Refuses unless kubectl points at the node's cluster, loads the node's env
+    A backend client for the context's node, logged in as the first admin (applying config needs `write` on Global,
+    which Dagster lacks). Refuses unless kubectl points at the node's cluster, loads the node's env
     file, and says which node it is first (on stderr with err, for a command whose output is piped).
     """
     node = context.node
@@ -138,7 +139,7 @@ def open_target(context: Context, err: bool = False) -> FncliBackendAPI:
             raise click.ClickException(f"node.env_file {node.env_file} not found from {context.path} up")
         load_dotenv(node.env_file, override=True)
     click.echo(f"Node {node.url}, kubectl context {node.kube_context}\n", err=err)
-    return build_backend_api(BackendConfig(node=node))
+    return build_admin_backend_api(BackendConfig(node=node))
 
 
 def announce_defaults(context: Context, used: list[str], err: bool = False):

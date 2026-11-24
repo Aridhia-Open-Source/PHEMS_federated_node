@@ -18,12 +18,13 @@ from app.dtos.git_token import GitTokenDTO, GitTokenRequest
 from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.database.base_model import db
-from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.helpers.exceptions import InvalidRequest
 from app.repos.git_tokens import mint_token, require_token_allowed
 from app.rules.ownership import set_owner
 from app.database.soft_delete import delete_global
 from app.tasks.task_config import results_resource
-from app.helpers.wrappers import Caller, get_caller, system_only
+from app.rules.authz import SYSTEM_ONLY, Access, Action, Global
+from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
@@ -51,7 +52,7 @@ def get_repository(repo_id: int):
     return ResultsRepositoryDTO.from_model(repo)
 
 
-@router.post('/{repo_id}/token', response_model=GitTokenDTO, dependencies=[Depends(system_only)])
+@router.post('/{repo_id}/token', response_model=GitTokenDTO, dependencies=SYSTEM_ONLY)
 def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitTokenRequest)):
     """
     POST /global/repositories/results/<id>/token — a short-lived write token for the repository, minted from the
@@ -70,15 +71,19 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
 
 
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_repository(repo_id: int, force: bool = False):
+def delete_repository(
+    force: bool = False, *, repo: ResultsRepository = Depends(Access(model=ResultsRepository, action=Action.WRITE)),
+):
     """
     DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
     """
-    repo = ResultsRepository.get_by_id(repo_id)
     delete_global(repo, repo.project_assignments, force)
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=ResultsRepositoryDTO)
+@router.post(
+    '', status_code=HTTPStatus.CREATED, response_model=ResultsRepositoryDTO,
+    dependencies=[Depends(Access(model=Global, action=Action.WRITE))],
+)
 def post_repository(req: RepositoryRequest, caller: Caller = Depends(get_caller)):
     """
     POST /global/repositories/results/ — create a new repository, assigned to no project yet. project_id
@@ -108,7 +113,10 @@ def post_repository(req: RepositoryRequest, caller: Caller = Depends(get_caller)
 
 
 @router.patch('/{repo_id}', response_model=ResultsRepositoryDTO)
-def patch_repository(repo_id: int, req: RepositoryPatchRequest, caller: Caller = Depends(get_caller)):
+def patch_repository(
+    req: RepositoryPatchRequest, *,
+    repo: ResultsRepository = Depends(Access(model=ResultsRepository, action=Action.WRITE)),
+):
     """
     PATCH /global/repositories/results/<id> — update repository. The tasks created
     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
@@ -116,13 +124,10 @@ def patch_repository(repo_id: int, req: RepositoryPatchRequest, caller: Caller =
     if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
     project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
     """
-    repo = ResultsRepository.get_by_id(repo_id)
 
     sent = req.model_fields_set
     if not sent:
         raise InvalidRequest("No fields provided to update")
-    if 'revoked' in sent and not caller.is_admin:
-        raise UnauthorizedError("Only an admin can revoke or re-grant a results repository")
 
     secret = repo.secret
     if 'secret_label' in sent:

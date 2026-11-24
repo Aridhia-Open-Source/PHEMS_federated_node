@@ -29,6 +29,12 @@
   - `nexus/api/authz/`: `policies.cedar` (the standard rules: grants, admins and the operator create global records, admins read and assign any global record, Dagster reads everything, SuperUser skips grants, no tasks on a revoked dataset), `schema.cedarschema` and `cases.yaml` (allow and deny cases run in pytest).
   - nexus-api refuses to start if the policies fail the schema, and records each new policy hash in `policy_versions`.
   - Grant changes are checked by Cedar's `manage` action instead of Python.
+- Write routes enforce grants through Cedar ([#685](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/685), ADR 0037):
+  - Every POST, PUT, PATCH and DELETE route declares an `Access` check; nexus-api refuses to start if one has none. A deny is a 409 naming the record's owner.
+  - Creating a global record or a project needs `write` on `Global` (admins and the operator). Changing or deleting one needs `write` on it. A project's resources need `write` on the project; turning the project, or its dataset, trigger or results repository assignments, on or off (and backfill) needs only `operate`. Assigning and unassigning also need `assign` on the global record (admins have it on every one).
+  - `revoked` is a plain `write`, no longer an admin role check.
+  - Tasks from the API need `execute` on the project and on the task's dataset; nobody, the SuperUser included, runs a task on a revoked dataset. Retry, cancel, approve and block need `write` on the project.
+  - Dagster may write only its pipeline state (the system-only routes). `POST /global/users` and the sensor switches need an admin role. fncli applies node files and sets state as the first admin.
 
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller

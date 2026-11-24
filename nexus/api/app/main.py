@@ -6,14 +6,16 @@ These won't have any restrictions and won't go through
 from http import HTTPStatus
 
 import requests
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.dtos.healthcheck import NodeHealthDTO
+from app.rules.authz import Access, Action
 from app.helpers.exceptions import AuthenticationError, InvalidRequest
 from app.clients.keycloak import URLS, user_tokens
 
-router = APIRouter(tags=["main"])
+# Unchecked: probes and getting a token, before there is a caller
+router = APIRouter(tags=["main"], dependencies=[Depends(Access(action=Action.UNCHECKED))])
 
 
 @router.get('/', include_in_schema=False)

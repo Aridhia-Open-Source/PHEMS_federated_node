@@ -12,12 +12,12 @@ from app.models.grant import Grant
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.user import User
-from tests.conftest import claims_for
+from tests.conftest import ADMIN_UUID, claims_for
 
 PROV = "/global/providers"
 # token -> the Keycloak user it verifies to, and its node role
 USERS = {
-    "admin_token": {"id": "id-admin", "username": "admin", "role": "Administrator"},
+    "admin_token": {"id": ADMIN_UUID, "username": "admin", "role": "Administrator"},
     "person_token": {"id": "id-person", "username": "person", "role": "Administrator"},
     "service_token": {"id": "id-svc", "username": "svc", "role": "Service"},
 }
@@ -111,6 +111,11 @@ def test_an_operator_record_is_owned_by_its_account_and_managed_by_the_service_g
 
 def test_a_project_resource_has_a_creator_and_no_grants(client, callers, global_dataset):
     project_id = client.post("/projects", json={"name": "owned"}, headers=as_("service_token")).json()["id"]
+    # The dataset is admin's: the operator needs assign on it
+    client.post(
+        f"/global/datasets/{global_dataset.id}/grants", headers=as_("admin_token"),
+        json={"relation": "assign", "subject_type": "group", "subject_id": "/roles/service"},
+    )
     response = client.put(f"/projects/{project_id}/datasets/{global_dataset.id}", json={}, headers=as_("service_token"))
 
     assert response.status_code == 201
@@ -119,7 +124,9 @@ def test_a_project_resource_has_a_creator_and_no_grants(client, callers, global_
     project = Project.get_by_id(project_id)
     assert (project.created_by_id, project.owned_by_id) == ("id-svc", "id-svc")
     assert ProjectDataset.query.filter_by(project_id=project_id).one().created_by_id == "id-svc"
-    assert Grant.query.count() == 1
+    # Grants on the project and the global records, none on the assignment
+    assert "ProjectDataset" not in {g.object_type for g in Grant.query}
+    assert Grant.query.filter_by(object_type="Project", object_id=project_id).count() == 1
 
 
 def test_deleting_a_record_deletes_its_grants(client, callers):
@@ -202,15 +209,18 @@ def every_owned_record(
     }
 
 
-@pytest.mark.skip(reason="owner groups removed; the check lands with Cedar (auth/6 #687)")
 @pytest.mark.parametrize("method,path", list(OWNED_WRITE_ROUTES), ids=[f"{m} {p}" for m, p in OWNED_WRITE_ROUTES])
-def test_a_write_to_a_record_locked_to_another_group_is_a_409(client, callers, every_owned_record, method, path):
+def test_a_write_without_a_grant_is_a_409_and_changes_nothing(client, callers, every_owned_record, method, path):
+    """The records are admin's; person is an admin too, with no grant on any of them."""
     params = dict(every_owned_record)
     if path.startswith("/global/repositories/results/"):
         params["repo_id"] = params["results_repo_id"]
-    body = OWNED_WRITE_ROUTES[(method, path)]
+    url = path.format(**params)
+    before = client.get(url, headers=as_("admin_token")).json()
 
-    response = client.request(method, path.format(**params), json=body, headers=as_("admin_token"))
+    response = client.request(method, url, json=OWNED_WRITE_ROUTES[(method, path)], headers=as_("person_token"))
 
     assert response.status_code == 409, response.json()
-    assert "owned by" in response.json()["error"]
+    assert "owned by admin" in response.json()["error"]
+    db.session.expire_all()
+    assert client.get(url, headers=as_("admin_token")).json() == before

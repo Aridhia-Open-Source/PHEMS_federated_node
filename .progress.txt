@@ -22,14 +22,23 @@ Open issues: (1) the public /keycloak route keeps the prefix but Keycloak has no
 2026-11-22 20:18 review: m004 removed, backchannel back to false, keycloakHostnameUrl, NodeRole enum, AccessTokenConfig (pydantic-settings), AccessTokenVerifier, Caller DTO, NewUserRequest; running targeted tests
 2026-11-22 20:25 review fixes done: targeted tests 73 pass, helm 232 pass (baseline moved again), openapi + schema.d.ts regenerated, typecheck clean; pushing
 2026-11-22 20:26 review replies posted, PR body updated, ready-for-review on, xo done; CI 45066353004 running
-start: read brief
-added cedarpy, pip-compiled
-wrote schema, policies, cases.yaml, authz.py, startup, grants_api swap
-tests green locally (authz, grants, users); committing
-pushed bd2088751, PR body + guide + ready-for-review; told phems/auth; CI running
-merged feat/grants-schema-api (Caller DTO, NodeRole), tests green, pushed
-CI failed: authz/ missing from images (.dockerignore); fixed, pushed
-realm version check 4 -> 3, pushed
-HANDOVER (parked at 95% usage): all code for #687 pushed (last 82bcb0349). CI run on 82bcb0349 in progress, not yet green. Next: check that run (gh run list --branch feat/cedar-setup); if red, fix locally with only the changed files' tests and push. Then status done + xo sync.
-CI green on 82bcb0349; status done
-merged feat/grants-schema-api (only .progress.txt conflicted, kept ours); tests green; pushed for CI
+2026-11-22 20:20 T-072 start: read brief and orchestrator note; merging latest feat/cedar-setup
+2026-11-22 20:23 design settled (advisor): Access dependency, require(), operate on toggles, Users gate unchanged until #688; coding
+2026-11-22 20:27 all write routes annotated (Access/require/SYSTEM_ONLY/UNCHECKED); app starts; test ids split per token; first local suite run
+2026-11-22 20:34 access tests pass (route walk, unchecked snapshot, grants/operate/assign/execute); starting full local suite
+2026-11-22 20:37 PR body guide written, ready-for-review label on; waiting on local suite
+2026-11-22 20:38 phems/auth: dagster-develop merge coming down the stack; pull before next push
+2026-11-22 20:39 phems/auth: feat/cedar-setup will change (Caller/NodeRole moves); merge it only when told
+2026-11-22 20:36 chunk 1 pushed (54d093427), CI started, guide posted
+2026-11-22 20:59 merged origin/feat/cedar-setup (Caller -> app/dtos/caller.py, NodeRole); rewrote test_system_user_routes for Cedar; relevant tests 379 passed
+2026-11-22 21:00 merge pushed, guide posted; xo done; CI on the push is the gate
+2026-11-22 21:07 realm state test expects version 3; pushed
+
+## Handover (2026-11-22, parked for usage cap)
+State: auth/7 #685 code complete and pushed (last b88702ff6). Access on every write route, startup walk, operate/assign/execute checks, fncli node files as admin, openapi.json + schema.d.ts regenerated, changelog, guides in PR body and comments, label review:ready. Relevant unit tests pass locally (379).
+Waiting on: CI for b88702ff6 (full suites).
+Next step: read CI; if it fails, fix locally (run only the failing files), push, tell phems/auth. Watch dagster fncli tests (test_nodefile_plan now patches build_admin_backend_api) and any nexus-api tests outside the access files that write fixture records as a non-owner.
+Not done on purpose: Users stay out of the router role gate until #688 checks reads.
+2026-11-22 21:35 resumed: CI 45070340079 failed 2 tests (admin-gate walk read Access.__name__; launch contract sample had no dataset owner); fixed, pushing for CI
+2026-11-22 21:35 PR body whole-PR guide rewritten; waiting on CI for fea1c9c88
+2026-11-22 21:36 merged origin/feat/cedar-setup (only .dockerignore changes), pushing for CI

@@ -18,7 +18,8 @@ from fastapi_pagination import Page
 from app.dtos.base import page_of
 from app.dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
 from app.database.base_model import db
-from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.rules.authz import Access, Action, Global
+from app.helpers.exceptions import InvalidRequest
 from app.rules.ownership import set_owner
 from app.database.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller
@@ -65,7 +66,10 @@ def _reject_taken_name(name: str, own_id: int | None = None):
         raise InvalidRequest(f"Dataset {name} already exists", HTTPStatus.CONFLICT)
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=DatasetDTO)
+@router.post(
+    '', status_code=HTTPStatus.CREATED, response_model=DatasetDTO,
+    dependencies=[Depends(Access(model=Global, action=Action.WRITE))],
+)
 def post_datasets(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
@@ -102,33 +106,31 @@ def get_dataset(dataset_id: int):
 
 
 @router.delete('/{dataset_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_dataset(dataset_id: int, force: bool = False):
+def delete_dataset(force: bool = False, *, ds: Dataset = Depends(Access(model=Dataset, action=Action.WRITE))):
     """
     DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
         unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
-        other datasets may share it. Admin only.
+        other datasets may share it.
     """
-    ds = Dataset.get_by_id(dataset_id)
     delete_global(ds, ds.project_assignments, force)
 
 
 @router.patch('/{dataset_id}', response_model=DatasetDTO)
-def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def patch_dataset(
+    body: dict = Body(default_factory=dict), *, ds: Dataset = Depends(Access(model=Dataset, action=Action.WRITE)),
+):
     """
     PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. The tasks created before
     are pinned to the old setup and fail instead of running against the new one. Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
     one already in use. Enabling the dataset is a 409 while its secret (the new one, if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the dataset from every project at once, or restores it:
     the tasks that use it fail and nothing of theirs is delivered while it is revoked. It does not change `enabled`.
     """
-    ds = Dataset.get_by_id(dataset_id)
 
     _reject_project(body)
     _reject_credentials(body)
     req = DatasetPatchRequest.parse(body)
     if not req.model_fields_set:
         raise InvalidRequest("No field to update")
-    if req.revoked is not None and not caller.is_admin:
-        raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
     fields = req.model_dump(exclude_unset=True, exclude={"secret_label"})
     if req.name is not None:
         _reject_taken_name(req.name, ds.id)

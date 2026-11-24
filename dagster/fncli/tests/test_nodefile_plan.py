@@ -36,7 +36,7 @@ def context_file(tmp_path, monkeypatch):
 def run_plan(tmp_path, monkeypatch):
     """Run `fncli plan` on a node file against a faked backend state"""
     monkeypatch.setattr(nodefile, "current_context", lambda: "kind-fn")
-    monkeypatch.setattr(nodefile, "build_backend_api", lambda config: None)
+    monkeypatch.setattr(nodefile, "build_admin_backend_api", lambda config: None)
 
     def run(data, state, *args, **node):
         write_context(tmp_path, monkeypatch, **node)
@@ -159,7 +159,7 @@ def test_the_file_comes_from_the_option_or_the_env_never_a_search(run_plan, tmp_
     path = tmp_path / "plan.yaml"
     path.write_text(yaml.safe_dump(node_data()))
     monkeypatch.setattr(nodefile, "current_context", lambda: "kind-fn")
-    monkeypatch.setattr(nodefile, "build_backend_api", lambda config: None)
+    monkeypatch.setattr(nodefile, "build_admin_backend_api", lambda config: None)
     monkeypatch.setattr(nodefile, "read_state", lambda api: EMPTY)
     monkeypatch.setenv("FNCLI_NODE_FILE", str(path))
     assert CliRunner().invoke(cli, ["plan"]).exit_code == 0
@@ -172,7 +172,7 @@ def test_a_file_path_is_also_looked_up_under_bootstrap_from_here_up(tmp_path, mo
     (tmp_path / "dagster").mkdir()
     monkeypatch.chdir(tmp_path / "dagster")
     monkeypatch.setattr(nodefile, "current_context", lambda: "kind-fn")
-    monkeypatch.setattr(nodefile, "build_backend_api", lambda config: None)
+    monkeypatch.setattr(nodefile, "build_admin_backend_api", lambda config: None)
     monkeypatch.setattr(nodefile, "read_state", lambda api: EMPTY)
 
     assert CliRunner().invoke(cli, ["plan", "-f", "foo/foo-plan.yaml"]).exit_code == 0
@@ -206,7 +206,7 @@ def test_the_context_is_the_option_the_env_or_bootstrap_context_yaml_from_here_u
     monkeypatch.chdir(tmp_path / "dagster")
     monkeypatch.delenv("FNCLI_CONTEXT")
     monkeypatch.setattr(nodefile, "current_context", lambda: "kind-fn")
-    monkeypatch.setattr(nodefile, "build_backend_api", lambda config: None)
+    monkeypatch.setattr(nodefile, "build_admin_backend_api", lambda config: None)
     monkeypatch.setattr(nodefile, "read_state", lambda api: EMPTY)
 
     result = CliRunner().invoke(cli, ["plan", "-f", str(plan_file)])
@@ -246,7 +246,7 @@ def test_the_backend_clients_info_logs_stay_out_of_the_plan_and_the_level_is_res
     path = tmp_path / "plan.yaml"
     path.write_text(yaml.safe_dump(node_data()))
     monkeypatch.setattr(nodefile, "current_context", lambda: "kind-fn")
-    monkeypatch.setattr(nodefile, "build_backend_api", lambda config: None)
+    monkeypatch.setattr(nodefile, "build_admin_backend_api", lambda config: None)
     monkeypatch.setattr(nodefile, "read_state", noisy_read_state)
     before = logging.getLogger("nexus_client").level
 
