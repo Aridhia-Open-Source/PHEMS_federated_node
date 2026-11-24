@@ -8,8 +8,8 @@ nexus-api, Dagster, the operator, fncli and kc-init each call the same systems: 
 Kubernetes and the git providers. Each had its own copy of the client code, with its own timeouts, retries and error
 types. `nexus_client` (in `nexus/client`) already shared the nexus-api client between Dagster, fncli and the operator,
 but nexus-api kept a separate outbound layer (0038) because depending on `nexus_client` seemed too heavy for about 60
-lines. Since then the copies have grown: three Keycloak logins, two Dagster clients, two git clients, four mounted
-secret readers.
+lines. Since then the copies have grown: Keycloak logins, Dagster clients, git clients and mounted secret readers
+each exist in more than one service.
 
 Settings drifted the same way. Each service read env vars under its own names (`NEXUS_API_URL`, `DAGSTER_KC_*`,
 `OPERATOR_KC_*`, `KEYCLOAK_*`, `PGHOST`, `NEXUS_DB_*`), so the same setting had several names, and chart values did
