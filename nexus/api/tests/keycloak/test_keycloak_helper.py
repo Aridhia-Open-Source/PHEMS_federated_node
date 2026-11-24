@@ -2,9 +2,9 @@ import pytest
 from pytest import fixture
 import responses
 from responses import matchers
+from app.config import settings
 from app.helpers.exceptions import KeycloakError
 from app.clients.keycloak import (
-    KEYCLOAK_SERVICE_USER,
     URLS,
     Keycloak,
     keycloak_service_password,
@@ -37,7 +37,7 @@ class TestKeycloakMixin:
                     {
                         'client_id': 'admin-cli',
                         'grant_type': 'password',
-                        'username': KEYCLOAK_SERVICE_USER,
+                        'username': settings.keycloak.service_user,
                         'password': keycloak_service_password()
                     }
                 ),
@@ -54,7 +54,7 @@ class TestKeycloakMixin:
                         'client_id': 'global',
                         'client_secret': 'clientsecret',
                         'grant_type': 'password',
-                        'username': KEYCLOAK_SERVICE_USER,
+                        'username': settings.keycloak.service_user,
                         'password': keycloak_service_password()
                     }
                 ),

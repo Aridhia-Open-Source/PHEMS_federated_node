@@ -8,30 +8,15 @@ import requests
 from base64 import b64encode
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
+from app.config import settings
 
 logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
 
 PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
 
-KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
-KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")
-REALM = os.getenv("KEYCLOAK_REALM", "FederatedNode")
-KEYCLOAK_CLIENT = os.getenv("KEYCLOAK_CLIENT", "global")
-# `admin` is the operator's Keycloak console account. It is kept here only so the user list can
-# filter it out -- nothing authenticates as it. Its password is operator-owned and may change at
-# any time, so relying on it would make the backend break whenever an operator rotated it.
-KEYCLOAK_ADMIN = os.getenv("KEYCLOAK_ADMIN")
-# The platform's service account. Holds Super Administrator in the FederatedNode realm, which is
-# exactly what the `admin` realm user used to hold, so the permissions are unchanged.
-KEYCLOAK_SERVICE_USER = os.getenv("KEYCLOAK_SERVICE_USER", "fn-service")
 
-# kc-secrets is mounted as a directory (see the chart's kcSecretsMountPath helper) rather than
-# injected via envFrom, so that a credential rotation reaches this process without a restart.
-KC_SECRETS_PATH = os.getenv("KC_SECRETS_PATH", "/etc/secrets/kc")
-
-
-def read_secret(name: str, default: str = "") -> str:
+def read_secret(name: str, fallback: str) -> str:
     """
     Read a credential, preferring the mounted file over the environment.
 
@@ -39,42 +24,27 @@ def read_secret(name: str, default: str = "") -> str:
     a directory; a `subPath` mount is never updated. Reads are from tmpfs, so doing this per call is
     cheap.
 
-    Falls back to the environment so local runs and docker-compose, which have no mount, keep
-    working unchanged.
+    Falls back to `fallback`, the value from the environment, so local runs and docker-compose, which
+    have no mount, keep working unchanged.
     """
     try:
-        with open(os.path.join(KC_SECRETS_PATH, name), encoding="utf-8") as handle:
+        with open(os.path.join(settings.keycloak.secrets_path, name), encoding="utf-8") as handle:
             return handle.read().strip()
     except FileNotFoundError:
-        return os.getenv(name, default)
+        return fallback
     except OSError as exc:
         logger.warning("Could not read secret %s (%s), falling back to the environment", name, exc)
-        return os.getenv(name, default)
+        return fallback
 
 
 def keycloak_secret() -> str:
     """The `global` client secret."""
-    return read_secret("KEYCLOAK_SECRET")
+    return read_secret("KEYCLOAK_SECRET", settings.keycloak.secret)
 
 
 def keycloak_service_password() -> str:
-    return read_secret("KEYCLOAK_SERVICE_PASSWORD")
+    return read_secret("KEYCLOAK_SERVICE_PASSWORD", settings.keycloak.service_password)
 
-
-# How long a service-account token may be reused, in seconds. 0 disables caching.
-#
-# Without this, every Keycloak() instantiation performs a fresh password grant, and a single request
-# builds several Keycloak objects -- so a brief authentication outage during a credential rotation
-# turns into a total outage rather than a few failed calls. Defaults to off so the existing test
-# suite, which mocks the token endpoint per test, is unaffected; the chart enables it in production.
-TOKEN_CACHE_TTL = int(os.getenv("KEYCLOAK_TOKEN_CACHE_TTL", "0"))
-
-# How many times to retry a service-account login before giving up, and how long to wait between
-# attempts. Passwords have no dual-credential grace period in Keycloak (unlike client secrets), so
-# during a rotation there is a brief cutover where the credential on disk and the one Keycloak holds
-# disagree. Re-reading and retrying rides over the instant of changeover.
-SERVICE_LOGIN_ATTEMPTS = int(os.getenv("KEYCLOAK_SERVICE_LOGIN_ATTEMPTS", "3"))
-SERVICE_LOGIN_BACKOFF = float(os.getenv("KEYCLOAK_SERVICE_LOGIN_BACKOFF", "1.5"))
 
 # Keyed by the credential itself, so a rotated password can never hit a token minted with the old
 # one -- the key simply stops matching.
@@ -87,7 +57,7 @@ def clear_token_cache():
 
 
 def _cached_token(cache_key: tuple):
-    if TOKEN_CACHE_TTL <= 0:
+    if settings.keycloak.token_cache_ttl <= 0:
         return None
     entry = _token_cache.get(cache_key)
     if entry and entry["expires_at"] > time.monotonic():
@@ -96,30 +66,30 @@ def _cached_token(cache_key: tuple):
 
 
 def _store_token(cache_key: tuple, token: str):
-    if TOKEN_CACHE_TTL > 0:
+    if settings.keycloak.token_cache_ttl > 0:
         _token_cache[cache_key] = {
             "token": token,
-            "expires_at": time.monotonic() + TOKEN_CACHE_TTL,
+            "expires_at": time.monotonic() + settings.keycloak.token_cache_ttl,
         }
 
 
 URLS = {
-    "health_check": f"{KEYCLOAK_URL}/realms/master",
-    "get_token": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token",
-    "validate": f"{KEYCLOAK_URL}/realms/{REALM}/protocol/openid-connect/token/introspect",
-    "client": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients",
-    "client_secret": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/client-secret",
-    "client_exchange": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/management/permissions",
-    "client_auth": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server",
-    "roles": f"{KEYCLOAK_URL}/admin/realms/{REALM}/roles",
-    "policies": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy",
-    "scopes": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/scope",
-    "resource": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/resource",
-    "permission": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/permission/scope",
-    "permissions_check": f"{KEYCLOAK_URL}/admin/realms/{REALM}/clients/%s/authz/resource-server/policy/evaluate",
-    "user": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users",
-    "user_role": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/role-mappings/realm",
-    "user_reset": f"{KEYCLOAK_URL}/admin/realms/{REALM}/users/%s/reset-password"
+    "health_check": f"{settings.keycloak.url}/realms/master",
+    "get_token": f"{settings.keycloak.url}/realms/{settings.keycloak.realm}/protocol/openid-connect/token",
+    "validate": f"{settings.keycloak.url}/realms/{settings.keycloak.realm}/protocol/openid-connect/token/introspect",
+    "client": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/clients",
+    "client_secret": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/clients/%s/client-secret",
+    "client_exchange": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/clients/%s/management/permissions",
+    "client_auth": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/clients/%s/authz/resource-server",
+    "roles": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/roles",
+    "policies": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/clients/%s/authz/resource-server/policy",
+    "scopes": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/clients/%s/authz/resource-server/scope",
+    "resource": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/clients/%s/authz/resource-server/resource",
+    "permission": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/clients/%s/authz/resource-server/permission/scope",
+    "permissions_check": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/clients/%s/authz/resource-server/policy/evaluate",
+    "user": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/users",
+    "user_role": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/users/%s/role-mappings/realm",
+    "user_reset": f"{settings.keycloak.url}/admin/realms/{settings.keycloak.realm}/users/%s/reset-password"
 }
 
 
@@ -152,7 +122,7 @@ class Keycloak:
         """
         acpayload = {
             'client_secret': keycloak_secret(),
-            'client_id': KEYCLOAK_CLIENT,
+            'client_id': settings.keycloak.client,
             'grant_type': 'refresh_token',
             'refresh_token': token
         }
@@ -170,7 +140,7 @@ class Keycloak:
 
         payload = {
             'client_secret': keycloak_secret(),
-            'client_id': KEYCLOAK_CLIENT,
+            'client_id': settings.keycloak.client,
             'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
             'requested_token_type': 'urn:ietf:params:oauth:token-type:access_token',
             'subject_token': access_token,
@@ -195,12 +165,12 @@ class Keycloak:
         """
         payload = {
             'client_secret': keycloak_secret(), # Target client
-            'client_id': KEYCLOAK_CLIENT, #Target client
+            'client_id': settings.keycloak.client, #Target client
             'grant_type': 'urn:ietf:params:oauth:grant-type:token-exchange',
             'requested_token_type': 'urn:ietf:params:oauth:token-type:refresh_token',
             'subject_token': self.get_admin_token_global(),
             'requested_subject': user_id,
-            'audience': KEYCLOAK_CLIENT
+            'audience': settings.keycloak.client
         }
         exchange_resp = requests.post(
             URLS["get_token"],
@@ -319,7 +289,7 @@ class Keycloak:
             return cached
 
         last_error = None
-        for attempt in range(1, SERVICE_LOGIN_ATTEMPTS + 1):
+        for attempt in range(1, settings.keycloak.service_login_attempts + 1):
             # Rebuilt per attempt so the credential is genuinely re-read from the mounted file.
             payload = build_payload()
             try:
@@ -331,13 +301,13 @@ class Keycloak:
             except AuthenticationError as exc:
                 last_error = exc
                 clear_token_cache()
-                if attempt < SERVICE_LOGIN_ATTEMPTS:
+                if attempt < settings.keycloak.service_login_attempts:
                     logger.warning(
                         "Service account login failed (attempt %s/%s). Retrying in %ss -- a "
                         "credential rotation may be in progress.",
-                        attempt, SERVICE_LOGIN_ATTEMPTS, SERVICE_LOGIN_BACKOFF
+                        attempt, settings.keycloak.service_login_attempts, settings.keycloak.service_login_backoff
                     )
-                    time.sleep(SERVICE_LOGIN_BACKOFF)
+                    time.sleep(settings.keycloak.service_login_backoff)
         raise last_error
 
     def get_admin_token_global(self) -> str:
@@ -346,10 +316,10 @@ class Keycloak:
         """
         logger.info("get_admin_token_global")
         return self._service_login("global", lambda: {
-            'client_id': KEYCLOAK_CLIENT,
+            'client_id': settings.keycloak.client,
             'client_secret': keycloak_secret(),
             'grant_type': 'password',
-            'username': KEYCLOAK_SERVICE_USER,
+            'username': settings.keycloak.service_user,
             'password': keycloak_service_password()
         })
 
@@ -360,7 +330,7 @@ class Keycloak:
         return self._service_login("admin-cli", lambda: {
             'client_id': 'admin-cli',
             'grant_type': 'password',
-            'username': KEYCLOAK_SERVICE_USER,
+            'username': settings.keycloak.service_user,
             'password': keycloak_service_password()
         })
 

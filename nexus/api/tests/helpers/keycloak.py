@@ -3,9 +3,10 @@
 # but this way we can also test keycloak's configuration
 import requests
 
-from app.clients.keycloak import KEYCLOAK_SERVICE_USER, Keycloak, URLS
+from app.config import settings
+from app.clients.keycloak import Keycloak, URLS
 
-PROTECTED_USERNAMES = {"admin", KEYCLOAK_SERVICE_USER}
+PROTECTED_USERNAMES = {"admin", settings.keycloak.service_user}
 
 def clean_kc():
     """
