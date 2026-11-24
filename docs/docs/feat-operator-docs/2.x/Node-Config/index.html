@@ -1007,6 +1007,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#who-may-use-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who may use it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#check-it" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1492,6 +1503,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#who-may-use-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who may use it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#check-it" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1552,7 +1574,8 @@
 <li>The chart turns each <code>nodeConfig</code> entry into a Kubernetes custom resource of group <code>fn.aridhia.com/v1alpha1</code>: <code>GitProvider</code>, <code>NodeSecret</code>, <code>Repository</code>, <code>Dataset</code> or <code>Project</code>.</li>
 <li>They live in the operator's own namespace, <code>fn-operator</code> (<code>global.namespaces.operator</code>), never the release namespace.</li>
 <li>The operator watches them. For each one it creates or updates the record in nexus-api, and on removal soft-deletes it.</li>
-<li>It logs in to nexus-api as its own Keycloak user, <code>fn-operator</code> (an Administrator for now). The chart generates its password, and the credential rotation job rotates it.</li>
+<li>It logs in to nexus-api as its own Keycloak user, <code>fn-operator</code>, with the <code>Service</code> role. The chart generates its password, and the credential rotation job rotates it.</li>
+<li>The records it creates are managed by the group <code>/roles/service</code>, so only the operator (and the superuser) may change them. Admins can still read them and assign them to projects.</li>
 <li>Without the operator, set the node up through the API instead: <a href="../Set-Up-A-Project/">Set up a project</a>. Do not mix the two for the same record.</li>
 </ul>
 <h2 id="turn-it-on">Turn it on<a class="headerlink" href="#turn-it-on" title="Permanent link">&para;</a></h2>
@@ -1624,7 +1647,21 @@
 </table>
 <p>Flux is optional: <code>helm upgrade</code> by hand with the same values does the same.</p>
 <p>Removal is never forced. A global record that a project still uses is refused by nexus-api; its resource stays <code>Terminating</code>, with the reason in <code>Message</code>, and the operator retries every minute. Remove the project's use of it first.</p>
-<p>Edits made in the UI or the API stay until the resource next changes, when the operator writes its own values back.</p>
+<p>An edit in the UI or the API to a record the operator manages is refused (409): change it in git. A record someone made by hand before is theirs, so the operator cannot adopt it until the superuser re-assigns it to the operator's account (<code>PUT &lt;record path&gt;/owner</code>); until then the resource shows the 409 in <code>Message</code>.</p>
+<h2 id="who-may-use-it">Who may use it<a class="headerlink" href="#who-may-use-it" title="Permanent link">&para;</a></h2>
+<p>Any entry can list Keycloak groups and what each may do with the record:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">nodeConfig</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">projects</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cohort-study</span>
+<span class="w">      </span><span class="nt">access</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="nv">/studies/uc1</span><span class="p p-Indicator">,</span><span class="nt"> relation</span><span class="p">:</span><span class="w"> </span><span class="nv">read</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="nv">/studies/uc1-analysts</span><span class="p p-Indicator">,</span><span class="nt"> relation</span><span class="p">:</span><span class="w"> </span><span class="nv">execute</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<ul>
+<li><code>group</code> is the group's full path in Keycloak, starting with <code>/</code>. Membership stays in Keycloak or the hospital's directory; git names only groups.</li>
+<li><code>relation</code> is one of <code>read</code>, <code>assign</code>, <code>execute</code>, <code>operate</code>, <code>write</code> (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/694">ADR 0037</a>). <code>manage</code> stays with the operator.</li>
+<li>The operator adds a group grant for each line, and removes a grant when its line is removed. Grants made at runtime, such as an approved data access request, are left alone.</li>
+</ul>
 <h2 id="check-it">Check it<a class="headerlink" href="#check-it" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>get<span class="w"> </span>fn<span class="w"> </span>-n<span class="w"> </span>fn-operator
 </code></pre></div>

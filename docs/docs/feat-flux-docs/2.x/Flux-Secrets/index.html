@@ -1173,10 +1173,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-age-key" class="md-nav__link">
+  <a href="#sops" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The age key
+        SOPS
       
     </span>
   </a>
@@ -1184,10 +1184,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#an-encrypted-secret" class="md-nav__link">
+  <a href="#vault-azure-key-vault" class="md-nav__link">
     <span class="md-ellipsis">
       
-        An encrypted Secret
+        Vault (Azure Key Vault)
       
     </span>
   </a>
@@ -1215,22 +1215,31 @@
 
 
 <h1 id="flux-secrets">Flux secrets<a class="headerlink" href="#flux-secrets" title="Permanent link">&para;</a></h1>
-<p>Secrets go in the site repository encrypted with <a href="https://getsops.io">SOPS</a> and an age key; Flux decrypts them when it applies them (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/project/decisions/0031-gitops-deployment-with-flux.md">ADR 0031</a>). Only <code>data</code> and <code>stringData</code> are encrypted, so the rest of each Secret stays readable in review.</p>
-<h2 id="the-age-key">The age key<a class="headerlink" href="#the-age-key" title="Permanent link">&para;</a></h2>
+<p>A site's Secrets come from one of two places (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/project/decisions/0031-gitops-deployment-with-flux.md">ADR 0031</a>), each a folder in the site repository that makes the same Secrets:</p>
+<ul>
+<li><code>secrets/sops</code> (the default): committed encrypted with <a href="https://getsops.io">SOPS</a> and an age key; Flux decrypts them when it applies them.</li>
+<li><code>secrets/vault</code>: kept in Azure Key Vault; the <a href="https://external-secrets.io">External Secrets Operator</a> copies them into the cluster.</li>
+</ul>
+<p>Switching is one line in the site's <code>kustomization.yaml</code>: <code>- secrets/sops</code> or <code>- secrets/vault</code>.</p>
+<p>The Secrets live in the site repository, not the chart, because Flux reads <code>keycloak-first-user</code> (the first user's email, for the <code>HelmRelease</code>) before it renders the chart.</p>
+<h2 id="sops">SOPS<a class="headerlink" href="#sops" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Against the site's <code>kubectl</code> context: <code>mise run flux sops-key</code>. It makes the key if there is none and loads it into Flux as Secret <code>flux-system/sops-age</code>.</li>
-<li>The private half is kept in <code>bootstrap/sops/&lt;kubectl context&gt;.agekey</code> (gitignored, one file per cluster). Back it up: it is the only way to decrypt the site's Secrets.</li>
+<li>Against the site's <code>kubectl</code> context: <code>mise run flux sops-key</code>. It makes the age key if there is none and loads it into Flux as Secret <code>flux-system/sops-age</code>. The private half is kept in <code>bootstrap/sops/&lt;kubectl context&gt;.agekey</code> (gitignored, one file per cluster): back it up, it is the only way to decrypt the site's Secrets.</li>
 <li>In the site repository's <code>.sops.yaml</code>, replace <code>AGE_PUBLIC_KEY</code> with the public key it printed.</li>
 <li>The Flux Kustomization needs <code>--decryption-provider=sops --decryption-secret=sops-age</code> (<a href="../Deploy-With-Flux/">Deploy with Flux</a>, step 5).</li>
+<li>Fill in <code>secrets/sops/first-user-secret.yaml</code> and encrypt it in place: <code>sops encrypt -i secrets/sops/first-user-secret.yaml</code>. Only <code>data</code> and <code>stringData</code> are encrypted, so the rest stays readable in review.</li>
+<li>Another Secret: a file in <code>secrets/sops</code> whose name matches <code>*secret*.yaml</code> (the rule in <code>.sops.yaml</code>), encrypted the same way and listed in <code>secrets/sops/kustomization.yaml</code>. Edit one later with <code>sops &lt;file&gt;</code> (needs the private key, e.g. <code>SOPS_AGE_KEY_FILE=bootstrap/sops/&lt;kubectl context&gt;.agekey</code>).</li>
 </ol>
-<h2 id="an-encrypted-secret">An encrypted Secret<a class="headerlink" href="#an-encrypted-secret" title="Permanent link">&para;</a></h2>
+<p><code>secrets/sops/first-user-secret.yaml</code> makes <code>keycloak-first-user</code> in two namespaces: <code>keycloak</code> for the Keycloak realm controller, the release namespace for the <code>HelmRelease</code>'s email. The chart copies no Secret, so each goes where it is read; <code>namespaces.yaml</code> makes the namespaces first (<code>global.createNamespaces: false</code>). <code>secrets/vault</code> fills the same two.</p>
+<h2 id="vault-azure-key-vault">Vault (Azure Key Vault)<a class="headerlink" href="#vault-azure-key-vault" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Write the Secret like <code>site-example/first-user-secret.yaml</code>, in a file whose name matches <code>*secret*.yaml</code> (the rule in <code>.sops.yaml</code>).</li>
-<li>Encrypt it in place: <code>sops encrypt -i my-secret.yaml</code>.</li>
-<li>List it in <code>kustomization.yaml</code> and commit.</li>
-<li>Edit it later with <code>sops my-secret.yaml</code> (needs the private key, e.g. <code>SOPS_AGE_KEY_FILE=bootstrap/sops/&lt;kubectl context&gt;.agekey</code>).</li>
+<li>Install the External Secrets Operator in the cluster (its Helm chart, <code>external-secrets</code>).</li>
+<li>Give a managed identity the role "Key Vault Secrets User" on the vault, and a federated credential for the cluster's OIDC issuer with subject <code>system:serviceaccount:fn:fn-external-secrets</code>.</li>
+<li>In <code>secrets/vault/serviceaccount.yaml</code>, replace <code>AZURE_CLIENT_ID</code> and <code>AZURE_TENANT_ID</code> with that identity's; in <code>secrets/vault/store-azure.yaml</code>, replace <code>AZURE_KEY_VAULT</code> with the vault's name. The store is a ClusterSecretStore, so that one identity fills every namespace.</li>
+<li>Put each Secret in the vault as one entry holding its keys as JSON, named like the Secret: <code>az keyvault secret set --vault-name &lt;vault&gt; --name keycloak-first-user --value '{"EMAIL": "...", "PASSWORD": "..."}'</code>.</li>
+<li>In the site's <code>kustomization.yaml</code>, change <code>- secrets/sops</code> to <code>- secrets/vault</code>. Commit.</li>
 </ol>
-<p><code>first-user-secret.yaml</code> becomes <code>keycloak-first-user</code>, which the Keycloak realm controller and the <code>HelmRelease</code> read.</p>
+<p>On the dev cluster, <code>mise run openbao up</code> installs the operator and <a href="https://openbao.org">OpenBao</a> (in memory, dev mode), writes the first user's login from <code>.dev.env</code>, and applies <code>secrets/vault</code> with <code>store-openbao.yaml</code> in place of the Azure store. <code>mise run openbao status</code> shows the entries and the ExternalSecrets; <code>mise run openbao down</code> removes them and leaves the Secrets in place.</p>
 
 
 
