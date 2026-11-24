@@ -42,6 +42,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0039](../project/decisions/0039-fednode-shared-package.md) | Fednode shared package | One package, `fednode`, holds the transport, the clients, the shared settings and fncli for every service; settings read env names from their path; supersedes 0038. |
 | [0035](../project/decisions/0035-api-authorization-oidc-authentication.md) | API authorization, OIDC authentication | An OIDC provider signs people in and supplies a user id, one node role and groups; nexus-api decides every access per record from its own database. |
 | [0037](../project/decisions/0037-cedar-authorization-grants-and-policies.md) | Cedar authorization - grants and policies | A `grants` table per record (owner, read, write, execute, assign, optional expiry); Cedar policies say what each allows; every route declares an `Access` check. |
+| [0036](../project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md) | Roles and Accounts | Keycloak is the provider shipped; five fixed realm roles; kc-init creates the system accounts; SuperUser bypasses grants, not the application's rules. |
 
 ## Other docs by topic
 
