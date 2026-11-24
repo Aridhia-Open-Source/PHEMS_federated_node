@@ -39,6 +39,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0029](../project/decisions/0029-images-are-built-with-docker-buildx-bake.md) | Images are built with docker buildx bake | One bake file at the root and one per experiment; `mise run images`, `image`, `images-release`. |
 | [0030](../project/decisions/0030-fncli-demo-only-walks-the-pull-request-process.md) | fncli demo only walks the pull request process | Setup and cleanup are `apply` and `delete`; the demo checks the node matches first. |
 | [0033](../project/decisions/0033-running-behind-a-tls-intercepting-proxy.md) | Running behind a TLS-intercepting proxy | One script checks the proxy and CA and writes only generated, gitignored env and values files that hand-edited ones override; image builds get the CA as a build secret. |
+| [0031](../project/decisions/0031-gitops-deployment-with-flux.md) | GitOps deployment with Flux | OpenTofu only for infrastructure we own; versioned OCI releases; Flux in each site's cluster reads a client-owned site repository; rollback by Flux or git revert. |
 
 ## Other docs by topic
 
