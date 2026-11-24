@@ -8,7 +8,7 @@ admin-only. Deleting a dataset is a soft delete, refused with a 409 naming the p
 - GET /global/datasets/id
 - PATCH /global/datasets/id (200 like every other PATCH (?) assumed by the implementer, owner to confirm)
 - DELETE /global/datasets/id
-- GET /global/datasets/id/healthcheck, see healthcheck_api.py
+- GET /global/datasets/id/healthcheck
 """
 from http import HTTPStatus
 
@@ -24,6 +24,8 @@ from app.database.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller
 from app.models.dataset import Dataset
 from app.models.secret import Secret
+from app.dtos.healthcheck import DatasetHealthDTO
+from app.health.datasets import prepare_dataset_health
 
 
 router = APIRouter(prefix='/global/datasets', tags=["datasets"])
@@ -149,3 +151,12 @@ def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), call
 
     session.commit()
     return DatasetDTO.from_model(ds)
+
+
+@router.get('/{dataset_id}/healthcheck', response_model=DatasetHealthDTO)
+def dataset_healthcheck(dataset_id: int):
+    """
+    GET /global/datasets/<dataset_id>/healthcheck endpoint. Whether the node can connect to the
+    dataset's database with its secret.
+    """
+    return prepare_dataset_health(Dataset.get_by_id(dataset_id))()

@@ -6,7 +6,7 @@ admin only. Deleting is a soft delete.
 - POST /global/providers
 - PATCH /global/providers/<id>
 - DELETE /global/providers/<id>
-- GET /global/providers/<id>/healthcheck, see healthcheck_api.py
+- GET /global/providers/<id>/healthcheck
 """
 from http import HTTPStatus
 
@@ -19,6 +19,8 @@ from app.rules.ownership import get_for_write, set_owner
 from app.repos.pull_request_fanout import skip_gap
 from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
+from app.dtos.healthcheck import GitProviderHealthDTO
+from app.health.providers import prepare_provider_health
 
 router = APIRouter(prefix='/global/providers', tags=["git_providers"])
 session = db.session
@@ -124,3 +126,11 @@ def delete_provider(provider_id: int, caller: Caller = Depends(get_caller)):
         )
     provider.soft_delete()
     session.commit()
+
+
+@router.get('/{provider_id}/healthcheck', response_model=GitProviderHealthDTO)
+def provider_healthcheck(provider_id: int):
+    """
+    GET /global/providers/<provider_id>/healthcheck endpoint. Whether the provider's API answers.
+    """
+    return prepare_provider_health(GitProvider.get_by_id(provider_id))()

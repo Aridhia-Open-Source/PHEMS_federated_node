@@ -10,7 +10,7 @@ only. Deleting one is a soft delete, refused with a 409 naming the projects it i
 - GET /global/repositories/triggers/<id>/pull_requests
 - POST /global/repositories/triggers/<id>/pull_requests
 - POST /global/repositories/triggers/<id>/token
-- GET /global/repositories/triggers/<id>/healthcheck, see healthcheck_api.py
+- GET /global/repositories/triggers/<id>/healthcheck
 """
 from http import HTTPStatus
 
@@ -35,6 +35,8 @@ from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
 from app.models.trigger_repository import TriggerRepository
 from app.models.secret import Secret
+from app.dtos.healthcheck import RepositoryConnectionDTO
+from app.health.repositories import prepare_repository_health
 
 router = APIRouter(
     prefix='/global/repositories/triggers', tags=["trigger_repositories"]
@@ -227,3 +229,12 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
 
     session.commit()
     return TriggerRepositoryDTO.from_model(repo)
+
+
+@router.get('/{repository_id}/healthcheck', response_model=RepositoryConnectionDTO)
+def trigger_repository_healthcheck(repository_id: int):
+    """
+    GET /global/repositories/triggers/<repository_id>/healthcheck endpoint. Whether the repository
+    can be reached with its own secret.
+    """
+    return prepare_repository_health(TriggerRepository.get_by_id(repository_id))()
