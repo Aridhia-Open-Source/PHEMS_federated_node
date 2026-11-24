@@ -1,11 +1,11 @@
 import pytest
 
-from app.models import (
+from nexus_client.models import (
     Dataset, GitProvider, NewPullRequest, Project, ProjectTriggerRepository, PullRequest, PullRequestTrigger, Secret,
     SecretProviderType, Task, TaskSpec, TriggerRepository, PullRequestResult,
 )
-from app.models.pull_request import PROVIDER_FILES_CAP
-from app.tests.conftest import (
+from nexus_client.models.pull_request import PROVIDER_FILES_CAP
+from tests.samples import (
     SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_SECRET, SAMPLE_TRIGGER_REPOSITORY,
 )
 

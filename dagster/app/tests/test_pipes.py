@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.definitions import pipes
-from app.models import TaskResources
+from nexus_client.models import TaskResources
 from app.definitions.pipes import (
     K8sPipe,
     K8sPipesResponse,

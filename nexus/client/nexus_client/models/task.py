@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.task_spec import TaskSpec
+from nexus_client.models.task_spec import TaskSpec
 
 
 class Task(BaseModel):

@@ -3,7 +3,7 @@ from typing import cast
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 
-from app.backend import BackendAPI
+from nexus_client.api import BackendAPI
 from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS
 from app.definitions.sensors.git.base import GitAPIFactory
 from app.definitions.sensors.git.ingest_job import ingest_pull_requests_job

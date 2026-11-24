@@ -2,8 +2,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from fncli.backend import FncliBackendAPI
-from app.models import Dataset, ProjectTriggerRepository, ResultsRepository, TriggerRepository
+from nexus_client.api import BackendAPI
+from nexus_client.models import Dataset, ProjectTriggerRepository, ResultsRepository, TriggerRepository
 
 SECRET = {"id": 3, "project_id": 1, "label": "l", "provider": "K8S", "key": "k", "namespace": "fn", "enabled": True}
 PROVIDER = {
@@ -38,7 +38,7 @@ def session():
 
 @pytest.fixture
 def api(session):
-    return FncliBackendAPI(session=session, logger=MagicMock())
+    return BackendAPI(session=session, logger=MagicMock())
 
 
 def test_create_dataset_body(api, session):

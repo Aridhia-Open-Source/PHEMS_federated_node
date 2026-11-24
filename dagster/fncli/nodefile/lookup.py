@@ -3,7 +3,7 @@ The backend's ids for what a node file names, found by the same normalised keys 
 `delete` need them for every request, and the entity has to be there: an earlier step made it, or the diff saw it.
 """
 
-from app.git_uri import normalise_provider_uri
+from nexus_client.git_uri import normalise_provider_uri
 from fncli.backend import FncliBackendAPI
 
 

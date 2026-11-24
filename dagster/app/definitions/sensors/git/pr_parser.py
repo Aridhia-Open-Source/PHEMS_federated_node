@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel
 
 from app.definitions.sensors.git.base import GitAPI
-from app.models import ProjectTriggerRepository, PullRequestTrigger
+from nexus_client.models import ProjectTriggerRepository, PullRequestTrigger
 
 
 class PullRequestOutcome(str, Enum):

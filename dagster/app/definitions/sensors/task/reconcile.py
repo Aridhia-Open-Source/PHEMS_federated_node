@@ -10,12 +10,12 @@ import requests
 import dagster as dg
 from dagster import SensorEvaluationContext
 
-from app.backend import BackendAPI
+from nexus_client.api import BackendAPI
 from app.config import DEFAULT_SENSOR_STATUS, MIN_SENSOR_INTERVAL_SECONDS
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.base import BaseSensor
 from app.definitions.sensors.task.run_status import TaskRunStatusSensor
-from app.models import Task, TaskStatus
+from nexus_client.models import Task, TaskStatus
 
 UNFINISHED = [TaskStatus.PENDING, TaskStatus.QUEUED, TaskStatus.RUNNING]
 

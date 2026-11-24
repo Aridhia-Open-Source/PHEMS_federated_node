@@ -2,8 +2,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from urllib3.util import Retry
 
-from app.utils import (
+from nexus_client.http import (
     BackendAdapter,
     BackendSession,
     BaseHttpAdapter,
@@ -109,6 +110,18 @@ class TestBaseHttpAdapter:
         assert retry.total == 3
         assert 429 in retry.status_forcelist
 
+    def test_the_default_retry_is_mounted(self):
+        adapter = BaseHttpAdapter(base_url="https://backend")
+
+        assert adapter.max_retries.total == 3
+        assert 429 in adapter.max_retries.status_forcelist
+        assert adapter.max_retries.raise_on_status is False
+
+    def test_a_given_retry_replaces_the_default(self):
+        adapter = BaseHttpAdapter(base_url="https://backend", max_retries=Retry(total=7))
+
+        assert adapter.max_retries.total == 7
+
     def test_timeout_is_applied_to_sends(self):
         adapter = BaseHttpAdapter(base_url="https://backend", timeout=5)
 
@@ -210,7 +223,7 @@ class TestOAuthAdapter:
         adapter.access_token = "stale"
         responses = [response(status), response(200)]
 
-        with patch("app.utils.time.sleep") as sleep:
+        with patch("nexus_client.http.time.sleep") as sleep:
             with patch("requests.adapters.HTTPAdapter.send", side_effect=responses):
                 result = adapter.send(request)
 
@@ -223,7 +236,7 @@ class TestOAuthAdapter:
         adapter.access_token = "stale"
         responses = [response(401), response(401)]
 
-        with patch("app.utils.time.sleep"):
+        with patch("nexus_client.http.time.sleep"):
             with patch("requests.adapters.HTTPAdapter.send", side_effect=responses):
                 result = adapter.send(MagicMock(headers={}))
 
@@ -241,7 +254,7 @@ class TestBackendAdapter:
     def test_login_posts_the_credentials(self):
         adapter = BackendAdapter(base_url="https://backend", username="u", password="p")
 
-        with patch("app.utils.requests.post", return_value=response(body={"token": "t"})) as post:
+        with patch("nexus_client.http.requests.post", return_value=response(body={"token": "t"})) as post:
             adapter.login()
 
         assert post.call_args.args[0] == "https://backend/login"
@@ -250,7 +263,7 @@ class TestBackendAdapter:
     def test_refresh_tokens_stores_the_token(self):
         adapter = BackendAdapter(base_url="https://backend", username="u", password="p")
 
-        with patch("app.utils.requests.post", return_value=response(body={"token": "t"})):
+        with patch("nexus_client.http.requests.post", return_value=response(body={"token": "t"})):
             adapter.refresh_tokens()
 
         assert adapter._access_token == "t"
@@ -260,7 +273,7 @@ class TestBackendAdapter:
         resp = response(401)
         resp.raise_for_status.side_effect = requests.HTTPError("401")
 
-        with patch("app.utils.requests.post", return_value=resp):
+        with patch("nexus_client.http.requests.post", return_value=resp):
             with pytest.raises(requests.HTTPError):
                 adapter.login()
 
@@ -271,7 +284,7 @@ class TestPasswordFileAdapter:
         password_file.write_text("old\n", encoding="utf-8")
         adapter = PasswordFileAdapter(base_url="https://backend", username="u", password_file=str(password_file))
 
-        with patch("app.utils.requests.post", return_value=response(body={"token": "t"})) as post:
+        with patch("nexus_client.http.requests.post", return_value=response(body={"token": "t"})) as post:
             adapter.login()
             password_file.write_text("rotated", encoding="utf-8")
             adapter.login()

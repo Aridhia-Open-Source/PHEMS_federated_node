@@ -20,7 +20,7 @@ from app.definitions.sensors.task.delivery import (
 from app.delivery import git_push
 from app.definitions.sensors.base import artifacts_volume_tags
 from app.delivery.results import ResultsDelivery
-from app.models import (
+from nexus_client.models import (
     GitProvider, GitToken, Project, PullRequestResult, ResultsRepository, RunRecord, Task, TaskTrigger,
     TriggerRepositoryRef,
 )

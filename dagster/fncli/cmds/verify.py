@@ -13,7 +13,7 @@ from fncli.cmds.nodefile import context_option, step_project_option, step_target
 from fncli.cmds.project import find_project
 from fncli.cmds.repository import step_repo_config
 from fncli.cmds.sensor import RESULTS_PR_SYNC_SENSOR
-from app.models import TriggerState
+from nexus_client.models import TriggerState
 from fncli.sensors import DagsterAPI
 
 # The task status the run-status sensors give each Dagster run status.

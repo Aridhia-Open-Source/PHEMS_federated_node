@@ -8,7 +8,10 @@ from dagster import RunRequest, SkipReason
 from app.definitions.run_config import build_run_config
 from app.definitions.sensors.base import artifacts_volume_tags
 from app.definitions.sensors.task.launcher import TaskLauncherSensor
-from app.models import Dataset, LaunchDecision, Project, Task
+from nexus_client.models import Dataset, LaunchDecision, Project, Task
+
+# nexus-api sample responses, shared with the nexus-api tests (nexus/client/tests/contract)
+CONTRACT_DIR = Path(__file__).resolve().parents[3] / "nexus" / "client" / "tests" / "contract"
 
 pytestmark = pytest.mark.usefixtures("artifacts_env")
 
@@ -271,7 +274,7 @@ def test_a_disabled_project_keeps_its_task_pending_until_it_is_enabled_then_the_
 
 def test_a_sample_launch_response_of_the_backend_parses_and_builds_a_run_config():
     """The sample is checked against the real response by nexus-api's tests/test_task_launch.py."""
-    sample = json.loads((Path(__file__).parent / "contract" / "launch_response.json").read_text())
+    sample = json.loads((CONTRACT_DIR / "launch_response.json").read_text())
 
     parsed = LaunchDecision.model_validate(sample)
 
@@ -284,7 +287,7 @@ def test_a_sample_launch_response_of_the_backend_parses_and_builds_a_run_config(
 
 def test_a_sample_task_list_response_of_the_backend_parses_into_tasks():
     """The sample is checked against the real response by nexus-api's tests/test_all_tasks_list.py."""
-    sample = json.loads((Path(__file__).parent / "contract" / "tasks_response.json").read_text())
+    sample = json.loads((CONTRACT_DIR / "tasks_response.json").read_text())
 
     tasks = [Task(**t) for t in sample["items"]]
 

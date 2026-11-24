@@ -3,12 +3,12 @@ from typing import cast
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
-from app.backend import BackendAPI
+from nexus_client.api import BackendAPI
 from app.config import DEFAULT_SENSOR_STATUS, DELIVERY_MAX_ATTEMPTS, MIN_SENSOR_INTERVAL_SECONDS, ResultsDeliveryConfig
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.sensors.base import LaunchingSensor, artifacts_volume_tags, run_key
 from app.delivery.results import FINAL, ResultsDelivery
-from app.models import PullRequestResult, ResultState
+from nexus_client.models import PullRequestResult, ResultState
 
 
 @dg.op(config_schema={"project_id": dg.Field(int), "task_id": dg.Field(int), "run_id": dg.Field(str)}, required_resource_keys={"backend_api"})

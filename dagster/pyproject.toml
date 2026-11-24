@@ -39,7 +39,7 @@ build-backend = "setuptools.build_meta"
 include = ["app*", "fncli*"]
 
 [tool.pytest.ini_options]
-testpaths = ["app/tests", "fncli/tests"]
+testpaths = ["app/tests", "fncli/tests", "../nexus/client/tests"]
 
 [tool.dagster]
 module_name = "app.definitions"

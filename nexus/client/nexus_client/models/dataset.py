@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from app.models.secret import Secret
+from nexus_client.models.secret import Secret
 
 
 class Dataset(BaseModel):
@@ -59,3 +59,29 @@ class ProjectDataset(BaseModel):
     revoked: bool
     active: bool
 
+
+class Catalogue(BaseModel):
+    """Dataset catalogue data from backend API."""
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    dataset_id: int | None = None
+    version: str | None = None
+    title: str
+    description: str
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class Dictionary(BaseModel):
+    """Dataset dictionary entry from backend API."""
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    dataset_id: int | None = None
+    table_name: str
+    field_name: str
+    label: str | None = None
+    description: str
+    created_at: str | None = None
+    updated_at: str | None = None
