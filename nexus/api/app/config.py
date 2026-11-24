@@ -37,8 +37,8 @@ class KeycloakSettings(EnvSettings):
     # filter it out -- nothing authenticates as it. Its password is operator-owned and may change at
     # any time, so relying on it would make the backend break whenever an operator rotated it.
     admin: str | None = Field(default=None, alias="KEYCLOAK_ADMIN")
-    # The platform's service account. Holds Super Administrator in the FederatedNode realm, which is
-    # exactly what the `admin` realm user used to hold, so the permissions are unchanged.
+    # The platform's service account. Holds realm-management's realm-admin in the node's realm and no
+    # node role (ADR 0036): it manages Keycloak users and groups and never calls nexus-api.
     service_user: str = Field(default="fn-service", alias="KEYCLOAK_SERVICE_USER")
     # kc-secrets is mounted as a directory (see the chart's kcSecretsMountPath helper) rather than
     # injected via envFrom, so that a credential rotation reaches this process without a restart.

@@ -1,5 +1,5 @@
 {
-  "realm": "FederatedNode",
+  "realm": "${KEYCLOAK_REALM}",
   "enabled": true,
   "registrationEmailAsUsername": false,
   "offlineSessionIdleTimeout": "${KEYCLOAK_TOKEN_LIFE}",
@@ -13,16 +13,45 @@
   },
   "groups": [
     {
-      "name": "Administrator",
-      "path": "/Administrator"
-    },
-    {
-      "name": "Super Administrator",
-      "path": "/Super Administrator"
-    },
-    {
-      "name": "Users",
-      "path": "/Users"
+      "name": "roles",
+      "path": "/roles",
+      "subGroups": [
+        {
+          "name": "superuser",
+          "path": "/roles/superuser",
+          "realmRoles": [
+            "SuperUser"
+          ]
+        },
+        {
+          "name": "admins",
+          "path": "/roles/admins",
+          "realmRoles": [
+            "Administrator"
+          ]
+        },
+        {
+          "name": "service",
+          "path": "/roles/service",
+          "realmRoles": [
+            "Service"
+          ]
+        },
+        {
+          "name": "users",
+          "path": "/roles/users",
+          "realmRoles": [
+            "Users"
+          ]
+        },
+        {
+          "name": "dagster",
+          "path": "/roles/dagster",
+          "realmRoles": [
+            "Dagster"
+          ]
+        }
+      ]
     }
   ],
   "requiredCredentials": [
@@ -31,49 +60,10 @@
   "roles": {
     "realm": [
       {
-        "name": "Administrator",
-        "description": "Administrators with limited, non-realm, related permissions",
+        "name": "SuperUser",
+        "description": "Break-glass account with full realm administration",
         "composite": true,
         "composites": {
-          "realm": [
-            "Users"
-          ],
-          "client": {
-            "realm-management": [
-              "view-users",
-              "view-clients",
-              "manage-users",
-              "view-authorization",
-              "query-groups",
-              "query-users",
-              "manage-clients",
-              "view-realm",
-              "manage-authorization",
-              "query-clients",
-              "view-events"
-            ],
-            "account": [
-              "view-groups",
-              "delete-account",
-              "manage-account",
-              "view-applications",
-              "view-profile",
-              "view-consent"
-            ]
-          }
-        },
-        "clientRole": false,
-        "attributes": {}
-      },
-      {
-        "name": "Super Administrator",
-        "description": "Super administrators with extensive permissions set",
-        "composite": true,
-        "composites": {
-          "realm": [
-            "Administrator",
-            "Users"
-          ],
           "client": {
             "realm-management": [
               "view-users",
@@ -115,6 +105,45 @@
         "attributes": {}
       },
       {
+        "name": "Administrator",
+        "description": "Administrators with limited, non-realm, related permissions",
+        "composite": true,
+        "composites": {
+          "client": {
+            "realm-management": [
+              "view-users",
+              "view-clients",
+              "manage-users",
+              "view-authorization",
+              "query-groups",
+              "query-users",
+              "manage-clients",
+              "view-realm",
+              "manage-authorization",
+              "query-clients",
+              "view-events"
+            ],
+            "account": [
+              "view-groups",
+              "delete-account",
+              "manage-account",
+              "view-applications",
+              "view-profile",
+              "view-consent"
+            ]
+          }
+        },
+        "clientRole": false,
+        "attributes": {}
+      },
+      {
+        "name": "Service",
+        "description": "The operator, applying node config through nexus-api",
+        "composite": false,
+        "clientRole": false,
+        "attributes": {}
+      },
+      {
         "name": "Users",
         "description": "Basic Users",
         "composite": true,
@@ -130,17 +159,9 @@
         "attributes": {}
       },
       {
-        "name": "System",
-        "description": "Users for integrations",
-        "composite": true,
-        "composites": {
-          "client": {
-            "account": [
-              "view-profile",
-              "manage-account"
-            ]
-          }
-        },
+        "name": "Dagster",
+        "description": "Dagster, launching tasks and delivering results",
+        "composite": false,
         "clientRole": false,
         "attributes": {}
       }
@@ -179,6 +200,22 @@
       "publicClient": false,
       "frontchannelLogout": true,
       "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ],
       "defaultClientScopes": [
         "web-origins",
         "acr",
@@ -239,7 +276,7 @@
             "logic": "POSITIVE",
             "decisionStrategy": "UNANIMOUS",
             "config": {
-              "roles": "[{\"id\":\"Administrator\",\"required\":false},{\"id\":\"Super Administrator\",\"required\":false}]"
+              "roles": "[{\"id\":\"Administrator\",\"required\":false},{\"id\":\"SuperUser\",\"required\":false},{\"id\":\"Service\",\"required\":false}]"
             }
           },
           {
@@ -249,7 +286,7 @@
             "logic": "POSITIVE",
             "decisionStrategy": "UNANIMOUS",
             "config": {
-              "roles": "[{\"id\":\"Super Administrator\",\"required\":false}]"
+              "roles": "[{\"id\":\"SuperUser\",\"required\":false}]"
             }
           },
           {
@@ -259,7 +296,7 @@
             "logic": "POSITIVE",
             "decisionStrategy": "UNANIMOUS",
             "config": {
-              "roles": "[{\"id\":\"Administrator\",\"required\":false},{\"id\":\"Users\",\"required\":false},{\"id\":\"Super Administrator\",\"required\":false}]"
+              "roles": "[{\"id\":\"Administrator\",\"required\":false},{\"id\":\"Users\",\"required\":false},{\"id\":\"SuperUser\",\"required\":false},{\"id\":\"Service\",\"required\":false}]"
             }
           },
           {
@@ -269,7 +306,7 @@
             "logic": "POSITIVE",
             "decisionStrategy": "UNANIMOUS",
             "config": {
-              "roles": "[{\"id\":\"System\",\"required\":false}]"
+              "roles": "[{\"id\":\"Dagster\",\"required\":false}]"
             }
           },
           {

@@ -198,6 +198,12 @@
                     "default": true,
                     "description": "Whether keycloak-realm-init applies the realms.json partial import and realm migrations. Set false to hand realm management entirely to the operator."
                 },
+                "realm": {
+                    "type": "string",
+                    "minLength": 1,
+                    "default": "FederatedNode",
+                    "description": "The Keycloak realm the node's users, roles and clients live in. Keycloak, keycloak-realm-init and nexus-api all read it from here. Changing it on an existing node starts a new, empty realm."
+                },
                 "recreateMissingSecrets": {
                     "type": "boolean",
                     "default": false,
@@ -405,6 +411,29 @@
                 "email": {
                     "type": "string",
                     "description": "User's email address, this will also be the username"
+                }
+            }
+        },
+        "superuserSecret": {
+            "type": "object",
+            "description": "The break-glass SuperUser account (ADR 0036), created by kc-init in /roles/superuser",
+            "required": [
+                "name",
+                "userKey",
+                "passKey"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The secret name that holds the superuser's username and password"
+                },
+                "userKey": {
+                    "type": "string",
+                    "description": "The key holding the username"
+                },
+                "passKey": {
+                    "type": "string",
+                    "description": "The key holding the password"
                 }
             }
         },

@@ -139,7 +139,7 @@ fi
 
 printf "\n[cleanup]\t#### CLEANUP #####\n\n"
 
-TOKEN=$(curl "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/realms/FederatedNode/protocol/openid-connect/token" \
+TOKEN=$(curl "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token" \
     --silent \
     --header "Content-Type: application/x-www-form-urlencoded" \
     --data-urlencode "grant_type=password" \
@@ -148,25 +148,25 @@ TOKEN=$(curl "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/realms/FederatedNode/pro
     --data-urlencode "client_id=admin-cli" | jq -r '.access_token')
 
 printf "[cleanup]\tRemoving test user\n"
-USER_ID=$(curl "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/admin/realms/FederatedNode/users?email=${TEST_USER_EMAIL}" \
+USER_ID=$(curl "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/admin/realms/${KEYCLOAK_REALM}/users?email=${TEST_USER_EMAIL}" \
     --silent \
     --header "Authorization: Bearer ${TOKEN}" | jq -r '.[0].id')
 
 if [ -n "$USER_ID" ]; then
     printf "[cleanup]\tFound user %s\n" "${USER_ID}"
-    curl --request DELETE "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/admin/realms/FederatedNode/users/${USER_ID}" \
+    curl --request DELETE "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/admin/realms/${KEYCLOAK_REALM}/users/${USER_ID}" \
         --silent \
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
 fi
 
 printf "[cleanup]\tPurging DAR client\n"
-CLIENT_ID=$(curl "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/admin/realms/FederatedNode/clients?clientId=${TEST_USER_EMAIL_URL_SAFE}&search=true" \
+CLIENT_ID=$(curl "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/admin/realms/${KEYCLOAK_REALM}/clients?clientId=${TEST_USER_EMAIL_URL_SAFE}&search=true" \
     --silent \
     --header "Authorization: Bearer ${TOKEN}" | jq -r '.[0].id')
 
 if [ -n "$CLIENT_ID" ]; then
     printf "[cleanup]\tGot client ID: %s\n" "${CLIENT_ID}"
-    curl  --request DELETE "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/admin/realms/FederatedNode/clients/${CLIENT_ID}" \
+    curl  --request DELETE "http://keycloak.${KEYCLOAK_NAMESPACE}.svc/admin/realms/${KEYCLOAK_REALM}/clients/${CLIENT_ID}" \
         --silent \
         --header "Authorization: Bearer ${TOKEN}" > /dev/null 2>&1
 fi
