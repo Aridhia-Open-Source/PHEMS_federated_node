@@ -5,7 +5,7 @@ from fednode.clients.nexus.models import (
     SecretProviderType, Task, TaskSpec, TriggerRepository, PullRequestResult,
 )
 from fednode.clients.nexus.models.pull_request import PROVIDER_FILES_CAP
-from tests.samples import (
+from fednode.tests.samples import (
     SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_SECRET, SAMPLE_TRIGGER_REPOSITORY,
 )
 

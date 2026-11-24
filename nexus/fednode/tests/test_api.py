@@ -8,7 +8,7 @@ from fednode.clients.nexus.client import BackendAPI
 from fednode.clients.nexus.models import (
     Dataset, GitToken, ProjectDataset, ProjectTriggerRepository, PullRequestResultStep, PullRequestTrigger, ResultState, TaskResources, TriggerRepository,
 )
-from tests.samples import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response
+from fednode.tests.samples import SAMPLE_SECRET, SAMPLE_DATASET, SAMPLE_PR, SAMPLE_REPOSITORY_OBJ, SAMPLE_TRIGGER_REPOSITORY, make_response
 
 
 
