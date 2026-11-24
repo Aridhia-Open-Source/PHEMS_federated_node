@@ -35,6 +35,8 @@
   - `revoked` is a plain `write`, no longer an admin role check.
   - Tasks from the API need `execute` on the project and on the task's dataset; nobody, the SuperUser included, runs a task on a revoked dataset. Retry, cancel, approve and block need `write` on the project.
   - Dagster may write only its pipeline state (the system-only routes). `POST /global/users` and the sensor switches need an admin role. fncli applies node files and sets state as the first admin.
+- Read routes and lists enforce grants too ([#688](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/688), ADR 0037): every GET checks `read` on its record, and lists show only what the caller may read (admins see every global record, the SuperUser everything).
+- Auth docs ([#689](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/689)): wiki pages [Sign-in and roles](docs/versions/2.x/docs/Sign-In-And-Roles.md), [Granting access](docs/versions/2.x/docs/Granting-Access.md) and [Auth setup](docs/versions/2.x/docs/Auth-Setup.md), and an Access section in the README.
 
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller
