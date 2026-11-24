@@ -45,6 +45,15 @@ def test_a_valid_token_gives_its_claims():
     assert (claims["sub"], claims["preferred_username"]) == ("user-1", "someone")
 
 
+def test_a_token_of_any_allowed_client_is_accepted():
+    config = SimpleNamespace(issuer=verifier.config.issuer, jwks_url=verifier.config.jwks_url, clients="global, dagster")
+    several = AccessTokenVerifier(config)
+    assert several.claims(access_token(azp="dagster"))["azp"] == "dagster"
+    assert several.claims(access_token(azp="global"))["azp"] == "global"
+    with pytest.raises(AuthenticationError):
+        several.claims(access_token(azp="another-client"))
+
+
 @pytest.mark.parametrize("token", [
     pytest.param(access_token(exp=int(time.time()) - 10), id="expired"),
     pytest.param(access_token(iss="https://elsewhere/realms/FederatedNode"), id="wrong issuer"),

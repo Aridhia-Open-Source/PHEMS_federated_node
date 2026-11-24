@@ -19,6 +19,7 @@
   - `/login` and `/refresh_token` return `{"token": <access token>, "refresh_token": ...}`. Send the access token as the Bearer; refresh tokens are no longer accepted there. Access tokens live 5 minutes: nexus-ui refreshes them, Dagster and fncli log in again on a 401.
   - A caller holds exactly one node role (SuperUser, Administrator, Service, Users, Dagster), or gets a 401. `POST /global/users` creates Users, or an Administrator when the SuperUser asks.
   - Keycloak issues tokens for its address on the node's host (`KC_HOSTNAME=https://<host>/keycloak`); nexus-api gets `KEYCLOAK_ISSUER` and `KEYCLOAK_JWKS_URL`.
+  - Tokens are accepted from the Keycloak client and from any client in `KEYCLOAK_ALLOWED_CLIENTS` (comma-separated, for the operator's and Dagster's own clients).
   - The global client no longer uses Keycloak Authorization Services (removed from `realms.json`; no realm migration for existing realms).
 
 ## 1.17.0

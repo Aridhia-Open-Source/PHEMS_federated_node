@@ -18,11 +18,12 @@ class AccessTokenVerifier:
 
     def __init__(self, config: AccessTokenSettings):
         self.config = config
+        self.clients = {client.strip() for client in config.clients.split(",")}
         self.jwks = jwt.PyJWKClient(config.jwks_url, cache_keys=True, lifespan=3600)
 
     def claims(self, token: str) -> dict:
         """
-        The claims of a Keycloak access token issued to our client, or AuthenticationError. RS256 only; the
+        The claims of a Keycloak access token issued to one of the allowed clients, or AuthenticationError. RS256 only; the
         audience is not checked (Keycloak sets `account` there), azp and typ are.
         """
         try:
@@ -34,7 +35,7 @@ class AccessTokenVerifier:
         except jwt.PyJWTError as exc:
             logger.info("Token refused: %s", exc)
             raise AuthenticationError("Token is not valid") from exc
-        if claims.get("typ") != "Bearer" or claims.get("azp") != self.config.client:
+        if claims.get("typ") != "Bearer" or claims.get("azp") not in self.clients:
             raise AuthenticationError("Token is not valid")
         return claims
 

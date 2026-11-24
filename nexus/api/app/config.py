@@ -102,12 +102,14 @@ class NodeSettings(EnvSettings):
 class AccessTokenSettings(EnvSettings):
     """
     How nexus-api checks Keycloak access tokens (ADR 0035). Tokens are issued for Keycloak's address on the node's
-    host (KC_HOSTNAME); the keys are fetched in-cluster. The chart sets both. A value left unset defaults from the
-    Keycloak group (see Settings).
+    host (KC_HOSTNAME); the keys are fetched in-cluster. The chart sets both. `clients` is the comma-separated client
+    ids whose tokens are accepted (the token's azp): the Keycloak client, plus the operator's and Dagster's when they
+    send client-credentials tokens of their own (ADR 0036). A value left unset defaults from the Keycloak group (see
+    Settings).
     """
     issuer: str | None = Field(default=None, alias="KEYCLOAK_ISSUER")
     jwks_url: str | None = Field(default=None, alias="KEYCLOAK_JWKS_URL")
-    client: str | None = Field(default=None, alias="KEYCLOAK_CLIENT")
+    clients: str | None = Field(default=None, alias="KEYCLOAK_ALLOWED_CLIENTS")
 
 
 @dataclass
@@ -127,8 +129,8 @@ class Settings:
             token.issuer = realm_url
         if token.jwks_url is None:
             token.jwks_url = f"{realm_url}/protocol/openid-connect/certs"
-        if token.client is None:
-            token.client = self.keycloak.client
+        if token.clients is None:
+            token.clients = self.keycloak.client
 
 
 settings = Settings()
