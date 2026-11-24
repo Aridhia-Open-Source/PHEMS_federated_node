@@ -19,11 +19,15 @@ import requests
 
 from tests.conftest import SYSTEM_TOKEN
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DAGSTER_DIR = REPO_ROOT / "dagster"
-
-if not (REPO_ROOT / "nexus" / "fednode" / "cli" / "backend.py").is_file():
+REPO_ROOT = next(
+    (parent for parent in Path(__file__).resolve().parents
+     if (parent / "nexus" / "fednode" / "cli" / "backend.py").is_file()),
+    None,
+)
+if REPO_ROOT is None:
     pytest.skip("nexus/fednode/cli is not available", allow_module_level=True)
+
+DAGSTER_DIR = REPO_ROOT / "dagster"
 
 import uvicorn  # noqa: E402
 
