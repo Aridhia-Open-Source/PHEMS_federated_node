@@ -35,7 +35,7 @@ If the proxy's CA is not in your system store yet, add `--ca-cert=/path/to/ca.pe
 
 For a private CA and no proxy (a private git host): `mise run configure --ca-cert=/path/to/ca.pem`, or `--ca-cert` alone if your system store already trusts it.
 
-A `CUSTOM_CA_FILE` set by hand in `.dev.env` no longer reaches the pods: the chart gets the CA only through `generated.values.yaml`, so use `--ca-cert`.
+`mise run deploy` gives the chart the CA in `CUSTOM_CA_FILE` as `customCA.pem`, whether `--ca-cert` or you set it.
 
 Docker has to restart for the proxy setting to apply. **That stops every running container, including a kind cluster.** The script asks first.
 
@@ -64,7 +64,7 @@ So run the script on the machine first, then rebuild the container (**Dev Contai
 | The proxy for the Docker daemon | `/etc/systemd/system/docker.service.d/http-proxy.conf` |
 | The proxy for `docker build`, and for containers you start | `proxies.default` in `~/.docker/config.json` |
 | `CUSTOM_CA_FILE` (the system bundle, with the proxy's CA in it), the proxy and the CA-bundle variables | `.generated.env` in the repo root |
-| The chart's `proxy.httpProxy`, `proxy.httpsProxy` and `customCA.secretName` | `k8s/federated-node/generated.values.yaml` |
+| The chart's `proxy.httpProxy` and `proxy.httpsProxy` | `k8s/federated-node/generated.values.yaml` |
 
 The script owns the last two files and rewrites them whole each run; both are gitignored, and neither is edited by hand. It never edits your `.dev.env` or `dev.values.yaml`. Everything that loads settings (`mise run`, the scripts, Tilt) reads `.generated.env` first and `.dev.env` after it, and `mise run deploy` passes `generated.values.yaml` before `dev.values.yaml`, so what you wrote yourself wins. If `.dev.env` sets a variable the script generates, the script warns once and names it.
 

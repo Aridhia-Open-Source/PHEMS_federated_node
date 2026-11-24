@@ -1,14 +1,18 @@
-{{- if (index .Values "cert-manager" "enabled") }}
+{{- /* Off with global.createNamespaces: then it comes from outside, with the
+       certs.azure.secretName Secret already in it. */}}
+{{- if and (index .Values "cert-manager" "enabled") (.Values.global).createNamespaces }}
 apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ index .Values "cert-manager" "namespace" }}
-  {{- if .Release.IsInstall }}
-  labels:
-    {{ template "defaultLabels" . }}
   annotations:
+    # Turning global.createNamespaces off later must not delete it with all it holds
+    helm.sh/resource-policy: keep
+  {{- if .Release.IsInstall }}
     helm.sh/hook: pre-install
     helm.sh/hook-weight: "-6"
     {{ template "defaultAnnotations" . }}
+  labels:
+    {{ template "defaultLabels" . }}
   {{- end }}
 {{- end }}

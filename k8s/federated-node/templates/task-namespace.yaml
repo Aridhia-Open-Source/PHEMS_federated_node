@@ -1,4 +1,10 @@
+{{- /* Off with global.createNamespaces: then it comes from outside. */}}
+{{- if (.Values.global).createNamespaces }}
 apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ include "tasks_namespace" . }}
+  annotations:
+    # Turning global.createNamespaces off later must not delete it with all it holds
+    helm.sh/resource-policy: keep
+{{- end }}

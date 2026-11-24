@@ -49,7 +49,6 @@ COMMAND="${1:-}"
 MODE="${2:-}"
 
 source scripts/load_env.sh
-source scripts/custom_ca.sh
 NS_PROXY="proxysim"
 DIR="${ROOT}/bootstrap/proxysim"
 SAVED="${DIR}/saved"
@@ -224,11 +223,6 @@ deploy() {
     echo "proxy:"
     echo "  httpProxy: \"$PROXY_URL\""
     echo "  httpsProxy: \"$PROXY_URL\""
-    if [ -n "$ca" ]; then
-      echo "customCA:"
-      echo "  secretName: $CUSTOM_CA_SECRET"
-      echo "  key: ca.crt"
-    fi
   } > "$GENERATED_VALUES"
   CUSTOM_CA_FILE="$ca" ./scripts/deploy.sh
 }
@@ -274,7 +268,6 @@ down() {
   kubectl delete -f "$CONFIG_FILE" --ignore-not-found --timeout=180s || true
   kubectl delete secret proxysim-trigger-creds proxysim-results-creds -n "$OPERATOR_NAMESPACE" --ignore-not-found
   kubectl delete pod proxysim-probe -n "$NAMESPACE" --ignore-not-found
-  kubectl delete secret "$CUSTOM_CA_SECRET" -n "$NAMESPACE" --ignore-not-found
   kubectl delete namespace "$NS_PROXY" --ignore-not-found
   # deploy ran: the generated.values.yaml here is this test's. Yours, if any, comes back.
   if [ -d "$SAVED" ]; then

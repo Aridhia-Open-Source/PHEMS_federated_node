@@ -98,6 +98,10 @@ autoscaling:
   enabled: false
 
 global:
+  # Create the keycloak, tasks and cert-manager namespaces. Turn off when they come from
+  # outside (deploy.sh in dev, Flux on a site), so that the Secrets read there (the first
+  # user, customCA.secretName, the cert-manager credentials) can be put in before install.
+  createNamespaces: true
   namespaces:
     keycloak: keycloak
     tasks: tasks
@@ -223,6 +227,7 @@ taskCompute:
     cpu: "4"
     memory: 16Gi
 
+# The first user's Secret. It has to exist in the Keycloak namespace, where it is read.
 # firstUserSecret:
   # name:
   # passKey:
@@ -319,7 +324,8 @@ tls:
 # pem is set. Not tls.secretName, which is the certificate the node serves. See "Custom CA"
 # in the README.
 customCA:
-  # An existing Secret in the release namespace holding the PEM. Not together with pem.
+  # An existing Secret holding the PEM, in both the release namespace and the Keycloak
+  # namespace. Not together with pem.
   secretName: ""
   # The key in that Secret holding the PEM.
   key: ca.crt
@@ -352,7 +358,7 @@ integrations:
 certs:
   rotationPolicy: Never
   azure:
-    # secretName:
+    # secretName:  # in the cert-manager namespace, where the issuer reads it
     # configmap:
   aws: ""
 

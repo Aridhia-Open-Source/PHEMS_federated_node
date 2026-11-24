@@ -57,10 +57,13 @@ install, reused on every upgrade, and placed in whichever namespace needs them. 
 kubectl get secret -l federatednode.com/generated-password=true
 ```
 
-What you have to create yourself, in the release namespace:
+What you have to create yourself, in the release namespace unless it says otherwise. The chart
+copies no Secret between namespaces: one read in another namespace goes there, and with
+`global.createNamespaces: false` you create those namespaces first.
 - `postgres-superuser` — only when PostgreSQL is external **and** `db.manageRolesAndDatabases` is true
-- the `firstUserSecret` secret, if you want to choose the initial admin password
+- the `firstUserSecret` secret, in the Keycloak namespace
 - azure storage credentials, and the tls cert, where those apply
+- the cert-manager Azure DNS secret (`certs.azure.secretName`), in the cert-manager namespace
 
 With `db.manageRolesAndDatabases: false` the chart creates no databases or roles and needs no admin
 login at all; instead each role's password becomes a secret you supply (`nexus.api.db.secret`,
@@ -110,7 +113,7 @@ Set `customCA` when the node calls out to something signed by a private or self-
 
 ```yaml
 customCA:
-  secretName: corp-ca   # an existing Secret in the release namespace; key `ca.crt` unless customCA.key says otherwise
+  secretName: corp-ca   # an existing Secret in the release and Keycloak namespaces; key `ca.crt` unless customCA.key says otherwise
   # or, instead, the PEM itself (one CA or a bundle), from which the chart renders a Secret `fn-custom-ca`:
   # pem: |
   #   -----BEGIN CERTIFICATE-----
@@ -122,7 +125,7 @@ kubectl create secret generic corp-ca -n <namespace> --from-file=ca.crt=corp-ca.
 helm upgrade --install ... --set customCA.secretName=corp-ca
 ```
 
-Setting both `secretName` and `pem` is an error. A Secret you name is copied into the Keycloak namespace by the chart; an inline `pem` is rendered into both.
+Setting both `secretName` and `pem` is an error. A Secret you name has to exist in the release and Keycloak namespaces; an inline `pem` is rendered into both.
 
 What gets it:
 

@@ -1,0 +1,31 @@
+## global.createNamespaces: on, the chart creates the keycloak, tasks and cert-manager
+## namespaces and keeps them if the switch is turned off later. Off, they come from outside
+## (deploy.sh, Flux), so the Secrets read there can be put in before install.
+suite: Create namespaces switch
+release:
+  namespace: federatednode
+  name: federatednode
+values:
+  - values/values-aks.yaml
+templates:
+  - templates/keycloak-namespace.yaml
+  - templates/task-namespace.yaml
+  - templates/certificates-namespace.yaml
+tests:
+  - it: creates the namespaces by default, kept if the switch goes off later
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Namespace
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+
+  - it: creates none of them when off
+    set:
+      global:
+        createNamespaces: false
+    asserts:
+      - hasDocuments:
+          count: 0

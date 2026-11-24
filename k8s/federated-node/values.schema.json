@@ -139,6 +139,17 @@
                         },
                         "tag": {
                             "$ref": "#/definitions/tag"
+                        },
+                        "ownerGroups": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "^[^,]+$"
+                            },
+                            "default": [
+                                "service-account"
+                            ]
                         }
                     }
                 },
@@ -287,6 +298,11 @@
                     "$ref": "#/definitions/namespaces",
                     "description": "Namespaces this chart uses"
                 },
+                "createNamespaces": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Create the keycloak, tasks and cert-manager namespaces. Off when they come from outside (deploy.sh in dev, Flux with the SOPS Secrets on a site), so the Secrets read there can exist before install."
+                },
                 "postgresqlSecretName": {
                     "type": "string",
                     "description": "Name of the secret holding Dagster's database password. Read by the dagster subchart and by this chart's db-init job; the key is always postgresql-password",
@@ -431,7 +447,7 @@
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "The secret name that will hold the password to use for the user"
+                    "description": "The Secret, in the Keycloak namespace, holding the first user's password"
                 },
                 "passKey": {
                     "type": "string",
@@ -605,7 +621,7 @@
             "properties": {
                 "secretName": {
                     "type": "string",
-                    "description": "An existing Secret in the release namespace holding the PEM. Mutually exclusive with pem."
+                    "description": "An existing Secret holding the PEM, in the release namespace and the Keycloak namespace. Mutually exclusive with pem."
                 },
                 "key": {
                     "type": "string",
