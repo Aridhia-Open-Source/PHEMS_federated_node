@@ -42,8 +42,8 @@ from app.models.pull_request_trigger import PullRequestTrigger
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.models.trigger_repository import TriggerRepository
-from app.projects_api import _dataset_resource, _results_resource, _secret_resource
-from app.secrets_api import SecretProvider, _get_secret
+from app.projects.projects_api import _dataset_resource, _results_resource, _secret_resource
+from app.globals.secrets_api import SecretProvider, _get_secret
 
 HEALTHCHECK_MAX_WORKERS = 8
 
