@@ -91,7 +91,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.metadata.annotations["checksum/kc-config"]
-          value: &kcConfigChecksum d52987b8c4b95a286b4b550b84273473952d2f2852966b5297efd5460195addb
+          value: &kcConfigChecksum 3b782a721f9475613fc0d9c061a419fb8efabfc6f6f439ddc8c96de0788ae964
 
   ## Preserves the one useful thing rollme did: roll when Keycloak's config genuinely changes.
   ## KEYCLOAK_TOKEN_LIFE lives in keycloak-config, so changing token.life must move the hash away

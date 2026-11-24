@@ -30,7 +30,6 @@ from app.helpers.exceptions import (
     DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
     UnauthorizedError
 )
-from app.clients.keycloak import Keycloak  # noqa: F401  patched by tests/conftest.py
 from app.rules.project_state import require_accepts_tasks
 from app.clients.kubernetes_names import validate_dns_label
 from app.rules.state_rules import transition
@@ -38,6 +37,7 @@ from app.tasks.task_config import decide_launch
 from app.tasks.task_resources import create_run_resources, delete_run_resources
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import Caller, get_caller, system_only
+from app.models.node_role import NodeRole
 from app.dtos.dataset import DatasetDTO
 from app.dtos.base import page_of
 from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskResourcesDTO
@@ -67,8 +67,8 @@ def does_user_own_task(task: Task, caller: Caller):
 
     If they don't, an exception is raised with 403 status code
     """
-    # TODO(auth): revisit with the Keycloak/authorization rework.
-    if task.requested_by != caller.user_id and not caller.is_admin and not caller.is_system:
+    # Stopgap owner/role check: Cedar read enforcement (auth/8 #688, T-076) replaces it.
+    if task.requested_by != caller.user_id and not caller.is_admin and caller.role != NodeRole.DAGSTER:
         raise UnauthorizedError("User does not have enough permissions")
 
 
@@ -267,7 +267,7 @@ def post_tasks(
         # against, if any, is the one the task runs on.
         spec = TaskSpecRequest.from_api_body(req_body)
         req_body["docker_image"] = spec.image
-        validated = Task.validate(req_body, caller.token)
+        validated = Task.validate(req_body, caller.user_id)
         spec.dataset = validated["dataset"].name if validated["dataset"] else None
         new_task = NewTaskDTO.from_spec(spec, api_request)
     except VALIDATION_ERRORS as error:
@@ -299,7 +299,7 @@ def post_tasks_validate(project_id: int, req_body: dict = Body(default_factory=d
     req_body["project_id"] = project_id
     spec = TaskSpecRequest.from_api_body(req_body)
     req_body["docker_image"] = spec.image
-    Task.validate(req_body, caller.token)
+    Task.validate(req_body, caller.user_id)
     return "Ok"
 
 

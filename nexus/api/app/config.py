@@ -99,14 +99,36 @@ class NodeSettings(EnvSettings):
     dagster_webserver_uri: str | None = Field(default=None, alias="DAGSTER_WEBSERVER_URI")
 
 
+class AccessTokenSettings(EnvSettings):
+    """
+    How nexus-api checks Keycloak access tokens (ADR 0035). Tokens are issued for Keycloak's address on the node's
+    host (KC_HOSTNAME); the keys are fetched in-cluster. The chart sets both. A value left unset defaults from the
+    Keycloak group (see Settings).
+    """
+    issuer: str | None = Field(default=None, alias="KEYCLOAK_ISSUER")
+    jwks_url: str | None = Field(default=None, alias="KEYCLOAK_JWKS_URL")
+    client: str | None = Field(default=None, alias="KEYCLOAK_CLIENT")
+
+
 @dataclass
 class Settings:
-    """Every group, read once at import."""
+    """Every group, read once at import. Access tokens default from the Keycloak group."""
 
     database: DatabaseSettings = field(default_factory=DatabaseSettings)
     keycloak: KeycloakSettings = field(default_factory=KeycloakSettings)
     kubernetes: KubernetesSettings = field(default_factory=KubernetesSettings)
     node: NodeSettings = field(default_factory=NodeSettings)
+    access_token: AccessTokenSettings = field(default_factory=AccessTokenSettings)
+
+    def __post_init__(self):
+        realm_url = f"{self.keycloak.url}/realms/{self.keycloak.realm}"
+        token = self.access_token
+        if token.issuer is None:
+            token.issuer = realm_url
+        if token.jwks_url is None:
+            token.jwks_url = f"{realm_url}/protocol/openid-connect/certs"
+        if token.client is None:
+            token.client = self.keycloak.client
 
 
 settings = Settings()

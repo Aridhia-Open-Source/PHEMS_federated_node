@@ -1,6 +1,6 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths, components } from "./schema";
-import { getToken, setToken } from "./auth";
+import { expiresSoon, getRefreshToken, getToken, setToken } from "./auth";
 import { showToast } from "../shared/toast";
 
 export type Schemas = components["schemas"];
@@ -22,8 +22,30 @@ export async function errorText(response: Response): Promise<string> {
   }
 }
 
+// Swaps the refresh token for a new pair; on failure the session ends. Concurrent callers share one call.
+let refreshing: Promise<void> | null = null;
+export function refreshSession(): Promise<void> {
+  refreshing ??= (async () => {
+    const response = await fetch(`${API_BASE}/refresh_token`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${getRefreshToken()}` },
+    });
+    if (!response.ok) {
+      setToken(null);
+      return;
+    }
+    const body = await response.json();
+    setToken(body.token, body.refresh_token);
+  })().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+// Access tokens live 5 minutes: refresh just before one expires, then send it.
 const auth: Middleware = {
-  onRequest({ request }) {
+  async onRequest({ request }) {
+    if (getToken() && getRefreshToken() && expiresSoon(getToken())) await refreshSession();
     const t = getToken();
     if (t) request.headers.set("Authorization", `Bearer ${t}`);
     return request;
