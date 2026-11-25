@@ -108,8 +108,8 @@ jobs:
           # An empty token disables the pull_request API mode, which can miss files when a later
           # synchronize commit is empty. Git mode compares the complete PR with its base.
           token: ''
-          base: ${{ github.event.merge_group.base_sha }}
-          ref: ${{ github.event.merge_group.head_sha }}
+          base: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
+          ref: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
           filters: |
             api:
               - 'nexus/api/**'
