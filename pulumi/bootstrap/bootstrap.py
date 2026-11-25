@@ -66,7 +66,7 @@ def create_deployment_repository() -> github.Repository:
         "deployment-repository",
         name=repository_name,
         description=f"PHEMS deployment configuration for {site}",
-        private=True,
+        visibility="private",
         auto_init=True,
         has_issues=False,
         has_projects=False,
