@@ -41,6 +41,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0033](../project/decisions/0033-running-behind-a-tls-intercepting-proxy.md) | Running behind a TLS-intercepting proxy | One script checks the proxy and CA and writes only generated, gitignored env and values files that hand-edited ones override; image builds get the CA as a build secret. |
 | [0039](../project/decisions/0039-fednode-shared-package.md) | Fednode shared package | One package, `fednode`, holds the transport, the clients, the shared settings and fncli for every service; settings read env names from their path; supersedes 0038. |
 
+
 ## Other docs by topic
 
 Architecture ([docs/architecture](architecture/)):
@@ -60,6 +61,8 @@ Testing and open items:
 - The mirror service is developed on branch `moonshot/gitea-mirror`.
 
 Wiki ([docs/versions/2.x/docs](versions/2.x/docs/)):
+
+- [FedNode tooling](versions/2.x/docs/FedNode.md): fncli, shared settings and component databases.
 
 - The GitHub wiki pages live here, file names the same as on the wiki. Edit them in a pull request. The `Wiki sync` workflow copies this folder to the wiki when a change to it reaches `main`, so an edit made in the wiki itself is overwritten by the next sync.
 
