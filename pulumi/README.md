@@ -43,14 +43,15 @@ same-repository pull requests that change this project. A push to protected
 `pulumi-bootstrap` GitHub environment. Configure required reviewers on that
 environment so applying infrastructure is an explicit approval step.
 
-Set these secrets in the repository for previews and in the
-`pulumi-bootstrap` environment for applies:
+Set `GITHUB_TOKEN` in the repository for previews and in the
+`pulumi-bootstrap` environment for applies. It must be a fine-grained GitHub
+token with repository administration permission for the deployment repository.
+No Pulumi Cloud token or backend configuration is required.
 
-* `PULUMI_ACCESS_TOKEN` - a Pulumi Cloud access token. The default backend is
-  `https://api.pulumi.com`; set the `PULUMI_BACKEND_URL` repository/environment
-  variable when using another Pulumi backend.
-* `GITHUB_TOKEN` - a fine-grained GitHub token with repository administration
-  permission for the deployment repositories created by this stack.
+Each job logs into an ephemeral local Pulumi backend. State exists only for the
+duration of that job and is discarded afterwards. The workflow is therefore
+intended for the one-off bootstrap: rerunning it is not state-aware and may
+attempt to recreate or conflict with resources that already exist.
 
 Set repository variables `PULUMI_STACK`, `PULUMI_REPOSITORY`, and
 `PULUMI_ENVIRONMENTS` for the protected push path. A manual run can override

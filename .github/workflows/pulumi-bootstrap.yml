@@ -45,9 +45,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     env:
-      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL || 'https://api.pulumi.com' }}
       STACK: pr-${{ github.event.pull_request.number }}
       REPOSITORY: phems-pr-${{ github.event.pull_request.number }}-deployment
       ENVIRONMENTS: develop
@@ -69,6 +67,7 @@ jobs:
         working-directory: pulumi/bootstrap
         run: |
           set -euo pipefail
+          pulumi login --local
           pulumi stack select "$STACK" || pulumi stack init "$STACK"
           pulumi config set github:owner "$GITHUB_REPOSITORY_OWNER"
           pulumi config set repository "$REPOSITORY"
@@ -84,11 +83,8 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pulumi-bootstrap
-      url: https://app.pulumi.com
     env:
-      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL || 'https://api.pulumi.com' }}
       STACK: ${{ inputs.stack || vars.PULUMI_STACK || 'production' }}
       REPOSITORY: ${{ inputs.repository || vars.PULUMI_REPOSITORY || 'phems-deployment' }}
       ENVIRONMENTS: ${{ inputs.environments || vars.PULUMI_ENVIRONMENTS || 'develop' }}
@@ -124,6 +120,7 @@ jobs:
         working-directory: pulumi/bootstrap
         run: |
           set -euo pipefail
+          pulumi login --local
           pulumi stack select "$STACK" || pulumi stack init "$STACK"
           pulumi config set github:owner "$GITHUB_REPOSITORY_OWNER"
           pulumi config set repository "$REPOSITORY"
