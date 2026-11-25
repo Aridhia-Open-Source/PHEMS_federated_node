@@ -1352,18 +1352,30 @@ mise<span class="w"> </span>run<span class="w"> </span>flux<span class="w"> </sp
 mise<span class="w"> </span>run<span class="w"> </span>flux<span class="w"> </span>down<span class="w">                </span><span class="c1"># remove Flux and fn-site; the release stays</span>
 </code></pre></div>
 <ul>
-<li><code>up</code> makes the dev age key (<code>bootstrap/sops/age.agekey</code>, kept across runs) and loads it into Flux, fills <code>secrets/sops/first-user-secret.yaml</code> from <code>.dev.env</code> and encrypts it before the first push.</li>
+<li><code>up</code> makes the dev age key (<code>bootstrap/sops/kind-fn.agekey</code>, kept across runs) and loads it into Flux, fills <code>secrets/sops/first-user-secret.yaml</code> from <code>.dev.env</code> and encrypts it before the first push.</li>
 <li><code>site-example/helmrelease.yaml</code> uses the release name and namespace <code>mise run deploy</code> used, so Flux adopts that release.</li>
 <li>While Flux owns the release, <code>mise run deploy</code> and <code>mise run teardown</code> refuse; <code>mise run flux down</code> hands it back.</li>
 <li>The dev site values pin the dev images (<code>latest</code>), so a version bump changes only the chart.</li>
 </ul>
 <h2 id="the-loop">The loop<a class="headerlink" href="#the-loop" title="Permanent link">&para;</a></h2>
-<p>Clone <code>http://localhost:4000/gitea_admin/fn-site.git</code> (login <code>gitea_admin</code>, password from <code>kubectl get secret gitea-admin -n fn -o jsonpath='{.data.password}' | base64 -d</code>), then:</p>
+<p><code>mise run flux up</code> keeps a working checkout at <code>.local/fn-site/</code> (gitignored). Use it for the local site repository:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>.local/fn-site
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>demo-change
+<span class="c1"># Edit values.yaml or helmrelease.yaml</span>
+git<span class="w"> </span>add<span class="w"> </span>.
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">"demo: change site configuration"</span>
+</code></pre></div>
+<p>Push the branch to Gitea and open a pull request into <code>main</code>. With a Gitea Actions runner enabled,
+<code>.gitea/workflows/validate.yml</code> validates the pull request. After merging, Flux reconciles <code>main</code>.</p>
+<div class="highlight"><pre><span></span><code><span class="nv">GITEA_AUTH</span><span class="o">=</span><span class="s2">"Authorization: Basic </span><span class="k">$(</span><span class="nb">printf</span><span class="w"> </span><span class="s1">'%s:%s'</span><span class="w"> </span>gitea_admin<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span><span class="s2">"</span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>secret<span class="w"> </span>gitea-admin<span class="w"> </span>-n<span class="w"> </span>fn<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{.data.password}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-d<span class="k">)</span><span class="s2">"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>base64<span class="w"> </span>-w0<span class="k">)</span><span class="s2">"</span>
+git<span class="w"> </span>-c<span class="w"> </span><span class="s2">"http.extraHeader=</span><span class="nv">$GITEA_AUTH</span><span class="s2">"</span><span class="w"> </span>push<span class="w"> </span>-u<span class="w"> </span>origin<span class="w"> </span>demo-change
+</code></pre></div>
 <ul>
 <li><strong>Upgrade:</strong> <code>mise run flux publish 0.0.2-dev</code>, set <code>version: "0.0.2-dev"</code> in <code>helmrelease.yaml</code>, push. <code>helm history fn-dev -n fn</code> shows the new revision.</li>
 <li><strong>Revert:</strong> <code>git revert HEAD</code>, push.</li>
 <li><strong>Config:</strong> change a value in <code>values.yaml</code>, push.</li>
-<li><strong>Secret:</strong> <code>sops encrypt -i</code> in your clone (its <code>.sops.yaml</code> has your key); <code>SOPS_AGE_KEY_FILE=&lt;repo&gt;/bootstrap/sops/age.agekey sops &lt;file&gt;</code> edits one.</li>
+<li><strong>Secret:</strong> <code>sops encrypt -i</code> in the checkout (its <code>.sops.yaml</code> has the cluster key); <code>SOPS_AGE_KEY_FILE=&lt;repo&gt;/bootstrap/sops/kind-fn.agekey sops &lt;file&gt;</code> edits one.</li>
 </ul>
 <p>Flux looks every minute; <code>flux reconcile kustomization fn-site -n flux-system --with-source</code> skips the wait.</p>
 

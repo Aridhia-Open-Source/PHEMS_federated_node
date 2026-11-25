@@ -8,7 +8,7 @@
     "/ready_check": {
       "get": {
         "tags": [
-          "main"
+          "healthcheck"
         ],
         "summary": "Ready Check",
         "description": "GET /ready_check endpoint\n    Mostly to tell k8s the server has started",
@@ -32,7 +32,7 @@
     "/health_check": {
       "get": {
         "tags": [
-          "main"
+          "healthcheck"
         ],
         "summary": "Health Check",
         "description": "GET /health_check endpoint\n    Checks the connection to keycloak and returns a jsonized summary",
@@ -64,7 +64,7 @@
     "/login": {
       "post": {
         "tags": [
-          "main"
+          "auth"
         ],
         "summary": "Login",
         "description": "POST /login endpoint.\n    Given a form, logs the user in, returning a refresh_token from Keycloak",
@@ -107,7 +107,7 @@
     "/refresh_token": {
       "post": {
         "tags": [
-          "main"
+          "auth"
         ],
         "summary": "Refresh Token",
         "description": "POST /refresh_token endpoint.\n    Given a token, exchanges it for a new one. Returns the same\n    response as /login",
@@ -121,6 +121,42 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Refresh Token Refresh Token Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/users/reset-password": {
+      "put": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reset Password",
+        "description": "PUT /global/users/reset-password endpoint. Interface to keycloak\n    API, so we can change the credentials and make sure\n    there are no pending action to undertake",
+        "operationId": "reset_password_global_users_reset_password_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -328,7 +364,7 @@
           "projects"
         ],
         "summary": "Delete Project",
-        "description": "DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes\nevery project resource under it: datasets, secrets, results repository and trigger repositories. Its tasks\nand triggers stay. Secrets, datasets and results repositories belong to no project: they, and\ntheir stored values, are left alone.",
+        "description": "DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes\nevery project resource under it: datasets, secrets, results repository and trigger repositories. A 409 names\nthe project resources owned by a group the caller is not in, and nothing is deleted. Its tasks\nand triggers stay. Secrets, datasets and results repositories belong to no project: they, and\ntheir stored values, are left alone.",
         "operationId": "delete_project_projects__project_id__delete",
         "parameters": [
           {
@@ -1148,6 +1184,162 @@
         }
       }
     },
+    "/projects/{project_id}/datasets/{dataset_id}/healthcheck": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Project Dataset Healthcheck",
+        "description": "GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's\ncheck and the project's resource state. 404 if the project has no resource for it.",
+        "operationId": "project_dataset_healthcheck_projects__project_id__datasets__dataset_id__healthcheck_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDatasetHealthDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/secrets/{label}/healthcheck": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Project Secret Healthcheck",
+        "description": "GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check\nand the project's resource state. 404 if the project has no resource for it.",
+        "operationId": "project_secret_healthcheck_projects__project_id__secrets__label__healthcheck_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSecretHealthDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_id}/repositories/results/{repository_id}/healthcheck": {
+      "get": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Project Results Repository Healthcheck",
+        "description": "GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The\nglobal repository's check and the project's resource state. 404 if the project has no resource for it.",
+        "operationId": "project_results_repository_healthcheck_projects__project_id__repositories_results__repository_id__healthcheck_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repository Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectResultsRepositoryHealthDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/global/datasets": {
       "get": {
         "tags": [
@@ -1389,6 +1581,49 @@
         }
       }
     },
+    "/global/datasets/{dataset_id}/healthcheck": {
+      "get": {
+        "tags": [
+          "datasets"
+        ],
+        "summary": "Dataset Healthcheck",
+        "description": "GET /global/datasets/<dataset_id>/healthcheck endpoint. Whether the node can connect to the\ndataset's database with its secret.",
+        "operationId": "dataset_healthcheck_global_datasets__dataset_id__healthcheck_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetHealthDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}/tasks": {
       "get": {
         "tags": [
@@ -1583,7 +1818,7 @@
           "tasks"
         ],
         "summary": "Patch Task",
-        "description": "PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.\nA move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same\nstatus again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.\nA task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see\nhelpers/task_resources): before the status is saved, so that a failed delete leaves the task as it was and\nthe next PATCH retries it.",
+        "description": "PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.\nA move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same\nstatus again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.\nA task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see\ntasks/resources): before the status is saved, so that a failed delete leaves the task as it was and\nthe next PATCH retries it.",
         "operationId": "patch_task_projects__project_id__tasks__task_id__patch",
         "parameters": [
           {
@@ -2475,42 +2710,6 @@
         }
       }
     },
-    "/global/users/reset-password": {
-      "put": {
-        "tags": [
-          "users"
-        ],
-        "summary": "Reset Password",
-        "description": "PUT /global/users/reset-password endpoint. Interface to keycloak\n    API, so we can change the credentials and make sure\n    there are no pending action to undertake",
-        "operationId": "reset_password_global_users_reset_password_put",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Body"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/global/users": {
       "get": {
         "tags": [
@@ -2963,6 +3162,49 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GitTokenDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/repositories/triggers/{repository_id}/healthcheck": {
+      "get": {
+        "tags": [
+          "trigger_repositories"
+        ],
+        "summary": "Trigger Repository Healthcheck",
+        "description": "GET /global/repositories/triggers/<repository_id>/healthcheck endpoint. Whether the repository\ncan be reached with its own secret.",
+        "operationId": "trigger_repository_healthcheck_global_repositories_triggers__repository_id__healthcheck_get",
+        "parameters": [
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repository Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryConnectionDTO"
                 }
               }
             }
@@ -3550,6 +3792,58 @@
         }
       }
     },
+    "/projects/{project_id}/repositories/triggers/{repository_id}/healthcheck": {
+      "get": {
+        "tags": [
+          "project_trigger_repositories"
+        ],
+        "summary": "Project Trigger Repository Healthcheck",
+        "description": "GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The\nglobal repository's check, the project's resource state and its pull request count. 404 if the\nproject has no resource for it.",
+        "operationId": "project_trigger_repository_healthcheck_projects__project_id__repositories_triggers__repository_id__healthcheck_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repository Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectTriggerRepositoryHealthDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/global/secrets": {
       "get": {
         "tags": [
@@ -3756,6 +4050,49 @@
         }
       }
     },
+    "/global/secrets/{label}/healthcheck": {
+      "get": {
+        "tags": [
+          "secrets"
+        ],
+        "summary": "Secret Healthcheck",
+        "description": "GET /global/secrets/<label>/healthcheck endpoint. Whether the secret is in its store with the\nkeys its datasets and repositories need. Never the values.",
+        "operationId": "secret_healthcheck_global_secrets__label__healthcheck_get",
+        "parameters": [
+          {
+            "name": "label",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Label"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretHealthDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/global/providers": {
       "get": {
         "tags": [
@@ -3936,6 +4273,49 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/global/providers/{provider_id}/healthcheck": {
+      "get": {
+        "tags": [
+          "git_providers"
+        ],
+        "summary": "Provider Healthcheck",
+        "description": "GET /global/providers/<provider_id>/healthcheck endpoint. Whether the provider's API answers.",
+        "operationId": "provider_healthcheck_global_providers__provider_id__healthcheck_get",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Provider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitProviderHealthDTO"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -4206,6 +4586,49 @@
         }
       }
     },
+    "/global/repositories/results/{repository_id}/healthcheck": {
+      "get": {
+        "tags": [
+          "results_repositories"
+        ],
+        "summary": "Results Repository Healthcheck",
+        "description": "GET /global/repositories/results/<repository_id>/healthcheck endpoint. Whether the repository\ncan be reached with its own secret.",
+        "operationId": "results_repository_healthcheck_global_repositories_results__repository_id__healthcheck_get",
+        "parameters": [
+          {
+            "name": "repository_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Repository Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryConnectionDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/dagster/sensors": {
       "get": {
         "tags": [
@@ -4394,221 +4817,6 @@
         }
       }
     },
-    "/global/datasets/{dataset_id}/healthcheck": {
-      "get": {
-        "tags": [
-          "healthcheck"
-        ],
-        "summary": "Dataset Healthcheck",
-        "description": "GET /global/datasets/<dataset_id>/healthcheck endpoint. Whether the node can connect to the\ndataset's database with its secret.",
-        "operationId": "dataset_healthcheck_global_datasets__dataset_id__healthcheck_get",
-        "parameters": [
-          {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Dataset Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DatasetHealthDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/secrets/{label}/healthcheck": {
-      "get": {
-        "tags": [
-          "healthcheck"
-        ],
-        "summary": "Secret Healthcheck",
-        "description": "GET /global/secrets/<label>/healthcheck endpoint. Whether the secret is in its store with the\nkeys its datasets and repositories need. Never the values.",
-        "operationId": "secret_healthcheck_global_secrets__label__healthcheck_get",
-        "parameters": [
-          {
-            "name": "label",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Label"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SecretHealthDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/providers/{provider_id}/healthcheck": {
-      "get": {
-        "tags": [
-          "healthcheck"
-        ],
-        "summary": "Provider Healthcheck",
-        "description": "GET /global/providers/<provider_id>/healthcheck endpoint. Whether the provider's API answers.",
-        "operationId": "provider_healthcheck_global_providers__provider_id__healthcheck_get",
-        "parameters": [
-          {
-            "name": "provider_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Provider Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GitProviderHealthDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/repositories/triggers/{repository_id}/healthcheck": {
-      "get": {
-        "tags": [
-          "healthcheck"
-        ],
-        "summary": "Trigger Repository Healthcheck",
-        "description": "GET /global/repositories/triggers/<repository_id>/healthcheck endpoint. Whether the repository\ncan be reached with its own secret.",
-        "operationId": "trigger_repository_healthcheck_global_repositories_triggers__repository_id__healthcheck_get",
-        "parameters": [
-          {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Repository Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RepositoryConnectionDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/global/repositories/results/{repository_id}/healthcheck": {
-      "get": {
-        "tags": [
-          "healthcheck"
-        ],
-        "summary": "Results Repository Healthcheck",
-        "description": "GET /global/repositories/results/<repository_id>/healthcheck endpoint. Whether the repository\ncan be reached with its own secret.",
-        "operationId": "results_repository_healthcheck_global_repositories_results__repository_id__healthcheck_get",
-        "parameters": [
-          {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Repository Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RepositoryConnectionDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/projects/{project_id}/healthcheck": {
       "get": {
         "tags": [
@@ -4635,214 +4843,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProjectHealthDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/projects/{project_id}/datasets/{dataset_id}/healthcheck": {
-      "get": {
-        "tags": [
-          "healthcheck"
-        ],
-        "summary": "Project Dataset Healthcheck",
-        "description": "GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's\ncheck and the project's resource state. 404 if the project has no resource for it.",
-        "operationId": "project_dataset_healthcheck_projects__project_id__datasets__dataset_id__healthcheck_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "dataset_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Dataset Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectDatasetHealthDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/projects/{project_id}/secrets/{label}/healthcheck": {
-      "get": {
-        "tags": [
-          "healthcheck"
-        ],
-        "summary": "Project Secret Healthcheck",
-        "description": "GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check\nand the project's resource state. 404 if the project has no resource for it.",
-        "operationId": "project_secret_healthcheck_projects__project_id__secrets__label__healthcheck_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "label",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Label"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectSecretHealthDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/projects/{project_id}/repositories/triggers/{repository_id}/healthcheck": {
-      "get": {
-        "tags": [
-          "healthcheck"
-        ],
-        "summary": "Project Trigger Repository Healthcheck",
-        "description": "GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The\nglobal repository's check, the project's resource state and its pull request count. 404 if the\nproject has no resource for it.",
-        "operationId": "project_trigger_repository_healthcheck_projects__project_id__repositories_triggers__repository_id__healthcheck_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Repository Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectTriggerRepositoryHealthDTO"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/projects/{project_id}/repositories/results/{repository_id}/healthcheck": {
-      "get": {
-        "tags": [
-          "healthcheck"
-        ],
-        "summary": "Project Results Repository Healthcheck",
-        "description": "GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The\nglobal repository's check and the project's resource state. 404 if the project has no resource for it.",
-        "operationId": "project_results_repository_healthcheck_projects__project_id__repositories_results__repository_id__healthcheck_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "repository_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Repository Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProjectResultsRepositoryHealthDTO"
                 }
               }
             }
