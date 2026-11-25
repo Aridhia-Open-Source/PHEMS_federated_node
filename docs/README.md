@@ -42,6 +42,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0035](../project/decisions/0035-api-authorization-oidc-authentication.md) | Keycloak Authentication | An OIDC provider signs people in and supplies a user id, one node role and groups; nexus-api decides every access per record from its own database. |
 | [0036](../project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md) | Roles and Accounts | Keycloak is the provider shipped; five fixed realm roles; kc-init creates the system accounts; SuperUser bypasses grants, not the application's rules. |
 
+
 ## Other docs by topic
 
 Architecture ([docs/architecture](architecture/)):
@@ -61,6 +62,8 @@ Testing and open items:
 - The mirror service is developed on branch `moonshot/gitea-mirror`.
 
 Wiki ([docs/versions/2.x/docs](versions/2.x/docs/)):
+
+- [Authentication](versions/2.x/docs/Authentication.md): Keycloak, OIDC tokens, roles and system accounts.
 
 - The GitHub wiki pages live here, file names the same as on the wiki. Edit them in a pull request. The `Wiki sync` workflow copies this folder to the wiki when a change to it reaches `main`, so an edit made in the wiki itself is overwritten by the next sync.
 

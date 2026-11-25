@@ -112,6 +112,8 @@ Tests and lint:
   - Migrations: see `nexus/api/migrations/README` and ADR 0023 before adding one.
 - Chart changes: keep `values.yaml` and `values.schema.json` in step, and add or update a suite in `k8s/federated-node/tests/`.
 
+- Keycloak handles users and tokens; see [Authentication](docs/versions/2.x/docs/Authentication.md) for OIDC claims, node roles and system accounts.
+
 ## Read next
 
 - `DEPLOYMENT.md` - local dev cluster and production deploy; `MANAGEMENT.md` - setting up projects, and `fncli`.
