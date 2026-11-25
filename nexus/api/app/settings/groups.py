@@ -1,4 +1,6 @@
 """Nexus API's settings groups."""
+# pylint: disable=too-few-public-methods
+
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 

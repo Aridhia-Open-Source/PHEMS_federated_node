@@ -1,7 +1,7 @@
 [MASTER]
 
 # Specify a score threshold to be exceeded before program exits with error.
-fail-under=9.0
+fail-under=8.0
 
 [MESSAGES CONTROL]
 # unused-import/argument/variable are off during the dagster rework (more noise

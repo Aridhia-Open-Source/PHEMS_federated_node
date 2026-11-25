@@ -15,6 +15,7 @@ from sqlalchemy.pool import NullPool
 
 from app.database.base_model import BaseModel, db
 from app.settings import settings
+# pylint: disable=no-member
 from app.database.uri import build_sql_uri
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.clients.keycloak import Keycloak

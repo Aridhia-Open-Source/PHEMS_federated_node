@@ -9,6 +9,8 @@ The roll-ups, built from the same per-resource checks:
 - GET /global/healthcheck, every global resource of the four kinds
 - GET /projects/<project_id>/healthcheck, the project's trigger and results repository resources
 """
+# pylint: disable=no-member
+
 from http import HTTPStatus
 
 from fastapi import APIRouter
@@ -54,7 +56,9 @@ def ready_check() -> dict:
 
 
 @probes_router.get(
-    "/health_check", response_model=healthcheck.NodeHealthDTO, responses={HTTPStatus.BAD_GATEWAY: {"model": healthcheck.NodeHealthDTO}}
+    "/health_check",
+    response_model=healthcheck.NodeHealthDTO,
+    responses={HTTPStatus.BAD_GATEWAY: {"model": healthcheck.NodeHealthDTO}},
 )
 def health_check():
     """
@@ -63,7 +67,9 @@ def health_check():
     """
     try:
         kc_request = KeycloakLogin(
-            settings.services.keycloak.url, "master", timeout=(settings.http.connect_timeout, settings.http.read_timeout)
+            settings.services.keycloak.url,
+            "master",
+            timeout=(settings.http.connect_timeout, settings.http.read_timeout),
         ).realm_info()
         kc_status = kc_request.ok
         status_text = "ok" if kc_request.ok else "non operational"

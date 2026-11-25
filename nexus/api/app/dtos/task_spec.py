@@ -1,6 +1,9 @@
 import json
 from typing import Annotated, Any
 
+# Pylint cannot follow nested Pydantic settings fields.
+# pylint: disable=no-member
+
 from pydantic import (
     BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
 )
@@ -93,7 +96,8 @@ class PrSpec(BaseModel):
         default_factory=dict,
         description=(
             f"Environment variables of the task. A name has to match {limits.TASK_ENV_KEY_REGEX}, and can't be "
-            f"{', '.join(sorted(limits.TASK_ENV_RESERVED_KEYS))} or start with {' or '.join(limits.TASK_ENV_RESERVED_PREFIXES)}, "
+            f"{', '.join(sorted(limits.TASK_ENV_RESERVED_KEYS))} or start with "
+            f"{' or '.join(limits.TASK_ENV_RESERVED_PREFIXES)}, "
             f"in any letter case. The env as JSON is at most {limits.TASK_ENV_MAX_BYTES} bytes"
         ),
         # pydantic states the key pattern as patternProperties only, a key that doesn't match it is still not allowed

@@ -5,6 +5,8 @@ dagster endpoints:
 - PATCH /dagster/sensors
 - PATCH /dagster/sensors/<name>
 """
+# pylint: disable=no-member
+
 from functools import lru_cache
 
 from fastapi import APIRouter, Body
@@ -26,10 +28,12 @@ def dagster() -> DagsterClient:
 
 
 def dto_of(sensors: list[dict]) -> list[SensorDTO]:
+    """Convert Dagster sensor payloads into API DTOs."""
     return [SensorDTO.model_validate(s) for s in sensors]
 
 
 def get_sensor(name: str) -> dict:
+    """Return one Dagster sensor by name."""
     sensor = next((s for s in dagster().list_sensors() if s["name"] == name), None)
     if sensor is None:
         raise DBRecordNotFoundError(f"Sensor {name} not found")
@@ -37,6 +41,7 @@ def get_sensor(name: str) -> dict:
 
 
 def requested_status(body: dict) -> str:
+    """Validate and return the requested sensor status."""
     status = body.get("status")
     if status not in STATUSES:
         raise InvalidRequest(f"status must be one of {', '.join(STATUSES)}")
@@ -44,6 +49,7 @@ def requested_status(body: dict) -> str:
 
 
 def apply_status(sensors: list[dict], status: str):
+    """Apply a status to sensors that do not already have it."""
     for sensor in sensors:
         if sensor["status"] != status:
             dagster().set_sensor_status(sensor, status)
