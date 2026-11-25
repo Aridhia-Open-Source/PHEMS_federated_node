@@ -147,3 +147,5 @@ The proxy address is stored as plain text in the pod specs, so do not put creden
 VERSION=x.y.z
 wget "https://github.com/kubernetes-sigs/gateway-api/releases/download/v${VERSION}/standard-install.yaml -O k8s/federated-node/scripts/gateway-api-crds-${VERSION//./-}.yaml"
 ```
+
+<!-- CI path-filter smoke test -->
