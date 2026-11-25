@@ -44,7 +44,7 @@ def create_deployment_repository() -> github.Repository:
     """Create the deployment repository and converge its initial files."""
 
     config = pulumi.Config()
-    owner = config.require("github:owner")
+    owner = pulumi.Config("github").require("owner")
     repository_name = config.get("repository") or "phems-deployment"
     site = config.get("site") or "site"
     namespace = config.get("namespace") or "fn"
