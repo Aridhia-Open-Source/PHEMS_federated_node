@@ -1,0 +1,3 @@
+# Plan: Auth docs and wiki
+
+Update the docs (`docs/`, `docs/versions/2.x/docs/` wiki pages, AGENTS.md, CHANGELOG.md) for the authentication stack (Keycloak roles, accounts, token verification). Last PR in its stack, so it describes the stack as merged. Not started.

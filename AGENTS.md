@@ -12,12 +12,9 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
 ## Repo map
 
 - `nexus/api/` - the backend (FastAPI, SQLAlchemy, Alembic).
-  - `app/__init__.py` builds the app. Routers (endpoints only), grouped by URL scope: `app/globals/*_api.py` (`/global/...`),
-    `app/projects/*_api.py` (`/projects/...`); `app/auth_api.py` (login, token refresh, password reset),
-    `app/healthcheck_api.py` (probes and the health roll-ups), `app/dagster_api.py`.
-  - `app/health/` - the health checks the healthcheck routes call; `app/clients/secret_store.py` - the secret stores.
+  - `app/*_api.py` - routers, one per resource; `app/main.py` builds the app.
   - `app/dtos/` - Pydantic response DTOs (ADR 0016); `app/models/` - SQLAlchemy models.
-  - `app/clients/` - the Keycloak rules, Kubernetes and outbound clients, and token checks; the Dagster client and the Keycloak login and admin calls are `fednode.clients.dagster` and `fednode.clients.keycloak` (`nexus/fednode`, ADR 0039).
+  - `app/clients/` - the Keycloak, Kubernetes, Dagster and outbound clients, and token checks.
   - `app/repos/` - git tokens and addresses, pull request fan-out. `app/tasks/` - task config, resources and limits.
   - `app/rules/` - state rules, ownership, authorization. `app/database/` - the model base, queries, soft delete.
   - `app/helpers/` - errors, request wrappers and the env-derived constants still in `const.py`.
@@ -28,9 +25,9 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
   - `definitions/sensors/git/` - pull request ingest and evaluate sensors and jobs.
   - `definitions/sensors/task/` - launcher, run status, reconcile, delivery, results PR sync.
   - `definitions/` - `jobs.py`, `ops.py`, `pipes.py`, `resources.py`, `run_config.py`.
-  - `delivery/` - results packaging and git push. The git provider clients are in `nexus/fednode/clients/git/`.
+  - `delivery/` - results packaging and git push; `github.py`, `gitea.py` - git clients.
   - `backend.py` - the nexus-api client; `models/` - Dagster-side models of API responses.
-- `nexus/fednode/cli/` - `fncli`, the dev/ops CLI (ADR 0018); commands in `cmds/`, tests in `nexus/fednode/tests/cli/` and `nexus/fednode/tests/e2e/`.
+- `dagster/fncli/` - `fncli`, the dev/ops CLI (ADR 0018); commands in `cmds/`, e2e suites in `tests/e2e/`.
 - `k8s/federated-node/` - the Helm chart: `templates/`, `values.yaml`, `values.schema.json`, `dev.example.values.yml`, helm-unittest suites in `tests/`.
 - `build/` - images for Keycloak, `kc-init`, an Alpine helper, and the helm-unittest runner.
 - `experiments/` - real experiment projects and their chart, driven by `fncli experiment` (see `experiments/README.md`); `demo` is the small task image (`demo-fn`) fncli and the e2e suites use.
@@ -83,11 +80,11 @@ Dependencies (Python):
 Tests and lint:
 
 - nexus-api: `cd nexus/api && ./run_tests.sh local tests/test_projects_api.py` (docker compose with Postgres; second argument is the pytest path). Faster venv runs: `nexus/api/run_local_tests.sh` (setup in its header).
-- Dagster app and fncli: `cd dagster && ./run_tests.sh local ../nexus/fednode/tests/cli/test_cli.py` (docker compose; pytest `testpaths` are `app/tests` and `../nexus/fednode/tests`). `mise run tests-dagster` runs all in CI mode.
+- Dagster app and fncli: `cd dagster && ./run_tests.sh local fncli/tests/test_cli.py` (docker compose; pytest `testpaths` are `app/tests` and `fncli/tests`). `mise run tests-dagster` runs all in CI mode.
 - UI: `cd nexus/ui && npm ci && npm test` (vitest); `npm run typecheck` for types.
 - Chart: `mise run helm lint`, `mise run helm template` (no cluster needed), `mise run helm tests` (helm-unittest).
 - Lint: `mise run pylint` (nexus-api), `mise run pylint dagster`, `mise run hadolint` (Dockerfiles).
-- End-to-end: `pytest nexus/fednode --e2e [success|failure|failure_long] -v` from the repo root. Needs a running dev cluster deployed from the branch under test, and `.dev.env`; see `nexus/fednode/tests/e2e/README.md`. Without `--e2e` these tests are skipped.
+- End-to-end: `pytest dagster --e2e [success|failure|failure_long] -v` from the repo root. Needs a running dev cluster deployed from the branch under test, and `.dev.env`; see `dagster/fncli/tests/e2e/README.md`. Without `--e2e` these tests are skipped.
 
 ## Conventions
 
@@ -115,6 +112,8 @@ Tests and lint:
   - Migrations: see `nexus/api/migrations/README` and ADR 0023 before adding one.
 - Chart changes: keep `values.yaml` and `values.schema.json` in step, and add or update a suite in `k8s/federated-node/tests/`.
 
+- Keycloak handles users and tokens; see [Authentication](docs/versions/2.x/docs/Authentication.md) for OIDC claims, node roles and system accounts.
+
 ## Read next
 
 - `DEPLOYMENT.md` - local dev cluster and production deploy; `MANAGEMENT.md` - setting up projects, and `fncli`.
@@ -122,4 +121,4 @@ Tests and lint:
 - `docs/README.md` - reviewer's guide: every ADR, the docs by topic, a reading order.
 - `docs/architecture/entities.md`, `flows.md`, `revoke-and-enabled.md`, `sensors/` - schema, states, flows, one doc per sensor.
 - `project/decisions/README.md` - ADR index; `project/TESTING.md` - testing notes.
-- `nexus/fednode/cli/README.md`, `k8s/federated-node/README.md`, `.tilt/TILT_QUICKSTART.md`, `SETUP_GIT_APPS.md`.
+- `dagster/fncli/README.md`, `k8s/federated-node/README.md`, `.tilt/TILT_QUICKSTART.md`, `SETUP_GIT_APPS.md`.
