@@ -3,8 +3,8 @@ The backend's state as the diff reads it (diff.BackendState), from FncliBackendA
 whatever the plan is limited to, because the plan lists the other projects assigned to a global resource that changes.
 """
 
-from app.git_uri import normalise_provider_uri, normalise_repo_uri
-from app.models import Project
+from fednode.clients.git.uri import normalise_provider_uri, normalise_repo_uri
+from fednode.clients.nexus.models import Project
 from fncli.backend import FncliBackendAPI
 from fncli.nodefile.diff import (
     BackendState, DatasetState, ProjectState, ProviderState, RepositoryState, ResultsState, TriggerState,

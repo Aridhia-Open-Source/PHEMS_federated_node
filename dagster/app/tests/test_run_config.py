@@ -2,7 +2,7 @@ import dagster as dg
 
 from app.definitions.jobs import k8s_pipes_job
 from app.definitions.run_config import build_run_config
-from app.models import Dataset, TaskSpec
+from fednode.clients.nexus.models import Dataset, TaskSpec
 
 DATASET = Dataset(
     id=1,

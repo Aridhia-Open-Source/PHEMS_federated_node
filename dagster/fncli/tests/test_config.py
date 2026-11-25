@@ -18,9 +18,9 @@ from fncli.cmds.common import (
     to_host_url,
 )
 from app.config import EnvConfig
-from app.gitea import GiteaAPI
-from app.github import GithubAPI
-from app.models import GitToken, ResultsRepository, TriggerRepository
+from fednode.clients.git.gitea import GiteaClient
+from fednode.clients.git.github import GitHubClient
+from fednode.clients.nexus.models import GitToken, ResultsRepository, TriggerRepository
 from app.tests.conftest import SAMPLE_PROVIDER, SAMPLE_TRIGGER_REPOSITORY
 from fncli.tests.conftest import NODE, results_config, trigger_config
 
@@ -159,9 +159,9 @@ def test_the_git_api_of_a_gitea_repo_is_a_token_client_through_the_port_forward(
 
     git_api = build_git_api(trigger_config())
 
-    assert isinstance(git_api, GiteaAPI)
-    assert git_api.client._base_uri == "http://localhost:3000/api/v1"
-    assert git_api.client.token == "minted"
+    assert isinstance(git_api, GiteaClient)
+    assert git_api._base_uri == "http://localhost:3000/api/v1"
+    assert git_api.token == "minted"
     backend_api.get_repository_token.assert_called_once_with("trigger", 1, None)
 
 
@@ -178,8 +178,8 @@ def test_the_git_api_of_a_github_repo_is_a_github_client(backend_api):
 
     git_api = build_git_api(trigger_config())
 
-    assert isinstance(git_api, GithubAPI)
-    assert git_api.client._base_uri == "https://api.github.com"
+    assert isinstance(git_api, GitHubClient)
+    assert git_api._base_uri == "https://api.github.com"
 
 
 # The researcher's writes to the trigger repo
@@ -192,9 +192,9 @@ def github_trigger(monkeypatch):
 
 
 def test_the_researcher_writes_to_a_gitea_repo_as_the_gitea_admin(monkeypatch):
-    monkeypatch.setattr(common, "build_gitea_api", lambda config: "admin api")
+    monkeypatch.setattr(common, "build_gitea_api", lambda config: SimpleNamespace(client="admin client"))
 
-    assert build_researcher_git_api(trigger_config()) == "admin api"
+    assert build_researcher_git_api(trigger_config()) == "admin client"
 
 
 def test_the_researcher_writes_to_a_github_repo_with_researcher_git_token(monkeypatch, github_trigger):
@@ -203,8 +203,8 @@ def test_the_researcher_writes_to_a_github_repo_with_researcher_git_token(monkey
 
     git_api = build_researcher_git_api(github_trigger())
 
-    assert isinstance(git_api, GithubAPI)
-    assert git_api.client.token == "ghp_mine"
+    assert isinstance(git_api, GitHubClient)
+    assert git_api.token == "ghp_mine"
 
 
 def test_without_researcher_git_token_the_researcher_uses_the_gh_cli_token(monkeypatch, github_trigger):
@@ -219,7 +219,7 @@ def test_without_researcher_git_token_the_researcher_uses_the_gh_cli_token(monke
     git_api = build_researcher_git_api(github_trigger())
 
     assert calls == [["gh", "auth", "token"]]
-    assert git_api.client.token == "gho_cli"
+    assert git_api.token == "gho_cli"
 
 
 @pytest.mark.parametrize("failure", [FileNotFoundError("gh"), subprocess.CalledProcessError(1, "gh")])

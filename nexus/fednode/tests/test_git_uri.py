@@ -1,6 +1,6 @@
 import pytest
 
-from app.git_uri import normalise_repo_uri
+from fednode.clients.git.uri import normalise_repo_uri
 
 
 @pytest.mark.parametrize("uri", [

@@ -1,0 +1,29 @@
+[project]
+name = "fednode"
+description = "Clients, transport and settings shared by the federated node services (ADR 0039)"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "requests~=2.32",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+    "kubernetes>=33.1,<36",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+# Flat layout: this folder is the fednode package (ADR 0039), tests are not packaged.
+[tool.setuptools]
+package-dir = {"fednode" = "."}
+packages = [
+    "fednode",
+    "fednode.clients",
+    "fednode.clients.dagster",
+    "fednode.clients.git",
+    "fednode.clients.keycloak",
+    "fednode.clients.kubernetes",
+    "fednode.clients.nexus",
+    "fednode.clients.nexus.models",
+]

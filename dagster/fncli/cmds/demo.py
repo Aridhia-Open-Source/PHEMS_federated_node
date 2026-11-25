@@ -19,8 +19,9 @@ from typing import Callable, NamedTuple
 import click
 import requests
 
-from app.utils import BackendSession
-from fncli.backend import FncliBackendAPI, repo_path_of
+from fednode.http import BackendSession
+from fncli.backend import FncliBackendAPI
+from fednode.clients.git.uri import repo_path_of
 from fncli.cmds.common import DagsterConfig, RepoConfig, to_host_url
 from fncli.cmds.nodefile import (
     announce_defaults, context_option, node_file_option, open_node, quiet_backend_logs, render_change,
@@ -37,7 +38,7 @@ from fncli.nodefile.diff import ENSURE, UNCHANGED, BackendState, diff
 from fncli.nodefile.loader import Context, limit_to_project, load_node_file
 from fncli.nodefile.schema import NodeFile, ProjectSpec
 from fncli.nodefile.state import read_state
-from fncli.sensors import DagsterAPI
+from fednode.clients.dagster.client import DagsterClient
 
 
 POLL_SECONDS = 1
@@ -150,7 +151,7 @@ def show_pull_request(demo, state):
     lines = [f"Open: {links.trigger_pr(pr['number'])}", as_json("pull_request", pr)]
     if pr["task_id"]:
         task = get(api, f"/projects/{project_id}/tasks/{pr['task_id']}")
-        run = DagsterAPI(links.dagster_url).get_task_run(task["id"])
+        run = DagsterClient(links.dagster_url).get_task_run(task["id"])
         if run:
             lines.append(f"Open: {links.run(run['runId'])}")
         lines.append(as_json("task", task))

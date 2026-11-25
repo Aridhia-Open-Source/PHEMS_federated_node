@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # The shared nexus-api client, as docker-bake.hcl passes it
+      additional_contexts:
+        fednode: ../nexus/fednode
   app:
     image: dagster_app_test
     build:
@@ -13,6 +16,8 @@ services:
     volumes:
       # test_enum_drift.py parses the nexus-api enums, which live outside this build context
       - ../nexus/api/app/models:/opt/dagster/nexus/api/app/models:ro
+      # The client's tests (testpaths ../nexus/fednode/tests); the image installs the client editable here
+      - ../nexus/fednode:/opt/dagster/nexus/fednode
       # fncli's tests check the committed experiment, bootstrap and trigger files at the repo root
       - ../experiments:/opt/dagster/experiments:ro
       - ../bootstrap:/opt/dagster/bootstrap:ro

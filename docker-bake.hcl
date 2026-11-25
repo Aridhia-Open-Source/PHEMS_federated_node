@@ -42,18 +42,21 @@ group "release" {
 }
 
 target "dagster-fn" {
-  context = "dagster"
-  tags    = tags("dagster-fn")
+  context  = "dagster"
+  contexts = { fednode = "nexus/fednode" }
+  tags     = tags("dagster-fn")
 }
 
 target "alpine-fn" {
-  context = "build/alpine"
-  tags    = tags("alpine-fn")
+  context  = "build/alpine"
+  contexts = { fednode = "nexus/fednode" }
+  tags     = tags("alpine-fn")
 }
 
 target "kc-init-fn" {
-  context = "build/kc-init"
-  tags    = tags("kc-init-fn")
+  context  = "build/kc-init"
+  contexts = { fednode = "nexus/fednode" }
+  tags     = tags("kc-init-fn")
 }
 
 target "keycloak-fn" {
@@ -62,8 +65,9 @@ target "keycloak-fn" {
 }
 
 target "nexus-api-fn" {
-  context = "nexus/api"
-  tags    = tags("nexus-api-fn")
+  context  = "nexus/api"
+  contexts = { fednode = "nexus/fednode" }
+  tags     = tags("nexus-api-fn")
 }
 
 target "nexus-ui-fn" {

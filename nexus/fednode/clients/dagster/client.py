@@ -1,0 +1,196 @@
+"""
+Client for the Dagster webserver's GraphQL API: sensors (read, start, stop) and a task's run. The webserver needs no auth.
+"""
+
+from datetime import datetime, timezone
+
+from fednode.http import DEFAULT_TIMEOUT, ClientError, HttpClient
+
+LOCATION = "dagster-fn"
+REPOSITORY = "__repository__"
+
+SELECTOR_VARS = "$selector: SensorSelector!"
+
+SENSORS = """
+query Sensors {
+  repositoriesOrError {
+    __typename
+    ... on RepositoryConnection {
+      nodes {
+        name
+        location { name }
+        sensors {
+          name
+          sensorState {
+            id
+            status
+            ticks(limit: 1) { timestamp status }
+          }
+        }
+      }
+    }
+    ... on PythonError { message }
+  }
+}
+"""
+
+START_SENSOR = f"""
+mutation StartSensor({SELECTOR_VARS}) {{
+  startSensor(sensorSelector: $selector) {{
+    __typename
+    ... on Sensor {{ sensorState {{ status }} }}
+    ... on PythonError {{ message }}
+    ... on SensorNotFoundError {{ message }}
+    ... on UnauthorizedError {{ message }}
+  }}
+}}
+"""
+
+SENSOR_STATUS = f"""
+query SensorStatus({SELECTOR_VARS}) {{
+  sensorOrError(sensorSelector: $selector) {{
+    __typename
+    ... on Sensor {{
+      sensorState {{ id status ticks(limit: 3) {{ status skipReason error {{ message }} }} }}
+    }}
+    ... on PythonError {{ message }}
+    ... on SensorNotFoundError {{ message }}
+  }}
+}}
+"""
+
+SENSOR_TICKS = f"""
+query SensorTicks({SELECTOR_VARS}, $limit: Int!) {{
+  sensorOrError(sensorSelector: $selector) {{
+    __typename
+    ... on Sensor {{
+      sensorState {{ ticks(limit: $limit) {{ id timestamp status skipReason error {{ message stack causes {{ message stack }} }} }} }}
+    }}
+    ... on PythonError {{ message }}
+    ... on SensorNotFoundError {{ message }}
+  }}
+}}
+"""
+
+STOP_SENSOR = """
+mutation StopSensor($id: String!) {
+  stopSensor(id: $id) {
+    __typename
+    ... on StopSensorMutationResult { instigationState { status } }
+    ... on PythonError { message }
+    ... on UnauthorizedError { message }
+  }
+}
+"""
+
+TASK_RUN = """
+query TaskRun($filter: RunsFilter!) {
+  runsOrError(filter: $filter, limit: 1) {
+    __typename
+    ... on Runs { results { runId status jobName tags { key value } } }
+    ... on PythonError { message }
+    ... on InvalidPipelineRunsFilterError { message }
+  }
+}
+"""
+
+
+class DagsterClient(HttpClient):
+    """
+    Dagster closes an idle connection after a few seconds, and sending on a closed one through the port-forward
+    crashes the forward, so no connection is reused.
+    """
+
+    def __init__(self, base_uri: str, session=None, timeout: tuple[float, float] = DEFAULT_TIMEOUT):
+        super().__init__(base_uri, session=session, timeout=timeout)
+        self._session.headers["Connection"] = "close"
+
+    def graphql(self, query: str, variables: dict | None = None) -> dict:
+        """The one field a query or mutation returns. Anything but data is a ClientError."""
+        response = self.post("/graphql", json={"query": query, "variables": variables or {}}, raise_for_status=False)
+        try:
+            body = response.json()
+        except ValueError as err:
+            raise ClientError(f"Dagster answered {response.status_code} without JSON") from err
+        if body.get("errors"):
+            raise ClientError(f"Dagster GraphQL error: {body['errors'][0]['message']}")
+        if not response.ok:
+            raise ClientError(f"Dagster answered {response.status_code}")
+        return next(iter(body["data"].values()))
+
+    def graphql_ok(self, query: str, variables: dict | None, result_type: str) -> dict:
+        """The result, raising when Dagster answered with an error type instead."""
+        result = self.graphql(query, variables)
+        if result["__typename"] != result_type:
+            raise ClientError(f"Dagster error: {result['__typename']}: {result.get('message')}")
+        return result
+
+    @staticmethod
+    def selector(name: str) -> dict:
+        return {
+            "repositoryLocationName": LOCATION,
+            "repositoryName": REPOSITORY,
+            "sensorName": name,
+        }
+
+    def list_sensors(self) -> list[dict]:
+        """Every sensor with its status and latest tick, plus the ids needed to change it."""
+        sensors = []
+        for repository in self.graphql_ok(SENSORS, None, "RepositoryConnection")["nodes"]:
+            for sensor in repository["sensors"]:
+                state = sensor["sensorState"]
+                tick = state["ticks"][0] if state["ticks"] else None
+                sensors.append({
+                    "name": sensor["name"],
+                    "status": state["status"],
+                    "last_tick": (
+                        datetime.fromtimestamp(tick["timestamp"], timezone.utc).isoformat()
+                        if tick else None
+                    ),
+                    "error": bool(tick) and tick["status"] == "FAILURE",
+                    "state_id": state["id"],
+                    "selector": {
+                        "repositoryLocationName": repository["location"]["name"],
+                        "repositoryName": repository["name"],
+                        "sensorName": sensor["name"],
+                    },
+                })
+        return sensors
+
+    def set_sensor_status(self, sensor: dict, status: str):
+        """Start or stop one sensor, as returned by list_sensors."""
+        if status == "RUNNING":
+            self._start(sensor["selector"])
+        else:
+            self._stop(sensor["state_id"])
+
+    def get_sensor_state(self, name: str) -> dict:
+        """The sensor's id, status and last 3 ticks."""
+        return self.graphql_ok(SENSOR_STATUS, {"selector": self.selector(name)}, "Sensor")["sensorState"]
+
+    def get_sensor_ticks(self, name: str, limit: int = 20) -> list[dict]:
+        """The sensor's latest ticks, newest first: id, timestamp (epoch seconds), status, skipReason and error."""
+        variables = {"selector": self.selector(name), "limit": limit}
+        return self.graphql_ok(SENSOR_TICKS, variables, "Sensor")["sensorState"]["ticks"]
+
+    def start_sensor(self, name: str) -> str:
+        """Returns the new status."""
+        return self._start(self.selector(name))
+
+    def stop_sensor(self, name: str) -> str:
+        """Returns the new status."""
+        return self._stop(self.get_sensor_state(name)["id"])
+
+    def get_task_run(self, task_id: int) -> dict | None:
+        """The task's latest run (runId, status, jobName, tags), found by its fn/task_id tag, if it has one."""
+        variables = {"filter": {"tags": [{"key": "fn/task_id", "value": str(task_id)}]}}
+        results = self.graphql_ok(TASK_RUN, variables, "Runs")["results"]
+        return results[0] if results else None
+
+    def _start(self, selector: dict) -> str:
+        result = self.graphql_ok(START_SENSOR, {"selector": selector}, "Sensor")
+        return result["sensorState"]["status"]
+
+    def _stop(self, state_id: str) -> str:
+        result = self.graphql_ok(STOP_SENSOR, {"id": state_id}, "StopSensorMutationResult")
+        return result["instigationState"]["status"]

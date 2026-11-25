@@ -27,7 +27,6 @@ from urllib.parse import urlparse
 import click
 from kubernetes import client as k8s
 from kubernetes.client.rest import ApiException
-from kubernetes.config import load_kube_config
 
 from fncli import simulation
 from fncli.backend import FncliBackendAPI
@@ -47,7 +46,8 @@ from fncli.cmds.secret import init_git_secret, verify_gitea_accepts_bearer_token
 from fncli.cmds.sensor import ALL_SENSORS
 from fncli.cmds.state import snapshot
 from fncli.nodefile.loader import Context
-from fncli.sensors import DagsterAPI
+from fednode.clients.dagster.client import DagsterClient
+from fednode.clients.kubernetes.client import KubernetesClient
 
 logger = logging.getLogger("simulate")
 
@@ -134,8 +134,7 @@ def apply_alias(target: Target):
         metadata=k8s.V1ObjectMeta(name=ALIAS_SERVICE, namespace=namespace, labels={"app": "fncli-simulation"}),
         spec=k8s.V1ServiceSpec(type="ExternalName", external_name=external_name),
     )
-    load_kube_config()
-    api = k8s.CoreV1Api()
+    api = KubernetesClient(in_cluster=False)
     try:
         api.create_namespaced_service(namespace, body)
     except ApiException as error:
@@ -146,9 +145,8 @@ def apply_alias(target: Target):
 
 
 def delete_alias(target: Target):
-    load_kube_config()
     try:
-        k8s.CoreV1Api().delete_namespaced_service(ALIAS_SERVICE, target.gitea_config().namespace)
+        KubernetesClient(in_cluster=False).delete_namespaced_service(ALIAS_SERVICE, target.gitea_config().namespace)
         logger.info(f"Deleted alias service {ALIAS_SERVICE}")
     except ApiException as error:
         if error.status != 404:
@@ -235,11 +233,11 @@ def merge_pull_requests(target: Target, repo: str, kinds: list[str], seed: int) 
     for kind in kinds:
         time.sleep(rng.uniform(0, 1.5))  # interleave the repositories
         branch = new_branch_name()
-        gitea_api.create_branch(config.repo_path, branch, base)
+        gitea_api.client.create_branch(config.repo_path, branch, base)
         path, content = file_for(config, branch, kind, trigger)
-        gitea_api.create_file(config.repo_path, path, content, message=f"Add {path}", branch=branch)
-        pr = gitea_api.create_pull_request(config.repo_path, branch, base, f"{kind} {branch}", f"A {kind} pull request, from the simulation")
-        gitea_api.merge_pull_request(config.repo_path, pr["number"])
+        gitea_api.client.create_file(config.repo_path, path, content, message=f"Add {path}", branch=branch)
+        pr = gitea_api.client.create_pull_request(config.repo_path, branch, base, f"{kind} {branch}", f"A {kind} pull request, from the simulation")
+        gitea_api.client.merge_pull_request(config.repo_path, pr["number"])
         merged.append({"number": pr["number"], "kind": kind})
         logger.info(f"{repo}: merged #{pr['number']} ({kind})")
     return merged
@@ -306,7 +304,7 @@ def simulate_setup_command(context):
 def simulate_run_command(seed, prs_per_repo, timeout, context):
     """Start the sensors, merge the planned pull requests in all trigger repositories at once, wait, and check."""
     target = open_simulation(context)
-    dagster_api = DagsterAPI(DagsterConfig().dagster_url)
+    dagster_api = DagsterClient(DagsterConfig().dagster_url)
     for name in ALL_SENSORS:
         dagster_api.start_sensor(name)
     plan = simulation.make_plan(LAYOUT, seed, prs_per_repo)

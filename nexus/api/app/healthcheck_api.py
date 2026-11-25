@@ -11,11 +11,12 @@ The roll-ups, built from the same per-resource checks:
 """
 from http import HTTPStatus
 
-import requests
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, RedirectResponse
+from fednode.clients.keycloak.login import KeycloakLogin
+from fednode.http import ClientError
 
-from app.clients.keycloak import URLS
+from app.clients.keycloak import KEYCLOAK_URL
 from app.dtos.healthcheck import GlobalHealthDTO, NodeHealthDTO
 from app.dtos.project import ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
 from app.health.datasets import prepare_dataset_health
@@ -61,11 +62,11 @@ def health_check():
         Checks the connection to keycloak and returns a jsonized summary
     """
     try:
-        kc_request = requests.get(URLS["health_check"], timeout=30)
+        kc_request = KeycloakLogin(KEYCLOAK_URL, "master").realm_info()
         kc_status = kc_request.ok
         status_text = "ok" if kc_request.ok else "non operational"
         code = HTTPStatus.OK if kc_request.ok else HTTPStatus.BAD_GATEWAY
-    except requests.exceptions.ConnectionError:
+    except ClientError:
         kc_status = False
         status_text = "non operational"
         code = HTTPStatus.BAD_GATEWAY

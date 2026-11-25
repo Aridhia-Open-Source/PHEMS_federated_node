@@ -3,7 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.models import Secret, SecretProviderType
+from fednode.clients.nexus.models import Secret, SecretProviderType
+from fednode.clients.kubernetes.client import KubernetesClient
 from app.secrets import K8sSecretProvider, SecretProvider, read_secret_value
 from app.tests.conftest import SAMPLE_SECRET
 
@@ -14,8 +15,10 @@ def encoded(value):
 
 @pytest.fixture
 def core_api():
-    with patch("app.secrets.load_kubernetes_config"), patch("app.secrets.client.CoreV1Api") as api:
-        yield api.return_value
+    with patch("fednode.clients.kubernetes.client.load_kubernetes_config"), patch.object(
+        KubernetesClient, "read_namespaced_secret"
+    ):
+        yield KubernetesClient(in_cluster=True)
 
 
 class TestK8sSecretProvider:

@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from app.models import Dataset, TaskSpec
+from fednode.clients.nexus.models import Dataset, TaskSpec
 
 
 class PipesDatasetConfig(BaseModel):

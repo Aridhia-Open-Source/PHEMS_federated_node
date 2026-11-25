@@ -6,7 +6,7 @@ import pytest
 
 from app.definitions.sensors.base import IN_FLIGHT
 from app.definitions.sensors.git.pr_evaluate import PullRequestEvaluateSensor
-from app.models import Project, TriggerState
+from fednode.clients.nexus.models import Project, TriggerState
 
 
 def project(id, enabled=True):

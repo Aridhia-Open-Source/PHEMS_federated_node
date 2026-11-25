@@ -97,7 +97,7 @@ def shape(value):
 
 
 def test_the_response_has_the_shape_dagsters_task_list_parses(client, admin_headers, make_task):
-    """dagster/app/tests/contract/tasks_response.json() is a sample response; Dagster's tests parse it into Task."""
+    """nexus/fednode/tests/contract/tasks_response.json() is a sample response; Dagster's tests parse it into Task."""
     make_task(status="PENDING")
     body = client.get("/tasks?status=PENDING", headers=admin_headers).json()
     assert shape(body) == shape(json.loads(CONTRACT.read_text()))

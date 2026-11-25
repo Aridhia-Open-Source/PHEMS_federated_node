@@ -5,3 +5,4 @@ services:
       - ./app:/opt/dagster/home/app
       - ./fncli:/opt/dagster/home/fncli
       - ./pyproject.toml:/opt/dagster/home/pyproject.toml
+      - ../nexus/fednode:/opt/dagster/nexus/fednode

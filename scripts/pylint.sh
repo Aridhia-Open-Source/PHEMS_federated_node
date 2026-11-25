@@ -21,7 +21,12 @@ set +e
 if [[ "${PROJECT}" == "dagster" ]]; then
   docker compose -f dagster/docker-compose-tests-ci.yaml build base || exit 1
 fi
-docker build "${PROJECT}" -f "${PROJECT}/build/test.Dockerfile" -t "${name}_lint"
+# nexus/api installs the shared fednode package from a named build context
+build_context=()
+if [[ "${PROJECT}" == "nexus/api" ]]; then
+  build_context=(--build-context fednode=nexus/fednode)
+fi
+docker build "${build_context[@]}" "${PROJECT}" -f "${PROJECT}/build/test.Dockerfile" -t "${name}_lint"
 docker run \
   --volume "$(pwd)":/app:ro \
   --workdir "/app/${PROJECT}" \
