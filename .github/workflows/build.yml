@@ -95,15 +95,19 @@ jobs:
       chart: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.chart == 'true' || steps.filter.outputs.workflows == 'true' }}
       build: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.build == 'true' || steps.filter.outputs.workflows == 'true' }}
     steps:
-      # Pull requests are read through the API; the queue diffs commits, so it needs a checkout
+      # Use the complete history for both event types. For pull requests, forcing git mode makes
+      # paths-filter compare the branch tip with the merge-base instead of only the latest commit.
       - uses: actions/checkout@v4
-        if: github.event_name == 'merge_group'
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         with:
           fetch-depth: 0
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         with:
+          # An empty token disables the pull_request API mode, which can miss files when a later
+          # synchronize commit is empty. Git mode compares the complete PR with its base.
+          token: ''
           base: ${{ github.event.merge_group.base_sha }}
           ref: ${{ github.event.merge_group.head_sha }}
           filters: |
