@@ -19,6 +19,8 @@ it, admin only.
 - GET|PUT|PATCH|DELETE /projects/<project_id>/secrets/{label}
 - GET /projects/<project_id>/repositories/results
 - GET|PUT|PATCH|DELETE /projects/<project_id>/repositories/results/<repository_id>
+- GET /projects/<project_id>/datasets/<dataset_id>/healthcheck, and the same for secrets/<label> and
+  repositories/results/<repository_id>: the global resource's check and the project resource's state
 """
 
 from http import HTTPStatus
@@ -47,6 +49,10 @@ from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_secret import ProjectSecret
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
+from app.dtos.healthcheck import ProjectDatasetHealthDTO, ProjectResultsRepositoryHealthDTO, ProjectSecretHealthDTO
+from app.health.datasets import prepare_dataset_resource_health
+from app.health.repositories import prepare_results_resource_health
+from app.health.secrets import prepare_secret_resource_health
 
 
 router = APIRouter(prefix='/projects', tags=["projects"])
@@ -488,3 +494,30 @@ def delete_project_results_repository(project_id: int, repository_id: int, calle
     )
     resource.soft_delete()
     db.session.commit()
+
+
+@router.get('/{project_id}/datasets/{dataset_id}/healthcheck', response_model=ProjectDatasetHealthDTO)
+def project_dataset_healthcheck(project_id: int, dataset_id: int):
+    """
+    GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's
+    check and the project's resource state. 404 if the project has no resource for it.
+    """
+    return prepare_dataset_resource_health(_dataset_resource(project_id, dataset_id))()
+
+
+@router.get('/{project_id}/secrets/{label}/healthcheck', response_model=ProjectSecretHealthDTO)
+def project_secret_healthcheck(project_id: int, label: str):
+    """
+    GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check
+    and the project's resource state. 404 if the project has no resource for it.
+    """
+    return prepare_secret_resource_health(_secret_resource(project_id, label))()
+
+
+@router.get('/{project_id}/repositories/results/{repository_id}/healthcheck', response_model=ProjectResultsRepositoryHealthDTO)
+def project_results_repository_healthcheck(project_id: int, repository_id: int):
+    """
+    GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The
+    global repository's check and the project's resource state. 404 if the project has no resource for it.
+    """
+    return prepare_results_resource_health(_results_resource(project_id, repository_id))()

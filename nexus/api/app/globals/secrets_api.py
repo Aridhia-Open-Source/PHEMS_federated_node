@@ -10,32 +10,28 @@ reading the secret where the row says it is can get it, and moved back when the 
 - POST /global/secrets
 - PATCH /global/secrets/<label>
 - DELETE /global/secrets/<label>
-- GET /global/secrets/<label>/healthcheck, see healthcheck_api.py
+- GET /global/secrets/<label>/healthcheck
 """
-import logging
 from datetime import datetime as dt
 from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends
-from kubernetes.client.exceptions import ApiException
 
 from app.dtos.secret import SecretDTO
 from app.database.base_model import db
-from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.clients.kubernetes import KubernetesClient
 from app.clients.kubernetes_names import validate_secret_key
+from app.clients.secret_store import SecretProvider
 from app.rules.ownership import get_for_write, require_members, set_owner
 from app.database.soft_delete import describe_project
 from app.helpers.wrappers import Caller, get_caller
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
+from app.dtos.healthcheck import SecretHealthDTO
+from app.health.secrets import prepare_secret_health
 
-logger = logging.getLogger('secrets_api')
 router = APIRouter(prefix='/global/secrets', tags=["secrets"])
 session = db.session
-
-SECRET_LABELS = {"type": "k8s_secret"}
 
 def _get_values(body: dict) -> dict[str, str]:
     values = body.get('values')
@@ -47,102 +43,6 @@ def _get_values(body: dict) -> dict[str, str]:
             raise InvalidRequest(f"The value for {key} must be a non-empty string")
     # create_secret encodes the values in place, so it gets a copy
     return dict(values)
-
-
-class K8sSecretProvider:
-    """Writes and deletes secrets in Kubernetes."""
-
-    namespace = SECRETS_NAMESPACE
-    quarantine_namespace = QUARANTINE_NAMESPACE
-
-    def set(self, key: str, namespace: str, values: dict[str, str]):
-        """The caller is the authority on the content, so it overwrites what is there."""
-        KubernetesClient().create_secret(
-            name=key,
-            values=values,
-            namespaces=[namespace],
-            labels=SECRET_LABELS,
-            overwrite=True,
-        )
-
-    def keys(self, key: str, namespace: str) -> list[str] | None:
-        """The names of the keys the secret holds, or None if it is not in the store."""
-        try:
-            secret = KubernetesClient().read_namespaced_secret(key, namespace)
-        except ApiException as apie:
-            if apie.status != 404:
-                raise
-            return None
-        return list(secret.data or {})
-
-    def delete(self, key: str, namespace: str):
-        try:
-            KubernetesClient().delete_namespaced_secret(key, namespace)
-        except ApiException as apie:
-            if apie.status != 404:
-                logger.error(apie)
-                raise InvalidRequest("Could not clear the secret properly") from apie
-
-    def quarantine(self, key: str, namespace: str):
-        """Moves a secret from its namespace into the quarantine namespace."""
-        self._move(key, namespace, self.quarantine_namespace)
-
-    def restore(self, key: str, namespace: str):
-        """Moves a secret from the quarantine namespace back into its namespace."""
-        self._move(key, self.quarantine_namespace, namespace)
-
-    def _move(self, key: str, source: str, target: str):
-        """
-        Kubernetes cannot move a secret: copy it, then delete the original, so that a failure
-        in between leaves the value in both places and not in neither. A secret that is not in
-        the source is already where it should be (or is not in the store at all): nothing to do,
-        which also makes a repeated move safe. The copy overwrites, so it replaces what an
-        earlier move that failed after the copy left in the target.
-        """
-        try:
-            data = KubernetesClient().read_namespaced_secret(key, source).data or {}
-        except ApiException as apie:
-            if apie.status == 404:
-                return
-            logger.error(apie)
-            raise InvalidRequest("Could not move the secret") from apie
-        values = {name: KubernetesClient.decode_secret_value(value) for name, value in data.items()}
-        KubernetesClient().create_secret(
-            name=key, values=values, namespaces=[target], labels=SECRET_LABELS, overwrite=True
-        )
-        self.delete(key, source)
-
-
-class SecretProvider:
-    """Writes and deletes secret values in the store the provider name selects."""
-
-    PROVIDERS = {SecretProviderType.K8S: K8sSecretProvider}
-
-    def __init__(self, name: SecretProviderType):
-        self.provider = self.PROVIDERS[name]()
-
-    @property
-    def namespace(self) -> str | None:
-        return self.provider.namespace
-
-    @property
-    def quarantine_namespace(self) -> str | None:
-        return self.provider.quarantine_namespace
-
-    def set(self, key: str, namespace: str, values: dict[str, str]):
-        self.provider.set(key, namespace, values)
-
-    def quarantine(self, key: str, namespace: str):
-        self.provider.quarantine(key, namespace)
-
-    def restore(self, key: str, namespace: str):
-        self.provider.restore(key, namespace)
-
-    def keys(self, key: str, namespace: str) -> list[str] | None:
-        return self.provider.keys(key, namespace)
-
-    def delete(self, key: str, namespace: str):
-        self.provider.delete(key, namespace)
 
 
 def _get_secret(label: str) -> Secret:
@@ -308,3 +208,12 @@ def delete_secret(label: str, force: bool = False, caller: Caller = Depends(get_
         raise
 
     session.commit()
+
+
+@router.get('/{label}/healthcheck', response_model=SecretHealthDTO)
+def secret_healthcheck(label: str):
+    """
+    GET /global/secrets/<label>/healthcheck endpoint. Whether the secret is in its store with the
+    keys its datasets and repositories need. Never the values.
+    """
+    return prepare_secret_health(_get_secret(label))()

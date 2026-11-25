@@ -14,7 +14,7 @@ from app.database.base_model import db
 from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import InvalidRequest
 from app.models.secret import Secret
-from app.secrets_api import K8sSecretProvider
+from app.clients.secret_store import K8sSecretProvider
 
 SEC = "/global/secrets"
 DS = "/global/datasets"
