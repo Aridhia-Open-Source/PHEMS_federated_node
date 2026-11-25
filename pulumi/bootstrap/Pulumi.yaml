@@ -18,7 +18,13 @@ config:
     default: fn
   phems-deployment-bootstrap:chart-version:
     description: Federated Node chart version pinned by Flux
-    default: 0.0.1
+    default: 2.0.0
   phems-deployment-bootstrap:release-name:
     description: Helm release name used by Flux
     default: federated-node
+  phems-deployment-bootstrap:commit-author:
+    description: Author name recorded on bootstrap commits
+    default: Pulumi
+  phems-deployment-bootstrap:commit-email:
+    description: Author email recorded on bootstrap commits
+    default: pulumi@aridhia.com

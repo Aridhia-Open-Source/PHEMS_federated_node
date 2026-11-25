@@ -6,12 +6,15 @@ reads and applies the committed files in the site's cluster.
 """
 
 from pathlib import Path
+import re
 
 import pulumi
 import pulumi_github as github
 
 
 ROOT = Path(__file__).parent
+DEFAULT_CHART_VERSION = "2.0.0"
+PLACEHOLDER = re.compile(r"{{[^{}]+}}")
 FILES = (
     "README.md",
     "kustomization.yaml",
@@ -32,12 +35,16 @@ def _render(
     release_name: str,
 ) -> str:
     content = (ROOT / "files" / path).read_text(encoding="utf-8")
-    return (
+    rendered = (
         content.replace("{{SITE}}", site)
         .replace("{{NAMESPACE}}", namespace)
         .replace("{{CHART_VERSION}}", chart_version)
         .replace("{{RELEASE_NAME}}", release_name)
     )
+    unresolved = PLACEHOLDER.findall(rendered)
+    if unresolved:
+        raise ValueError(f"unresolved template placeholders in {path}: {unresolved}")
+    return rendered
 
 
 def create_deployment_repository() -> github.Repository:
@@ -48,8 +55,10 @@ def create_deployment_repository() -> github.Repository:
     repository_name = config.get("repository") or "phems-deployment"
     site = config.get("site") or "site"
     namespace = config.get("namespace") or "fn"
-    chart_version = config.get("chart-version") or "0.0.1"
+    chart_version = config.get("chart-version") or DEFAULT_CHART_VERSION
     release_name = config.get("release-name") or "federated-node"
+    commit_author = config.get("commit-author") or "Pulumi"
+    commit_email = config.get("commit-email") or "pulumi@aridhia.com"
     default_branch = "main"
 
     provider = github.Provider("github", owner=owner)
@@ -84,8 +93,8 @@ def create_deployment_repository() -> github.Repository:
                 release_name=release_name,
             ),
             commit_message=f"Bootstrap {path}",
-            commit_author="Pulumi",
-            commit_email="pulumi@aridhia.com",
+            commit_author=commit_author,
+            commit_email=commit_email,
             overwrite_on_create=True,
             opts=pulumi.ResourceOptions(
                 provider=provider,

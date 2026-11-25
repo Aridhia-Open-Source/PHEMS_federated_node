@@ -5,6 +5,7 @@ metadata:
   namespace: {{NAMESPACE}}
 spec:
   interval: 10m
+  timeout: 30m
   chart:
     spec:
       chart: federated-node
@@ -12,13 +13,17 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: fn-charts
+      interval: 1m
   install:
+    crds: CreateReplace
     remediation:
       retries: 2
   upgrade:
+    crds: CreateReplace
     remediation:
       retries: 2
       strategy: rollback
+      remediateLastFailure: true
   valuesFrom:
     - kind: ConfigMap
       name: federated-node-values

@@ -21,7 +21,14 @@ pulumi up
 ```
 
 The GitHub provider token is read from its normal `GITHUB_TOKEN` environment
-variable. `auto_init` creates `main` before `RepositoryFile` resources are
-applied, so a new or imported empty repository can be initialized safely.
-`overwrite_on_create` and stable resource names make subsequent `pulumi up`
-runs idempotent.
+variable; use a fine-grained token scoped to the target repository with
+contents administration permission. `auto_init` creates `main` before
+`RepositoryFile` resources are applied, so a new or imported empty repository
+can be initialized safely. `overwrite_on_create` and stable resource names
+make subsequent `pulumi up` runs idempotent.
+
+The default chart version follows the chart currently published by the release
+workflow (`2.0.0`). Set `chart-version` explicitly when bootstrapping a
+different release. The generated repository contains no credentials: provide
+site secrets separately through SOPS or External Secrets before Flux installs
+the release.

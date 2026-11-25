@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+import bootstrap
 
 ROOT = Path(__file__).parents[1]
 
@@ -27,3 +28,31 @@ def test_templates_use_only_known_placeholders(placeholder):
         path.read_text(encoding="utf-8") for path in (ROOT / "files").iterdir()
     )
     assert content.count(placeholder) > 0
+
+
+def test_render_rejects_unresolved_placeholders(tmp_path, monkeypatch):
+    (tmp_path / "files").mkdir()
+    (tmp_path / "files" / "template.yaml").write_text("value: {{UNKNOWN}}", encoding="utf-8")
+    monkeypatch.setattr(bootstrap, "ROOT", tmp_path)
+
+    with pytest.raises(ValueError, match="UNKNOWN"):
+        bootstrap._render(
+            "template.yaml",
+            site="site",
+            namespace="fn",
+            chart_version="2.0.0",
+            release_name="federated-node",
+        )
+
+
+def test_rendered_templates_are_complete():
+    for path in bootstrap.FILES:
+        rendered = bootstrap._render(
+            path,
+            site="example",
+            namespace="fn",
+            chart_version="2.0.0",
+            release_name="federated-node",
+        )
+
+        assert "{{" not in rendered
