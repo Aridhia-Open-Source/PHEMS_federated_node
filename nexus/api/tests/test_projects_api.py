@@ -290,3 +290,4 @@ def test_delete_hides_the_projects_pr_triggers_but_keeps_global_prs(
     glob = client.get(f"/global/repositories/triggers/{global_trigger_repo.id}/pull_requests", headers=admin_headers)
     assert glob.status_code == 200 and glob.json()["total"] == 1
 # CI path-filter smoke test
+# CI synchronization smoke test
