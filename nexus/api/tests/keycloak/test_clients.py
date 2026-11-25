@@ -2,7 +2,8 @@ import pytest
 import responses
 from responses import matchers
 from app.helpers.exceptions import KeycloakError
-from app.clients.keycloak import URLS, Keycloak
+from app.clients.keycloak import Keycloak
+from tests.helpers.keycloak import URLS
 from tests.keycloak.test_keycloak_helper import TestKeycloakMixin
 
 

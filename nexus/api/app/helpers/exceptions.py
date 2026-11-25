@@ -56,8 +56,5 @@ class KubernetesException(LogAndException):
             self.description = body
         super().__init__()
 
-class DagsterError(LogAndException):
-    code = 502
-
 class GitProviderError(LogAndException):
     code = 502

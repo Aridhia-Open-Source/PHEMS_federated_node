@@ -22,6 +22,12 @@ RUN --mount=type=secret,id=proxy_ca --mount=type=tmpfs,target=/ca \
 RUN groupadd -g "$USER_GID" "$APP_USER" && \
     useradd --uid "$USER_UID" --gid "$USER_GID" --create-home "$APP_USER"
 
+# The shared fednode package, from the fednode named build context (docker-bake.hcl). Editable; its dependencies are
+# in requirements.txt (scripts/pip_compile.sh compiles both pyprojects).
+# hadolint ignore=DL3022
+COPY --from=fednode --chown=${USER_UID}:${USER_GID} . /opt/fednode
+RUN pip install --no-cache-dir --no-deps -e /opt/fednode
+
 # Copy application code with correct ownership
 COPY --chown=${USER_UID}:${USER_GID} *.py .
 COPY --chown=${USER_UID}:${USER_GID} migrations/ ./migrations/

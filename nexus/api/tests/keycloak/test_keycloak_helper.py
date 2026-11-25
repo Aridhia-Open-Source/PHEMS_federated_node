@@ -5,10 +5,10 @@ from responses import matchers
 from app.helpers.exceptions import KeycloakError
 from app.clients.keycloak import (
     KEYCLOAK_SERVICE_USER,
-    URLS,
     Keycloak,
     keycloak_service_password,
 )
+from tests.helpers.keycloak import URLS
 
 
 class TestKeycloakMixin:

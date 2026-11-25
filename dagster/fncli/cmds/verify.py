@@ -13,8 +13,8 @@ from fncli.cmds.nodefile import context_option, step_project_option, step_target
 from fncli.cmds.project import find_project
 from fncli.cmds.repository import step_repo_config
 from fncli.cmds.sensor import RESULTS_PR_SYNC_SENSOR
-from app.models import TriggerState
-from fncli.sensors import DagsterAPI
+from fednode.clients.nexus.models import TriggerState
+from fednode.clients.dagster.client import DagsterClient
 
 # The task status the run-status sensors give each Dagster run status.
 # NOT_STARTED and STARTING come before the run is picked up, so the task is still QUEUED.
@@ -169,7 +169,7 @@ def verify_project(report: Report, project_name: str, backend_api):
 
 
 def verify_task(
-    report: Report, backend_api, dagster_api: DagsterAPI, links: Links, project_id: int, repo_id: int, number: int
+    report: Report, backend_api, dagster_api: DagsterClient, links: Links, project_id: int, repo_id: int, number: int
 ):
     """Compare a merged PR's task in the backend with its run in Dagster."""
     pr = report.check(
@@ -186,7 +186,7 @@ def verify_task(
     verify_pr(report, backend_api, dagster_api, links, pr)
 
 
-def verify_pr(report: Report, backend_api, dagster_api: DagsterAPI, links: Links, pr):
+def verify_pr(report: Report, backend_api, dagster_api: DagsterClient, links: Links, pr):
     """The checks for one PR already fetched: its task in the backend against its Dagster run."""
     cause = f"{pr.state.value}, {pr.state_cause}" if pr.state_cause else pr.state.value
     report.record(pr.state == TriggerState.YIELDED, "PR was YIELDED, so it has a task", cause)
@@ -267,7 +267,7 @@ def verify_delivery(report: Report, backend_api, project_id: int, task_id: int):
 
 
 def verify_repo(
-    backend_api, dagster_api: DagsterAPI, links: Links, project_id: int, repo_id: int, tail: int | None
+    backend_api, dagster_api: DagsterClient, links: Links, project_id: int, repo_id: int, tail: int | None
 ) -> int:
     """
     Print a report per PR of the trigger repo, the last `tail` by number if given, and a
@@ -309,7 +309,7 @@ def verify_repo_command(tail, context, project):
     repo = backend_api.find_repository(config.repo_uri, project.id)
     dagster_url = DagsterConfig().dagster_url
     links = Links(config.web_url, dagster_url, repo.repo_path, config.pulls_page)
-    if verify_repo(backend_api, DagsterAPI(dagster_url), links, project.id, repo.trigger_repository.id, tail):
+    if verify_repo(backend_api, DagsterClient(dagster_url), links, project.id, repo.trigger_repository.id, tail):
         raise click.exceptions.Exit(1)
 
 

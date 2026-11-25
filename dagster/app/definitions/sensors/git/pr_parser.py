@@ -2,8 +2,8 @@ from enum import Enum
 
 from pydantic import BaseModel
 
-from app.definitions.sensors.git.base import GitAPI
-from app.models import ProjectTriggerRepository, PullRequestTrigger
+from fednode.clients.git.provider import GitProvider
+from fednode.clients.nexus.models import ProjectTriggerRepository, PullRequestTrigger
 
 
 class PullRequestOutcome(str, Enum):
@@ -31,7 +31,7 @@ class PullRequestParser:
     and validates the spec.
     """
 
-    def __init__(self, git_api: GitAPI, repo: ProjectTriggerRepository, log):
+    def __init__(self, git_api: GitProvider, repo: ProjectTriggerRepository, log):
         self.git_api = git_api
         self.repo = repo
         self.log = log

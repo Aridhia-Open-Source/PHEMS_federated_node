@@ -8,7 +8,7 @@ import logging
 import click
 
 from fncli.cmds.common import DagsterConfig
-from fncli.sensors import DagsterAPI
+from fednode.clients.dagster.client import DagsterClient
 
 logger = logging.getLogger("sensor")
 
@@ -74,7 +74,7 @@ def selected_sensors(group: str | None, name: str | None) -> list[str]:
 @sensor_options
 def start_sensor_command(group, name):
     """Start a group of Dagster sensors, or one by name (no-op if running)."""
-    api = DagsterAPI(DagsterConfig().dagster_url)
+    api = DagsterClient(DagsterConfig().dagster_url)
     for sensor in selected_sensors(group, name):
         logger.info(f"Started sensor {sensor} ({api.start_sensor(sensor)})")
 
@@ -83,7 +83,7 @@ def start_sensor_command(group, name):
 @sensor_options
 def stop_sensor_command(group, name):
     """Stop a group of Dagster sensors, or one by name (no-op if stopped). A group stops in reverse order."""
-    api = DagsterAPI(DagsterConfig().dagster_url)
+    api = DagsterClient(DagsterConfig().dagster_url)
     for sensor in reversed(selected_sensors(group, name)):
         logger.info(f"Stopped sensor {sensor} ({api.stop_sensor(sensor)})")
 
@@ -91,7 +91,7 @@ def stop_sensor_command(group, name):
 @click.command("sensor-status")
 def sensor_status_command():
     """Show every sensor's status and its last 3 ticks."""
-    api = DagsterAPI(DagsterConfig().dagster_url)
+    api = DagsterClient(DagsterConfig().dagster_url)
     for name in ALL_SENSORS:
         state = api.get_sensor_state(name)
         logger.info(f"{name}: {state['status']}")

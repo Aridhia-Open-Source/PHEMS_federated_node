@@ -190,15 +190,15 @@ dagster/fncli/
     pr.py           the individual PR steps
     sensor.py       start/stop/status of the Dagster sensors
     hello_world.py  install check
-  backend.py        FncliBackendAPI: app.backend.BackendAPI plus the create, update and delete calls apply and delete make
+  backend.py        FncliBackendAPI: fednode.clients.nexus.client.BackendAPI plus the forced deletes only the dev CLI makes
   nodefile/         the node file and the context file: schema, loader, diff, backend state, apply and delete executors
-  gitea.py          Gitea admin client on top of app.gitea
+  gitea.py          Gitea admin client on top of fednode.clients.git.gitea
   k8s.py            host-side kubeconfig loading
-  sensors.py        the Dagster GraphQL client
 ```
 
-fncli imports the shared client code and models from `app` (`app.backend`, `app.gitea`,
-`app.models`, ...). Anything only the CLI needs lives here, never in `dagster/app`.
+fncli imports the nexus-api client and its models from the shared `nexus/fednode` package (`fednode.clients.nexus.client`,
+`fednode.clients.nexus.models`, ...), the Dagster client (`fednode.clients.dagster.client`) and the git clients (`fednode.clients.git`). Anything only the CLI needs lives here,
+never in `dagster/app` or `nexus/fednode`.
 
 ## Simulation (several providers, repositories and projects)
 

@@ -5,7 +5,7 @@ import base64
 import pytest
 
 from app.delivery import git_push
-from app.models import PullRequestResultStep
+from fednode.clients.nexus.models import PullRequestResultStep
 
 
 @pytest.mark.parametrize("provider_uri, repo_path, expected", [

@@ -29,7 +29,7 @@ def run_command(command, group=None, name=None):
     calls = []
     api.start_sensor.side_effect = lambda name: calls.append(("start", name)) or "RUNNING"
     api.stop_sensor.side_effect = lambda name: calls.append(("stop", name)) or "STOPPED"
-    with patch("fncli.cmds.sensor.DagsterAPI", return_value=api), patch("fncli.cmds.sensor.DagsterConfig"):
+    with patch("fncli.cmds.sensor.DagsterClient", return_value=api), patch("fncli.cmds.sensor.DagsterConfig"):
         command.callback(group=group, name=name)
     return calls
 

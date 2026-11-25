@@ -10,7 +10,7 @@ Draft, 2026-11-09. Design only, no code. Read against the `fncli-provider-from-b
 - **Flat `TEST_*` names carry the model.** About 30 variables. Every config class in `cmds/common.py` requires every field non-empty. Gitea vs GitHub is a pile of properties (`is_github`, `repo_path`, `web_url`, `pulls_page`) worked out from a uri.
 - **Global and project things are muddled.** A secret label is `<repo>-creds` or `<DEFAULT_PROJECT_DATASET>-dataset-creds`. The GitHub demo is one repo playing two roles, so two entities share one label by accident of naming.
 - **Secrets sit beside addresses.** The GitHub App key is exported from `$(cat key.pem)` in a shell.
-- **No preview, and no reconcile.** The `get_or_create_*` and `get_or_assign_*` calls in `fncli/backend.py` return what exists and never update it. Change `TEST_RESULTS_TARGET_DIR` and re-run `setup-project`: the log says "Reusing existing", nothing changes. The only way to know what a run will do is to read the code.
+- **No preview, and no reconcile.** The `get_or_create_*` and `get_or_assign_*` calls in `nexus/fednode/api.py` return what exists and never update it. Change `TEST_RESULTS_TARGET_DIR` and re-run `setup-project`: the log says "Reusing existing", nothing changes. The only way to know what a run will do is to read the code.
 
 ## 2. The file
 

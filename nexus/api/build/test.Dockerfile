@@ -23,6 +23,12 @@ COPY requirements-dev.txt .
 
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
+# The shared fednode package, from the fednode named build context (docker-compose-tests-ci.yaml); its
+# dependencies are in requirements-dev.txt
+# hadolint ignore=DL3022
+COPY --from=fednode . /opt/fednode
+RUN pip install --no-cache-dir --no-deps -e /opt/fednode
+
 # Create non-root user
 RUN groupadd -g "$USER_GID" "$USERNAME" && \
     useradd --uid "$USER_UID" --gid "$USER_GID" --create-home "$USERNAME"

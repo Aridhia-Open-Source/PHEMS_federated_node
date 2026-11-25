@@ -1,0 +1,31 @@
+from pydantic import BaseModel, ConfigDict
+
+from fednode.clients.nexus.models.pull_request_result_step import PullRequestResultStep
+from fednode.clients.nexus.models.result_state import ResultState
+
+
+class PullRequestResult(BaseModel):
+    """
+    The delivery of one task's results to one results repository by a pull request we open,
+    not the merged PullRequestTrigger we watch. nexus-api's Result of type PR.
+    """
+    model_config = ConfigDict(extra="allow")
+
+    id: int
+    type: str
+    task_id: int
+    project_id: int
+    # The id of the global results repository, which the task's project is assigned
+    results_repository_id: int
+    step: PullRequestResultStep
+    state: ResultState
+    attempts: int
+    error: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    branch: str | None = None
+    commit_sha: str | None = None
+    number: int | None = None
+    url: str | None = None
+    merged_at: str | None = None
+    merge_commit_sha: str | None = None

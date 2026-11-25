@@ -16,10 +16,9 @@ cache TTL), and only when the secret is mounted as a DIRECTORY. A `subPath` moun
 Falls back to the environment so docker-compose and local runs, which have no mount, keep working
 unchanged.
 """
-import logging
 import os
 
-logger = logging.getLogger('realm_secrets')
+from fednode.clients.kubernetes.mounted import MountedSecret
 
 # Matches the `kcSecretsMountPath` helper in the chart.
 SECRETS_MOUNT_PATH = os.getenv("KC_SECRETS_PATH", "/etc/secrets/kc")
@@ -32,13 +31,4 @@ def read_secret(name: str, default: str = "") -> str:
     Deliberately not cached: the whole point is to observe a value that changes underneath us. These
     are small local reads from tmpfs, so re-reading is cheap.
     """
-    path = os.path.join(SECRETS_MOUNT_PATH, name)
-    try:
-        with open(path, encoding="utf-8") as handle:
-            # Trailing newlines are common when a secret is created by hand with kubectl.
-            return handle.read().strip()
-    except FileNotFoundError:
-        return os.getenv(name, default)
-    except OSError as exc:
-        logger.warning(f"Could not read {path} ({exc}), falling back to the environment")
-        return os.getenv(name, default)
+    return MountedSecret(SECRETS_MOUNT_PATH).read(name, default)

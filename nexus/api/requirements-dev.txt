@@ -746,7 +746,9 @@ joserfc==1.6.8 \
 kubernetes==33.1.0 \
     --hash=sha256:544de42b24b64287f7e0aa9513c93cb503f7f40eea39b20f66810011a86eabc5 \
     --hash=sha256:f64d829843a54c251061a8e7a14523b521f2dc5c896cf6d65ccf348648a88993
-    # via nexus-api (pyproject.toml)
+    # via
+    #   fednode (../fednode/pyproject.toml)
+    #   nexus-api (pyproject.toml)
 mako==1.4.3 \
     --hash=sha256:723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f \
     --hash=sha256:cd6537fe88d5fec315c55c2f8529bc4ce7a9a352ad7db3eeaa6a66e2dd4ec37a
@@ -963,6 +965,7 @@ pydantic==2.14.1 \
     # via
     #   fastapi
     #   fastapi-pagination
+    #   fednode (../fednode/pyproject.toml)
     #   nexus-api (pyproject.toml)
     #   pydantic-settings
 pydantic-core==2.50.1 \
@@ -1107,7 +1110,9 @@ pydantic-core==2.50.1 \
 pydantic-settings==2.16.1 \
     --hash=sha256:30f5313340da4e8f1b440d1910b92a5bc3ccbb6b4ba70ec2b8395bc921f418f5 \
     --hash=sha256:aff602a1886338c2df3d1e958e2193a8dc33cec75b91f202e83fd98484b4b0da
-    # via nexus-api (pyproject.toml)
+    # via
+    #   fednode (../fednode/pyproject.toml)
+    #   nexus-api (pyproject.toml)
 pygments==2.21.0 \
     --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9 \
     --hash=sha256:610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c
@@ -1284,6 +1289,7 @@ requests==2.32.5 \
     --hash=sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6 \
     --hash=sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf
     # via
+    #   fednode (../fednode/pyproject.toml)
     #   kubernetes
     #   nexus-api (pyproject.toml)
     #   requests-oauthlib
