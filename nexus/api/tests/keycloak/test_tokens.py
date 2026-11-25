@@ -163,6 +163,7 @@ class TestKeycloakTokens(TestKeycloakMixin):
         keycloak_login_request_mock.add(
             responses.POST,
             URLS["validate"],
+            json={"active": True, "azp": "global"},
             match=[
                 matchers.urlencoded_params_matcher(
                     {
@@ -176,3 +177,24 @@ class TestKeycloakTokens(TestKeycloakMixin):
             status=200
         )
         assert Keycloak().is_token_valid("token", "can_admin_dataset", "resource", "access_token")
+
+    def test_is_token_valid_accepts_only_allowed_access_token_clients(
+        self, keycloak_login_request_mock, mocker
+    ):
+        mocker.patch("app.clients.keycloak.KEYCLOAK_ALLOWED_CLIENTS", {"global", "dagster"})
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["validate"],
+            json={"active": True, "azp": "dagster"},
+            status=200,
+        )
+        keycloak_login_request_mock.add(
+            responses.POST,
+            URLS["validate"],
+            json={"active": True, "azp": "unknown"},
+            status=200,
+        )
+
+        client = Keycloak()
+        assert client.is_token_valid("dagster-token", None, None, "access_token", with_permissions=False)
+        assert not client.is_token_valid("unknown-token", None, None, "access_token", with_permissions=False)

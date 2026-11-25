@@ -22,6 +22,9 @@ nexus:
     # (ADR 0036): only members may then change them. Passed to nexus-api as OWNER_GROUPS.
     ownerGroups:
       - service-account
+    # Comma-separated Keycloak client ids whose access tokens nexus-api accepts. Defaults to global.
+    allowedClients:
+      - global
     db:
       name: fn_nexus
       user: fn_nexus

@@ -13,6 +13,7 @@ data:
   SERVICES_KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
   SERVICES_KEYCLOAK_ADMIN: admin
   SERVICES_KEYCLOAK_SERVICE_USER: fn-service
+  SERVICES_KEYCLOAK_ALLOWED_CLIENTS: {{ .Values.nexus.api.allowedClients | join "," | quote }}
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
   {{- /*

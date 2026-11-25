@@ -115,6 +115,16 @@
                                 "pattern": "^[^,]+$"
                             },
                             "default": ["service-account"]
+                        },
+                        "allowedClients": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "^[^,]+$"
+                            },
+                            "default": ["global"],
+                            "description": "Keycloak client ids whose access tokens nexus-api accepts."
                         }
                     }
                 },
