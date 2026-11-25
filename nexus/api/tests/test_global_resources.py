@@ -183,7 +183,7 @@ def test_dataset_duplicate_name_is_409_case_insensitive(client, admin_headers, g
 @pytest.mark.parametrize("body", [
     {"name": ""}, {"name": 5}, {"name": "a" * 300},  # empty, wrong type, too long
     {"host": 5}, {"port": "5432"}, {"port": True}, {"port": 70000},
-    {"type": "nosql"}, {"enabled": "true"}, {"dictionaries": "x"},
+    {"type": "nosql"}, {"enabled": "true"},
     {"secret_label": "nope"}, {"secret_label": ""},
     {"username": "u"}, {"project_id": 1},  # credentials and project are refused
 ])

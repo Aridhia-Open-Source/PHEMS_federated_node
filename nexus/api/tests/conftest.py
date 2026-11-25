@@ -1,7 +1,6 @@
 import base64
 import json
 from copy import deepcopy
-from typing import List
 from pytest import fixture
 import pytest
 from datetime import datetime as dt, timedelta
@@ -16,8 +15,6 @@ from fastapi.testclient import TestClient
 from app import create_app
 from app.helpers.base_model import Base, db, engine, request_scope
 from app.models.dataset import Dataset
-from app.models.extras.catalogue import Catalogue
-from app.models.extras.dictionary import Dictionary
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.task import Task
@@ -95,15 +92,6 @@ sample_ds_body = {
     "port": 5432,
     "secret_label": "test-creds",
     "repository": sample_repo_uri,
-    "catalogue": {
-        "title": "test",
-        "description": "test description"
-    },
-    "dictionaries": [{
-        "table_name": "test",
-        "field_name": "column1",
-        "description": "test description"
-    }]
 }
 
 @fixture
@@ -598,23 +586,6 @@ def dataset_oracle(mocker, client, user_uuid, k8s_client, project, secret)  -> D
     dataset.add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
     return dataset
-
-
-@fixture
-def catalogue(dataset) -> Catalogue:
-    cat = Catalogue(dataset=dataset, title="new catalogue", description="shiny fresh data")
-    cat.add()
-    return cat
-
-
-@fixture
-def dictionary(dataset) -> List[Dictionary]:
-    cat1 = Dictionary(dataset=dataset, description="Patient id", table_name="patients", field_name="id", label="p_id")
-    cat2 = Dictionary(dataset=dataset, description="Patient info", table_name="patients", field_name="name", label="p_name")
-    cat1.add()
-    cat2.add()
-    return [cat1, cat2]
-
 
 
 @fixture
