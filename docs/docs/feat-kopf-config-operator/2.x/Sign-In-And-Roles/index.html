@@ -1090,17 +1090,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#not-yet-shipped" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Not yet shipped
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1413,17 +1402,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#not-yet-shipped" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Not yet shipped
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1531,8 +1509,7 @@
 <p>Other Keycloak groups, for example <code>/studies/uc1</code>, are for <a href="../Granting-Access/">grants</a>: give a group access to a project once, and add or remove people in Keycloak.</p>
 <h2 id="creating-users">Creating users<a class="headerlink" href="#creating-users" title="Permanent link">&para;</a></h2>
 <p>An admin creates a user with <code>POST /global/users</code> (<a href="../Using-The-API/#users">Using the API</a>). The role is <code>Users</code>, or <code>Administrator</code>, which only the <code>SuperUser</code> may give. Researchers who only work in git do not need an account.</p>
-<h2 id="not-yet-shipped">Not yet shipped<a class="headerlink" href="#not-yet-shipped" title="Permanent link">&para;</a></h2>
-<p>The operator's own account is planned as a Keycloak client with no password, in <code>/roles/service</code> (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md">ADR 0036</a>); it arrives with the operator. Dagster signs in as a Keycloak user for now.</p>
+<p>The operator signs in with its own <code>Service</code> account in <code>/roles/service</code>; it never uses a person's login. Dagster signs in with its <code>Dagster</code> account and writes only the pipeline state routes it calls.</p>
 
 
 
