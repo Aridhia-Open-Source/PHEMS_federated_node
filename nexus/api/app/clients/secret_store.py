@@ -51,11 +51,11 @@ class K8sSecretProvider:
 
     def quarantine(self, key: str, namespace: str):
         """Moves a secret from its namespace into the quarantine namespace."""
-        self._move(key, namespace, self.namespaces.quarantine)
+        self._move(key, namespace, self.quarantine_namespace)
 
     def restore(self, key: str, namespace: str):
         """Moves a secret from the quarantine namespace back into its namespace."""
-        self._move(key, self.namespaces.quarantine, namespace)
+        self._move(key, self.quarantine_namespace, namespace)
 
     def _move(self, key: str, source: str, target: str):
         """
@@ -89,11 +89,11 @@ class SecretProvider:
 
     @property
     def namespace(self) -> str | None:
-        return self.provider.namespaces.secrets
+        return self.provider.namespace
 
     @property
     def quarantine_namespace(self) -> str | None:
-        return self.provider.namespaces.quarantine
+        return self.provider.quarantine_namespace
 
     def set(self, key: str, namespace: str, values: dict[str, str]):
         self.provider.set(key, namespace, values)
