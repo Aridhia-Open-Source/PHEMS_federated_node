@@ -60,6 +60,8 @@ Testing and open items:
 
 Wiki ([docs/versions/2.x/docs](versions/2.x/docs/)):
 
+- [Continuous integration](versions/2.x/docs/CI.md): workflow triggers, area checks and merge-queue behavior.
+
 - The GitHub wiki pages live here, file names the same as on the wiki. Edit them in a pull request. The `Wiki sync` workflow copies this folder to the wiki when a change to it reaches `main`, so an edit made in the wiki itself is overwritten by the next sync.
 
 Operations:

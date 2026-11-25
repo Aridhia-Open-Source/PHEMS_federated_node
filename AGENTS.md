@@ -95,7 +95,7 @@ Tests and lint:
 - Generated, machine-local files (env, values, fncli contexts, test CAs) live in the repo and are gitignored, in the standard place for their kind (`.generated.env`, `k8s/federated-node/generated.values.yaml`, `bootstrap/`), never under `~/`. The one exception is `~/.fn/data`, the cluster's volume data shared by every worktree.
 - API responses are built through DTOs; state changes go through the transition tables in `nexus/api/app/helpers/state_rules.py` (ADR 0005, a refused move is a 409).
 - nexus-api decides, Dagster carries out decisions (ADR 0021); Dagster and fncli parse API responses into their own models.
-- CI (`.github/workflows/build.yml`) runs pylint, hadolint, helm lint/template/unittest, nexus-api tests, Dagster tests and Keycloak integration tests.
+- CI (`.github/workflows/build.yml`) selects checks by changed area, keeps a required `ci-ok` check for pull requests and merge queues, and publishes docs previews through `.github/workflows/docs.yml`.
 
 ## Working tips for agents
 
