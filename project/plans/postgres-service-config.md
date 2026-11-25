@@ -1,6 +1,6 @@
 # Plan: postgres service config (fednode/5, #762)
 
-Status: not started.
+Status: complete. The final chart retains the shared server settings under `db.*`; Keycloak uses `keycloak.db.*`, and Dagster uses `dagster.postgresql.*`.
 - One name: Service and Deployment `postgres` (were `db`, `db-internal`); values `postgres.*` (were `db.*`) = the default
   server: `create`, `host`, `port`, `ssl`, `admin.{user,passwordSecret}`, `manageDatabases`.
 - Each component owns its database: `nexus.database.*`, `keycloak.database.*`; Dagster via `dagster.postgresql.*`
