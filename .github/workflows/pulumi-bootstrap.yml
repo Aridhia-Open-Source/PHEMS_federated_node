@@ -155,4 +155,3 @@ jobs:
           command: up
           stack-name: ${{ env.STACK }}
           work-dir: pulumi/bootstrap
-          args: --yes
