@@ -5,8 +5,6 @@ runtime:
     virtualenv: .venv
 description: Create a GitHub deployment repository consumed by Flux
 config:
-  github:owner:
-    description: GitHub organisation or user that owns the deployment repository
   phems-deployment-bootstrap:repository:
     description: Name of the deployment repository
     default: phems-deployment
