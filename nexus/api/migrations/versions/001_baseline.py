@@ -33,6 +33,40 @@ def upgrade() -> None:
         sa.Column('last_seen_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('grants',
+        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column('object_type', sa.String(length=64), nullable=False),
+        sa.Column('object_id', sa.Integer(), nullable=False),
+        sa.Column('relation', sa.String(length=16), nullable=False),
+        sa.Column('subject_type', sa.String(length=16), nullable=False),
+        sa.Column('subject_id', sa.String(length=255), nullable=False),
+        sa.Column('expires_at', sa.DateTime(), nullable=True),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+        sa.CheckConstraint(
+            "object_type IN ('Project', 'Dataset', 'GitProvider', 'Secret', 'TriggerRepository', 'ResultsRepository')",
+            name='ck_grants_object_type',
+        ),
+        sa.CheckConstraint(
+            "relation IN ('read', 'assign', 'execute', 'operate', 'write', 'manage')", name='ck_grants_relation'
+        ),
+        sa.CheckConstraint("subject_type IN ('user', 'group')", name='ck_grants_subject_type'),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint(
+            'object_type', 'object_id', 'relation', 'subject_type', 'subject_id', name='uq_grants_object_relation_subject'
+        )
+    )
+    op.create_index('ix_grants_object', 'grants', ['object_type', 'object_id'])
+    op.create_index('ix_grants_subject', 'grants', ['subject_type', 'subject_id'])
+    op.create_table('policy_versions',
+        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column('hash', sa.String(length=64), nullable=False),
+        sa.Column('contents', sa.Text(), nullable=False),
+        sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('hash', name='uq_policy_versions_hash')
+    )
     op.create_table('git_providers',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('name', sa.String(length=253), nullable=False),
@@ -44,9 +78,10 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
+        sa.Column('owned_by', sa.String(length=255), nullable=True),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['owned_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_git_providers_name', 'git_providers', ['name'])
@@ -62,9 +97,10 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
+        sa.Column('owned_by', sa.String(length=255), nullable=True),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['owned_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_secrets_key', 'secrets', ['key'])
@@ -84,10 +120,11 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
+        sa.Column('owned_by', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['owned_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_datasets_name', 'datasets', ['name'])
@@ -101,11 +138,12 @@ def upgrade() -> None:
         sa.Column('provider_id', sa.Integer(), nullable=False),
         sa.Column('repo_path', sa.String(length=512), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
+        sa.Column('owned_by', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['provider_id'], ['git_providers.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['owned_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_results_repositories_provider_repo_path', 'results_repositories', ['provider_id', 'repo_path'])
@@ -119,11 +157,12 @@ def upgrade() -> None:
         sa.Column('provider_id', sa.Integer(), nullable=False),
         sa.Column('repo_path', sa.String(length=512), nullable=False),
         sa.Column('secret_id', sa.Integer(), nullable=False),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
+        sa.Column('owned_by', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['provider_id'], ['git_providers.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['owned_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_trigger_repositories_provider_repo_path', 'trigger_repositories', ['provider_id', 'repo_path'])
@@ -137,10 +176,11 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
+        sa.Column('owned_by', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['default_dataset_id'], ['datasets.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['owned_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_projects_name', 'projects', ['name'])
@@ -179,11 +219,10 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_project_datasets_project_dataset', 'project_datasets', ['project_id', 'dataset_id'])
@@ -197,11 +236,10 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['results_repository_id'], ['results_repositories.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_project_results_repositories_project', 'project_results_repositories', ['project_id'])
@@ -212,11 +250,10 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['secret_id'], ['secrets.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_project_secrets_project_secret', 'project_secrets', ['project_id', 'secret_id'])
@@ -231,11 +268,10 @@ def upgrade() -> None:
         sa.Column('enabled', sa.Boolean(), server_default=sa.text('true'), nullable=False),
         sa.Column('revoked', sa.Boolean(), server_default=sa.text('false'), nullable=False),
         sa.Column('deleted_at', sa.DateTime(), nullable=True),
-        sa.Column('owner_id', sa.String(length=255), nullable=True),
-        sa.Column('owner_group', sa.String(length=255), nullable=True),
+        sa.Column('created_by', sa.String(length=255), nullable=True),
         sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='RESTRICT'),
         sa.ForeignKeyConstraint(['trigger_repository_id'], ['trigger_repositories.id'], ondelete='RESTRICT'),
-        sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
+        sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_project_trigger_repositories_project_repo', 'project_trigger_repositories', ['project_id', 'trigger_repository_id'])
@@ -367,5 +403,7 @@ def downgrade() -> None:
     op.drop_table('datasets')
     op.drop_table('secrets')
     op.drop_table('git_providers')
+    op.drop_table('policy_versions')
+    op.drop_table('grants')
     op.drop_table('users')
     sa.Enum(name='secretprovidertype').drop(op.get_bind())

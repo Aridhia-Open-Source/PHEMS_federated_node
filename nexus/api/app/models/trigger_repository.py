@@ -10,7 +10,8 @@ from app.models.git_repository import GitRepositoryMixin
 from app.models.user import OwnedMixin
 
 
-class TriggerRepository(SoftDeleteMixin, OwnedMixin, GitRepositoryMixin, db.Model, BaseModel):
+class TriggerRepository(OwnedMixin, SoftDeleteMixin, GitRepositoryMixin, db.Model, BaseModel):
+    authz_type = 'TriggerRepository'
     __tablename__ = 'trigger_repositories'
 
     # What its git tokens may do. The cache of minted tokens is keyed by repository id and permission, so a trigger and

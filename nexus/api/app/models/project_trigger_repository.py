@@ -13,14 +13,14 @@ from sqlalchemy.sql import func
 from app.database.base_model import BaseModel, db
 from app.database.soft_delete import SoftDeleteMixin
 from app.models import Models
-from app.models.user import OwnedMixin
+from app.models.user import CreatedByMixin
 
 
 def now_ts():
     return dt.now(tz=tz.utc)
 
 
-class ProjectTriggerRepository(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
+class ProjectTriggerRepository(SoftDeleteMixin, CreatedByMixin, db.Model, BaseModel):
     __tablename__ = 'project_trigger_repositories'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)

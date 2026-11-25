@@ -59,3 +59,11 @@ def test_downgrade_base_leaves_nothing(empty_database):
     alembic("downgrade", "base")
     assert table_names() == {"alembic_version"}
     assert enum_names() == set()
+
+
+def test_upgrade_seeds_no_grants_or_policy_versions(empty_database):
+    """Access comes from Cedar rules and grants made through the API (ADR 0037): nothing is seeded."""
+    alembic("upgrade", "head")
+    with engine.connect() as conn:
+        counts = [conn.execute(text(f"SELECT count(*) FROM {table}")).scalar() for table in ("grants", "policy_versions")]
+    assert counts == [0, 0]

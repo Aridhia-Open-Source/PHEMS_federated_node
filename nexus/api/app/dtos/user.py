@@ -1,4 +1,18 @@
+from typing import Literal
+
+from pydantic import BaseModel
+
 from app.dtos.base import DTO
+from app.models.node_role import NodeRole
+
+
+class NewUserRequest(BaseModel):
+    """POST /global/users. The username defaults to the email; the role is Users or Administrator."""
+    email: str
+    username: str | None = None
+    firstName: str | None = None
+    lastName: str | None = None
+    role: Literal[NodeRole.USERS, NodeRole.ADMINISTRATOR] = NodeRole.USERS
 
 
 class UserDTO(DTO):
@@ -21,7 +35,7 @@ class NewUserDTO(DTO):
 
 
 class UserRefDTO(DTO):
-    """A nexus-api user as a record names it, as its owner (ADR 0036)."""
+    """A nexus-api user as a record names it, as its creator or owner (ADR 0037)."""
     id: str
     username: str
 

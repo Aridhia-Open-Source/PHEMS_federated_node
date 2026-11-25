@@ -1,0 +1,50 @@
+2026-11-22 17:20 read ticket, PR #686 plan and orchestrator note; branch is behind feat/keycloak-authentication; plan sent to codepint, waiting for go-ahead
+2026-11-22 17:48 go-ahead relayed by phems/auth; merged latest feat/keycloak-authentication
+2026-11-22 17:53 chunk 1 pushed: local token verification, role gate, login/refresh shape, tests
+2026-11-22 17:57 chunk 2 pushed: role fix, clients, chart issuer/JWKS, realm + m004
+2026-11-22 17:58 chunk 3 pushed: Authorization Services code and UMA tests removed; starting test run
+2026-11-22 17:59 PR body reviewer's guide written; changelog committed locally
+2026-11-22 18:03 ready-for-review label added
+2026-11-22 18:07 merged latest feat/keycloak-authentication (04_realm_state conflict), fixed route-gate test, pushed with changelog
+2026-11-22 18:07 ready-for-review label back on (means code complete)
+
+## Handover (2026-11-22, wrap-up for usage cap)
+State: all code for auth/4 #686 is pushed (3 chunks + changelog + merge of latest feat/keycloak-authentication). Reviewer's guides: one PR comment per chunk, plus the full guide in the PR body. ready-for-review label on; xo status: testing.
+Tests: the first targeted run found the frozenset .pop() bug (fixed in aa98b92e8). The full run (nexus-api ci, dagster test_backend/test_utils, UI npm test + typecheck, helm tests, pylint) was stopped before it reported, so the results are unknown.
+Next step: rerun that full set (cd nexus/api && ./run_tests.sh ci; cd nexus/ui && npm ci && npm test && npm run typecheck; mise run helm tests; mise run pylint; dagster test_backend.py) and fix what fails. Watch nexus/ui/src/api/session.test.ts (per-request fetch option in openapi-fetch 0.13), the new helm suite keycloak_token_issuer_test.yaml, and leftover pylint messages in keycloak.py after the method cuts.
+Open issues: (1) the public /keycloak route keeps the prefix but Keycloak has no http-relative-path, so browser login there would 404; the issuer string is fine. (2) m003 (auth/3's file) no longer repoints the authz policies; m004 turns Authorization Services off. (3) kc-init's realm-management token-exchange setup is untouched. (4) Dataset.add(user_id) still takes an unused user_id. (5) Not deployed or e2e-tested yet: needs a cluster slot from phems/auth.
+2026-11-22 19:58 fresh session: reading failed CI run 45053857670
+2026-11-22 19:58 CI failed only on helm kc-config checksum baseline (moved by KC_HOSTNAME change); baseline updated, pushing, CI rerun
+2026-11-22 20:00 heads-up from phems/auth: dagster-develop merge coming down the stack; pull before next push
+2026-11-22 20:10 CI: 2 users tests renamed via the USERS dict, which no longer drives claims; now rename via token_claims; file passes locally
+2026-11-22 20:13 session.test.ts (new in #686) failed: relative baseUrl rejected by Request in jsdom; test now passes an absolute baseUrl; 4/4 pass, typecheck clean
+2026-11-22 20:14 reading codepint's review comments on #686
+2026-11-22 20:18 review: m004 removed, backchannel back to false, keycloakHostnameUrl, NodeRole enum, AccessTokenConfig (pydantic-settings), AccessTokenVerifier, Caller DTO, NewUserRequest; running targeted tests
+2026-11-22 20:25 review fixes done: targeted tests 73 pass, helm 232 pass (baseline moved again), openapi + schema.d.ts regenerated, typecheck clean; pushing
+2026-11-22 20:26 review replies posted, PR body updated, ready-for-review on, xo done; CI 45066353004 running
+2026-11-22: read brief; stopped before work: 5h usage 96% (resets in ~68 min)
+chunk 1: baseline grants/policy_versions, created_by/owned_by, Grant/PolicyVersion models, set_owner writes manage, soft delete drops grants, DTOs
+chunk 2: grants_api routes, grant DTOs, regenerated openapi.json and schema.d.ts, UI fixtures, contract sample, tests
+pushed c1a61ef27; PR body guide + ready-for-review; orchestrator told; tests running in background agent
+fixed 2 stale username tests (took base version); UI session.test.ts failure is auth/4's; full suite next
+stack: now auth/6, on #724 (feat/api-config); merge it when it lands code
+merged feat/api-config (#724); switched to NodeRole + dtos.caller; pushed
+new rule: changed-file tests only locally, CI is the gate; stopped full-suite run; targeted tests on merged code running
+targeted tests on merged code: 156 passed, 24 skipped; CI tests running on 66bb98771
+realm check fix pushed d59c093de; status testing (CI gate); xo synced
+## Handover T-071 (2026-11-22, parked at 95% usage)
+State: code complete and pushed (head d59c093de + this note). Grants tables, models, set_owner manage grant, grants/owner routes, DTO rename, regenerated schemas, tests. Changed-file tests pass locally (156 passed, 24 skipped = old owner-group test waiting for Cedar). PR body has the reviewer's guide; review:ready label on.
+Stopped at: CI running on d59c093de (realm check now expects fn_realm_version 3).
+Next step: check CI on #684; if it fails, fix locally (changed-file tests only) and push without [skip ci]. Known, not ours: nexus/ui src/api/session.test.ts fails on #686 too.
+2026-11-22 20:30 stopgap comment on does_user_own_task pushed, thread replied
+2026-11-22 20:44 CI: Keycloak integration test still expected realm version 4 (m004 removed); back to 3; pushing, CI rerun
+2026-11-22 20:51 new rule: local = changed-file tests only, CI is the full gate; WIP pushes get [skip ci]
+2026-11-22 20:58 new rule: never trigger CI by hand; the push starts it
+2026-11-22 21:01 labels renamed: use review:ready (was ready-for-review)
+2026-11-22 21:04 CI 45068148815 green on 354603e04
+2026-11-22 21:09 new rule: xo agent status + xo sync --yes -q before each report/push
+
+## Handover (2026-11-22 21:10, parked for usage cap)
+State: auth/4 #686 code complete. All 9 of codepint's review comments addressed and replied to; stopgap Cedar comment added. CI green on 354603e04 (run 45068148815). Labels review:ready + review:approved; xo status done.
+Next step: wait for codepint's re-review; address any new threads. Moving the other os.getenv calls into app/config.py is its own PR after #686 (orchestrator owns it).
+Open: existing realms keep Authorization Services and the old token lifespan (m004 removed by request) until the end-of-stack cleanup.

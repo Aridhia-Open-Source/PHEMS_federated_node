@@ -3,7 +3,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError, field_validator, model_validator
 
-from app.settings import settings
+from app.config import settings
 from app.dtos.base import DTO, WireDatetime
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.secret import SecretDTO
@@ -28,9 +28,8 @@ class DatasetDTO(DTO):
     updated_at: WireDatetime
     slug: str
     url: str
-    owner: UserRefDTO | None
-    # The group whose members alone may change it, null when it is open (ADR 0036)
-    owner_group: str | None
+    created_by: UserRefDTO | None
+    owned_by: UserRefDTO | None
 
     @classmethod
     def from_model(cls, obj: Dataset):
@@ -50,9 +49,9 @@ class DatasetDTO(DTO):
             created_at=obj.created_at,
             updated_at=obj.updated_at,
             slug=slug,
-            url=f"https://{settings.node.hostname}/global/datasets/{obj.id}",
-            owner=UserRefDTO.of(obj.owner),
-            owner_group=obj.owner_group,
+            url=f"https://{settings.node.public_url}/global/datasets/{obj.id}",
+            created_by=UserRefDTO.of(obj.created_by),
+            owned_by=UserRefDTO.of(obj.owned_by),
         )
 
 
@@ -63,9 +62,7 @@ class ProjectDatasetDTO(DTO):
     enabled: bool
     revoked: bool
     active: bool
-    owner: UserRefDTO | None
-    # The group whose members alone may change it, null when it is open (ADR 0036)
-    owner_group: str | None
+    created_by: UserRefDTO | None
 
     @classmethod
     def from_model(cls, obj: ProjectDataset):
@@ -75,8 +72,7 @@ class ProjectDatasetDTO(DTO):
             enabled=obj.enabled,
             revoked=obj.revoked,
             active=obj.active,
-            owner=UserRefDTO.of(obj.owner),
-            owner_group=obj.owner_group,
+            created_by=UserRefDTO.of(obj.created_by),
         )
 
 

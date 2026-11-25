@@ -12,7 +12,8 @@ from app.models import Models, sqla_column
 from app.models.user import OwnedMixin
 
 
-class Project(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
+class Project(OwnedMixin, SoftDeleteMixin, db.Model, BaseModel):
+    authz_type = 'Project'
     __tablename__ = 'projects'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)

@@ -33,7 +33,7 @@ def test_create_and_get_shape_defaults(client, admin_headers):
     assert set(created.json()) == {"id"}
     got = client.get(f"/projects/{created.json()['id']}", headers=admin_headers).json()
     assert set(got) == {"id", "name", "description", "enabled", "revoked", "default_dataset_id",
-                        "created_at", "updated_at", "owner", "owner_group"}
+                        "created_at", "updated_at", "created_by", "owned_by"}
     assert (got["name"], got["description"], got["enabled"], got["revoked"], got["default_dataset_id"]) == \
         ("Alpha", "first", False, False, None)
     plain = create(client, admin_headers, name="Plain", enabled=True)
@@ -104,7 +104,7 @@ def test_patch_revoked_is_admin_only_shows_in_the_dto_and_leaves_enabled_alone(
     assert refresh(project).revoked is False
 
 
-# Deny by default: every route needs can_do_admin, except these (app.OPEN_ROUTERS). FastAPI's docs and
+# Deny by default: every route needs an admin role, except these (app.OPEN_ROUTERS). FastAPI's docs and
 # openapi routes are plain Starlette routes, not APIRoutes, so the walk skips them. An included router is one
 # entry in app.routes; iter_route_contexts gives each of its routes with the include-time dependencies added.
 OPEN_ROUTES = {
@@ -115,13 +115,13 @@ OPEN_ROUTES = {
 
 def needs_admin(route: RouteContext) -> bool:
     return any(
-        dep.dependency.__name__ == "_require_scope"
-        and inspect.getclosurevars(dep.dependency).nonlocals["scope"] == "can_do_admin"
+        dep.dependency.__name__ == "_require_role"
+        and "Users" not in inspect.getclosurevars(dep.dependency).nonlocals["roles"]
         for dep in route.dependencies
     )
 
 
-def test_every_route_outside_the_open_list_needs_can_do_admin(client, post_json_user_header):
+def test_every_route_outside_the_open_list_needs_an_admin_role(client, post_json_user_header):
     routes = {(method, route.path): route for route in iter_route_contexts(client.app.routes)
               if isinstance(route.original_route, APIRoute) for method in route.methods}
     assert OPEN_ROUTES <= set(routes)
