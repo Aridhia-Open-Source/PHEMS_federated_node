@@ -44,8 +44,9 @@ jobs:
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    environment:
+      name: pulumi-bootstrap
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       STACK: pr-${{ github.event.pull_request.number }}
       REPOSITORY: phems-pr-${{ github.event.pull_request.number }}-deployment
       ENVIRONMENTS: develop
@@ -63,16 +64,27 @@ jobs:
         uses: pulumi/actions@v6
         with:
           pulumi-version: "^3"
+      - name: Create GitHub App token
+        id: github-app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PULUMI_GITHUB_APP_ID }}
+          private-key: ${{ secrets.PULUMI_GITHUB_APP_PRIVATE_KEY }}
+          owner: Aridhia-Open-Source
       - name: Configure preview stack
         working-directory: pulumi/bootstrap
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
         run: |
           set -euo pipefail
           pulumi login --local
           pulumi stack select "$STACK" || pulumi stack init "$STACK"
-          pulumi config set github:owner "$GITHUB_REPOSITORY_OWNER"
+          pulumi config set github:owner Aridhia-Open-Source
           pulumi config set repository "$REPOSITORY"
           pulumi config set environments "$ENVIRONMENTS"
       - uses: pulumi/actions@v6
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
         with:
           command: preview
           stack-name: ${{ env.STACK }}
@@ -84,7 +96,6 @@ jobs:
     environment:
       name: pulumi-bootstrap
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       STACK: ${{ inputs.stack || vars.PULUMI_STACK || 'production' }}
       REPOSITORY: ${{ inputs.repository || vars.PULUMI_REPOSITORY || 'phems-deployment' }}
       ENVIRONMENTS: ${{ inputs.environments || vars.PULUMI_ENVIRONMENTS || 'develop' }}
@@ -102,6 +113,13 @@ jobs:
         uses: pulumi/actions@v6
         with:
           pulumi-version: "^3"
+      - name: Create GitHub App token
+        id: github-app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PULUMI_GITHUB_APP_ID }}
+          private-key: ${{ secrets.PULUMI_GITHUB_APP_PRIVATE_KEY }}
+          owner: Aridhia-Open-Source
       - name: Validate deployment inputs
         run: |
           set -euo pipefail
@@ -118,14 +136,18 @@ jobs:
           done
       - name: Configure apply stack
         working-directory: pulumi/bootstrap
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
         run: |
           set -euo pipefail
           pulumi login --local
           pulumi stack select "$STACK" || pulumi stack init "$STACK"
-          pulumi config set github:owner "$GITHUB_REPOSITORY_OWNER"
+          pulumi config set github:owner Aridhia-Open-Source
           pulumi config set repository "$REPOSITORY"
           pulumi config set environments "$ENVIRONMENTS"
       - uses: pulumi/actions@v6
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
         with:
           command: up
           stack-name: ${{ env.STACK }}

@@ -43,10 +43,16 @@ same-repository pull requests that change this project. A push to protected
 `pulumi-bootstrap` GitHub environment. Configure required reviewers on that
 environment so applying infrastructure is an explicit approval step.
 
-Set `GITHUB_TOKEN` in the repository for previews and in the
-`pulumi-bootstrap` environment for applies. It must be a fine-grained GitHub
-token with repository administration permission for the deployment repository.
-No Pulumi Cloud token or backend configuration is required.
+Set these secrets in the `pulumi-bootstrap` environment:
+
+* `PULUMI_GITHUB_APP_ID` - the GitHub App ID.
+* `PULUMI_GITHUB_APP_PRIVATE_KEY` - the GitHub App private key.
+
+The workflow uses `actions/create-github-app-token@v1` with owner
+`Aridhia-Open-Source` to mint a short-lived token for each job, then passes it
+as `GITHUB_TOKEN` to Pulumi's provider configuration and preview/apply steps.
+No static GitHub token, Pulumi Cloud token, or backend configuration is
+required.
 
 Each job logs into an ephemeral local Pulumi backend. State exists only for the
 duration of that job and is discarded afterwards. The workflow is therefore
