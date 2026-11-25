@@ -55,6 +55,4 @@ Other Keycloak groups, for example `/studies/uc1`, are for [grants](./Granting-A
 An admin creates a user with `POST /global/users` ([Using the API](./Using-The-API#users)). The role is `Users`, or `Administrator`, which only the `SuperUser` may give. Researchers who only work in git do not need an account.
 
 
-## Not yet shipped
-
-The operator's own account is planned as a Keycloak client with no password, in `/roles/service` ([ADR 0036](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/beta/project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md)); it arrives with the operator. Dagster signs in as a Keycloak user for now.
+The operator signs in with its own `Service` account in `/roles/service`; it never uses a person's login. Dagster signs in with its `Dagster` account and writes only the pipeline state routes it calls.
