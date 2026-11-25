@@ -74,6 +74,7 @@ class KeycloakSettings(EnvSettings):
     url: str | None = None
     realm: str | None = None
     client: str | None = None
+    allowed_clients: str | None = None
     admin: str | None = None
     service_user: str | None = None
     secrets_path: str | None = None

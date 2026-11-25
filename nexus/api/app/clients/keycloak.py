@@ -20,6 +20,11 @@ PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
 KEYCLOAK_URL = settings.services.keycloak.url
 REALM = settings.services.keycloak.realm
 KEYCLOAK_CLIENT = settings.services.keycloak.client
+KEYCLOAK_ALLOWED_CLIENTS = frozenset(
+    client.strip()
+    for client in (settings.services.keycloak.allowed_clients or KEYCLOAK_CLIENT or "").split(",")
+    if client.strip()
+)
 # `admin` is the operator's Keycloak console account. It is kept here only so the user list can
 # filter it out -- nothing authenticates as it. Its password is operator-owned and may change at
 # any time, so relying on it would make the backend break whenever an operator rotated it.
@@ -279,6 +284,11 @@ class Keycloak:
         is_access_token = tok_type == 'access_token'
         if is_access_token:
             response_auth = self.login.introspect(self.client_name, self.client_secret, token)
+            if not response_auth.ok:
+                return False
+            token_info = response_auth.json()
+            if not token_info.get("active") or token_info.get("azp") not in KEYCLOAK_ALLOWED_CLIENTS:
+                return False
         else:
             response_auth = self.login.refresh_grant(self.client_name, self.client_secret, token)
 

@@ -12,6 +12,7 @@
 - nexus-api tests run on pytest-xdist workers, each with its own Postgres database ([#727](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/727)); `NEXUS_TEST_WORKERS=0` runs them serially
 - CI runs only the jobs a PR's changed files need, adds a `ci-ok` check to require instead of the individual jobs, and runs tests in the merge queue; images, the chart and the summary publish only from trunk pushes, tags and manual runs ([#729](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/729)); `actions-sandbox` is a throwaway branch that behaves like a trunk branch for testing these changes, reset from dagster-develop on every push to it
 - Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart
+- nexus-api accepts access tokens from the configured Keycloak client list, allowing service-account clients such as Dagster
 - Removed unused nexus-api code: five `Task` methods, two exceptions, two `Keycloak` methods, `GitRepositoryMixin.check_connection` and the `ENABLE_IMAGE_WHITELIST` setting
 - Removed the dataset catalogue and dictionaries: the `catalogue` and `dictionaries` fields on dataset create and update, their tables, the UI fields and the Dagster models
 - nexus-api helpers are grouped by area: `app/clients/`, `app/repos/`, `app/tasks/`, `app/rules/` and `app/database/`, and `const.py` is split (task limits to `app/tasks/limits.py`, `build_sql_uri` to `app/database/uri.py`)
