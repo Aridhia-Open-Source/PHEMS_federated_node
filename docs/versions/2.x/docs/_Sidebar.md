@@ -14,6 +14,7 @@
 - [Deploy on-premises (UNTESTED)](./Deploy-On-Premises)
 - [Post-deploy testing](./Post-Deploy-Testing)
 - [Run locally](./Run-Locally)
+- [Auth setup](./Auth-Setup)
 
 
 **Using the node**
@@ -21,6 +22,8 @@
 - [Researcher guide](./Researcher-Guide)
 - [Analytics container development](./Analytics-Container-Development)
 - [Datasets](./Datasets)
+- [Sign-in and roles](./Sign-In-And-Roles)
+- [Granting access](./Granting-Access)
 - [Using the API](./Using-The-API)
 - [Operations](./Operations)
 

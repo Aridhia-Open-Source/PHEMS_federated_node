@@ -16,7 +16,7 @@ export FN=https://fn.your-institution.example.com
 
 ### Login
 
-`/login` takes form fields, not JSON, and returns a bearer token:
+`/login` takes form fields, not JSON, and returns an access token (`token`) and a `refresh_token`:
 
 ```sh
 TOKEN=$(curl --silent "$FN/login" \
@@ -26,13 +26,18 @@ TOKEN=$(curl --silent "$FN/login" \
 AUTH=(-H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
 ```
 
-Tokens are valid for 8 hours by default (the chart value `token.life`).
+The access token lasts 5 minutes; the refresh token lasts for the session (the chart value `token.life`, 8 hours by default).
 
 ### Refresh a token
 
+Send the **refresh token** as the Bearer to get a new pair:
+
 ```sh
-curl --silent -X POST "$FN/refresh_token" "${AUTH[@]}"
+REFRESH=$(curl --silent "$FN/login" -F "username=your@email.com" -F "password=yourpassword" | jq -r '.refresh_token')
+curl --silent -X POST "$FN/refresh_token" -H "Authorization: Bearer $REFRESH"
 ```
+
+How sign-in works and who may do what is in [Sign-in and roles](./Sign-In-And-Roles) and [Granting access](./Granting-Access).
 
 
 ## The routes
@@ -83,16 +88,7 @@ Only `email` is required. `username` defaults to the email, and `role` to `Users
 
 The new user changes the temporary password with `PUT /global/users/reset-password` and the body `{"email": "...", "tempPassword": "...", "newPassword": "..."}`, which needs no login.
 
-The node's roles are realm roles in Keycloak:
-
-| Role | Used for |
-|---|---|
-| `Users` | A basic login. Researchers do not need one in the common case: they work in git. |
-| `Administrator` | Registers and revokes the global resources, creates users, and manages projects. |
-| `Super Administrator` | Everything an `Administrator` can do, plus the wider Keycloak realm permissions. |
-| `System` | Integrations. Dagster logs in to nexus-api as a system user. |
-
-The first admin is created at install time from `firstUserSecret` ([Deploy: Core](./Deploy-Core#3-create-the-namespace-and-the-secrets-you-must-provide)).
+A user is a `Users` account, or an `Administrator` when the `SuperUser` asks. The five roles, and what each may do, are in [Sign-in and roles](./Sign-In-And-Roles). The first admin is created at install time from `firstUserSecret` ([Auth setup](./Auth-Setup)).
 
 
 ## Datasets, repositories, projects
