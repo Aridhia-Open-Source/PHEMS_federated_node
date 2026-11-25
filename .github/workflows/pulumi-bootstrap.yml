@@ -71,6 +71,10 @@ jobs:
           app-id: ${{ secrets.PULUMI_GITHUB_APP_ID }}
           private-key: ${{ secrets.PULUMI_GITHUB_APP_PRIVATE_KEY }}
           owner: Aridhia-Open-Source
+      - name: Configure ephemeral Pulumi passphrase
+        run: |
+          set -euo pipefail
+          printf 'PULUMI_CONFIG_PASSPHRASE=%s\n' "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: Configure preview stack
         working-directory: pulumi/bootstrap
         env:
@@ -120,6 +124,10 @@ jobs:
           app-id: ${{ secrets.PULUMI_GITHUB_APP_ID }}
           private-key: ${{ secrets.PULUMI_GITHUB_APP_PRIVATE_KEY }}
           owner: Aridhia-Open-Source
+      - name: Configure ephemeral Pulumi passphrase
+        run: |
+          set -euo pipefail
+          printf 'PULUMI_CONFIG_PASSPHRASE=%s\n' "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: Validate deployment inputs
         run: |
           set -euo pipefail
