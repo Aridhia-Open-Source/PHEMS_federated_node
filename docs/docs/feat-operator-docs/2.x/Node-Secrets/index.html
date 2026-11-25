@@ -1023,17 +1023,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#coming-next" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming next
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1447,17 +1436,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#coming-next" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Coming next
-      
-    </span>
-  </a>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1531,8 +1509,7 @@
 <p>A NodeSecret whose Secret is missing shows <code>Synced</code> false and says so in <code>Message</code> (<code>kubectl get nodesecrets -n fn-operator</code>). Create the Secret and the operator picks it up within a minute.</p>
 <h2 id="rotate-a-value">Rotate a value<a class="headerlink" href="#rotate-a-value" title="Permanent link">&para;</a></h2>
 <p>Change the Kubernetes Secret. The operator checks every NodeSecret's Secret every <code>operator.syncIntervalSeconds</code> (60 by default) and writes a changed value to nexus-api. Work already running gets the new value.</p>
-<h2 id="coming-next">Coming next<a class="headerlink" href="#coming-next" title="Permanent link">&para;</a></h2>
-<p>The operator's access to Secrets is being narrowed so that it reads only the Secrets its NodeSecrets name (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/698">#698</a>). External Secrets and SOPS then give the operator the same thing, one Secret per name, and the operator never needs to know where a value came from.</p>
+<p>The operator reads only the Secrets its NodeSecrets name, in the operator namespace. External Secrets and SOPS can create those source Secrets; the operator does not need to know where a value came from.</p>
 
 
 

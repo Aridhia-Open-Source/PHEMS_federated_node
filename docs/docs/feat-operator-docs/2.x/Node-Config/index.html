@@ -1622,6 +1622,15 @@
 <span class="w">          </span><span class="nt">baseBranch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
 </code></pre></div>
 <p>Providers, secrets, repositories and datasets are global: any number of projects can use them. A project only assigns them. The full field list is in the chart's <code>values.yaml</code> and the CRDs in <code>k8s/federated-node/crds/</code>.</p>
+<p>Projects and global records can also declare group access. The operator adds the listed grants and removes only the grants it added when an entry is removed; grants made by an administrator or a researcher stay:</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="nt">projects</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cohort-study</span>
+<span class="w">        </span><span class="nt">access</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/studies/uc1</span>
+<span class="w">            </span><span class="nt">relation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">read</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/studies/uc1</span>
+<span class="w">            </span><span class="nt">relation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">execute</span>
+</code></pre></div>
 <h2 id="change-it">Change it<a class="headerlink" href="#change-it" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
