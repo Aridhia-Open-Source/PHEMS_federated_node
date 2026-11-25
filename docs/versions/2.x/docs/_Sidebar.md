@@ -28,3 +28,5 @@
 **Development**
 - [Using fncli](./Using-fncli)
 - [Experiments](./Experiments)
+
+- [Continuous integration](./CI)
