@@ -12,7 +12,10 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
 ## Repo map
 
 - `nexus/api/` - the backend (FastAPI, SQLAlchemy, Alembic).
-  - `app/*_api.py` - routers, one per resource; `app/main.py` builds the app.
+  - `app/__init__.py` builds the app. Routers (endpoints only), grouped by URL scope: `app/globals/*_api.py` (`/global/...`),
+    `app/projects/*_api.py` (`/projects/...`); `app/auth_api.py` (login, token refresh, password reset),
+    `app/healthcheck_api.py` (probes and the health roll-ups), `app/dagster_api.py`.
+  - `app/health/` - the health checks the healthcheck routes call; `app/clients/secret_store.py` - the secret stores.
   - `app/dtos/` - Pydantic response DTOs (ADR 0016); `app/models/` - SQLAlchemy models.
   - `app/clients/` - the Keycloak, Kubernetes, Dagster and outbound clients, and token checks.
   - `app/repos/` - git tokens and addresses, pull request fan-out. `app/tasks/` - task config, resources and limits.

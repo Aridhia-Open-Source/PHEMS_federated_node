@@ -130,7 +130,7 @@ def test_the_decision_in_config_and_in_launch_agree(client, admin_headers, syste
 
 def test_a_long_cause_is_cut_to_the_launchers_length(client, system_headers, project, full_task, monkeypatch):
     from app.tasks.task_config import LaunchDecision
-    monkeypatch.setattr("app.tasks_api.decide_launch", lambda task: LaunchDecision("fail", "revoked: " + "x" * 2000, [], []))
+    monkeypatch.setattr("app.projects.tasks_api.decide_launch", lambda task: LaunchDecision("fail", "revoked: " + "x" * 2000, [], []))
 
     body = launch(client, system_headers, project, full_task).json()
 

@@ -65,7 +65,7 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 2. For one dataset, Secret, GitProvider, TriggerRepository and ResultsRepository: `GET /global/datasets/<id>/healthcheck`, `/global/secrets/<label>/healthcheck`, `/global/providers/<id>/healthcheck`, `/global/repositories/triggers/<id>/healthcheck`, `/global/repositories/results/<id>/healthcheck`.
 
 - **Expected:** `ok` when everything is reachable. A failure (a wrong token, an unreachable database or git host) shows in the body with a 200, never a 500, and the global check reports an error when any one fails. No response contains a Secret value.
-- **Rule:** the healthcheck routes are defined in `nexus/api/app/healthcheck_api.py`.
+- **Rule:** the probes and the health roll-ups are in `nexus/api/app/healthcheck_api.py`, each resource's healthcheck route in its router, and the checks in `nexus/api/app/health/`.
 - **Automated by:** Partly automated: `nexus/api/tests/test_healthchecks_all.py` mocks the connections; it misses real reachability, real tokens and the real datasets database.
 - [ ] Pass
 - [ ] Fail — notes:
