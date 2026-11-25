@@ -2,7 +2,7 @@
 
 A node's config is what it needs before it can run a task: git providers, secrets, trigger and results repositories, datasets, and projects with what they are assigned. With the **nexus operator** on, that config lives in git as Helm values, and the operator applies it to nexus-api. This page is for the admin who keeps that config. For the secrets, see [Node secrets](./Node-Secrets).
 
-The design is in [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/716).
+The design is in [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/project/decisions/0032-declarative-node-config-through-an-operator.md).
 
 
 ## How it works
@@ -68,6 +68,18 @@ nodeConfig:
 ```
 
 Providers, secrets, repositories and datasets are global: any number of projects can use them. A project only assigns them. The full field list is in the chart's `values.yaml` and the CRDs in `k8s/federated-node/crds/`.
+
+Projects and global records can also declare group access. The operator adds the listed grants and removes only the grants it added when an entry is removed; grants made by an administrator or a researcher stay:
+
+```yaml
+    projects:
+      - name: cohort-study
+        access:
+          - group: /studies/uc1
+            relation: read
+          - group: /studies/uc1
+            relation: execute
+```
 
 
 ## Change it

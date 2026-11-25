@@ -2,7 +2,7 @@
 
 A **NodeSecret** is a nexus-api secret (git credentials, a database login) given by reference: it names the Kubernetes Secret its values are in, never the values. The operator reads that Secret and writes the values to nexus-api. This page is for the admin who sets them up. For the rest of the node's config, see [Node config](./Node-Config).
 
-The design is in [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/716).
+The design is in [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/project/decisions/0032-declarative-node-config-through-an-operator.md).
 
 
 ## Name the Secret
@@ -53,6 +53,4 @@ A NodeSecret whose Secret is missing shows `Synced` false and says so in `Messag
 Change the Kubernetes Secret. The operator checks every NodeSecret's Secret every `operator.syncIntervalSeconds` (60 by default) and writes a changed value to nexus-api. Work already running gets the new value.
 
 
-## Coming next
-
-The operator's access to Secrets is being narrowed so that it reads only the Secrets its NodeSecrets name ([#698](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/698)). External Secrets and SOPS then give the operator the same thing, one Secret per name, and the operator never needs to know where a value came from.
+The operator reads only the Secrets its NodeSecrets name, in the operator namespace. External Secrets and SOPS can create those source Secrets; the operator does not need to know where a value came from.
