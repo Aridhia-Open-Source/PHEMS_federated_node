@@ -18,11 +18,10 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Literal
 
 import jwt
-import requests
 
 from app.helpers.exceptions import GitProviderError, InvalidRequest, UnauthorizedError
 from app.clients.kubernetes import KubernetesClient
-from app.models.git_provider import _message_of
+from app.models.git_provider import GIT_HTTP, _message_of
 
 # The models import this module (GitRepositoryMixin.get_token), so they are only named in annotations
 if TYPE_CHECKING:
@@ -34,7 +33,6 @@ if TYPE_CHECKING:
 
 Permission = Literal["read", "write"]
 
-REQUEST_TIMEOUT = 10
 # GitHub takes an App JWT of at most 10 minutes; issued a minute in the past for clock drift
 JWT_LIFETIME = timedelta(minutes=9)
 JWT_BACKDATE = timedelta(seconds=60)
@@ -57,7 +55,7 @@ def _post(url: str, **kwargs) -> dict:
     POST and the JSON answer. A failure is a 502 with the provider's own message; the request holds credentials,
     so it is not in it.
     """
-    response = requests.post(url, timeout=REQUEST_TIMEOUT, **kwargs)
+    response = GIT_HTTP.post(url, **kwargs)
     if not response.ok:
         raise GitProviderError(f"{url} answered {response.status_code}: {_message_of(response)}")
     return response.json()

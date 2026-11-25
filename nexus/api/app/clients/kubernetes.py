@@ -1,26 +1,115 @@
-"""Nexus API adapter for the shared Kubernetes client."""
-import os
-
+import base64
+import logging
+from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
-
-from fednode.clients.kubernetes.client import KubernetesClient as SharedKubernetesClient
+from app.config import settings
+from urllib3.exceptions import HTTPError, TimeoutError as Urllib3TimeoutError
 from app.helpers.exceptions import KubernetesException
+from app.clients.outbound import CONNECT_TIMEOUT, READ_TIMEOUT, OutboundError, OutboundTimeout
+
+logger = logging.getLogger('kubernetes_helper')
+logger.setLevel(logging.INFO)
 
 
-class KubernetesClient(SharedKubernetesClient):
-    """Select the API pod's Kubernetes environment and retain its error contract."""
+class OutboundApiClient(client.ApiClient):
+    """An ApiClient whose calls have the outbound layer's default timeout and typed errors (ADR 0038)."""
 
+    def call_api(self, *args, **kwargs):
+        if kwargs.get("_request_timeout") is None:
+            kwargs["_request_timeout"] = (CONNECT_TIMEOUT, READ_TIMEOUT)
+        try:
+            return super().call_api(*args, **kwargs)
+        except Urllib3TimeoutError as err:
+            raise OutboundTimeout("kubernetes did not answer in time") from err
+        except HTTPError as err:
+            raise OutboundError(f"kubernetes is unreachable: {type(err).__name__}") from err
+
+
+class KubernetesBase:
     def __init__(self) -> None:
-        super().__init__(in_cluster=bool(os.getenv("KUBERNETES_SERVICE_HOST")))
+        if settings.kubernetes.service_host:
+            # Get configuration for an in-cluster setup
+            config.load_incluster_config()
+        else:
+            # Get config from outside the cluster. Mostly DEV
+            config.load_kube_config()
+        super().__init__(api_client=OutboundApiClient())
 
-    def create_secret(self, *args, **kwargs):
-        try:
-            return super().create_secret(*args, **kwargs)
-        except ApiException as exc:
-            raise KubernetesException(exc.body) from exc
+    @classmethod
+    def encode_secret_value(cls, value:str) -> str:
+        """
+        Given a plain text secret it will perform the
+        base64 encoding
+        """
+        return base64.b64encode(value.encode()).decode()
 
-    def patch_secret_data(self, *args, **kwargs):
+    @classmethod
+    def decode_secret_value(cls, value:str) -> str:
+        """
+        Given a plain text secret it will perform the
+        base64 decoding
+        """
+        return base64.b64decode(value.encode()).decode()
+
+
+class KubernetesClient(KubernetesBase, client.CoreV1Api):
+    def create_secret(self, name:str, values:dict[str, str], namespaces:list, type:str='Opaque', labels:dict={}, overwrite:bool=False) -> client.V1Secret:
+        """
+        From a dict of values, encodes them,
+            and creates a secret in a given list of namespace
+            keeping the same structure as values
+
+        overwrite decides what an already existing secret means. Left off, it is kept:
+        a create that lost a race should not clobber the winner. Turned on, the values
+        passed here win and are all it holds, for callers that are the authority on the
+        content - a secret that survives what it describes otherwise goes on serving
+        credentials that no longer work, and so do the keys a merge leaves behind (the
+        cached git tokens of the credentials being replaced).
+        """
+        body = client.V1Secret()
+        body.api_version = 'v1'
+        for key in values.keys():
+            values[key] = KubernetesClient.encode_secret_value(values[key])
+
+        body.data = values
+        body.kind = 'Secret'
+        body.metadata = {
+            'name': name,
+            'labels': labels
+        }
+        body.type = type
+        for ns in namespaces:
+            try:
+                self.create_namespaced_secret(ns, body=body, pretty='true')
+            except ApiException as e:
+                if e.status != 409:
+                    raise KubernetesException(e.body)
+                if overwrite:
+                    try:
+                        # PATCH, not PUT: the backend role grants `patch` on secrets but
+                        # not `update`, so replace_namespaced_secret is always a 403.
+                        # `$patch: replace` makes `data` exactly the values; a plain merge
+                        # would keep every key they leave out.
+                        replacement = {
+                            'metadata': body.metadata,
+                            'type': body.type,
+                            'data': {'$patch': 'replace', **body.data},
+                        }
+                        self.patch_namespaced_secret(name, ns, body=replacement, pretty='true')
+                    except ApiException as exc:
+                        raise KubernetesException(exc.body) from exc
+        return body
+
+    def patch_secret_data(self, name:str, namespace:str, values:dict[str, str]) -> None:
+        """
+        Sets the given keys of an existing secret and leaves every other key as it is.
+        A strategic merge patch of `data` with no resourceVersion: it never replaces
+        the secret, and it cannot conflict with another write to it. For writers that
+        own a few keys of a secret whose other keys belong to someone else (the git
+        token cache in a repository's secret). It does not create the secret.
+        """
+        body = {'data': {key: self.encode_secret_value(value) for key, value in values.items()}}
         try:
-            return super().patch_secret_data(*args, **kwargs)
-        except ApiException as exc:
-            raise KubernetesException(exc.body) from exc
+            self.patch_namespaced_secret(name, namespace, body=body)
+        except ApiException as e:
+            raise KubernetesException(e.body) from e

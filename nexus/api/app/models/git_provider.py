@@ -5,11 +5,11 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import partial
 
-import requests
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship, validates
 
 from app.database.base_model import BaseModel, db
+from app.clients.outbound import OutboundError, session
 from app.helpers.exceptions import InvalidRequest
 from app.repos.git_uri import normalise_provider_uri, validate_api_uri
 from app.database.soft_delete import SoftDeleteMixin
@@ -18,6 +18,8 @@ from app.models.git_provider_type import GitProviderType
 from app.models.user import OwnedMixin
 
 CONNECTION_TIMEOUT = 5
+# Git providers and token minting share one session
+GIT_HTTP = session("git")
 MAX_MESSAGE_LENGTH = 200
 
 
@@ -53,11 +55,11 @@ def request_check(url: str, token: str | None = None) -> ConnectionCheck:
     started = time.perf_counter()
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
-        response = requests.get(url, headers=headers, timeout=CONNECTION_TIMEOUT)
-    except requests.RequestException as e:
+        response = GIT_HTTP.get(url, headers=headers, timeout=CONNECTION_TIMEOUT)
+    except OutboundError as e:
         latency_ms = round((time.perf_counter() - started) * 1000)
         return ConnectionCheck(
-            ConnectionStatus.UNREACHABLE, type(e).__name__, latency_ms=latency_ms
+            ConnectionStatus.UNREACHABLE, type(e.__cause__).__name__, latency_ms=latency_ms
         )
     latency_ms = round((time.perf_counter() - started) * 1000)
 

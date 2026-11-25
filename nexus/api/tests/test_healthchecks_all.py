@@ -184,18 +184,18 @@ def test_repository_http_status_and_exceptions_map_to_status(
     url = f"/global/repositories/triggers/{global_trigger_repo.id}/healthcheck"
     real_repo_check(mock_connection_checks)
     for code, expected in [(200, "ok"), (401, "unauthorized"), (403, "unauthorized"), (404, "not_found"), (500, "error")]:
-        mocker.patch("app.models.git_provider.requests.get", return_value=fake_response(code, {"message": "Bad credentials"}))
+        mocker.patch("requests.Session.request", return_value=fake_response(code, {"message": "Bad credentials"}))
         r = get(client, admin_headers, url)
         assert r.status_code == 200 and r.json()["status"] == expected, code
         assert r.json()["health_check"]["status_code"] == code and r.json()["health_check"]["message"] == "Bad credentials"
 
     response = fake_response(502, reason="Bad Gateway")  # an error body that is not JSON falls back to the reason
     response.json.side_effect = ValueError("no json")
-    mocker.patch("app.models.git_provider.requests.get", return_value=response)
+    mocker.patch("requests.Session.request", return_value=response)
     assert get(client, admin_headers, url).json()["health_check"]["message"] == "Bad Gateway"
 
     for exc in (requests.Timeout("slow"), requests.ConnectionError("down")):
-        mocker.patch("app.models.git_provider.requests.get", side_effect=exc)
+        mocker.patch("requests.Session.request", side_effect=exc)
         r = get(client, admin_headers, url)
         assert r.status_code == 200 and r.json()["status"] == "unreachable"
         assert r.json()["health_check"]["message"] == type(exc).__name__
@@ -213,7 +213,7 @@ def test_repository_check_uses_a_token_minted_from_the_secret(
     mocker.patch.object(GitRepositoryMixin, "prepare_connection_check", _REAL_REPO_PREPARE)
     repo = request.getfixturevalue(fixture)
     use_secret(k8s_client, **keys)
-    get_mock = mocker.patch("app.models.git_provider.requests.get", return_value=fake_response(200, {}))
+    get_mock = mocker.patch("app.models.git_provider.GIT_HTTP.get", return_value=fake_response(200, {}))
     kind = "triggers" if fixture == "global_trigger_repo" else "results"
 
     with responses.RequestsMock() as rsps:
@@ -272,7 +272,7 @@ def test_dataset_connection_failures_are_reported_not_500(
 def test_network_exception_is_in_global_and_project_aggregate(
     client, admin_headers, k8s_client, mock_connection_checks, mocker, project, assigned_trigger_repo, assigned_results_repo
 ):
-    mocker.patch("app.models.git_provider.requests.get", side_effect=requests.Timeout("slow"))
+    mocker.patch("requests.Session.request", side_effect=requests.Timeout("slow"))
     real_repo_check(mock_connection_checks)
     g = get(client, admin_headers, "/global/healthcheck")
     assert g.status_code == 200 and g.json()["status"] == "error"

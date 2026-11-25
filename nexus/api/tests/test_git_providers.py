@@ -291,7 +291,7 @@ def test_a_revoked_provider_makes_its_repositories_inactive_unpollable_and_refus
 ])
 def test_healthcheck_asks_the_api_without_a_token(client, admin_headers, mocker, make_provider, type, host, path):
     provider = make_provider(host, type=type)
-    get = mocker.patch("requests.get", return_value=fake_response(200))
+    get = mocker.patch("app.models.git_provider.GIT_HTTP.get", return_value=fake_response(200))
     response = client.get(f"{PROV}/{provider.id}/healthcheck", headers=admin_headers)
     assert response.status_code == 200, response.json()
     assert response.json()["status"] == "ok" and response.json()["id"] == provider.id
@@ -300,7 +300,7 @@ def test_healthcheck_asks_the_api_without_a_token(client, admin_headers, mocker,
 
 
 def test_healthcheck_failure_is_reported_in_the_body(client, admin_headers, mocker, git_provider):
-    mocker.patch("requests.get", side_effect=requests.ConnectionError("down"))
+    mocker.patch("requests.Session.request", side_effect=requests.ConnectionError("down"))
     response = client.get(f"{PROV}/{git_provider.id}/healthcheck", headers=admin_headers)
     assert response.status_code == 200
     assert response.json()["status"] == "unreachable"

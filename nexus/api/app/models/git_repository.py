@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from functools import partial
 
-import requests
 import sqlalchemy as sa
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
@@ -9,6 +8,7 @@ from sqlalchemy.orm import validates
 from app.helpers.exceptions import GitProviderError, InvalidRequest
 from app.repos.git_tokens import mint_token
 from app.repos.git_uri import normalise_repo_path
+from app.clients.outbound import OutboundError
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, request_check
 from app.models.git_provider_type import GitProviderType
 
@@ -79,8 +79,8 @@ class GitRepositoryMixin:
         except GitProviderError as e:
             check = ConnectionCheck(ConnectionStatus.ERROR, e.description)
             return lambda: check
-        except requests.RequestException as e:
-            check = ConnectionCheck(ConnectionStatus.UNREACHABLE, type(e).__name__)
+        except OutboundError as e:
+            check = ConnectionCheck(ConnectionStatus.UNREACHABLE, type(e.__cause__).__name__)
             return lambda: check
 
         url = f"{self.provider.api_uri.rstrip('/')}/{GitProviderType(self.provider.type).repo_api_path(self.repo_path)}"

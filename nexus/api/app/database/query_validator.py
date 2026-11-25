@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import ProgrammingError, OperationalError, InternalError
 
 from app.database.uri import build_sql_uri
-from app.models.dataset import Dataset
+from app.models.dataset import CONNECTION_TIMEOUT, Dataset
 from app.helpers.exceptions import DBError
 
 logger = logging.getLogger('query_validator')
@@ -31,7 +31,7 @@ def connect_to_dataset(dataset:Dataset) -> sessionmaker:
             username=user,
             password=passw,
             database=dataset.name
-        ))
+        ), connect_args={"connect_timeout": CONNECTION_TIMEOUT})
         session = sessionmaker(
             autocommit=False,
             autoflush=False,
@@ -39,7 +39,10 @@ def connect_to_dataset(dataset:Dataset) -> sessionmaker:
         )
         return session()
     elif dataset.type == "mssql":
-        conn = pymssql.connect(host=dataset.host, user=user, password=passw, database=dataset.name, port=dataset.port)
+        conn = pymssql.connect(
+            host=dataset.host, user=user, password=passw, database=dataset.name, port=dataset.port,
+            login_timeout=CONNECTION_TIMEOUT,
+        )
         return conn.cursor(as_dict=True)
 
 def validate(query:str, dataset:Dataset) -> bool:
