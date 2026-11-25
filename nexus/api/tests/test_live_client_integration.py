@@ -215,7 +215,7 @@ def test_fncli_setup_models_parse(api, world):
 
 
 def test_fncli_login_returns_token(api):
-    # Keycloak is mocked in the app; /login is served by app.main's mocked Keycloak.
+    # Keycloak is mocked in the app; /login is served by app.auth_api's mocked Keycloak.
     try:
         data = api.login("admin", "pw")
     except requests.HTTPError as exc:  # pragma: no cover

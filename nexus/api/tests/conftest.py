@@ -622,8 +622,9 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
     decode_token_return["sub"] = user_uuid
     create_user_return["password"] = "tempPassword!"
     kc_mock = {
-        "main_kc": mocker.patch('app.main.Keycloak', return_value=Mock(
+        "auth_kc": mocker.patch('app.auth_api.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
+            get_user_by_email=Mock(return_value=basic_user),
         )),
         "wrappers_kc": mocker.patch('app.helpers.wrappers.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
@@ -635,7 +636,7 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token in ("admin_token", SYSTEM_TOKEN) or scope not in ADMIN_ONLY_SCOPES)
         )),
         # TODO(DAR): the datasets_api Keycloak mock went with the DAR code in that module
-        "users_api_kc": mocker.patch('app.users_api.Keycloak', return_value=Mock(
+        "users_api_kc": mocker.patch('app.globals.users_api.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),
             get_user_by_email=Mock(return_value=basic_user),
@@ -653,7 +654,7 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             create_user=Mock(return_value=create_user_return),
             get_user_role=Mock(return_value="Users"),
         )),
-        "tasks_api_kc": mocker.patch('app.tasks_api.Keycloak', return_value=Mock(
+        "tasks_api_kc": mocker.patch('app.projects.tasks_api.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),
             decode_token=Mock(return_value=decode_token_return),

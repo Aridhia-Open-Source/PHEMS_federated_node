@@ -42,7 +42,7 @@ With one global trigger repository and several project resources ([0006](0006-gl
 
 - `nexus/api/app/repos/pull_request_fanout.py`, `tasks/spec_files.py`
 - `nexus/api/app/models/pull_request.py`, `pull_request_trigger.py`, `project_trigger_repository.py`
-- `nexus/api/app/trigger_repositories_api.py`, `project_trigger_repositories_api.py`, `projects_api.py`, `git_providers_api.py`
+- `nexus/api/app/globals/trigger_repositories_api.py`, `git_providers_api.py`; `nexus/api/app/projects/project_trigger_repositories_api.py`, `projects_api.py`
 
 ## Open questions
 

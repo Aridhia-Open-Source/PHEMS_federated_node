@@ -44,7 +44,7 @@ The allowed moves are data, in tables next to the enums in `nexus/api/app/models
 
 - `nexus/api/app/models/trigger_state.py`, `task_status.py`, `pull_request_result_step.py`, `result_state.py`
 - `nexus/api/app/rules/state_rules.py`
-- `nexus/api/app/models/trigger.py`, `pull_request_result.py`; `nexus/api/app/tasks_api.py`, `results_api.py`, `project_trigger_repositories_api.py`
+- `nexus/api/app/models/trigger.py`, `pull_request_result.py`; `nexus/api/app/projects/tasks_api.py`, `results_api.py`, `project_trigger_repositories_api.py`
 - `dagster/app/models/` (enum copies)
 
 ## Open questions
