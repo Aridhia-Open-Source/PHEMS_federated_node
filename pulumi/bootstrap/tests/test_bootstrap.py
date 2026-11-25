@@ -49,10 +49,24 @@ def test_rendered_templates_are_complete():
     for path in bootstrap.FILES:
         rendered = bootstrap._render(
             path,
-            site="example",
-            namespace="fn",
-            chart_version="2.0.0",
-            release_name="federated-node",
+            site="example-site",
+            namespace="example-fn",
+            chart_version="2.3.4",
+            release_name="example-release",
         )
 
         assert "{{" not in rendered
+
+
+def test_rendered_templates_use_configured_values():
+    rendered = bootstrap._render(
+        "helmrelease.yaml",
+        site="example-site",
+        namespace="example-fn",
+        chart_version="2.3.4",
+        release_name="example-release",
+    )
+
+    assert "name: example-release" in rendered
+    assert "namespace: example-fn" in rendered
+    assert 'version: "2.3.4"' in rendered
