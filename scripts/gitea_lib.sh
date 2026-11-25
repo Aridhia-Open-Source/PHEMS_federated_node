@@ -7,6 +7,7 @@
 
 GITEA_URL="${GITEA_URL:-http://localhost:4000}"
 GITEA_ADMIN_USER="${GITEA_ADMIN_USER:-gitea_admin}"
+GITEA_PASSWORD_FILE="${GITEA_PASSWORD_FILE:-.local/gitea/admin-password}"
 
 gitea_connect() {
   if ! curl -fs -o /dev/null "$GITEA_URL/api/healthz"; then
@@ -21,7 +22,12 @@ gitea_connect() {
       sleep 1
     done
   fi
-  GITEA_ADMIN_PASSWORD="$(kubectl get secret gitea-admin -n "$NAMESPACE" -o jsonpath='{.data.password}' | base64 -d)"
+  if [ -z "${GITEA_ADMIN_PASSWORD:-}" ] && [ -s "$GITEA_PASSWORD_FILE" ]; then
+    GITEA_ADMIN_PASSWORD="$(tr -d '\n' < "$GITEA_PASSWORD_FILE")"
+  fi
+  if [ -z "${GITEA_ADMIN_PASSWORD:-}" ]; then
+    GITEA_ADMIN_PASSWORD="$(kubectl get secret gitea-admin -n "$NAMESPACE" -o jsonpath='{.data.password}' | base64 -d)"
+  fi
   # Basic auth as a header, so the password never needs URL-encoding
   GITEA_AUTH_HEADER="Authorization: Basic $(printf '%s:%s' "$GITEA_ADMIN_USER" "$GITEA_ADMIN_PASSWORD" | base64 -w0)"
 }

@@ -84,9 +84,9 @@ dagster:
   postgresql:
     postgresqlHost: *dbHost
 
-# Hosts the site repository Flux pulls from
+# Gitea is bootstrapped independently for the local demo. Production sites normally use an external provider.
 gitea:
-  enabled: true
+  enabled: false
   admin:
     user: gitea_admin
     email: admin@example.com

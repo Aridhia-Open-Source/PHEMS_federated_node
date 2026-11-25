@@ -2,16 +2,16 @@
 set -euo pipefail
 
 ###############################################################################
-# Flux in the dev cluster, delivering the node from a test site repository (ADR 0031).
-# Needs a node from `mise run deploy` (Gitea, which hosts the site repository, is part of it)
-# and the chart version site-example pins, in the kind registry (`publish`).
+# Flux in the dev cluster, delivering the node from an independent Gitea site repository (ADR 0031).
+# Start Docker Gitea with `mise run gitea-bootstrap`; the application itself is installed only after
+# the prepared `demo-install` branch is merged into main.
 #
 # Usage:
 #   ./scripts/flux.sh publish 0.0.1-dev  # package this chart as that version, push it to the kind registry
-#   ./scripts/flux.sh up       # install Flux, push site-example/ to Gitea as fn-site, let Flux adopt the release
+#   ./scripts/flux.sh up       # install Flux, create fn-site, and push the application as demo-install
 #   ./scripts/flux.sh sops-key # make this cluster's age key (once) and load it into Flux, so it decrypts SOPS files
 #   ./scripts/flux.sh status   # Flux objects, and the release's helm history
-#   ./scripts/flux.sh down     # remove Flux and the fn-site repository; the release stays, deploy works again
+#   ./scripts/flux.sh down     # remove Flux and the fn-site repository; Docker Gitea is managed separately
 #   ./scripts/flux.sh check    # fail if Flux manages the release (deploy.sh and teardown.sh call it)
 #
 # The loop (bump, revert, config edit) is in docs/versions/2.x/docs/GitOps-Delivery.md.
@@ -32,7 +32,8 @@ FLUX_NS=flux-system
 # SOPS: the age key Flux decrypts the site repository's encrypted files with. Its private half stays out of
 # git (bootstrap/ is gitignored) and in the cluster as this Secret.
 SOPS_SECRET=sops-age
-SITE_URL_IN_CLUSTER="http://gitea.$NAMESPACE.svc:4000/$GITEA_ADMIN_USER/$SITE_REPO.git"
+# Docker-backed Gitea joins the kind network as gitea-bootstrap. Override this for a real site.
+SITE_URL_IN_CLUSTER="${GITEA_SITE_URL:-http://gitea-bootstrap:3000}/$GITEA_ADMIN_USER/$SITE_REPO.git"
 
 # Is a HelmRelease managing the dev release? Quiet when Flux is not installed.
 flux_manages_release() {
@@ -64,6 +65,12 @@ age_public_key() {
   age-keygen -y "$(age_key_file)"
 }
 
+prepare_kind_storage() {
+  while IFS= read -r node; do
+    docker exec "$node" mkdir -p /data/db /data/dagster/artifacts
+  done < <(kind get nodes --name fn)
+}
+
 case "$COMMAND" in
   ###############################################################################
   # PUBLISH
@@ -91,10 +98,11 @@ case "$COMMAND" in
 
     ./scripts/deploy_owner.sh claim
 
-    if ! helm status "$RELEASE_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
-      echo "No release $RELEASE_NAME in $NAMESPACE: run mise run deploy first (Gitea is part of it)" >&2
-      exit 1
-    fi
+    prepare_kind_storage
+    kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+    for namespace in keycloak fn-operator tasks; do
+      kubectl create namespace "$namespace" --dry-run=client -o yaml | kubectl apply -f -
+    done
 
     echo
     echo "=== Installing Flux ======================================================"
@@ -106,15 +114,28 @@ case "$COMMAND" in
     echo "=== Site repository $GITEA_ADMIN_USER/$SITE_REPO =========================="
     gitea_connect
     if [ "$(gitea_ensure_repo "$SITE_REPO")" = created ]; then
-      # A fresh history: the site repository is the site's, not a copy of this one.
-      # Keep the checkout locally so the demo can create branches and push Gitea PRs.
+      # Seed only the validation workflow on main. The application is installed by the first PR.
       rm -rf "$LOCAL_SITE_DIR"
       mkdir -p "$(dirname "$LOCAL_SITE_DIR")"
+      mkdir -p "$LOCAL_SITE_DIR/.gitea" "$LOCAL_SITE_DIR/ci"
+      cp -r "$SITE_DIR/.gitea/." "$LOCAL_SITE_DIR/.gitea/"
+      cp -r "$SITE_DIR/ci/." "$LOCAL_SITE_DIR/ci/"
+      [ ! -e "$SITE_DIR/README.md" ] || cp "$SITE_DIR/README.md" "$LOCAL_SITE_DIR/README.md"
+      cat > "$LOCAL_SITE_DIR/kustomization.yaml" <<'YAML'
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: []
+YAML
+      git -C "$LOCAL_SITE_DIR" init -q -b main
+      git -C "$LOCAL_SITE_DIR" remote add origin "$LOCAL_SITE_URL/$GITEA_ADMIN_USER/$SITE_REPO.git"
+      git -C "$LOCAL_SITE_DIR" add .
+      git -C "$LOCAL_SITE_DIR" -c user.name=fn-dev -c user.email=fn-dev@example.org commit -q -m "Site: enable pull request validation"
+      gitea_git -C "$LOCAL_SITE_DIR" push -q origin main
+
+      # Prepare the complete application as a candidate branch; merging this PR is the first install.
+      git -C "$LOCAL_SITE_DIR" checkout -q -b demo-install
       cp -r "$SITE_DIR"/. "$LOCAL_SITE_DIR"/
-      # Encrypt the example Secret for this cluster's age key, as a site does before it commits one
       sed -i "s/AGE_PUBLIC_KEY/$(age_public_key)/" "$LOCAL_SITE_DIR"/.sops.yaml
-      # The first user's login from .dev.env (scripts/load_env.sh), as a site writes its own
-      # (written as JSON strings, which are YAML, so no character in them needs escaping)
       EMAIL="$KEYCLOAK_FIRST_USER_EMAIL" PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" python3 - "$LOCAL_SITE_DIR"/secrets/sops/first-user-secret.yaml <<'PY'
 import json
 import os
@@ -126,17 +147,15 @@ for placeholder, variable in (("FIRST_USER_EMAIL", "EMAIL"), ("FIRST_USER_PASSWO
     text = text.replace(f": {placeholder}\n", f": {json.dumps(os.environ[variable])}\n")
 open(path, "w", encoding="utf-8").write(text)
 PY
-      # From the repo root, so a mise shim still finds the sops version mise.toml pins
       sops --config "$LOCAL_SITE_DIR/.sops.yaml" encrypt -i "$LOCAL_SITE_DIR/secrets/sops/first-user-secret.yaml"
       sed -i -e "s|SUPERUSER_USERNAME|${KEYCLOAK_SUPERUSER_USERNAME:-}|" -e "s|SUPERUSER_PASSWORD|${KEYCLOAK_SUPERUSER_PASSWORD:-}|" \
         "$LOCAL_SITE_DIR"/secrets/sops/superuser-secret.yaml
       sops --config "$LOCAL_SITE_DIR/.sops.yaml" encrypt -i "$LOCAL_SITE_DIR/secrets/sops/superuser-secret.yaml"
-      git -C "$LOCAL_SITE_DIR" init -q -b main
-      git -C "$LOCAL_SITE_DIR" remote add origin "$LOCAL_SITE_URL/$GITEA_ADMIN_USER/$SITE_REPO.git"
       git -C "$LOCAL_SITE_DIR" add .
-      git -C "$LOCAL_SITE_DIR" -c user.name=fn-dev -c user.email=fn-dev@example.org commit -q -m "Site: node pinned to its first release"
-      gitea_git -C "$LOCAL_SITE_DIR" push -q origin main
-      echo "Pushed $SITE_DIR/ as $GITEA_URL/$GITEA_ADMIN_USER/$SITE_REPO"
+      git -C "$LOCAL_SITE_DIR" -c user.name=fn-dev -c user.email=fn-dev@example.org commit -q -m "Site: install Federated Node through Flux"
+      gitea_git -C "$LOCAL_SITE_DIR" push -q -u origin demo-install
+      git -C "$LOCAL_SITE_DIR" checkout -q main
+      echo "Seeded main and pushed application candidate branch demo-install"
       echo "Local site checkout: $LOCAL_SITE_DIR"
     else
       if [ ! -d "$LOCAL_SITE_DIR/.git" ]; then
@@ -157,24 +176,24 @@ PY
       --url="$SITE_URL_IN_CLUSTER" \
       --branch=main \
       --secret-ref="$SITE_REPO-auth" \
-      --interval=1m
+      --interval=5s
     flux create kustomization "$SITE_REPO" -n "$FLUX_NS" \
       --source="GitRepository/$SITE_REPO" \
       --path=./ \
       --prune=true \
       --decryption-provider=sops \
       --decryption-secret="$SOPS_SECRET" \
-      --interval=1m
+      --interval=5s
 
     echo
-    echo "=== Waiting for Flux to adopt the release (up to 30m) ===================="
-    kubectl wait "helmrelease/$HR_NAME" -n "$NAMESPACE" --for=condition=Ready --timeout=30m
-    flux get helmreleases -n "$NAMESPACE"
-    helm history "$RELEASE_NAME" -n "$NAMESPACE" --max 5
+    echo
+    echo "=== Waiting for Flux source (up to 5m) ================================"
+    kubectl wait "gitrepository/$SITE_REPO" -n "$FLUX_NS" --for=condition=Ready --timeout=5m
+    kubectl wait "kustomization/$SITE_REPO" -n "$FLUX_NS" --for=condition=Ready --timeout=5m
 
     echo
     echo "=== Flux Ready ==========================================================="
-    echo "Flux now owns $RELEASE_NAME: mise run deploy and teardown refuse until mise run flux down."
+    echo "Flux is watching main. Merge the demo-install PR to install $RELEASE_NAME."
     echo "Site repository: $GITEA_URL/$GITEA_ADMIN_USER/$SITE_REPO"
     echo "The loop: docs/versions/2.x/docs/GitOps-Delivery.md"
     ;;
@@ -192,11 +211,15 @@ PY
   status)
     flux get sources git -n "$FLUX_NS"
     flux get kustomizations -n "$FLUX_NS"
-    flux get sources helm -n "$NAMESPACE"
-    flux get sources chart -n "$NAMESPACE"
-    flux get helmreleases -n "$NAMESPACE"
+    flux get sources helm -n "$NAMESPACE" 2>/dev/null || echo "No HelmRepository objects in $NAMESPACE yet"
+    flux get sources chart -n "$NAMESPACE" 2>/dev/null || echo "No HelmChart objects in $NAMESPACE yet"
+    flux get helmreleases -n "$NAMESPACE" 2>/dev/null || echo "No HelmRelease objects in $NAMESPACE yet"
     echo
-    helm history "$RELEASE_NAME" -n "$NAMESPACE" --max 5
+    if helm status "$RELEASE_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
+      helm history "$RELEASE_NAME" -n "$NAMESPACE" --max 5
+    else
+      echo "No Helm release $RELEASE_NAME in $NAMESPACE yet"
+    fi
     ;;
 
   ###############################################################################
