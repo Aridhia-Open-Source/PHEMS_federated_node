@@ -10,6 +10,8 @@ on:
       - develop
       - dagster-main
       - dagster-develop
+      # throwaway target for testing this workflow like a trunk branch; reset by reset-actions-sandbox.yml
+      - actions-sandbox
     paths-ignore:
       - '**/*.md'
       - 'README'
@@ -23,23 +25,16 @@ on:
       - 'environment/*.md'
       - 'paper/**'
   pull_request:
+    # every base: stack-gate below runs CI only for PRs whose base chain ends at a watched branch
+    # No paths-ignore: the changes job below decides per area, so every PR gets a ci-ok result
     branches:
-      - main
-      - develop
-      - dagster-main
-      - dagster-develop
-    paths-ignore:
-      - '**/*.md'
-      - 'README'
-      - 'LICENSE'
-      - 'DEPLOYMENT'
-      - 'images/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/PULL_REQUEST_TEMPLATE/**'
-      - '.gitignore'
-      - 'sub-license/**'
-      - 'environment/*.md'
-      - 'paper/**'
+      - '**'
+  # The merge queue runs the tests once on the PR combined with the target branch; no image builds
+  merge_group:
+# a new run cancels the older one on the same PR or branch; tags and pushes to the watched branches (release work) are never cancelled
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name != 'merge_group' && github.ref_type == 'branch' && !contains(fromJSON('["refs/heads/main","refs/heads/develop","refs/heads/dagster-main","refs/heads/dagster-develop","refs/heads/actions-sandbox"]'), github.ref)) }}
 env:
   TAG: ''
   OWNER_LC: ''
@@ -53,9 +48,94 @@ permissions:
   packages: write
 
 jobs:
+  stack-gate:
+    # A stacked PR's base is another PR's branch. Follow the open PRs down the chain and run CI only
+    # if it ends at a watched branch (the branches push builds). Other events always run.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.walk.outputs.run }}
+    steps:
+      - id: walk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          branch="$BASE"
+          for _ in $(seq 100); do
+            case "$branch" in
+              main|develop|dagster-main|dagster-develop|actions-sandbox)
+                echo "Base chain ends at $branch"; echo "run=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+            esac
+            next=$(gh pr list --repo "$REPO" --head "$branch" --state open --json baseRefName -q '.[0].baseRefName')
+            if [ -z "$next" ]; then break; fi
+            echo "$branch -> $next"; branch="$next"
+          done
+          echo "Base chain does not end at a watched branch (stopped at $branch); skipping CI"
+          echo "run=false" >> "$GITHUB_OUTPUT"
+
+  changes:
+    # Which areas this PR touches. Push, tag and manual runs build everything; the queue and PRs filter.
+    needs: stack-gate
+    if: needs.stack-gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.api == 'true' || steps.filter.outputs.workflows == 'true' }}
+      # no UI job yet; the filter is here for when there is one
+      ui: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.ui == 'true' || steps.filter.outputs.workflows == 'true' }}
+      dagster: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.dagster == 'true' || steps.filter.outputs.workflows == 'true' }}
+      chart: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.chart == 'true' || steps.filter.outputs.workflows == 'true' }}
+      build: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.build == 'true' || steps.filter.outputs.workflows == 'true' }}
+    steps:
+      # Use the complete history for both event types. For pull requests, forcing git mode makes
+      # paths-filter compare the branch tip with the merge-base instead of only the latest commit.
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        id: filter
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        with:
+          # An empty token disables the pull_request API mode, which can miss files when a later
+          # synchronize commit is empty. Git mode compares the complete PR with its base.
+          token: ''
+          base: ${{ github.event_name == 'merge_group' && github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
+          ref: ${{ github.event_name == 'merge_group' && github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
+          filters: |
+            api:
+              - 'nexus/api/**'
+            ui:
+              - 'nexus/ui/**'
+            dagster:
+              - 'dagster/**'
+              # the Dagster tests mount these models from nexus-api
+              - 'nexus/api/app/models/**'
+            chart:
+              - 'k8s/**'
+            build:
+              - 'build/**'
+              - '**/Dockerfile*'
+            workflows:
+              - '.github/**'
+              - 'mise.toml'
+              - 'scripts/**'
+
   init:
+    needs: stack-gate
+    if: needs.stack-gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     outputs:
+      # images, the chart and the summary are published only from pushes (trunk branches, tags) and manual runs
+      publish: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
       is_tag: ${{ steps.vars.outputs.IS_TAG }}
       chart_version: ${{ steps.vars.outputs.CHART_VERSION }}
       tag: ${{ steps.vars.outputs.TAG }}
@@ -99,6 +179,7 @@ jobs:
               # The dagster prefix stays until the dagster line merges into develop and main
               dagster-main) suffix="-dagster-beta.${n}" ;;
               dagster-develop) suffix="-dagster-alpha.${n}" ;;
+              actions-sandbox) suffix="-sandbox.${n}" ;;
               *) suffix="-branch.${sha}" ;;
             esac
           fi
@@ -110,8 +191,12 @@ jobs:
         env:
           OWNER: '${{ github.repository_owner }}'
   linters:
-    needs: init
-    if: needs.init.outputs.is_tag == 'false'
+    needs:
+      - init
+      - changes
+    if: >-
+      needs.init.outputs.is_tag == 'false' &&
+      (needs.changes.outputs.api == 'true' || needs.changes.outputs.dagster == 'true' || needs.changes.outputs.build == 'true')
     defaults:
       run:
         shell: bash
@@ -129,16 +214,18 @@ jobs:
         run: mkdir -p artifacts
 
       - name: Run pylint
+        if: needs.changes.outputs.api == 'true'
         run: |
           mise run pylint
 
       # Runs even if the nexus-api lint fails, so both reports land in one run.
       - name: Run pylint (dagster)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.changes.outputs.dagster == 'true' }}
         run: |
           mise run pylint dagster
 
       - name: Run hadolint
+        if: needs.changes.outputs.build == 'true'
         run: |
           mise run hadolint
 
@@ -151,15 +238,20 @@ jobs:
             artifacts/pylint-dagster.txt
             artifacts/hadolint.xml
           if-no-files-found: ignore
-  tests:
+  # Each test job runs only when its area changed (always on push, tag and manual runs). `linters` is
+  # skipped when none of its areas changed, so the `!failure() && !cancelled()` form lets these jobs
+  # still run after a skipped linters job.
+  chart-tests:
     needs:
       - init
+      - changes
       - linters
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.changes.outputs.chart == 'true'
     defaults:
       run:
         shell: bash
     runs-on: ubuntu-latest
-    if: needs.init.outputs.is_tag == 'false'
     steps:
       - uses: actions/checkout@v4
 
@@ -167,10 +259,6 @@ jobs:
       - uses: jdx/mise-action@v2
         with:
           install_args: helm
-
-      # run_tests.sh copies coverage.xml out of the container into here.
-      - name: Create artifacts directory
-        run: mkdir -p artifacts
 
       # `helm template` renders client-side, so every lookup returns nil. The chart
       # keeps its cluster-state checks behind fn.clusterReachable so that it still
@@ -183,15 +271,28 @@ jobs:
       - name: Run Helm unittests
         run: |
           mise run helm tests
+  api-tests:
+    needs:
+      - init
+      - changes
+      - linters
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.changes.outputs.api == 'true'
+    defaults:
+      run:
+        shell: bash
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # run_tests.sh copies coverage.xml out of the container into here.
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
 
       - name: Run Python Tests
         working-directory: nexus/api
         run: |
           ./run_tests.sh ci
-
-      - name: Run Dagster Tests
-        run: |
-          mise run tests-dagster
 
       - name: Run Keycloak Integration Tests
         working-directory: nexus/api
@@ -204,11 +305,36 @@ jobs:
           filename: artifacts/coverage.xml
           fail_below_min: true
           thresholds: '60 80'
+  dagster-tests:
+    needs:
+      - init
+      - changes
+      - linters
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.changes.outputs.dagster == 'true'
+    defaults:
+      run:
+        shell: bash
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The mise binary runs the task; the tests themselves run in docker
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+
+      - name: Run Dagster Tests
+        run: |
+          mise run tests-dagster
   build-nexus-api-image:
     needs:
       - init
-      - tests
-    if: needs.init.outputs.is_tag == 'false'
+      - chart-tests
+      - api-tests
+      - dagster-tests
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
       TAG: ${{ needs.init.outputs.tag }}
@@ -221,8 +347,11 @@ jobs:
   build-keycloak-image:
     needs:
       - init
-      - tests
-    if: needs.init.outputs.is_tag == 'false'
+      - chart-tests
+      - api-tests
+      - dagster-tests
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
       TAG: ${{ needs.init.outputs.tag }}
@@ -235,8 +364,11 @@ jobs:
   build-alpine-image:
     needs:
       - init
-      - tests
-    if: needs.init.outputs.is_tag == 'false'
+      - chart-tests
+      - api-tests
+      - dagster-tests
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
       TAG: ${{ needs.init.outputs.tag }}
@@ -249,8 +381,11 @@ jobs:
   build-kc-init-image:
     needs:
       - init
-      - tests
-    if: needs.init.outputs.is_tag == 'false'
+      - chart-tests
+      - api-tests
+      - dagster-tests
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
       TAG: ${{ needs.init.outputs.tag }}
@@ -263,8 +398,11 @@ jobs:
   build-dagster-image:
     needs:
       - init
-      - tests
-    if: needs.init.outputs.is_tag == 'false'
+      - chart-tests
+      - api-tests
+      - dagster-tests
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
     uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
     with:
       TAG: ${{ needs.init.outputs.tag }}
@@ -296,7 +434,7 @@ jobs:
             docker buildx imagetools create -t "${repo}:${TAG}" "${repo}:${RC_TAG}"
           done
   release:
-    if: always() && !failure() && !cancelled()
+    if: always() && !failure() && !cancelled() && needs.init.result == 'success' && needs.init.outputs.publish == 'true'
     needs:
       - init
       - promote
@@ -348,7 +486,7 @@ jobs:
     secrets:
       CHART_APP_SECRET: ${{ secrets.CHART_APP_SECRET }}
   summary:
-    if: always() && !failure() && !cancelled()
+    if: always() && !failure() && !cancelled() && needs.init.result == 'success' && needs.init.outputs.publish == 'true'
     needs:
       - init
       - release
@@ -360,3 +498,32 @@ jobs:
           echo "- ${{ needs.init.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
           echo "# Helm Chart:" >> $GITHUB_STEP_SUMMARY
           echo "- oci://ghcr.io/aridhia-open-source/charts/federated-node --version ${{ needs.init.outputs.chart_version }}" >> $GITHUB_STEP_SUMMARY
+  ci-ok:
+    # The one required check. Skipped jobs are fine (a docs-only PR skips nearly everything); a failed or cancelled job is not.
+    if: always()
+    needs:
+      - stack-gate
+      - changes
+      - init
+      - linters
+      - chart-tests
+      - api-tests
+      - dagster-tests
+      - build-nexus-api-image
+      - build-keycloak-image
+      - build-alpine-image
+      - build-kc-init-image
+      - build-dagster-image
+      - promote
+      - release
+      - release-gh-pages
+      - summary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "A job failed or was cancelled"
+          exit 1
+      - name: All jobs passed or were skipped
+        run: echo "ok"
