@@ -48,7 +48,7 @@ spec:
                 name: nexus-api-configmap
           imagePullPolicy: {{ .Values.pullPolicy }}
           env:
-          - name: NEXUS_DB_PASSWORD
+          - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
                 name: {{ .Values.nexus.api.db.secret.name }}
@@ -86,7 +86,7 @@ spec:
             - configMapRef:
                 name: keycloak-config
           env:
-          - name: NEXUS_DB_PASSWORD
+          - name: DATABASE_PASSWORD
             valueFrom:
               secretKeyRef:
                 name: {{ .Values.nexus.api.db.secret.name }}

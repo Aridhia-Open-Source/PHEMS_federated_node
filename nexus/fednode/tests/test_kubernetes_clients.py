@@ -1,7 +1,11 @@
 from unittest.mock import Mock, patch
 
-from fednode.clients.kubernetes.client import KubernetesClient, load_kubernetes_config
+import pytest
+from urllib3.exceptions import ReadTimeoutError
+
+from fednode.clients.kubernetes.client import KubernetesClient, TimedApiClient, load_kubernetes_config
 from fednode.clients.kubernetes.mounted import MountedSecret
+from fednode.http import ClientTimeout
 
 
 def test_in_cluster_config_preserves_no_proxy(monkeypatch):
@@ -28,6 +32,22 @@ def test_kubernetes_config_is_loaded_once_per_mode():
 
     load.assert_called_once_with()
     load_kubernetes_config.cache_clear()
+
+
+def test_kubernetes_timeout_is_defaulted_but_call_can_override():
+    api = TimedApiClient((2, 15))
+    with patch("kubernetes.client.ApiClient.call_api") as call:
+        api.call_api("/one", "GET")
+        assert call.call_args.kwargs["_request_timeout"] == (2, 15)
+        api.call_api("/two", "GET", _request_timeout=(1, 4))
+        assert call.call_args.kwargs["_request_timeout"] == (1, 4)
+
+
+def test_kubernetes_timeout_is_a_client_timeout():
+    api = TimedApiClient((2, 15))
+    with patch("kubernetes.client.ApiClient.call_api", side_effect=ReadTimeoutError(None, "/", "timed out")):
+        with pytest.raises(ClientTimeout):
+            api.call_api("/", "GET")
 
 
 def test_mounted_secret_reads_a_fresh_value_each_time(monkeypatch):

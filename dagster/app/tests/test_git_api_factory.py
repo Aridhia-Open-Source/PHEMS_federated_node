@@ -34,6 +34,15 @@ def test_github_repository_gets_a_github_api(factory):
     assert api.token == "tok"
 
 
+def test_http_settings_are_used_by_git_client(factory, monkeypatch):
+    monkeypatch.setenv("HTTP_CONNECT_TIMEOUT", "2")
+    monkeypatch.setenv("HTTP_READ_TIMEOUT", "15")
+
+    api = factory.for_repository(repo("github", "https://api.github.com"))
+
+    assert api._timeout == (2, 15)
+
+
 def test_gitea_repository_gets_a_gitea_api_on_its_api_uri(factory):
     api = factory.for_repository(repo("gitea", "http://gitea.fn.svc:3000/api/v1/"))
 

@@ -9,6 +9,8 @@ The roll-ups, built from the same per-resource checks:
 - GET /global/healthcheck, every global resource of the four kinds
 - GET /projects/<project_id>/healthcheck, the project's trigger and results repository resources
 """
+# pylint: disable=no-member
+
 from http import HTTPStatus
 
 from fastapi import APIRouter
@@ -16,9 +18,9 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fednode.clients.keycloak.login import KeycloakLogin
 from fednode.http import ClientError
 
-from app.clients.keycloak import KEYCLOAK_URL
-from app.dtos.healthcheck import GlobalHealthDTO, NodeHealthDTO
-from app.dtos.project import ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
+from app.settings import settings
+from app.dtos import healthcheck
+from app.dtos import project as project_dtos
 from app.health.datasets import prepare_dataset_health
 from app.health.repositories import (
     prepare_repository_health, prepare_results_resource_health, prepare_trigger_resource_health
@@ -54,7 +56,9 @@ def ready_check() -> dict:
 
 
 @probes_router.get(
-    "/health_check", response_model=NodeHealthDTO, responses={HTTPStatus.BAD_GATEWAY: {"model": NodeHealthDTO}}
+    "/health_check",
+    response_model=healthcheck.NodeHealthDTO,
+    responses={HTTPStatus.BAD_GATEWAY: {"model": healthcheck.NodeHealthDTO}},
 )
 def health_check():
     """
@@ -62,7 +66,11 @@ def health_check():
         Checks the connection to keycloak and returns a jsonized summary
     """
     try:
-        kc_request = KeycloakLogin(KEYCLOAK_URL, "master").realm_info()
+        kc_request = KeycloakLogin(
+            settings.services.keycloak.url,
+            "master",
+            timeout=(settings.http.connect_timeout, settings.http.read_timeout),
+        ).realm_info()
         kc_status = kc_request.ok
         status_text = "ok" if kc_request.ok else "non operational"
         code = HTTPStatus.OK if kc_request.ok else HTTPStatus.BAD_GATEWAY
@@ -74,7 +82,7 @@ def health_check():
     return JSONResponse({"status": status_text, "keycloak": kc_status}, status_code=code)
 
 
-@router.get('/global/healthcheck', response_model=GlobalHealthDTO)
+@router.get('/global/healthcheck', response_model=healthcheck.GlobalHealthDTO)
 def global_healthcheck():
     """
     GET /global/healthcheck endpoint. Checks every global dataset, secret, trigger repository
@@ -90,7 +98,7 @@ def global_healthcheck():
     end_datasets = len(datasets)
     end_secrets = end_datasets + len(secrets)
     end_triggers = end_secrets + len(triggers)
-    health = GlobalHealthDTO(
+    health = healthcheck.GlobalHealthDTO(
         status="ok" if is_ok(results) else "error",
         datasets=results[:end_datasets],
         secrets=results[end_datasets:end_secrets],
@@ -100,7 +108,7 @@ def global_healthcheck():
     return health
 
 
-@router.get('/projects/{project_id}/healthcheck', response_model=ProjectHealthDTO)
+@router.get('/projects/{project_id}/healthcheck', response_model=project_dtos.ProjectHealthDTO)
 def project_healthcheck(project_id: int):
     """
     GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository resource can be
@@ -117,7 +125,7 @@ def project_healthcheck(project_id: int):
     results = run_all(prepared)
 
     repositories = [
-        RepositoryHealthDTO(
+        project_dtos.RepositoryHealthDTO(
             id=resource.trigger_repository.id,
             uri=resource.trigger_repository.uri,
             provider=resource.trigger_repository.provider,
@@ -130,7 +138,7 @@ def project_healthcheck(project_id: int):
     results_health = None
     if results_resource:
         resource = results[-1]
-        results_health = ResultsRepositoryHealthDTO(
+        results_health = project_dtos.ResultsRepositoryHealthDTO(
             id=resource.results_repository.id,
             uri=resource.results_repository.uri,
             owned_by_federated_node=resource.owned_by_federated_node,
@@ -141,7 +149,7 @@ def project_healthcheck(project_id: int):
         )
 
     healthy = repositories and is_ok(repositories) and (results_health is None or is_ok([results_health]))
-    health = ProjectHealthDTO(
+    health = project_dtos.ProjectHealthDTO(
         id=project.id,
         name=project.name,
         enabled=project.enabled,

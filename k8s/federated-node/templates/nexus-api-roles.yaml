@@ -3,7 +3,7 @@
   - the secrets namespace: store project secrets (secrets-namespace.yaml)
   - quarantine: hold the value of a disabled secret (quarantine-namespace.yaml)
   - the tasks namespace, here: registry pull secrets, whose names come from the registry, so
-    no resourceNames, and the run's Secret and ConfigMap (tasks/task_resources.py): create
+    no resourceNames, and the run's Secret and ConfigMap (tasks/resources.py): create
     them when a run asks, then delete them when the task ends, by their fn/run_id label, which
     is deletecollection. The registry rule's create and delete already cover the Secrets.
   It never lists secrets, and holds nothing in any other namespace.
