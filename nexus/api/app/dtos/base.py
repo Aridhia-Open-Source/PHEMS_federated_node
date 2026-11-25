@@ -6,7 +6,7 @@ from fastapi_pagination.ext.sqlalchemy import paginate
 from pydantic import BaseModel, ConfigDict, PlainSerializer
 from sqlalchemy.orm import Query
 
-from app.helpers.base_model import BaseModel as DBModel
+from app.database.base_model import BaseModel as DBModel
 
 WireDatetime = Annotated[
     datetime,

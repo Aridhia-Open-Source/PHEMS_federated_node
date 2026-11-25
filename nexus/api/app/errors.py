@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import exc
 from starlette.exceptions import HTTPException
 
-from app.helpers.base_model import session
+from app.database.base_model import session
 from app.helpers.exceptions import LogAndException
 
 logger = logging.getLogger('main')

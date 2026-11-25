@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 TERMINATION_GRACE_PERIOD_SECONDS = 300
 
 # What the pod, the Secret and the ConfigMap of a run are labelled with, so nexus-api finds the Secret and the
-# ConfigMap to delete when the task ends (RUN_LABEL and TASK_LABEL in nexus/api/app/helpers/task_resources.py).
+# ConfigMap to delete when the task ends (RUN_LABEL and TASK_LABEL in nexus/api/app/tasks/task_resources.py).
 RUN_LABEL = "fn/run_id"
 TASK_LABEL = "fn/task_id"
 
 # A task's config, when its spec has one, is a single read-only file in the task pod, from a ConfigMap that
 # nexus-api makes for the run and deletes when the task ends. The file is the ConfigMap's one key (CONFIG_FILE_NAME
-# in nexus/api/app/helpers/task_resources.py).
+# in nexus/api/app/tasks/task_resources.py).
 CONFIG_FILE_NAME = "config.json"
 CONFIG_FILE_PATH = f"/etc/task/{CONFIG_FILE_NAME}"
 CONFIG_VOLUME_NAME = "task-config"

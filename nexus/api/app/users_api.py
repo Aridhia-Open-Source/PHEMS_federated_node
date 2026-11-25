@@ -11,7 +11,7 @@ from fastapi import APIRouter, Body
 from app.dtos.user import NewUserDTO, UserDTO
 from app.helpers.const import PUBLIC_URL
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
+from app.clients.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
 
 router = APIRouter(prefix='/global/users', tags=["users"])
 reset_password_router = APIRouter(prefix='/global/users', tags=["users"])

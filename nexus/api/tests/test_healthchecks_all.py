@@ -7,7 +7,7 @@ import requests
 import responses
 from kubernetes.client.exceptions import ApiException
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.models.dataset import Dataset
 from app.models.git_provider import ConnectionCheck, ConnectionStatus
 from app.models.git_repository import GitRepositoryMixin

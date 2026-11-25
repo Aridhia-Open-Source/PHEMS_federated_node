@@ -5,8 +5,8 @@ reference is assigned: the values stay in the secret store.
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
-from app.helpers.base_model import BaseModel, db
-from app.helpers.soft_delete import SoftDeleteMixin
+from app.database.base_model import BaseModel, db
+from app.database.soft_delete import SoftDeleteMixin
 from app.models.user import OwnedMixin
 
 

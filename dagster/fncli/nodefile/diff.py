@@ -25,7 +25,7 @@ EARLIER_TASKS_FAIL = "earlier tasks will fail"
 NOT_FOUND = "is not in the file or on the node"
 REFERENCE = "on the node, not in this file"
 NONE = "(none)"
-# What nexus-api pins into every task when it is created (nexus/api/app/helpers/task_config.py)
+# What nexus-api pins into every task when it is created (nexus/api/app/tasks/task_config.py)
 PINNED_DATASET_FIELDS = ("type", "host", "port", "read_schema", "write_schema")
 
 

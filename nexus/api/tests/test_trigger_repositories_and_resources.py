@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.models.project_dataset import ProjectDataset
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_secret import ProjectSecret

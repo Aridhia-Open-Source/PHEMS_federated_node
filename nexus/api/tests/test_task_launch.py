@@ -6,8 +6,8 @@ import json
 
 import pytest
 
-from app.helpers.base_model import db
-from app.helpers.const import TASK_CAUSE_MAX_LENGTH
+from app.database.base_model import db
+from app.tasks.limits import TASK_CAUSE_MAX_LENGTH
 from app.models.task import Task
 from tests.conftest import CONTRACT_DIR
 
@@ -129,7 +129,7 @@ def test_the_decision_in_config_and_in_launch_agree(client, admin_headers, syste
 
 
 def test_a_long_cause_is_cut_to_the_launchers_length(client, system_headers, project, full_task, monkeypatch):
-    from app.helpers.task_config import LaunchDecision
+    from app.tasks.task_config import LaunchDecision
     monkeypatch.setattr("app.tasks_api.decide_launch", lambda task: LaunchDecision("fail", "revoked: " + "x" * 2000, [], []))
 
     body = launch(client, system_headers, project, full_task).json()

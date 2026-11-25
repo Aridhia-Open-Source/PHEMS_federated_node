@@ -4,7 +4,7 @@ import pytest
 
 from app.dtos import task_spec
 from app.dtos.task_spec import PrSpecFile, TaskSpecRequest
-from app.helpers.const import TASK_ENV_MAX_BYTES, TASK_IMAGE_MAX_LENGTH, TASK_NAME_MAX_LENGTH
+from app.tasks.limits import TASK_ENV_MAX_BYTES, TASK_IMAGE_MAX_LENGTH, TASK_NAME_MAX_LENGTH
 from app.helpers.exceptions import InvalidRequest
 
 NO_COMPUTE = {"requests": None, "limits": None}

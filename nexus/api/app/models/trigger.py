@@ -1,10 +1,10 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
-from app.helpers.base_model import BaseModel, db
-from app.helpers.const import SPEC_RAW_MAX_BYTES
+from app.database.base_model import BaseModel, db
+from app.tasks.limits import SPEC_RAW_MAX_BYTES
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.state_rules import transition
+from app.rules.state_rules import transition
 from app.models import sqla_column
 from app.models.trigger_state import TRIGGER_MOVES, TriggerState
 

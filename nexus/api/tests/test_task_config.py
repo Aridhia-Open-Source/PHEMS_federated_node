@@ -4,8 +4,8 @@ diff, where it is set, the check endpoint, and the publish gate (STALE result).
 """
 import pytest
 
-from app.helpers.base_model import db
-from app.helpers.task_config import build_snapshot, config_changes, diff, snapshot_hash
+from app.database.base_model import db
+from app.tasks.task_config import build_snapshot, config_changes, diff, snapshot_hash
 from app.models.task import Task
 
 RESULTS = {"repository": "https://github.com/org/results-global", "api_uri": "https://api.github.com",

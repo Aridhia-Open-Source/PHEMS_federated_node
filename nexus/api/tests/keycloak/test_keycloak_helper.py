@@ -3,7 +3,7 @@ from pytest import fixture
 import responses
 from responses import matchers
 from app.helpers.exceptions import KeycloakError
-from app.helpers.keycloak import (
+from app.clients.keycloak import (
     KEYCLOAK_SERVICE_USER,
     URLS,
     Keycloak,

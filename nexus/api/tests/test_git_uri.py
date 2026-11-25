@@ -1,6 +1,6 @@
 import pytest
 
-from app.helpers.git_uri import (
+from app.repos.git_uri import (
     normalise_provider_uri, normalise_repo_path, normalise_repo_uri, validate_api_uri
 )
 

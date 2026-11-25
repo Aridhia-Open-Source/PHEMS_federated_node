@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from app.helpers.base_model import db
-from app.helpers.pull_request_fanout import store_pull_request
+from app.database.base_model import db
+from app.repos.pull_request_fanout import store_pull_request
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request_trigger import PullRequestTrigger
 

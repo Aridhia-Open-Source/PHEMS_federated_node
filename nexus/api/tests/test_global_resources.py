@@ -4,7 +4,7 @@ repositories. One table-driven test per resource kind and failure class, not per
 """
 import pytest
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.models.dataset import Dataset
 from app.models.results_repository import ResultsRepository
 from app.models.trigger_repository import TriggerRepository
