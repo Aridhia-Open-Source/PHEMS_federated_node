@@ -120,7 +120,7 @@ tests:
     template: dagster-env-config.yaml
     asserts:
       - equal:
-          path: data.DAGSTER_KC_PASSWORD_FILE
+          path: data.SERVICES_NEXUS_PASSWORD_FILE
           value: /etc/secrets/dagster/DAGSTER_KC_PASSWORD
 
   - it: mounts the Keycloak password on run pods instead of injecting it as env
@@ -180,7 +180,7 @@ tests:
     template: dagster-env-config.yaml
     asserts:
       - equal:
-          path: data.DAGSTER_SENSORS_INITIAL_STATUS
+          path: data.SENSORS_INITIAL_STATUS
           value: STOPPED
 
   - it: passes a configured initial sensor status to the code server
@@ -191,14 +191,14 @@ tests:
           initialStatus: RUNNING
     asserts:
       - equal:
-          path: data.DAGSTER_SENSORS_INITIAL_STATUS
+          path: data.SENSORS_INITIAL_STATUS
           value: RUNNING
 
   - it: passes the sensor minimum interval to the code server, 30 by default
     template: dagster-env-config.yaml
     asserts:
       - equal:
-          path: data.DAGSTER_SENSORS_MIN_INTERVAL_SECONDS
+          path: data.SENSORS_MIN_INTERVAL_SECONDS
           value: "30"
 
   - it: passes a configured sensor minimum interval to the code server
@@ -209,14 +209,14 @@ tests:
           minIntervalSeconds: 2
     asserts:
       - equal:
-          path: data.DAGSTER_SENSORS_MIN_INTERVAL_SECONDS
+          path: data.SENSORS_MIN_INTERVAL_SECONDS
           value: "2"
 
   - it: passes the sensor retry interval to the code server, 60 by default
     template: dagster-env-config.yaml
     asserts:
       - equal:
-          path: data.DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS
+          path: data.SENSORS_RETRY_INTERVAL_SECONDS
           value: "60"
 
   - it: passes a configured sensor retry interval to the code server
@@ -227,14 +227,14 @@ tests:
           retryIntervalSeconds: 5
     asserts:
       - equal:
-          path: data.DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS
+          path: data.SENSORS_RETRY_INTERVAL_SECONDS
           value: "5"
 
   - it: passes the task pod deadline to the code server, 6 hours by default
     template: dagster-env-config.yaml
     asserts:
       - equal:
-          path: data.DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS
+          path: data.TASKS_ACTIVE_DEADLINE_SECONDS
           value: "21600"
 
   - it: passes a configured task pod deadline to the code server
@@ -245,24 +245,24 @@ tests:
           activeDeadlineSeconds: 600
     asserts:
       - equal:
-          path: data.DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS
+          path: data.TASKS_ACTIVE_DEADLINE_SECONDS
           value: "600"
 
   - it: runs task pods as a non-root uid and gid by default
     template: dagster-env-config.yaml
     asserts:
       - equal:
-          path: data.DAGSTER_PIPES_RUN_AS_USER
+          path: data.TASKS_SECURITY_RUN_AS_USER
           value: "1001"
       - equal:
-          path: data.DAGSTER_PIPES_RUN_AS_GROUP
+          path: data.TASKS_SECURITY_RUN_AS_GROUP
           value: "1001"
 
   - it: passes the delivery max attempts to the code server, 5 by default
     template: dagster-env-config.yaml
     asserts:
       - equal:
-          path: data.DAGSTER_DELIVERY_MAX_ATTEMPTS
+          path: data.RESULTS_MAX_ATTEMPTS
           value: "5"
 
   - it: passes a configured delivery max attempts to the code server
@@ -273,7 +273,7 @@ tests:
           deliveryMaxAttempts: 2
     asserts:
       - equal:
-          path: data.DAGSTER_DELIVERY_MAX_ATTEMPTS
+          path: data.RESULTS_MAX_ATTEMPTS
           value: "2"
 
   - it: rejects an initial sensor status other than STOPPED or RUNNING
@@ -289,7 +289,7 @@ tests:
     template: nexus-api-configmap.yaml
     asserts:
       - equal:
-          path: data.DAGSTER_WEBSERVER_URI
+          path: data.SERVICES_DAGSTER_URI
           value: http://federatednode-dagster-webserver.federatednode.svc:80
 
   - it: prefers an explicit fnDagster.webserver.uri over the derived Dagster webserver address
@@ -300,5 +300,5 @@ tests:
           uri: http://custom-dagster-webserver.ns.svc:80
     asserts:
       - equal:
-          path: data.DAGSTER_WEBSERVER_URI
+          path: data.SERVICES_DAGSTER_URI
           value: http://custom-dagster-webserver.ns.svc:80

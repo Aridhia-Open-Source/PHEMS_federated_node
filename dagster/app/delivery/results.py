@@ -2,7 +2,7 @@
 Delivery of one task's results to its project's results repository.
 
 task_results_delivery_sensor launches a delivery once per task attempt. A failed delivery is
-relaunched by results_delivery_retry_sensor up to DAGSTER_DELIVERY_MAX_ATTEMPTS attempts, then by
+relaunched by results_delivery_retry_sensor up to RESULTS_MAX_ATTEMPTS attempts, then by
 hand, and resumes from where it stopped.
 Delivery stops at the push: the results are DELIVERED once the branch is pushed.
 results_pull_request_sync_sensor opens the pull request and tracks it to MERGED or CLOSED.
@@ -16,7 +16,7 @@ from pathlib import Path
 import requests
 
 from fednode.clients.nexus.client import BackendAPI
-from app.config import ResultsDeliveryConfig
+from app.settings import Settings
 from app.delivery import git_push
 from fednode.clients.nexus.models import (
     PullRequestResultStep, ResultsRepository, ResultState, RunNode, RunProject, RunRecord, RunResults, RunTask,
@@ -50,7 +50,7 @@ class ResultsDelivery:
     Delivery never touches the task's own status.
     """
 
-    def __init__(self, backend_api: BackendAPI, config: ResultsDeliveryConfig, log):
+    def __init__(self, backend_api: BackendAPI, config: Settings, log):
         self.backend_api = backend_api
         self.config = config
         self.log = log
@@ -174,16 +174,16 @@ class ResultsDelivery:
                 self.log.info(f"Branch {branch} is already pushed at {commit_sha}")
                 return branch, commit_sha
 
-            artifacts = Path(self.config.artifact_mount_path) / run_id
+            artifacts = Path(self.config.artifacts.mount_path) / run_id
             if artifacts.is_symlink() or not artifacts.is_dir():
                 raise FileNotFoundError(f"No artifacts at {artifacts}")
 
             zip_path = Path(work) / ZIP_NAME
             file_count = git_push.zip_dir(artifacts, zip_path)
             zip_size = zip_path.stat().st_size
-            if zip_size > self.config.max_zip_bytes:
+            if zip_size > self.config.results.max_zip_bytes:
                 raise ValueError(
-                    f"{ZIP_NAME} is {zip_size} bytes, over the {self.config.max_zip_bytes} byte limit"
+                    f"{ZIP_NAME} is {zip_size} bytes, over the {self.config.results.max_zip_bytes} byte limit"
                 )
 
             out_dir = clone_dir / layout
@@ -196,7 +196,7 @@ class ResultsDelivery:
             # The spec file as it was merged, not re-serialised
             (out_dir / SPEC_NAME).write_bytes(pull_request.spec_raw.encode())
             run = RunRecord(
-                node=RunNode(id=self.config.node_id),
+                node=RunNode(id=self.config.node.id),
                 project=RunProject(id=task.project_id, name=task.project_name),
                 trigger=RunTrigger(
                     repository_uri=trigger_repository.uri,

@@ -32,7 +32,7 @@ tests:
           pattern: ^ghcr.io/aridhia-open-source/nexus_api:.+
       - equal:
           path: spec.template.spec.initContainers[1].env[0].name
-          value: NEXUS_DB_PASSWORD
+          value: DATABASE_PASSWORD
       - equal:
           path: spec.template.spec.initContainers[1].env[0].valueFrom.secretKeyRef.name
           value: nexus-db
@@ -147,14 +147,23 @@ tests:
     template: nexus-api-configmap.yaml
     asserts:
       - equal:
-          path: data.NEXUS_DB_NAME
+          path: data.DATABASE_NAME
           value: fn_nexus
       - equal:
-          path: data.NEXUS_DB_USER
+          path: data.DATABASE_USER
           value: fn_nexus
       - equal:
-          path: data.PGHOST
+          path: data.DATABASE_HOST
           value: db.default.svc
+
+  - it: supplies the required Dagster URI even when Dagster is disabled
+    template: nexus-api-configmap.yaml
+    set:
+      dagster.enabled: false
+    asserts:
+      - equal:
+          path: data.SERVICES_DAGSTER_URI
+          value: http://federatednode-dagster-webserver.federatednode.svc:80
 
   - it: passes the owner groups as a comma-separated list
     template: nexus-api-configmap.yaml
@@ -178,7 +187,7 @@ tests:
     template: dagster-env-config.yaml
     asserts:
       - equal:
-          path: data.NEXUS_API_URL
+          path: data.SERVICES_NEXUS_URI
           value: http://nexus-api.federatednode.svc:5000
 
   - it: prefers an explicit nexus.api.url for Dagster
@@ -189,5 +198,5 @@ tests:
           url: https://nexus.example.org
     asserts:
       - equal:
-          path: data.NEXUS_API_URL
+          path: data.SERVICES_NEXUS_URI
           value: https://nexus.example.org

@@ -73,16 +73,16 @@ tests:
     template: nexus-api-configmap.yaml
     asserts:
       - equal:
-          path: data.TASK_COMPUTE_MAX_CPU
+          path: data.TASKS_LIMITS_MAX_CPU
           value: "4"
       - equal:
-          path: data.TASK_COMPUTE_MAX_MEMORY
+          path: data.TASKS_LIMITS_MAX_MEMORY
           value: 16Gi
       - equal:
-          path: data.TASK_COMPUTE_DEFAULT_LIMIT_CPU
+          path: data.TASKS_LIMITS_DEFAULT_LIMIT_CPU
           value: "2"
       - equal:
-          path: data.TASK_COMPUTE_DEFAULT_LIMIT_MEMORY
+          path: data.TASKS_LIMITS_DEFAULT_LIMIT_MEMORY
           value: 4Gi
 
   - it: passes overridden values on to the backend
@@ -101,16 +101,16 @@ tests:
           memory: 32Gi
     asserts:
       - equal:
-          path: data.TASK_COMPUTE_MAX_CPU
+          path: data.TASKS_LIMITS_MAX_CPU
           value: "8"
       - equal:
-          path: data.TASK_COMPUTE_MAX_MEMORY
+          path: data.TASKS_LIMITS_MAX_MEMORY
           value: 32Gi
       - equal:
-          path: data.TASK_COMPUTE_DEFAULT_LIMIT_CPU
+          path: data.TASKS_LIMITS_DEFAULT_LIMIT_CPU
           value: 1500m
       - equal:
-          path: data.TASK_COMPUTE_DEFAULT_LIMIT_MEMORY
+          path: data.TASKS_LIMITS_DEFAULT_LIMIT_MEMORY
           value: 2Gi
 
   - it: rejects a quantity that is not one

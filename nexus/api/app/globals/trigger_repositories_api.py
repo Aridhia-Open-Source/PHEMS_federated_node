@@ -20,9 +20,7 @@ from fastapi_pagination import Page
 from app.dtos.base import page_of
 from app.dtos.git_token import GitTokenDTO, GitTokenRequest
 from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
-from app.dtos.trigger_repository import (
-    PullRequestBatchDTO, PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
-)
+from app.dtos import trigger_repository
 from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.repos.git_tokens import mint_token, require_token_allowed
@@ -44,7 +42,7 @@ router = APIRouter(
 session = db.session
 
 
-@router.get('', response_model=list[TriggerRepositoryDTO])
+@router.get('', response_model=list[trigger_repository.TriggerRepositoryDTO])
 def get_repositories(pollable: str = ''):
     """
     GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled and
@@ -59,19 +57,19 @@ def get_repositories(pollable: str = ''):
             TriggerRepository.provider.has(GitProvider.enabled.is_(True) & GitProvider.revoked.is_(False)),
             TriggerRepository.secret.has(Secret.enabled.is_(True)),
         )
-    return [TriggerRepositoryDTO.from_model(r) for r in query.order_by(TriggerRepository.id)]
+    return [trigger_repository.TriggerRepositoryDTO.from_model(r) for r in query.order_by(TriggerRepository.id)]
 
 
-@router.get('/{repo_id}', response_model=TriggerRepositoryDTO)
+@router.get('/{repo_id}', response_model=trigger_repository.TriggerRepositoryDTO)
 def get_repository(repo_id: int):
     """
     GET /global/repositories/triggers/<id> — get a single repository
     """
     repo = TriggerRepository.get_by_id(repo_id)
-    return TriggerRepositoryDTO.from_model(repo)
+    return trigger_repository.TriggerRepositoryDTO.from_model(repo)
 
 
-@router.get('/{repo_id}/pull_requests', response_model=Page[PullRequestDTO])
+@router.get('/{repo_id}/pull_requests', response_model=Page[trigger_repository.PullRequestDTO])
 def get_pull_requests(repo_id: int):
     """
     GET /global/repositories/triggers/<id>/pull_requests — the provider's facts of the pull requests
@@ -81,11 +79,11 @@ def get_pull_requests(repo_id: int):
     TriggerRepository.get_by_id(repo_id)
     query = PullRequest.query.filter_by(trigger_repository_id=repo_id)\
         .order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())
-    return page_of(query, PullRequestDTO)
+    return page_of(query, trigger_repository.PullRequestDTO)
 
 
 @router.post(
-    '/{repo_id}/pull_requests', status_code=HTTPStatus.CREATED, response_model=PullRequestBatchDTO,
+    '/{repo_id}/pull_requests', status_code=HTTPStatus.CREATED, response_model=trigger_repository.PullRequestBatchDTO,
     dependencies=[Depends(system_only)]
 )
 def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dict)):
@@ -94,7 +92,7 @@ def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dic
     repository and create their triggers for every active assignment. Idempotent: a number
     already stored is left as it is. Refused for a disabled or revoked repository (or one on such a provider), which stores nothing.
     Responds with the numbers stored and those already there.
-    Body: {"pull_requests": [pull requests, see PullRequestRequest]}
+    Body: {"pull_requests": [pull requests, see trigger_repository.PullRequestRequest]}
     """
     repo = TriggerRepository.get_by_id(repo_id)
     if not repo.active:
@@ -103,11 +101,11 @@ def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dic
     if not isinstance(pull_requests, list):
         raise InvalidRequest("pull_requests must be a list of pull requests")
     # The cap is fine; the Dagster ingest sensor must chunk its posts.
-    # One invalid PR (PullRequestRequest.parse) also refuses the whole batch.
+    # One invalid PR (trigger_repository.PullRequestRequest.parse) also refuses the whole batch.
     if len(pull_requests) > 100:
         raise InvalidRequest("Maximum 100 pull requests per batch")
 
-    created, existing = ingest_pull_requests(repo.id, [PullRequestRequest.parse(pr) for pr in pull_requests])
+    created, existing = ingest_pull_requests(repo.id, [trigger_repository.PullRequestRequest.parse(pr) for pr in pull_requests])
     session.commit()
     return {
         'created': [pr.number for pr in created],
@@ -144,7 +142,7 @@ def delete_repository(repo_id: int, force: bool = False, caller: Caller = Depend
     delete_global(repo, repo.project_assignments, force, caller)
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO)
+@router.post('', status_code=HTTPStatus.CREATED, response_model=trigger_repository.TriggerRepositoryDTO)
 def post_repository(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
@@ -175,10 +173,10 @@ def post_repository(body: dict = Body(default_factory=dict), caller: Caller = De
     set_owner(repo, caller)
     repo.add()
 
-    return TriggerRepositoryDTO.from_model(repo)
+    return trigger_repository.TriggerRepositoryDTO.from_model(repo)
 
 
-@router.patch('/{repo_id}', response_model=TriggerRepositoryDTO)
+@router.patch('/{repo_id}', response_model=trigger_repository.TriggerRepositoryDTO)
 def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     PATCH /global/repositories/triggers/<id> — update repository. The tasks created
@@ -228,7 +226,7 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
         repo.provider_id = provider.id
 
     session.commit()
-    return TriggerRepositoryDTO.from_model(repo)
+    return trigger_repository.TriggerRepositoryDTO.from_model(repo)
 
 
 @router.get('/{repository_id}/healthcheck', response_model=RepositoryConnectionDTO)

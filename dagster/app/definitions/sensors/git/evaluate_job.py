@@ -7,7 +7,7 @@ from dagster import OpExecutionContext as OpExecCtx
 
 from fednode.clients.nexus.client import BackendAPI
 from app.definitions.sensors.git.base import GitAPIFactory
-from app.definitions.sensors.git.pr_parser import ParsedPullRequest, PullRequestOutcome, PullRequestParser
+from app.definitions.sensors.git import pr_parser
 from fednode.clients.nexus.models import PullRequestTrigger, TriggerState
 
 # The git provider's API rate limit is the constraint, so keep the fan-out low
@@ -29,7 +29,7 @@ def load_unknown_pull_requests(context: OpExecCtx):
         yield dg.DynamicOutput(pr, mapping_key=str(pr.number))
 
 
-def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: ParsedPullRequest, log):
+def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: pr_parser.ParsedPullRequest, log):
     """
     Write the outcome on the pull request: READY sends the spec file to the backend, which
     keeps it, parses it and either creates the task (marking the PR YIELDED) or rejects the
@@ -37,7 +37,7 @@ def record_outcome(backend_api: BackendAPI, pr: PullRequestTrigger, parsed: Pars
     is inactive) skips the PR. Other backend failures raise.
     """
     project_id, repo_id = pr.project_id, pr.trigger_repository_id
-    if parsed.outcome is PullRequestOutcome.READY:
+    if parsed.outcome is pr_parser.PullRequestOutcome.READY:
         try:
             backend_api.create_task_for_pull_request(project_id, repo_id, pr.number, parsed.spec_raw)
         except requests.HTTPError as e:
@@ -69,7 +69,9 @@ def evaluate_pull_request(context: OpExecCtx, pr: PullRequestTrigger):
     backend_api = cast(BackendAPI, context.resources.backend_api)
     git_apis = cast(GitAPIFactory, context.resources.git_apis)
     repo = backend_api.get_project_trigger_repository(pr.project_id, pr.trigger_repository_id)
-    parsed = PullRequestParser(git_apis.for_repository(repo.trigger_repository, pr.project_id), repo, context.log).parse(pr)
+    parsed = pr_parser.PullRequestParser(
+        git_apis.for_repository(repo.trigger_repository, pr.project_id), repo, context.log
+    ).parse(pr)
     record_outcome(backend_api, pr, parsed, context.log)
 
 

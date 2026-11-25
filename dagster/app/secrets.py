@@ -4,6 +4,7 @@ from kubernetes.client import V1Secret
 
 from fednode.clients.kubernetes.client import KubernetesClient
 from fednode.clients.nexus.models import Secret, SecretProviderType
+from app.settings import settings
 
 
 class K8sSecretProvider:
@@ -11,7 +12,9 @@ class K8sSecretProvider:
 
     def get(self, key: str, namespace: str, value_key: str) -> str:
         """The decoded value stored under value_key in a Kubernetes secret."""
-        secret = cast(V1Secret, KubernetesClient(in_cluster=True).read_namespaced_secret(key, namespace))
+        timeout = (settings.http.connect_timeout, settings.http.read_timeout)
+        client = KubernetesClient(in_cluster=True, timeout=timeout)
+        secret = cast(V1Secret, client.read_namespaced_secret(key, namespace))
         if secret.data is None:
             raise ValueError(f"Secret {key} has no data")
         return KubernetesClient.decode_secret_value(secret.data[value_key])

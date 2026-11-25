@@ -4,20 +4,22 @@ user-related endpoints:
 - POST /global/users
 - PUT /global/users/reset-password, see auth_api.py
 """
+# pylint: disable=no-member
+
 from http import HTTPStatus
 
 from fastapi import APIRouter, Body
 
+from app.settings import SettingsDep, settings
 from app.dtos.user import NewUserDTO, UserDTO
-from app.helpers.const import PUBLIC_URL
 from app.helpers.exceptions import InvalidRequest
-from app.clients.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
+from app.clients.keycloak import Keycloak
 
 router = APIRouter(prefix='/global/users', tags=["users"])
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=NewUserDTO)
-def create_user(data: dict = Body(default_factory=dict)):
+def create_user(settings_dep: SettingsDep, data: dict = Body(default_factory=dict)):
     """
     POST /global/users endpoint. Creates a KC user, and sets a temp
         password for them.
@@ -38,8 +40,8 @@ def create_user(data: dict = Body(default_factory=dict)):
         "email": data["email"],
         "username": user_info["username"],
         "tempPassword": user_info["password"],
-        "info": "The user should change the temp password at " \
-            f"https://{PUBLIC_URL}/global/users/reset-password"
+        "info": "The user should change the temp password at "
+        f"https://{settings_dep.node.hostname}/global/users/reset-password"
     }
 
 
@@ -58,5 +60,5 @@ def get_users_list():
             "lastName": user.get("lastName", ''),
             "role": kc.get_user_role(user["id"]),
             "needs_to_reset_password": user.get("requiredActions", []) != []
-        } for user in ls_users if user["username"] not in (KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER)
+        } for user in ls_users if user["username"] not in (settings.services.keycloak.admin, settings.services.keycloak.service_user)
     ]

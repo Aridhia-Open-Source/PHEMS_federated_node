@@ -224,8 +224,8 @@ class OAuthAdapter(RetryAdapter):
     oauth_backoff_factor = 0.5
     oauth_retry_limit = 1
 
-    def __init__(self, base_url: str, username: str, password: str):
-        super().__init__(base_url=base_url)
+    def __init__(self, base_url: str, username: str, password: str, timeout: tuple[float, float] = DEFAULT_TIMEOUT):
+        super().__init__(base_url=base_url, timeout=timeout)
         self.username = username
         self.password = password
         self._access_token = None
@@ -308,8 +308,8 @@ class PasswordFileAdapter(BackendAdapter):
     and the next 401 logs in again with the new one, without a restart.
     """
 
-    def __init__(self, base_url: str, username: str, password_file: str):
-        super().__init__(base_url=base_url, username=username, password="")
+    def __init__(self, base_url: str, username: str, password_file: str, timeout: tuple[float, float] = DEFAULT_TIMEOUT):
+        super().__init__(base_url=base_url, username=username, password="", timeout=timeout)
         self.password_file = password_file
 
     def login(self):

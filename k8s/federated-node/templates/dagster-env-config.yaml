@@ -10,22 +10,22 @@ metadata:
     "helm.sh/hook-weight": "-1"
 data:
   DAGSTER_HOME: {{ .Values.dagsterHome | quote }}
-  DAGSTER_DEPLOYMENT_NAMESPACE: {{ .Release.Namespace }}
-  DAGSTER_TASK_NAMESPACE: {{ include "tasks_namespace" . }}
-  DAGSTER_ARTIFACT_MOUNT_PATH: {{ .Values.fnDagster.artifactMountPath | quote }}
-  DAGSTER_ARTIFACTS_PVC_NAME: {{ .Values.fnDagster.artifactsPvcName | quote }}
-  DAGSTER_TASK_ACTIVE_DEADLINE_SECONDS: {{ .Values.fnDagster.taskPod.activeDeadlineSeconds | int64 | quote }}
+  NAMESPACES_DEPLOYMENT: {{ .Release.Namespace }}
+  NAMESPACES_TASKS: {{ include "tasks_namespace" . }}
+  ARTIFACTS_MOUNT_PATH: {{ .Values.fnDagster.artifactMountPath | quote }}
+  ARTIFACTS_PVC_NAME: {{ .Values.fnDagster.artifactsPvcName | quote }}
+  TASKS_ACTIVE_DEADLINE_SECONDS: {{ .Values.fnDagster.taskPod.activeDeadlineSeconds | int64 | quote }}
   DAGSTER_PG_HOST: {{ include "dagsterDbHost" . | quote }}
   DAGSTER_PG_USER: {{ include "dagsterDbUser" . | quote }}
   DAGSTER_PG_NAME: {{ include "dagsterDbName" . | quote }}
   RESULTS_MAX_ZIP_BYTES: {{ .Values.fnDagster.results.maxZipBytes | int64 | quote }}
-  DAGSTER_SENSORS_INITIAL_STATUS: {{ .Values.fnDagster.sensors.initialStatus | quote }}
-  DAGSTER_SENSORS_MIN_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.minIntervalSeconds | quote }}
-  DAGSTER_SENSORS_RETRY_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.retryIntervalSeconds | quote }}
-  DAGSTER_DELIVERY_MAX_ATTEMPTS: {{ .Values.fnDagster.sensors.deliveryMaxAttempts | quote }}
-  NEXUS_API_URL: {{ include "nexusApiUrl" . | quote }}
+  SENSORS_INITIAL_STATUS: {{ .Values.fnDagster.sensors.initialStatus | quote }}
+  SENSORS_MIN_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.minIntervalSeconds | quote }}
+  SENSORS_RETRY_INTERVAL_SECONDS: {{ .Values.fnDagster.sensors.retryIntervalSeconds | quote }}
+  RESULTS_MAX_ATTEMPTS: {{ .Values.fnDagster.sensors.deliveryMaxAttempts | quote }}
+  SERVICES_NEXUS_URI: {{ include "nexusApiUrl" . | quote }}
   # dagster-keycloak-creds, mounted at /etc/secrets/dagster on the code server and run pods.
-  DAGSTER_KC_PASSWORD_FILE: /etc/secrets/dagster/DAGSTER_KC_PASSWORD
+  SERVICES_NEXUS_PASSWORD_FILE: /etc/secrets/dagster/DAGSTER_KC_PASSWORD
   NODE_ID: {{ .Values.nodeId | quote }}
   {{- /*
   Pod securityContext for pipes task pods. Only emitted when set - an unset
@@ -33,16 +33,16 @@ data:
   */}}
   {{- with (((.Values.fnDagster).artifacts).securityContext) }}
   {{- with .fsGroup }}
-  DAGSTER_PIPES_FS_GROUP: {{ . | quote }}
+  TASKS_SECURITY_FS_GROUP: {{ . | quote }}
   {{- end }}
   {{- with .runAsUser }}
-  DAGSTER_PIPES_RUN_AS_USER: {{ . | quote }}
+  TASKS_SECURITY_RUN_AS_USER: {{ . | quote }}
   {{- end }}
   {{- with .runAsGroup }}
-  DAGSTER_PIPES_RUN_AS_GROUP: {{ . | quote }}
+  TASKS_SECURITY_RUN_AS_GROUP: {{ . | quote }}
   {{- end }}
   {{- with .supplementalGroups }}
-  DAGSTER_PIPES_SUPPLEMENTAL_GROUPS: {{ join "," . | quote }}
+  TASKS_SECURITY_SUPPLEMENTAL_GROUPS: {{ join "," . | quote }}
   {{- end }}
   {{- end }}
 {{- end }}

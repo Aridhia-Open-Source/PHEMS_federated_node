@@ -2,15 +2,15 @@ import json
 import re
 import subprocess
 import zipfile
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 
 import dagster as dg
 import pytest
 import requests
 
-from app.config import ResultsDeliveryConfig
+from app.settings import settings
 from app.definitions.sensors.task import JOBS, SENSORS
-from app.definitions.sensors.task import delivery as delivery_sensors
 from app.definitions.sensors.task.delivery import (
     ResultsDeliveryRetrySensor,
     deliver_results_job,
@@ -109,8 +109,10 @@ def backend_api():
 
 
 def deliver(backend_api, remote, artifacts, max_zip_bytes=10485760):
-    config = ResultsDeliveryConfig(
-        DAGSTER_ARTIFACT_MOUNT_PATH=str(artifacts), RESULTS_MAX_ZIP_BYTES=max_zip_bytes, NODE_ID=NODE_ID
+    config = SimpleNamespace(
+        artifacts=SimpleNamespace(mount_path=str(artifacts)),
+        results=SimpleNamespace(max_zip_bytes=max_zip_bytes),
+        node=SimpleNamespace(id=NODE_ID),
     )
     with patch.object(git_push, "clone_url", return_value=str(remote)):
         ResultsDelivery(backend_api, config, MagicMock())(1, 7, RUN_ID)
@@ -443,7 +445,7 @@ def test_the_retry_sensor_ignores_final_steps(step):
 
 
 def test_the_retry_sensor_gives_up_at_the_max_attempts(monkeypatch):
-    monkeypatch.setattr(delivery_sensors, "DELIVERY_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(settings.results, "max_attempts", 3)
 
     (request,), _, _ = retry_sensor([result(state="FAILED", attempts=2)])
     (skip,), _, _ = retry_sensor([result(state="FAILED", attempts=3)])

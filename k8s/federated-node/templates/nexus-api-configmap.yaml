@@ -5,36 +5,36 @@ metadata:
   namespace: {{ .Release.Namespace }}
 data:
   NEXUS_ROLE: api
-  PGHOST: {{ .Values.db.host | quote }}
-  PGPORT: {{ .Values.db.port | quote }}
-  NEXUS_DB_NAME: {{ .Values.nexus.api.db.name | quote }}
-  NEXUS_DB_USER: {{ .Values.nexus.api.db.user | quote }}
+  DATABASE_HOST: {{ .Values.db.host | quote }}
+  DATABASE_PORT: {{ .Values.db.port | quote }}
+  DATABASE_NAME: {{ .Values.nexus.api.db.name | quote }}
+  DATABASE_USER: {{ .Values.nexus.api.db.user | quote }}
   OWNER_GROUPS: {{ .Values.nexus.api.ownerGroups | join "," | quote }}
-  KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
+  SERVICES_KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
+  SERVICES_KEYCLOAK_ADMIN: admin
+  SERVICES_KEYCLOAK_SERVICE_USER: fn-service
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
   {{- /*
     Where kc-secrets is mounted. nexus-api reads credentials from these files rather than from its
     environment, so a rotation reaches it without a restart.
   */}}
-  KC_SECRETS_PATH: {{ include "kcSecretsMountPath" . }}
+  SERVICES_KEYCLOAK_SECRETS_PATH: {{ include "kcSecretsMountPath" . }}
   {{- /*
     Cache service-account tokens briefly. Keycloak() otherwise performs a fresh password grant on
     every instantiation, and a single request builds several of them -- which would turn the short
     cutover during a credential rotation into a total outage rather than a few retried calls.
   */}}
-  KEYCLOAK_TOKEN_CACHE_TTL: {{ .Values.keycloak.tokenCacheSeconds | default 30 | quote }}
-  TASK_NAMESPACE: {{ include "tasks_namespace" . }}
-  QUARANTINE_NAMESPACE: {{ include "quarantine_namespace" . }}
-  SECRETS_NAMESPACE: {{ include "secrets_namespace" . }}
-{{- if .Values.dagster.enabled }}
-  DAGSTER_WEBSERVER_URI: {{ include "dagsterWebserverUri" . | quote }}
-{{- end }}
-  PUBLIC_URL: {{ .Values.host }}
-  TASK_COMPUTE_MAX_CPU: {{ .Values.taskCompute.max.cpu | quote }}
-  TASK_COMPUTE_MAX_MEMORY: {{ .Values.taskCompute.max.memory | quote }}
-  TASK_COMPUTE_DEFAULT_LIMIT_CPU: {{ .Values.taskCompute.default.limits.cpu | quote }}
-  TASK_COMPUTE_DEFAULT_LIMIT_MEMORY: {{ .Values.taskCompute.default.limits.memory | quote }}
+  SERVICES_KEYCLOAK_TOKEN_CACHE_TTL: {{ .Values.keycloak.tokenCacheSeconds | default 30 | quote }}
+  NAMESPACES_TASKS: {{ include "tasks_namespace" . }}
+  NAMESPACES_QUARANTINE: {{ include "quarantine_namespace" . }}
+  NAMESPACES_SECRETS: {{ include "secrets_namespace" . }}
+  SERVICES_DAGSTER_URI: {{ include "dagsterWebserverUri" . | quote }}
+  NODE_HOSTNAME: {{ .Values.host | default "" | quote }}
+  TASKS_LIMITS_MAX_CPU: {{ .Values.taskCompute.max.cpu | quote }}
+  TASKS_LIMITS_MAX_MEMORY: {{ .Values.taskCompute.max.memory | quote }}
+  TASKS_LIMITS_DEFAULT_LIMIT_CPU: {{ .Values.taskCompute.default.limits.cpu | quote }}
+  TASKS_LIMITS_DEFAULT_LIMIT_MEMORY: {{ .Values.taskCompute.default.limits.memory | quote }}
 {{- if .Values.db.enforceSSL }}
-  DB_SSL: "?sslmode=require"
+  DATABASE_SSL: "?sslmode=require"
 {{- end }}

@@ -3,8 +3,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError, field_validator, model_validator
 
+from app.settings import settings
 from app.dtos.base import DTO, WireDatetime
-from app.helpers.const import PUBLIC_URL
 from app.helpers.exceptions import InvalidRequest
 from app.dtos.secret import SecretDTO
 from app.dtos.user import UserRefDTO
@@ -50,7 +50,7 @@ class DatasetDTO(DTO):
             created_at=obj.created_at,
             updated_at=obj.updated_at,
             slug=slug,
-            url=f"https://{PUBLIC_URL}/global/datasets/{obj.id}",
+            url=f"https://{settings.node.hostname}/global/datasets/{obj.id}",
             owner=UserRefDTO.of(obj.owner),
             owner_group=obj.owner_group,
         )

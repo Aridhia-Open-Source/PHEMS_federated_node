@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from app.dtos import task_spec
+from app.settings import settings
 from app.dtos.task_spec import PrSpecFile, TaskSpecRequest
 from app.tasks.limits import TASK_ENV_MAX_BYTES, TASK_IMAGE_MAX_LENGTH, TASK_NAME_MAX_LENGTH
 from app.helpers.exceptions import InvalidRequest
@@ -18,10 +18,9 @@ EXPECTED_DEFAULTS = {
 def compute_config(monkeypatch):
     """The chart's defaults, whatever the environment the tests run in has."""
     for name, value in (
-        ("TASK_COMPUTE_MAX_CPU", "4"), ("TASK_COMPUTE_MAX_MEMORY", "16Gi"),
-        ("TASK_COMPUTE_DEFAULT_LIMIT_CPU", "2"), ("TASK_COMPUTE_DEFAULT_LIMIT_MEMORY", "4Gi"),
+        ("max_cpu", "4"), ("max_memory", "16Gi"), ("default_limit_cpu", "2"), ("default_limit_memory", "4Gi"),
     ):
-        monkeypatch.setattr(task_spec, name, value)
+        monkeypatch.setattr(settings.tasks.limits, name, value)
 
 
 class TestFromApiBody:
@@ -274,8 +273,8 @@ class TestCompute:
         assert TaskSpecRequest.from_pr_spec(pr_file({"image": "img:1"})).compute.model_dump(exclude_none=True) == {}
 
     def test_the_config_comes_from_the_environment(self, monkeypatch):
-        monkeypatch.setattr(task_spec, "TASK_COMPUTE_MAX_CPU", "8")
-        monkeypatch.setattr(task_spec, "TASK_COMPUTE_DEFAULT_LIMIT_CPU", "6")
+        monkeypatch.setattr(settings.tasks.limits, "max_cpu", "8")
+        monkeypatch.setattr(settings.tasks.limits, "default_limit_cpu", "6")
         assert self.parse({"requests": {"cpu": "6"}, "limits": {"cpu": "8"}}).compute.limits.cpu == "8"
         assert self.parse({"requests": {"cpu": "6"}}).compute.requests.cpu == "6"
         with pytest.raises(InvalidRequest, match="compute.requests.cpu 7 is over the default limit 6"):
