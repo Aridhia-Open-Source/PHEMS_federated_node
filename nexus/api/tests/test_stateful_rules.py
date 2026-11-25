@@ -55,7 +55,7 @@ from sqlalchemy.orm.session import close_all_sessions
 from fastapi.testclient import TestClient
 
 from app import create_app
-from app.helpers.base_model import Base, db, engine, request_scope
+from app.database.base_model import Base, db, engine, request_scope
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.models.task_status import TASK_MOVES
@@ -92,7 +92,7 @@ class TriggerResourceMachine(RuleBasedStateMachine):
         Base.metadata.drop_all(engine)  # Hypothesis can build a machine it never tears down: start from empty tables
         Base.metadata.create_all(engine)
         self.tick = 0
-        clock = mock.patch("app.helpers.pull_request_fanout.now_ts", lambda: CLOCK_START + timedelta(minutes=self.tick))
+        clock = mock.patch("app.repos.pull_request_fanout.now_ts", lambda: CLOCK_START + timedelta(minutes=self.tick))
         clock.start()
         self.clock = clock
         self.client = TestClient(create_app(), raise_server_exceptions=False)

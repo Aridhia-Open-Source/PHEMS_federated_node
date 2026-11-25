@@ -10,9 +10,9 @@ from types import SimpleNamespace
 import pytest
 
 from app import create_app
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.ownership import get_for_write
+from app.rules.ownership import get_for_write
 from app.helpers.wrappers import token_groups
 from app.models.git_provider import GitProvider
 from app.models.project import Project

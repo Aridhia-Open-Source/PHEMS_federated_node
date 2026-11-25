@@ -5,7 +5,7 @@ from pydantic import AliasChoices, Field
 from app.dtos.base import DTO, WireDatetime
 from app.dtos.dataset import DatasetDTO
 from app.dtos.task_spec import TaskSpecRequest
-from app.helpers.task_config import build_snapshot, snapshot_hash
+from app.tasks.task_config import build_snapshot, snapshot_hash
 from app.models.trigger import Trigger
 
 

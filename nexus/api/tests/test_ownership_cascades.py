@@ -3,7 +3,7 @@ Deletes that cascade to project resources follow the ownership rule of direct wr
 project resource it would delete is owned by a group the caller is not in, the delete is a 409 naming them,
 and nothing is deleted.
 """
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.models.project_dataset import ProjectDataset
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_secret import ProjectSecret

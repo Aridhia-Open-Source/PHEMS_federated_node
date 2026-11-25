@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 from kubernetes.client.exceptions import ApiException
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import InvalidRequest
 from app.models.secret import Secret

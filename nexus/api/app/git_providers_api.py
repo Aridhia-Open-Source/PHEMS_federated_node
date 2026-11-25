@@ -13,10 +13,10 @@ from http import HTTPStatus
 from fastapi import APIRouter, Depends
 
 from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitProviderRequest
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.ownership import get_for_write, set_owner
-from app.helpers.pull_request_fanout import skip_gap
+from app.rules.ownership import get_for_write, set_owner
+from app.repos.pull_request_fanout import skip_gap
 from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
 

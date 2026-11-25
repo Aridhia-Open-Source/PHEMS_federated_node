@@ -4,7 +4,7 @@ from responses import matchers
 import urllib.parse
 
 from app.helpers.exceptions import AuthenticationError, KeycloakError
-from app.helpers.keycloak import URLS, Keycloak
+from app.clients.keycloak import URLS, Keycloak
 from tests.keycloak.test_keycloak_helper import TestKeycloakMixin
 
 

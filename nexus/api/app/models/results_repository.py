@@ -2,8 +2,8 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
-from app.helpers.base_model import BaseModel, db
-from app.helpers.soft_delete import SoftDeleteMixin
+from app.database.base_model import BaseModel, db
+from app.database.soft_delete import SoftDeleteMixin
 from app.models import sqla_column
 from app.models.git_repository import GitRepositoryMixin
 from app.models.user import OwnedMixin

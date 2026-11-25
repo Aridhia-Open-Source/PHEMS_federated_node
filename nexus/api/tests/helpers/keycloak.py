@@ -3,7 +3,7 @@
 # but this way we can also test keycloak's configuration
 import requests
 
-from app.helpers.keycloak import KEYCLOAK_SERVICE_USER, Keycloak, URLS
+from app.clients.keycloak import KEYCLOAK_SERVICE_USER, Keycloak, URLS
 
 PROTECTED_USERNAMES = {"admin", KEYCLOAK_SERVICE_USER}
 

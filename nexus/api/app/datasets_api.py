@@ -17,10 +17,10 @@ from fastapi_pagination import Page
 
 from app.dtos.base import page_of
 from app.dtos.dataset import DatasetDTO, DatasetPatchRequest, DatasetRequest
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.ownership import get_for_write, set_owner
-from app.helpers.soft_delete import delete_global
+from app.rules.ownership import get_for_write, set_owner
+from app.database.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller
 from app.models.dataset import Dataset
 from app.models.secret import Secret

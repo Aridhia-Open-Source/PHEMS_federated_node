@@ -9,10 +9,10 @@ import requests
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship, validates
 
-from app.helpers.base_model import BaseModel, db
+from app.database.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.git_uri import normalise_provider_uri, validate_api_uri
-from app.helpers.soft_delete import SoftDeleteMixin
+from app.repos.git_uri import normalise_provider_uri, validate_api_uri
+from app.database.soft_delete import SoftDeleteMixin
 from app.models import sqla_column
 from app.models.git_provider_type import GitProviderType
 from app.models.user import OwnedMixin

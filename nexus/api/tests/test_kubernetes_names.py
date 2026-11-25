@@ -1,7 +1,7 @@
 import pytest
 
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.kubernetes_names import (
+from app.clients.kubernetes_names import (
     validate_dns_label, validate_dns_subdomain, validate_secret_key
 )
 

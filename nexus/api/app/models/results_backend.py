@@ -4,7 +4,7 @@ from enum import Enum
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship, validates
 
-from app.helpers.base_model import BaseModel, db
+from app.database.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidDBEntry
 from app.models import sqla_column
 

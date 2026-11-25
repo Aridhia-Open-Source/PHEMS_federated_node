@@ -129,7 +129,7 @@ Notes on the format:
 
 **Disruptive changes, marked in the plan:**
 
-- A dataset's host, port, type or schemas, and a results repository's `target_dir` or `base_branch`, are pinned into every task when it is created (`nexus/api/app/helpers/task_config.py`). Tasks created earlier fail instead of running against the new setup. A trigger `watch_dir` or `base_branch` applies at once and leaves work in flight alone.
+- A dataset's host, port, type or schemas, and a results repository's `target_dir` or `base_branch`, are pinned into every task when it is created (`nexus/api/app/tasks/task_config.py`). Tasks created earlier fail instead of running against the new setup. A trigger `watch_dir` or `base_branch` applies at once and leaves work in flight alone.
 - A project has one results repository, and creating its assignment needs the project disabled. On a live project, apply disables it, assigns, and enables it again. Enabling skips the gap: pull requests merged meanwhile get no trigger. The plan says so and apply asks first.
 - Swapping a project's results repository for another is a 409 in the backend. Plan reports it as blocked with the manual steps. Apply does not automate it.
 

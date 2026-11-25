@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.dtos.healthcheck import NodeHealthDTO
 from app.helpers.exceptions import AuthenticationError, InvalidRequest
-from app.helpers.keycloak import URLS, Keycloak
+from app.clients.keycloak import URLS, Keycloak
 
 router = APIRouter(tags=["main"])
 

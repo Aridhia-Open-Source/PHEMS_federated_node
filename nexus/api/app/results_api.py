@@ -10,9 +10,9 @@ from http import HTTPStatus
 from fastapi import APIRouter, Body, Depends, Query, Response
 
 from app.dtos.result import PullRequestResultDTO, dump_result
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.task_config import config_changes, results_resource, revoked_resources
+from app.tasks.task_config import config_changes, results_resource, revoked_resources
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep

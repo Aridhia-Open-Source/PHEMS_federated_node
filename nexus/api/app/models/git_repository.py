@@ -7,8 +7,8 @@ from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
 
 from app.helpers.exceptions import GitProviderError, InvalidRequest
-from app.helpers.git_tokens import mint_token
-from app.helpers.git_uri import normalise_repo_path
+from app.repos.git_tokens import mint_token
+from app.repos.git_uri import normalise_repo_path
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, request_check
 from app.models.git_provider_type import GitProviderType
 
@@ -25,7 +25,7 @@ class GitRepositoryMixin:
     )
     # Where the repository is on the provider (owner/name)
     repo_path = sa.Column(sa.String(512), nullable=False)
-    # The secret holding the git credential (see helpers/git_tokens.py). Set explicitly rather than
+    # The secret holding the git credential (see repos/git_tokens.py). Set explicitly rather than
     # derived from the repository, so repositories can share one credential.
     secret_id = sa.Column(
         sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False

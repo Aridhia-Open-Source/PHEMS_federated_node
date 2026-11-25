@@ -19,10 +19,10 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from kubernetes.client.exceptions import ApiException
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import GitProviderError, InvalidRequest
-from app.helpers.git_tokens import mint_token
-from app.helpers.kubernetes import KubernetesClient
+from app.repos.git_tokens import mint_token
+from app.clients.kubernetes import KubernetesClient
 from app.models.git_provider import GitProvider
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_trigger_repository import ProjectTriggerRepository

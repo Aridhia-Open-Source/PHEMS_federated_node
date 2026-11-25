@@ -13,7 +13,7 @@ from kubernetes.client.exceptions import ApiException
 
 from app.helpers.const import TASK_NAMESPACE
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.kubernetes import KubernetesClient
+from app.clients.kubernetes import KubernetesClient
 from app.models.task import Task
 
 # On the Secret, the ConfigMap and the task pod. The pod's are set in dagster/app/definitions/pipes.py.

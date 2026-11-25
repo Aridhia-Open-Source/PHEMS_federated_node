@@ -20,13 +20,13 @@ from fastapi import APIRouter, Body, Depends
 from kubernetes.client.exceptions import ApiException
 
 from app.dtos.secret import SecretDTO
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.kubernetes import KubernetesClient
-from app.helpers.kubernetes_names import validate_secret_key
-from app.helpers.ownership import get_for_write, require_members, set_owner
-from app.helpers.soft_delete import describe_project
+from app.clients.kubernetes import KubernetesClient
+from app.clients.kubernetes_names import validate_secret_key
+from app.rules.ownership import get_for_write, require_members, set_owner
+from app.database.soft_delete import describe_project
 from app.helpers.wrappers import Caller, get_caller
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType

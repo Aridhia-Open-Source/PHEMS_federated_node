@@ -2,15 +2,17 @@ import logging
 import os
 import random
 import re
+import string
 import time
 import requests
 from base64 import b64encode
 
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
-from app.helpers.const import PASS_GENERATOR_SET
 
 logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
+
+PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
 
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE")
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", f"http://keycloak.{KEYCLOAK_NAMESPACE}.svc.cluster.local")

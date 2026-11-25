@@ -6,10 +6,10 @@ import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from app.dtos.repository_uri import RepositoryUriRequest
-from app.helpers.compute import validate_cpu_resources, validate_memory_resources
-from app.helpers.base_model import BaseModel, db
-from app.helpers.git_uri import normalise_repo_uri
-from app.helpers.keycloak import Keycloak
+from app.tasks.compute import validate_cpu_resources, validate_memory_resources
+from app.database.base_model import BaseModel, db
+from app.repos.git_uri import normalise_repo_uri
+from app.clients.keycloak import Keycloak
 from app.helpers.exceptions import InvalidRequest
 from app.models import Models, sqla_column
 from app.models.task_spec import TaskSpec

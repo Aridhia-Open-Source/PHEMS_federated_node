@@ -5,7 +5,7 @@ import itertools
 import pytest
 
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.state_rules import forward_only, transition
+from app.rules.state_rules import forward_only, transition
 from app.models.pull_request_result_step import RESULT_ORDER
 from app.models.task_status import RETRYABLE, TASK_MOVES, TaskStatus
 from app.models.trigger_state import TRIGGER_MOVES

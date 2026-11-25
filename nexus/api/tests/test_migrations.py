@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import inspect, text
 
 import app.models  # noqa: F401  registers every model on Base.metadata
-from app.helpers.base_model import Base, engine
+from app.database.base_model import Base, engine
 
 API_DIR = Path(__file__).resolve().parents[1]
 

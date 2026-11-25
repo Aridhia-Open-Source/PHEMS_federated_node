@@ -3,7 +3,7 @@ from datetime import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy import orm
 
-from app.helpers.spec_files import spec_files
+from app.tasks.spec_files import spec_files
 from app.models.trigger import Trigger
 
 

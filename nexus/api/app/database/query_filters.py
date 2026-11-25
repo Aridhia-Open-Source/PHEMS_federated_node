@@ -3,7 +3,7 @@ import re
 from fastapi import Request
 from sqlalchemy.orm import Query
 
-from app.helpers.base_model import Base
+from app.database.base_model import Base
 from app.helpers.exceptions import InvalidRequest
 
 
