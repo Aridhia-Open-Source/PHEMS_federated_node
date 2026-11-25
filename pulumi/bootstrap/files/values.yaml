@@ -1,0 +1,12 @@
+global:
+  createNamespaces: false
+  namespaces:
+    keycloak: keycloak
+    tasks: tasks
+    operator: fn-operator
+    secrets: fn-secrets
+    quarantine: fn-quarantine
+
+nexus:
+  ui:
+    enabled: false

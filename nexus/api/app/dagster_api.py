@@ -9,7 +9,7 @@ from fastapi import APIRouter, Body
 
 from app.dtos.sensor import SensorDTO
 from app.clients.dagster import list_sensors, set_sensor_status
-from app.rules.authz import ADMIN_UNCHECKED
+from app.rules.authz import ADMIN_UNCHECKED, DAGSTER_READ_UNCHECKED
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 
 router = APIRouter(prefix='/dagster', tags=["dagster"])
@@ -42,7 +42,7 @@ def apply_status(sensors: list[dict], status: str):
             set_sensor_status(sensor, status)
 
 
-@router.get('/sensors', response_model=list[SensorDTO], dependencies=ADMIN_UNCHECKED)
+@router.get('/sensors', response_model=list[SensorDTO], dependencies=DAGSTER_READ_UNCHECKED)
 def get_sensors():
     """
     GET /dagster/sensors — every sensor with its status and latest tick
@@ -50,7 +50,7 @@ def get_sensors():
     return dto_of(list_sensors())
 
 
-@router.get('/sensors/{name}', response_model=SensorDTO, dependencies=ADMIN_UNCHECKED)
+@router.get('/sensors/{name}', response_model=SensorDTO, dependencies=DAGSTER_READ_UNCHECKED)
 def get_one_sensor(name: str):
     """
     GET /dagster/sensors/<name> — a single sensor

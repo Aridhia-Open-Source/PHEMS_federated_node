@@ -1,0 +1,95 @@
+From 23b005c8b6297ec9f7aa31f18a78e2bda36b150e Mon Sep 17 00:00:00 2001
+From: codepint <george.eddie@aridhia.com>
+Date: Tue, 24 Nov 2026 02:26:49 +0000
+Subject: [PATCH 1/5] fix(verify): flux site example runs the operator and
+ carries the superuser Secret [skip ci]
+
+---
+ scripts/flux.sh                                 |  3 +++
+ site-example/namespaces.yaml                    |  5 +++++
+ site-example/secrets/sops/kustomization.yaml    |  1 +
+ site-example/secrets/sops/superuser-secret.yaml | 12 ++++++++++++
+ site-example/values.yaml                        | 15 +++++++++++++++
+ 5 files changed, 36 insertions(+)
+ create mode 100644 site-example/secrets/sops/superuser-secret.yaml
+
+diff --git a/scripts/flux.sh b/scripts/flux.sh
+index 03c55cddd..5779d9404 100755
+--- a/scripts/flux.sh
++++ b/scripts/flux.sh
+@@ -107,6 +107,9 @@ case "$COMMAND" in
+         "$SEED"/secrets/sops/first-user-secret.yaml
+       # From the repo root, so a mise shim still finds the sops version mise.toml pins
+       sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/secrets/sops/first-user-secret.yaml"
++      sed -i -e "s|SUPERUSER_USERNAME|${KEYCLOAK_SUPERUSER_USERNAME:-}|" -e "s|SUPERUSER_PASSWORD|${KEYCLOAK_SUPERUSER_PASSWORD:-}|" \
++        "$SEED"/secrets/sops/superuser-secret.yaml
++      sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/secrets/sops/superuser-secret.yaml"
+       git -C "$SEED" init -q -b main
+       git -C "$SEED" add .
+       git -C "$SEED" -c user.name=fn-dev -c user.email=fn-dev@example.org commit -q -m "Site: node pinned to its first release"
+diff --git a/site-example/namespaces.yaml b/site-example/namespaces.yaml
+index 1d2e3b3fd..78b5436cf 100644
+--- a/site-example/namespaces.yaml
++++ b/site-example/namespaces.yaml
+@@ -9,3 +9,8 @@ apiVersion: v1
+ kind: Namespace
+ metadata:
+   name: tasks
++---
++apiVersion: v1
++kind: Namespace
++metadata:
++  name: fn-operator
+diff --git a/site-example/secrets/sops/kustomization.yaml b/site-example/secrets/sops/kustomization.yaml
+index 261a0ab8c..5028d693a 100644
+--- a/site-example/secrets/sops/kustomization.yaml
++++ b/site-example/secrets/sops/kustomization.yaml
+@@ -4,3 +4,4 @@ apiVersion: kustomize.config.k8s.io/v1beta1
+ kind: Kustomization
+ resources:
+   - first-user-secret.yaml
++  - superuser-secret.yaml
+diff --git a/site-example/secrets/sops/superuser-secret.yaml b/site-example/secrets/sops/superuser-secret.yaml
+new file mode 100644
+index 000000000..b4bf795e2
+--- /dev/null
++++ b/site-example/secrets/sops/superuser-secret.yaml
+@@ -0,0 +1,12 @@
++# The break-glass superuser's login (superuserSecret in values.yaml), read by the realm controller in the
++# keycloak namespace. Encrypted before commit; `mise run flux up` fills it from .dev.env. An empty USERNAME
++# creates no superuser.
++apiVersion: v1
++kind: Secret
++metadata:
++  name: keycloak-superuser
++  namespace: keycloak
++type: Opaque
++stringData:
++  USERNAME: SUPERUSER_USERNAME
++  PASSWORD: SUPERUSER_PASSWORD
+diff --git a/site-example/values.yaml b/site-example/values.yaml
+index 2c1165be4..dbd0d2b23 100644
+--- a/site-example/values.yaml
++++ b/site-example/values.yaml
+@@ -93,3 +93,18 @@ gitea:
+     secret:
+       name: gitea-admin
+       key: password
++
++# The break-glass superuser (ADR 0036): its Secret, keycloak-superuser in the keycloak namespace, is in
++# secrets/sops like the first user's.
++superuserSecret:
++  name: keycloak-superuser
++  userKey: USERNAME
++  passKey: PASSWORD
++
++# The nexus operator (ADR 0032), in fn-operator (namespaces.yaml), also watching experiments, where
++# `fncli experiment` puts its dataset resources.
++operator:
++  enabled: true
++  image: localhost:5001/nexus-operator-fn
++  tag: *devTag
++  watchNamespaces: [experiments]
+-- 
+2.43.0
+

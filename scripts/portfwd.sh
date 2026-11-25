@@ -19,4 +19,5 @@ kubectl port-forward -n fn svc/fn-dev-dagster-webserver 3000:80 & \
 kubectl port-forward -n fn svc/nexus-api 5000:5000 & \
 kubectl port-forward -n fn svc/nexus-ui 8088:80 & \
 kubectl port-forward -n fn svc/db 5432:5432 & \
+{ kubectl get -n fn svc/gitea > /dev/null 2>&1 && kubectl port-forward -n fn svc/gitea 4000:4000; } & \
 kubectl port-forward -n keycloak svc/keycloak 8080:80

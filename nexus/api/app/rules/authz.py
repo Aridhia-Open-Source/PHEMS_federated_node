@@ -26,7 +26,7 @@ from app.database.base_model import db, engine
 from app.dtos.caller import Caller
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import get_caller, require_role, system_only
-from app.models.node_role import ADMIN_ROLES
+from app.models.node_role import ADMIN_ROLES, NodeRole
 from app.models.grant import GROUP, USER, Grant
 from app.models.policy_version import PolicyVersion
 from app.models.secret import Secret
@@ -368,7 +368,9 @@ class Listing:
 # Dagster's pipeline state writes and token mints: Dagster carries out what nexus-api decided (ADR 0021) for every
 # record, holds no grants and gets no write from Cedar, so these are gated by its role, not checked per record
 SYSTEM_ONLY = [Depends(system_only), Depends(Access(action=Action.UNCHECKED))]
-# Routes with no record (Keycloak users, Dagster's sensors, the node-wide healthcheck): the admin roles gate them
+# Sensor reads are also used by fncli while authenticated as Dagster; sensor mutations remain administrator-only.
+DAGSTER_READ_UNCHECKED = [Depends(require_role(*ADMIN_ROLES, NodeRole.DAGSTER)), Depends(Access(action=Action.UNCHECKED))]
+# Routes with no record (Keycloak users and the node-wide healthcheck): the admin roles gate them
 ADMIN_UNCHECKED = [Depends(require_role(*ADMIN_ROLES)), Depends(Access(action=Action.UNCHECKED))]
 
 

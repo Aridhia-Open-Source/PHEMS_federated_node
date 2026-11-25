@@ -23,6 +23,8 @@ spec:
   # The chart's crds/ are created on install and replaced on upgrade (the chart's pre-upgrade hook also applies them)
   install:
     crds: CreateReplace
+    # In-cluster Postgres role jobs are post-install hooks; do not wait for application pods before running them.
+    disableWait: true
   # A failed upgrade is retried twice, then rolled back to the last good revision
   upgrade:
     crds: CreateReplace

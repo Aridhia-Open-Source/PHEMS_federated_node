@@ -13,7 +13,7 @@ helm = "3.22.1"
 tilt = "0.37.8"
 # Flux CLI for `mise run flux` (ADR 0031)
 flux2 = "2.9.6"
-# SOPS-encrypted secrets in the site repository (`mise run flux sops-key`, Flux-Secrets.md)
+# SOPS-encrypted secrets in the site repository (`mise run flux sops-key`, GitOps-Delivery.md)
 sops = "3.13.3"
 age = "1.3.2"
 # scripts/devcontainer_check.sh: builds and starts the dev container without VS Code
@@ -129,10 +129,10 @@ case "$usage_action" in
 esac
 '''
 
-# mise run flux publish VERSION | up | sops-key | status | down
+# mise run gitea-bootstrap | flux publish VERSION | up | sops-key | status | down
 # Flux delivering the dev node from a test site repository in Gitea (scripts/flux.sh, Flux-Dev-Loop.md)
 [tasks.flux]
-description = "Flux in the dev cluster: publish VERSION (chart to the kind registry), up (adopt the release from site-example), sops-key (load the age key Flux decrypts with), status, down"
+description = "Flux in the dev cluster: publish VERSION, up (install from the Gitea site repository), sops-key, status or down"
 quiet = true
 usage = '''
 arg "<action>" help="publish, up, sops-key, status or down" {
@@ -141,6 +141,14 @@ arg "<action>" help="publish, up, sops-key, status or down" {
 arg "[version]" help="publish: chart version, e.g. 0.0.1-dev"
 '''
 run = './scripts/flux.sh "$usage_action" ${usage_version:+"$usage_version"}'
+
+[tasks.gitea-bootstrap]
+description = "Start the independent Docker Gitea server and local Actions runner"
+run = "./scripts/gitea_bootstrap.sh"
+
+[tasks.gitea-down]
+description = "Stop the independent Docker Gitea server and local Actions runner"
+run = "./scripts/gitea_bootstrap.sh down"
 
 # mise run mirror-to-gitea [SITE_REPO_URL]
 # A pull mirror of the site repository in the cluster's Gitea, for Flux to pull from (scripts/mirror_to_gitea.sh)
