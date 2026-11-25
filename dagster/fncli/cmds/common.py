@@ -32,12 +32,19 @@ def to_host_url(url: str) -> str:
     """
     The URL as this host-side script reaches it. An in-cluster host (gitea.fn.svc) is only
     reachable from the host through the Tilt port-forward on localhost, on the same port, so
-    only the hostname changes. Any other URL is returned as it is.
+    only the hostname changes. External Docker Gitea uses gitea-bootstrap inside the kind
+    network; GITEA_LOCAL_URL provides its host-published URL. Any other URL is returned as it is.
     """
     host = urlparse(url).hostname
-    if not host or not host.endswith(IN_CLUSTER_SUFFIX):
+    if not host:
         return url
-    return url.replace(host, "localhost", 1)
+    if host.endswith(IN_CLUSTER_SUFFIX):
+        return url.replace(host, "localhost", 1)
+    local_url = os.environ.get("GITEA_LOCAL_URL")
+    if host == "gitea-bootstrap" and local_url:
+        local = urlparse(local_url)
+        return urlparse(url)._replace(scheme=local.scheme, netloc=local.netloc).geturl()
+    return url
 
 
 def find_under(directory: str, value: Path, hint: str = "") -> Path:
