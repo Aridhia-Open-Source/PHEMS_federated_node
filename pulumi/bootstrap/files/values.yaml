@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: federated-node-values
+  namespace: {{NAMESPACE}}
+data:
+  values.yaml: |
+    namespace: {{NAMESPACE}}

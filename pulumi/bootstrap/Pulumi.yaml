@@ -1,0 +1,21 @@
+name: phems-deployment-bootstrap
+runtime:
+  name: python
+  options:
+    virtualenv: .venv
+description: Create a GitHub deployment repository consumed by Flux
+config:
+  github:owner:
+    description: GitHub organisation or user that owns the deployment repository
+  phems-deployment-bootstrap:repository:
+    description: Name of the deployment repository
+    default: phems-deployment
+  phems-deployment-bootstrap:site:
+    description: Site name used in the repository path
+    default: site
+  phems-deployment-bootstrap:namespace:
+    description: Kubernetes namespace for the Federated Node
+    default: fn
+  phems-deployment-bootstrap:chart-version:
+    description: Federated Node chart version pinned by Flux
+    default: 0.0.1

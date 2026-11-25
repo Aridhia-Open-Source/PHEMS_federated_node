@@ -1,0 +1,25 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: federated-node
+  namespace: {{NAMESPACE}}
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: federated-node
+      version: "{{CHART_VERSION}}"
+      sourceRef:
+        kind: HelmRepository
+        name: federated-node
+        namespace: {{NAMESPACE}}
+  install:
+    remediation:
+      retries: 2
+  upgrade:
+    remediation:
+      retries: 2
+      strategy: rollback
+  valuesFrom:
+    - kind: ConfigMap
+      name: federated-node-values
