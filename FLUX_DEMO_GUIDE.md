@@ -1,5 +1,11 @@
 # Local Flux and Gitea Demo
 
+> **Automated version:** [`flux/examples/README.md`](flux/examples/README.md)
+> and [`flux/examples/demo.sh`](flux/examples/demo.sh) run this complete flow,
+> including the two Gitea pull requests, operator resources and demo trigger.
+> Use the manual sections below when presenting or troubleshooting individual
+> stages.
+
 This demo starts with a kind cluster and registry, but no Federated Node
 release. An independent Docker Gitea and Actions runner host the site
 repository. Flux watches `main`; merging one Gitea pull request installs the
