@@ -235,7 +235,7 @@ def test_patch_revoked_must_be_a_boolean(client, admin_headers, git_provider, ch
 def test_patch_revoked_is_admin_only_shows_in_the_dtos_and_leaves_enabled_alone(
         client, admin_headers, post_json_user_header, git_provider, global_trigger_repo):
     url = f"{PROV}/{git_provider.id}"
-    assert client.patch(url, json={"revoked": True}, headers=post_json_user_header).status_code == 403
+    assert client.patch(url, json={"revoked": True}, headers=post_json_user_header).status_code == 409
     assert client.get(url, headers=admin_headers).json()["revoked"] is False
 
     revoked = client.patch(url, json={"revoked": True}, headers=admin_headers)

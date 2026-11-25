@@ -30,6 +30,9 @@ class DTO(BaseModel):
         return self.model_dump(mode="json", by_alias=True)
 
 
-def page_of(query: Query, dto: type[DTO]) -> Page[DTO]:
-    """A page of the query's rows as dto, per the page and size parameters (see add_pagination in the app factory)."""
-    return paginate(query, transformer=lambda rows: [dto.from_model(row) for row in rows])
+def page_of(query: Query, dto: type[DTO], keep=None) -> Page[DTO]:
+    """
+    A page of the query's rows as dto, per the page and size parameters (see add_pagination in the app factory).
+    keep, if given, takes the page's rows and returns the ones to show (Listing.allowed).
+    """
+    return paginate(query, transformer=lambda rows: [dto.from_model(row) for row in (keep(rows) if keep else rows)])

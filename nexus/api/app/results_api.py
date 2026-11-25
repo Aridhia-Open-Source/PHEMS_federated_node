@@ -14,7 +14,6 @@ from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.tasks.task_config import config_changes, results_resource, revoked_resources
 from app.rules.authz import SYSTEM_ONLY, Access, Action, Global
-from app.helpers.wrappers import Caller, get_caller
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
 from app.models.result_state import ResultState
@@ -22,9 +21,10 @@ from app.models.project import Project
 from app.models.task import Task
 from app.models.task_status import TaskStatus
 from app.models.result import Result
-from app.tasks_api import does_user_own_task
 
 router = APIRouter(prefix='/projects', tags=["results"])
+# A result's read checks its project
+READ_PROJECT = Depends(Access(model=Project, action=Action.READ))
 
 # A result at one of these steps is never delivered again or has been delivered already
 FINAL_STEPS = {
@@ -47,7 +47,7 @@ def _project_result(project_id: int, result_id: int) -> Result:
     return result
 
 
-@router.get('/{project_id}/results', response_model=list[PullRequestResultDTO])
+@router.get('/{project_id}/results', response_model=list[PullRequestResultDTO], dependencies=[READ_PROJECT])
 def get_results(
     project_id: int,
     step: list[str] = Query(default_factory=list),
@@ -63,7 +63,6 @@ def get_results(
         - active_resource: ?active_resource=true keeps only the results whose project resource for the results repository is active
           (enabled, not revoked, on an enabled global repository and provider) (optional)
     """
-    Project.get_by_id(project_id)
     # step and state are columns of the pull request results
     query = PullRequestResult.query if step or state is not None else Result.query
     if step:
@@ -84,13 +83,12 @@ def get_results(
     return [dump_result(r) for r in results]
 
 
-@router.get('/{project_id}/results/{result_id}', response_model=PullRequestResultDTO)
-def get_result(project_id: int, result_id: int, caller: Caller = Depends(get_caller)):
+@router.get('/{project_id}/results/{result_id}', response_model=PullRequestResultDTO, dependencies=[READ_PROJECT])
+def get_result(project_id: int, result_id: int):
     """
     GET /projects/<project_id>/results/<result_id> endpoint. Gets a single result
     """
     result = _project_result(project_id, result_id)
-    does_user_own_task(result.task, caller)
     return dump_result(result)
 
 
@@ -100,7 +98,6 @@ def get_result(project_id: int, result_id: int, caller: Caller = Depends(get_cal
 )
 def post_result(
     project_id: int, response: Response, body: dict = Body(default_factory=dict),
-    caller: Caller = Depends(get_caller),
 ):
     """
     POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results
@@ -125,7 +122,6 @@ def post_result(
     task = Task.get_by_id(body['task_id'])
     if task.project_id != project_id:
         raise DBRecordNotFoundError(f"Task {task.id} does not exist in project {project_id}")
-    does_user_own_task(task, caller)
     # The delivery is tracked against the project's own resource for the repository. A deleted project resource is
     # read too: it is revoked, so its delivery gets the final REVOKED result here, the only gate.
     assignment = results_resource(project_id, body['results_repository_id'])
@@ -191,14 +187,12 @@ def post_result(
 )
 def patch_result(
     project_id: int, result_id: int, body: dict = Body(default_factory=dict),
-    caller: Caller = Depends(get_caller),
 ):
     """
     PATCH /projects/<project_id>/results/<result_id> endpoint. Records the progress of a task's delivery.
     A pull request result's step only moves forward, see PullRequestResult.set_step
     """
     result = _project_result(project_id, result_id)
-    does_user_own_task(result.task, caller)
 
     if not body:
         raise InvalidRequest("No fields provided to update")

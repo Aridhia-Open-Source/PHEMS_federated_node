@@ -53,8 +53,8 @@ def listed(client, path) -> set[tuple]:
     return {(g["relation"], g["subject_type"], g["subject_id"]) for g in response.json()}
 
 
-def grant_id(client, path, relation, subject_id) -> int:
-    response = client.get(f"{path}/grants", headers=as_("owner_token"))
+def grant_id(client, path, relation, subject_id, token="owner_token") -> int:
+    response = client.get(f"{path}/grants", headers=as_(token))
     return next(g["id"] for g in response.json() if (g["relation"], g["subject_id"]) == (relation, subject_id))
 
 
@@ -167,7 +167,7 @@ def test_the_owners_manage_grant_cannot_be_removed(client, project_path):
 
 def test_a_grant_of_another_record_is_a_404(client, project_path):
     other = client.post("/projects", json={"name": "other"}, headers=as_("other_token")).json()["id"]
-    foreign = grant_id(client, f"/projects/{other}", "manage", "id-other")
+    foreign = grant_id(client, f"/projects/{other}", "manage", "id-other", token="other_token")
 
     response = client.delete(f"{project_path}/grants/{foreign}", headers=as_("owner_token"))
 
