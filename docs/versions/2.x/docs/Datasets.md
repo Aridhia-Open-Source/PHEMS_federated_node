@@ -49,7 +49,6 @@ The task connects with the ODBC driver in the table, so the **analytics containe
 | `write_schema` | no | The schema tasks may write results into. Given as `WRITE_SCHEMA`. It must already exist, with write rights for the dataset's user. |
 | `extra_connection_args` | no | Extra connection text, up to 4096 characters, stored with the dataset for reference. The task's connection string is built without it: see [Connection options](#connection-options). |
 | `enabled` | no | Defaults to `true`. |
-| `catalogue`, `dictionaries` | no | A description of the data. See [Catalogue and dictionaries](#catalogue-and-dictionaries). |
 
 Field types are strict: `port` must be a number, not `"5432"`, and `enabled` a boolean. `revoked` is not accepted on create: an admin revokes a dataset with a `PATCH`.
 
@@ -195,31 +194,6 @@ A pending task whose dataset is switched off does not start, and its `state_caus
 ### Delete
 
 `DELETE /global/datasets/<id>` is a **soft delete**: the dataset disappears from the API and the name is free again, but the record stays for the tasks and results that used it. If projects still use the dataset, the delete is refused with a `409` that lists them. Add `?force=true` to revoke and remove those project resources too. The dataset's secret is left alone, because other datasets may share it. Prefer switching a dataset off.
-
-### Catalogue and dictionaries
-
-You can describe a dataset when you register it or later, so people know what is in it without seeing the data. Send them in the same body:
-
-```json
-{
-  "catalogue": {
-    "title": "OMOP CDM extract",
-    "description": "Inpatient episodes 2018-2025",
-    "version": "5.4"
-  },
-  "dictionaries": [
-    {
-      "table_name": "person",
-      "field_name": "year_of_birth",
-      "label": "Year of birth",
-      "description": "Patient year of birth"
-    }
-  ]
-}
-```
-
-`title` and `description` are required in a catalogue, `version` is optional. A dictionary entry needs `table_name`, `field_name` and `description`, and may have a `label`. A `PATCH` updates the catalogue, and adds or updates the entries it names. They are stored with the dataset.
-
 
 ## Troubleshooting
 

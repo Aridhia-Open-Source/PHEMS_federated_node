@@ -1,6 +1,6 @@
 """Wire models for the backend API responses this code location consumes."""
 
-from app.models.dataset import Catalogue, Dataset, Dictionary, ProjectDataset
+from app.models.dataset import Dataset, ProjectDataset
 from app.models.git_provider import GitProvider
 from app.models.git_token import GitToken
 from app.models.launch_decision import LaunchDecision
@@ -23,10 +23,8 @@ from app.models.trigger_state import TriggerState
 from app.models.trigger_repository import ProjectTriggerRepository, TriggerRepository
 
 __all__ = [
-    "Catalogue",
     "ChangedFile",
     "Dataset",
-    "Dictionary",
     "GitProvider",
     "GitToken",
     "LaunchDecision",

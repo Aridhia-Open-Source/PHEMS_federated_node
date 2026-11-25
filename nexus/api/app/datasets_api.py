@@ -23,8 +23,6 @@ from app.helpers.ownership import get_for_write, set_owner
 from app.helpers.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller
 from app.models.dataset import Dataset
-from app.models.extras.catalogue import Catalogue
-from app.models.extras.dictionary import Dictionary
 from app.models.secret import Secret
 
 
@@ -79,22 +77,11 @@ def post_datasets(body: dict = Body(default_factory=dict), caller: Caller = Depe
         req = DatasetRequest.parse(body)
         _reject_taken_name(req.name)
         secret = Secret.get_enabled_by_label(req.secret_label)
-        fields = req.model_dump(exclude={"secret_label", "catalogue", "dictionaries"})
-        cata_body = req.catalogue
-        dict_body = req.dictionaries
+        fields = req.model_dump(exclude={"secret_label"})
         dataset = Dataset(secret_id=secret.id, **fields)
         set_owner(dataset, caller)
 
         dataset.add(commit=False)
-        if cata_body:
-            cata_data = Catalogue.validate(cata_body)
-            catalogue = Catalogue(dataset=dataset, **cata_data)
-            catalogue.add(commit=False)
-
-        for d in dict_body:
-            dict_data = Dictionary.validate(d)
-            dictionary = Dictionary(dataset=dataset, **dict_data)
-            dictionary.add(commit=False)
 
         session.commit()
 
@@ -142,9 +129,7 @@ def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), call
         raise InvalidRequest("No field to update")
     if req.revoked is not None and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
-    fields = req.model_dump(exclude_unset=True, exclude={"catalogue", "dictionaries", "secret_label"})
-    cata_body = req.catalogue
-    dict_body = req.dictionaries or []
+    fields = req.model_dump(exclude_unset=True, exclude={"secret_label"})
     if req.name is not None:
         _reject_taken_name(req.name, ds.id)
     secret = ds.secret
@@ -158,12 +143,6 @@ def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), call
         ds.update(**fields)
         # TODO(DAR): the DAR Keycloak clients are no longer patched on rename, disconnected
         # for now.
-        # Update catalogue and dictionaries
-        if cata_body:
-            Catalogue.update_or_create(cata_body, ds)
-
-        for d in dict_body:
-            Dictionary.update_or_create(d, ds)
     except Exception:
         session.rollback()
         raise

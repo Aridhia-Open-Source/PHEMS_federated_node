@@ -8,11 +8,6 @@ class ModelRegistry:
     """Registry of all app models. Cached on first access."""
 
     @cached_property
-    def Catalogue(self):
-        from app.models.extras.catalogue import Catalogue
-        return Catalogue
-
-    @cached_property
     def Dataset(self):
         from app.models.dataset import Dataset
         return Dataset
@@ -21,11 +16,6 @@ class ModelRegistry:
     def ProjectDataset(self):
         from app.models.project_dataset import ProjectDataset
         return ProjectDataset
-
-    @cached_property
-    def Dictionary(self):
-        from app.models.extras.dictionary import Dictionary
-        return Dictionary
 
     @cached_property
     def Project(self):
@@ -148,10 +138,8 @@ __all__ = ['sqla_column', 'SqlaColumn', 'ModelRegistry', 'Models']
 # This ensures string-based relationships can be resolved to avoid circular dependencies.
 _ = (
     Models.User,
-    Models.Catalogue,
     Models.Dataset,
     Models.ProjectDataset,
-    Models.Dictionary,
     Models.Project,
     Models.PullRequest,
     Models.PullRequestTrigger,
