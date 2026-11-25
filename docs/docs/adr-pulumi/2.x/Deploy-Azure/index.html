@@ -916,6 +916,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Auth-Setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auth setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1010,6 +1038,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../Node-Config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Node config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Node-Secrets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Node secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../Researcher-Guide/" class="md-nav__link">
         
   
@@ -1074,6 +1158,62 @@
     
   
     Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Sign-In-And-Roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sign-in and roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Granting-Access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Granting access
   
 
     
@@ -1467,7 +1607,7 @@
 <span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">azurestorageaccountname</span><span class="o">=</span><span class="s1">'&lt;your-storage-account-name&gt;'</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">azurestorageaccountkey</span><span class="o">=</span><span class="s1">'&lt;your-storage-account-key&gt;'</span>
 </code></pre></div>
-<p>The chart copies it into the tasks namespace for you. Then point the chart at the secret and the share:</p>
+<p>Then point the chart at the secret and the share:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">storage</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">capacity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50Gi</span>
 <span class="w">  </span><span class="nt">azure</span><span class="p">:</span>
@@ -1546,7 +1686,7 @@
 <h2 id="4-tls">4. TLS<a class="headerlink" href="#4-tls" title="Permanent link">&para;</a></h2>
 <p>You have two choices.</p>
 <p><strong>Bring your own certificate.</strong> Create the <code>tls</code> secret from <a href="../Deploy-Core/#3-create-the-namespace-and-the-secrets-you-must-provide">Deploy: Core</a> and set <code>tls.secretName</code>. Nothing else is needed.</p>
-<p><strong>Automatic renewal with cert-manager and Azure DNS.</strong> The chart can issue and renew a Let's Encrypt certificate with a DNS-01 challenge against an Azure DNS zone. It needs a service principal with the <em>DNS Zone Contributor</em> role on the zone, and two objects in the release namespace that you create <strong>before</strong> you install. The install fails at the start, naming whichever is missing.</p>
+<p><strong>Automatic renewal with cert-manager and Azure DNS.</strong> The chart can issue and renew a Let's Encrypt certificate with a DNS-01 challenge against an Azure DNS zone. It needs a service principal with the <em>DNS Zone Contributor</em> role on the zone, and two objects that you create <strong>before</strong> you install: the ConfigMap in the release namespace, and the secret in the cert-manager namespace (<code>cert-manager.namespace</code>), where the issuer reads it. The install fails at the start, naming whichever is missing.</p>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>fn-azure-ssl-sp<span class="w"> </span>-n<span class="w"> </span>federated-node<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">SP_SECRET</span><span class="o">=</span><span class="s1">'&lt;service-principal-secret&gt;'</span>
 </code></pre></div>

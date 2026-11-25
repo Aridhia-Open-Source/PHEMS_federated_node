@@ -11,10 +11,10 @@
         <link rel="canonical" href="https://aridhia-open-source.github.io/PHEMS_federated_node/docs/stack-pulumi/2.x/Set-Up-A-Project/">
       
       
-        <link rel="prev" href="../Run-Locally/">
+        <link rel="prev" href="../Auth-Setup/">
       
       
-        <link rel="next" href="../Researcher-Guide/">
+        <link rel="next" href="../Node-Config/">
       
       
         
@@ -776,6 +776,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Auth-Setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auth setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1082,6 +1110,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../Node-Config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Node config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Node-Secrets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Node secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../Researcher-Guide/" class="md-nav__link">
         
   
@@ -1146,6 +1230,62 @@
     
   
     Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Sign-In-And-Roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sign-in and roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Granting-Access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Granting access
   
 
     
@@ -1688,7 +1828,7 @@
 </ol>
 <p>GitHub OAuth Apps (user tokens) are not supported. To withdraw the node's access on GitHub, remove the repository from the App's installation, or uninstall the App: GitHub has no finer switch.</p>
 <h3 id="gitea">Gitea<a class="headerlink" href="#gitea" title="Permanent link">&para;</a></h3>
-<p>Gitea is the development host. The chart can run one for you (<code>gitea.enabled</code>), and <code>fncli apply</code> creates and authorizes the OAuth2 application for you: see <a href="../Using-fncli/">Using fncli</a>. The chart pins Gitea's <code>INVALIDATE_REFRESH_TOKENS=false</code>, which makes concurrent refreshes safe. A Gitea repository that goes unused for 30 days loses its refresh token and needs authorizing again.</p>
+<p>Gitea is the development host. The chart can run one for you (<code>gitea.enabled</code>), and <code>fncli gitea setup</code> creates and authorizes the OAuth2 application for you: see <a href="../Using-fncli/">Using fncli</a>. The chart pins Gitea's <code>INVALIDATE_REFRESH_TOKENS=false</code>, which makes concurrent refreshes safe. A Gitea repository that goes unused for 30 days loses its refresh token and needs authorizing again.</p>
 <h2 id="1-secrets">1. Secrets<a class="headerlink" href="#1-secrets" title="Permanent link">&para;</a></h2>
 <p>Make one per credential. A <strong>label</strong> is the name you use for it in later calls. It also becomes part of a Kubernetes name, so use lowercase letters, digits, <code>-</code> and <code>.</code>.</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># A GitHub App for a repository (here shared by the trigger and the results repository)</span>

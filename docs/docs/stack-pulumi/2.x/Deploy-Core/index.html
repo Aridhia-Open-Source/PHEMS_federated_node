@@ -988,6 +988,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Auth-Setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auth setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1082,6 +1110,62 @@
   
   
     <li class="md-nav__item">
+      <a href="../Node-Config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Node config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Node-Secrets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Node secrets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../Researcher-Guide/" class="md-nav__link">
         
   
@@ -1146,6 +1230,62 @@
     
   
     Datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Sign-In-And-Roles/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sign-in and roles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Granting-Access/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Granting access
   
 
     
@@ -1621,7 +1761,10 @@ helm<span class="w"> </span>search<span class="w"> </span>repo<span class="w"> <
 <h2 id="2-install-the-crds">2. Install the CRDs<a class="headerlink" href="#2-install-the-crds" title="Permanent link">&para;</a></h2>
 <p>If you use the chart's Traefik, install the Gateway API and Traefik CRDs once per cluster. See <a href="../Prerequisites/#install-the-gateway-api-and-traefik-crds">Prerequisites</a>.</p>
 <h2 id="3-create-the-namespace-and-the-secrets-you-must-provide">3. Create the namespace and the secrets you must provide<a class="headerlink" href="#3-create-the-namespace-and-the-secrets-you-must-provide" title="Permanent link">&para;</a></h2>
+<p>The chart copies no Secret between namespaces, so the Keycloak and tasks namespaces are yours to create, before the Secrets that go in them. Set <code>global.createNamespaces: false</code> in your values so the chart does not create them too.</p>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>federated-node
+kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>keycloak
+kubectl<span class="w"> </span>create<span class="w"> </span>namespace<span class="w"> </span>tasks
 </code></pre></div>
 <p>The chart creates every database password, the Keycloak credentials and the Dagster login for you, and puts them in the namespaces that need them. These are the ones it cannot invent:</p>
 <table>
@@ -1644,7 +1787,7 @@ helm<span class="w"> </span>search<span class="w"> </span>repo<span class="w"> <
 <td>the secret named by <code>firstUserSecret.name</code></td>
 <td>the key in <code>firstUserSecret.passKey</code></td>
 <td>Always</td>
-<td>Password of the first admin user. The chart copies it to the Keycloak namespace</td>
+<td>Password of the first admin user. Goes in the Keycloak namespace, where it is read</td>
 </tr>
 <tr>
 <td><code>tls</code> (or the name in <code>tls.secretName</code>)</td>
@@ -1656,14 +1799,14 @@ helm<span class="w"> </span>search<span class="w"> </span>repo<span class="w"> <
 <td>the Azure storage secret</td>
 <td><code>azurestorageaccountname</code>, <code>azurestorageaccountkey</code></td>
 <td><code>storage.azure</code></td>
-<td>The chart copies it to the tasks namespace</td>
+<td>In the release namespace</td>
 </tr>
 </tbody>
 </table>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>postgres-superuser<span class="w"> </span>-n<span class="w"> </span>federated-node<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">password</span><span class="o">=</span><span class="s1">'&lt;postgres admin password&gt;'</span>
 
-kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>fn-first-user<span class="w"> </span>-n<span class="w"> </span>federated-node<span class="w"> </span><span class="se">\</span>
+kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>generic<span class="w"> </span>fn-first-user<span class="w"> </span>-n<span class="w"> </span>keycloak<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">password</span><span class="o">=</span><span class="s1">'&lt;admin password you will log in with&gt;'</span>
 
 kubectl<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>tls<span class="w"> </span>tls<span class="w"> </span>-n<span class="w"> </span>federated-node<span class="w"> </span><span class="se">\</span>

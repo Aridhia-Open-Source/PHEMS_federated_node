@@ -1656,7 +1656,7 @@
 <span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">ACCOUNT_ID</span><span class="o">=</span><span class="s1">'123456789012'</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--from-literal<span class="o">=</span><span class="nv">ROLE_NAME</span><span class="o">=</span><span class="s1">'fn-cert-manager-route53'</span>
 </code></pre></div>
-<p><code>ROLE_NAME</code> is an IAM role with permission on your hosted zone (<code>route53:GetChange</code>, <code>route53:ChangeResourceRecordSets</code>, <code>route53:ListResourceRecordSets</code> and <code>route53:ListHostedZonesByName</code>). Its trust policy must let the service account <code>cert-manager-acme-dns01-route53</code> assume it, through your cluster's OIDC provider. The install fails at the start, naming the secret if it is missing.</p>
+<p><code>ROLE_NAME</code> is an IAM role with permission on your hosted zone (<code>route53:GetChange</code>, <code>route53:ChangeResourceRecordSets</code>, <code>route53:ListResourceRecordSets</code> and <code>route53:ListHostedZonesByName</code>). Its trust policy must let the service account <code>cert-manager-acme-dns01-route53</code> assume it, through your cluster's OIDC provider. The install fails at the start, naming the secret if it is missing. The chart copies it into the cert-manager namespace.</p>
 <p>The known issues below affect this path.</p>
 <h2 id="5-add-the-aws-block-to-valuesyaml">5. Add the AWS block to values.yaml<a class="headerlink" href="#5-add-the-aws-block-to-valuesyaml" title="Permanent link">&para;</a></h2>
 <p>On top of the file from <a href="../Deploy-Core/#4-write-your-values-file">Deploy: Core</a>, replacing its <code>storage</code> block:</p>

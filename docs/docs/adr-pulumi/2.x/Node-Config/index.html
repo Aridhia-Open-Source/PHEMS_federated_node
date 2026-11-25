@@ -8,9 +8,13 @@
       
       
       
-        <link rel="canonical" href="https://aridhia-open-source.github.io/PHEMS_federated_node/docs/verify-all/2.x/Deploy-With-Flux/">
+        <link rel="canonical" href="https://aridhia-open-source.github.io/PHEMS_federated_node/docs/adr-pulumi/2.x/Node-Config/">
       
       
+        <link rel="prev" href="../Set-Up-A-Project/">
+      
+      
+        <link rel="next" href="../Node-Secrets/">
       
       
         
@@ -21,7 +25,7 @@
     
     
       
-        <title>Deploy with Flux - Federated Node</title>
+        <title>Node config - Federated Node</title>
       
     
     
@@ -72,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#deploy-with-flux" class="md-skip">
+        <a href="#node-config" class="md-skip">
           Skip to content
         </a>
       
@@ -110,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Deploy with Flux
+              Node config
             
           </span>
         </div>
@@ -280,10 +284,12 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
+      <li class="md-tabs__item md-tabs__item--active">
         <a href="../Set-Up-A-Project/" class="md-tabs__link">
           
   
@@ -809,26 +815,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -846,7 +857,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -889,10 +900,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../Node-Config/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Node config
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -908,6 +946,114 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#turn-it-on" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turn it on
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#write-the-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write the config
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#change-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Change it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#who-may-use-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who may use it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#turn-it-off-or-uninstall" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turn it off or uninstall
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#in-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In development
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1313,10 +1459,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#set-up-a-site" class="md-nav__link">
+  <a href="#how-it-works" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Set up a site
+        How it works
       
     </span>
   </a>
@@ -1324,10 +1470,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#run-it" class="md-nav__link">
+  <a href="#turn-it-on" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Run it
+        Turn it on
       
     </span>
   </a>
@@ -1335,10 +1481,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#pull-request-checks" class="md-nav__link">
+  <a href="#write-the-config" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Pull request checks
+        Write the config
       
     </span>
   </a>
@@ -1346,10 +1492,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#known-gaps" class="md-nav__link">
+  <a href="#change-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Known gaps
+        Change it
       
     </span>
   </a>
@@ -1357,10 +1503,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#try-it-locally" class="md-nav__link">
+  <a href="#who-may-use-it" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Try it locally
+        Who may use it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#turn-it-off-or-uninstall" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Turn it off or uninstall
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#in-development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In development
       
     </span>
   </a>
@@ -1387,57 +1566,116 @@
   
 
 
-<h1 id="deploy-with-flux">Deploy with Flux<a class="headerlink" href="#deploy-with-flux" title="Permanent link">&para;</a></h1>
-<p>A site's node is installed, upgraded, reverted and configured from a git repository by Flux, running in the node's own cluster. Why, and what was weighed against it: <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/project/decisions/0031-gitops-deployment-with-flux.md">ADR 0031</a>.</p>
+<h1 id="node-config">Node config<a class="headerlink" href="#node-config" title="Permanent link">&para;</a></h1>
+<p>A node's config is what it needs before it can run a task: git providers, secrets, trigger and results repositories, datasets, and projects with what they are assigned. With the <strong>nexus operator</strong> on, that config lives in git as Helm values, and the operator applies it to nexus-api. This page is for the admin who keeps that config. For the secrets, see <a href="../Node-Secrets/">Node secrets</a>.</p>
+<p>The design is in <a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/716">ADR 0032</a>.</p>
+<h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
 <ul>
-<li>The <strong>site repository</strong> holds what the site owns: a <code>HelmRepository</code> (where the chart comes from), a <code>HelmRelease</code> that pins the chart version, the site's <code>values.yaml</code>, and its Secrets, SOPS-encrypted. <code>site-example/</code> is the template.</li>
-<li><strong>Flux</strong> pulls the site repository and upgrades the node to whatever it pins. Nothing reaches into the cluster.</li>
-<li>The site repository lives in the node's own <strong>Gitea</strong>, so Flux needs nothing outside the cluster for it. If the site keeps it elsewhere, Gitea mirrors it: <a href="../Flux-Site-Repository-Mirror/">Flux site repository mirror</a>.</li>
-<li>The chart and images come from <code>ghcr.io/aridhia-open-source</code>, published by a <code>v*</code> tag.</li>
+<li>The chart turns each <code>nodeConfig</code> entry into a Kubernetes custom resource of group <code>fn.aridhia.com/v1alpha1</code>: <code>GitProvider</code>, <code>NodeSecret</code>, <code>Repository</code>, <code>Dataset</code> or <code>Project</code>.</li>
+<li>They live in the operator's own namespace, <code>fn-operator</code> (<code>global.namespaces.operator</code>), never the release namespace.</li>
+<li>The operator watches them. For each one it creates or updates the record in nexus-api, and on removal soft-deletes it.</li>
+<li>It logs in to nexus-api as its own Keycloak user, <code>fn-operator</code>, with the <code>Service</code> role. The chart generates its password, and the credential rotation job rotates it.</li>
+<li>The records it creates are managed by the group <code>/roles/service</code>, so only the operator (and the superuser) may change them. Admins can still read them and assign them to projects.</li>
+<li>Without the operator, set the node up through the API instead: <a href="../Set-Up-A-Project/">Set up a project</a>. Do not mix the two for the same record.</li>
 </ul>
-<h2 id="set-up-a-site">Set up a site<a class="headerlink" href="#set-up-a-site" title="Permanent link">&para;</a></h2>
-<ol>
-<li>Deploy the node once with Helm (<a href="../Deploy-Core/">Deploy: Core</a>), with <code>gitea.enabled: true</code> in its values. Flux adopts this release later.</li>
-<li>Install Flux: <code>flux install</code>.</li>
-<li>Choose where the site's Secrets come from, SOPS (the default) or a vault, and set it up: <a href="../Flux-Secrets/">Flux secrets</a>.</li>
-<li>Make the site repository in the node's Gitea from <code>site-example/</code>:</li>
-<li><code>helmrepository.yaml</code>: <code>url: oci://ghcr.io/aridhia-open-source/charts</code>, drop <code>insecure</code>.</li>
-<li>The namespace <code>fn</code> appears in <code>helmrelease.yaml</code>, <code>helmrepository.yaml</code>, the files under <code>secrets/</code> and the <code>configMapGenerator</code> in <code>kustomization.yaml</code>: change all of them to the node's namespace.</li>
-<li><code>helmrelease.yaml</code>: <code>releaseName</code> is the one step 1 used, so Flux adopts that release rather than installing a second node; <code>version</code> is the chart version to run.</li>
-<li><code>values.yaml</code>: drop the <code>image</code> and <code>tag</code> lines, set the site's own values. Secret values never go here.</li>
-<li><code>secrets/</code>: the first user's login, as <a href="../Flux-Secrets/">Flux secrets</a> describes for the path the site chose.</li>
-<li>Point Flux at it, as <code>scripts/flux.sh up</code> does:</li>
-</ol>
-<div class="highlight"><pre><span></span><code>flux<span class="w"> </span>create<span class="w"> </span>secret<span class="w"> </span>git<span class="w"> </span>fn-site-auth<span class="w"> </span>-n<span class="w"> </span>flux-system<span class="w"> </span>--url<span class="o">=</span>&lt;site<span class="w"> </span>repo<span class="w"> </span>URL&gt;<span class="w"> </span>--username<span class="o">=</span>&lt;user&gt;<span class="w"> </span>--password<span class="o">=</span>&lt;token&gt;
-flux<span class="w"> </span>create<span class="w"> </span><span class="nb">source</span><span class="w"> </span>git<span class="w"> </span>fn-site<span class="w"> </span>-n<span class="w"> </span>flux-system<span class="w"> </span>--url<span class="o">=</span>&lt;site<span class="w"> </span>repo<span class="w"> </span>URL&gt;<span class="w"> </span>--branch<span class="o">=</span>main<span class="w"> </span>--secret-ref<span class="o">=</span>fn-site-auth
-flux<span class="w"> </span>create<span class="w"> </span>kustomization<span class="w"> </span>fn-site<span class="w"> </span>-n<span class="w"> </span>flux-system<span class="w"> </span>--source<span class="o">=</span>GitRepository/fn-site<span class="w"> </span>--path<span class="o">=</span>./<span class="w"> </span>--prune<span class="o">=</span><span class="nb">true</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--decryption-provider<span class="o">=</span>sops<span class="w"> </span>--decryption-secret<span class="o">=</span>sops-age
+<h2 id="turn-it-on">Turn it on<a class="headerlink" href="#turn-it-on" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="nt">operator</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
-<p>The URL inside the cluster is <code>http://gitea.&lt;namespace&gt;.svc:4000/&lt;owner&gt;/&lt;repo&gt;.git</code>.</p>
-<h2 id="run-it">Run it<a class="headerlink" href="#run-it" title="Permanent link">&para;</a></h2>
+<p>Then <code>helm upgrade</code> as usual. The image tag follows the chart's. The CRDs ship in the chart, and a pre-upgrade hook keeps them current.</p>
+<h2 id="write-the-config">Write the config<a class="headerlink" href="#write-the-config" title="Permanent link">&para;</a></h2>
+<p>Put <code>nodeConfig</code> in the site's values. No secret values go here: a secret names the Kubernetes Secret its values are in.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">nodeConfig</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">providers</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">github</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">github</span><span class="w">                </span><span class="c1"># or gitea</span>
+<span class="w">      </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com</span>
+<span class="w">  </span><span class="nt">secrets</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">analysis-repo-creds</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">fromSecret</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">analysis-github-app</span><span class="p p-Indicator">}</span><span class="w">   </span><span class="c1"># keys APP_ID, INSTALLATION_ID, PRIVATE_KEY</span>
+<span class="w">    </span><span class="nt">omop-db-creds</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">fromSecret</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">omop-db-login</span><span class="p p-Indicator">}</span><span class="w">         </span><span class="c1"># keys USERNAME, PASSWORD</span>
+<span class="w">  </span><span class="nt">repositories</span><span class="p">:</span><span class="w">                   </span><span class="c1"># named by type and uri unless given a name</span>
+<span class="w">    </span><span class="nt">triggers</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/example-org/analysis-requests</span>
+<span class="w">        </span><span class="nt">secret</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">analysis-repo-creds</span>
+<span class="w">    </span><span class="nt">results</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/example-org/analysis-results</span>
+<span class="w">        </span><span class="nt">secret</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">analysis-repo-creds</span>
+<span class="w">  </span><span class="nt">datasets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">omop-cdm</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres</span>
+<span class="w">      </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">omop-db.example.org</span>
+<span class="w">      </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span>
+<span class="w">      </span><span class="nt">secret</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">omop-db-creds</span>
+<span class="w">  </span><span class="nt">projects</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cohort-study</span>
+<span class="w">      </span><span class="nt">datasets</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">omop-cdm</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">repositories</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">triggers</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/example-org/analysis-requests</span>
+<span class="w">            </span><span class="nt">watchDir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">specs/</span>
+<span class="w">            </span><span class="nt">baseBranch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">        </span><span class="nt">results</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/example-org/analysis-results</span>
+<span class="w">          </span><span class="nt">targetDir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">results/</span>
+<span class="w">          </span><span class="nt">baseBranch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+</code></pre></div>
+<p>Providers, secrets, repositories and datasets are global: any number of projects can use them. A project only assigns them. The full field list is in the chart's <code>values.yaml</code> and the CRDs in <code>k8s/federated-node/crds/</code>.</p>
+<h2 id="change-it">Change it<a class="headerlink" href="#change-it" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>To</th>
+<th>Do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Add or change</td>
+<td>Edit the values, review and merge, <code>helm upgrade</code>. With Flux (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/701">ADR 0031</a>), the merge is the upgrade</td>
+</tr>
+<tr>
+<td>Remove</td>
+<td>Delete the entry, or <code>git revert</code> the commit that added it, then upgrade. The operator soft-deletes the record</td>
+</tr>
+<tr>
+<td>See the state</td>
+<td><code>kubectl get fn -n fn-operator</code></td>
+</tr>
+</tbody>
+</table>
+<p>Flux is optional: <code>helm upgrade</code> by hand with the same values does the same.</p>
+<p>Removal is never forced. A global record that a project still uses is refused by nexus-api; its resource stays <code>Terminating</code>, with the reason in <code>Message</code>, and the operator retries every minute. Remove the project's use of it first.</p>
+<p>An edit in the UI or the API to a record the operator manages is refused (409): change it in git. A record someone made by hand before is theirs, so the operator cannot adopt it until the superuser re-assigns it to the operator's account (<code>PUT &lt;record path&gt;/owner</code>); until then the resource shows the 409 in <code>Message</code>.</p>
+<h2 id="who-may-use-it">Who may use it<a class="headerlink" href="#who-may-use-it" title="Permanent link">&para;</a></h2>
+<p>Any entry can list Keycloak groups and what each may do with the record:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">nodeConfig</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">projects</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cohort-study</span>
+<span class="w">      </span><span class="nt">access</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="nv">/studies/uc1</span><span class="p p-Indicator">,</span><span class="nt"> relation</span><span class="p">:</span><span class="w"> </span><span class="nv">read</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="nv">/studies/uc1-analysts</span><span class="p p-Indicator">,</span><span class="nt"> relation</span><span class="p">:</span><span class="w"> </span><span class="nv">execute</span><span class="p p-Indicator">}</span>
+</code></pre></div>
 <ul>
-<li><strong>Upgrade:</strong> bump <code>version</code> in <code>helmrelease.yaml</code> and merge. A failed upgrade is retried twice, then rolled back.</li>
-<li><strong>Revert:</strong> <code>git revert</code> that commit. Reverting the chart does not undo database migrations.</li>
-<li><strong>Config:</strong> edit <code>values.yaml</code> and merge. The values ConfigMap's name carries a hash of its content, so every values change upgrades the release.</li>
-<li><strong>Check:</strong> <code>flux get helmreleases -n &lt;namespace&gt;</code> and <code>helm history &lt;release&gt; -n &lt;namespace&gt;</code>.</li>
-<li><strong>Recover:</strong> an upgrade that breaks Gitea also stops Flux pulling the fix. By hand: <code>flux suspend helmrelease federated-node -n &lt;namespace&gt;</code>, <code>helm rollback &lt;release&gt; &lt;last good revision&gt; -n &lt;namespace&gt;</code>, push the fix to the site repository, <code>flux resume helmrelease federated-node -n &lt;namespace&gt;</code>.</li>
+<li><code>group</code> is the group's full path in Keycloak, starting with <code>/</code>. Membership stays in Keycloak or the hospital's directory; git names only groups.</li>
+<li><code>relation</code> is one of <code>read</code>, <code>assign</code>, <code>execute</code>, <code>operate</code>, <code>write</code> (<a href="https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/694">ADR 0037</a>). <code>manage</code> stays with the operator.</li>
+<li>The operator adds a group grant for each line, and removes a grant when its line is removed. Grants made at runtime, such as an approved data access request, are left alone.</li>
 </ul>
-<h2 id="pull-request-checks">Pull request checks<a class="headerlink" href="#pull-request-checks" title="Permanent link">&para;</a></h2>
-<p><code>site-example/</code> carries one check for the site repository's pull requests, with a pipeline for each CI system: <code>.github/workflows/validate.yml</code> (GitHub Actions), <code>azure-pipelines.yml</code> (Azure DevOps) and <code>.gitea/workflows/validate.yml</code> (Gitea Actions). Keep the one for the site's CI system and delete the others. All three run <code>ci/install-tools.sh</code> (pinned helm, kustomize and yq, fetched with curl) and then <code>ci/validate.sh</code>, which fails the pull request when:</p>
-<ul>
-<li><code>kustomize build</code> fails;</li>
-<li>the chart version the <code>HelmRelease</code> pins does not render with the site's values (<code>helm template</code>, which also checks them against the chart's values schema);</li>
-<li>a file <code>.sops.yaml</code> says to encrypt is in plain text.</li>
-</ul>
-<p>It needs no cluster, keys or cloud credentials. On Azure DevOps with an Azure Repos repository, add the pipeline as a build validation branch policy on <code>main</code>.</p>
-<p><code>renovate.json</code> makes Renovate open a pull request for each new chart version. Run Renovate as the site's CI system allows (the GitHub app, or self-hosted on Azure DevOps or Gitea); the client merging the pull request is their sign-off.</p>
-<h2 id="known-gaps">Known gaps<a class="headerlink" href="#known-gaps" title="Permanent link">&para;</a></h2>
-<ul>
-<li>Gitea needs direct outbound access to the site repository's host when it mirrors one: it does not use the chart's <code>proxy</code> or <code>customCA</code> yet.</li>
-<li>No nexus UI image is published yet: keep <code>nexus.ui.enabled: false</code> (the default).</li>
-</ul>
-<h2 id="try-it-locally">Try it locally<a class="headerlink" href="#try-it-locally" title="Permanent link">&para;</a></h2>
-<p><a href="../Flux-Dev-Loop/">Flux dev loop</a>: the same setup against the dev cluster, with <code>mise run flux</code>.</p>
+<h2 id="check-it">Check it<a class="headerlink" href="#check-it" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>get<span class="w"> </span>fn<span class="w"> </span>-n<span class="w"> </span>fn-operator
+</code></pre></div>
+<p>Each resource shows <code>Synced</code> and, when it is not synced, a <code>Message</code>: a NodeSecret's Kubernetes Secret that is missing, a dataset a project names that is not there yet, or an error from nexus-api. The operator retries every minute, so fix the cause and wait. Its log is <code>kubectl logs -n fn-operator deploy/nexus-operator</code>. With Flux, its annotations on the resource are in the log and the resource's events.</p>
+<h2 id="turn-it-off-or-uninstall">Turn it off or uninstall<a class="headerlink" href="#turn-it-off-or-uninstall" title="Permanent link">&para;</a></h2>
+<p>Setting <code>operator.enabled: false</code>, or <code>helm uninstall</code>, keeps the records in nexus-api. A hook first stops the operator and strips the finalizers from its resources, so they go without being soft-deleted. The chart renders <code>nodeConfig</code> only while the operator is on.</p>
+<p>To remove records, delete their entries and upgrade <strong>before</strong> turning the operator off.</p>
+<h2 id="in-development">In development<a class="headerlink" href="#in-development" title="Permanent link">&para;</a></h2>
+<p>Dev uses the same operator and resources, as YAML files in <code>config/</code>, applied with kubectl:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>diff<span class="w">   </span>-f<span class="w"> </span>config/demo.yaml<span class="w">     </span><span class="c1"># preview</span>
+kubectl<span class="w"> </span>apply<span class="w">  </span>-f<span class="w"> </span>config/demo.yaml
+kubectl<span class="w"> </span>delete<span class="w"> </span>-f<span class="w"> </span>config/demo.yaml<span class="w">     </span><span class="c1"># soft delete</span>
+</code></pre></div>
+<p><a href="../Run-Locally/">Run locally</a> walks through it.</p>
 
 
 
