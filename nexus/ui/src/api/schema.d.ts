@@ -143,7 +143,7 @@ export interface paths {
          *     on again skips the gap: what was merged while it was off gets no trigger. With
          *     `"backfill": true` it creates those triggers instead. `backfill` is only for enabling a
          *     disabled project (`"enabled": true`), otherwise a 400, and is not stored.
-         *     `revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:
+         *     `revoked` (a boolean, needs `write`; the rest needs `operate`) withdraws the project, or restores it, and does not change `enabled`:
          *     while it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger
          *     (see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.
          */
@@ -203,7 +203,7 @@ export interface paths {
         /**
          * Patch Project Dataset
          * @description PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the project resource on or
-         *     off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
+         *     off (enabled, needs `operate`), or revokes and re-grants it (revoked, needs `write`), which takes effect at once.
          */
         patch: operations["patch_project_dataset_projects__project_id__datasets__dataset_id__patch"];
         trace?: never;
@@ -260,7 +260,7 @@ export interface paths {
         /**
          * Patch Project Secret
          * @description PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the project resource on or off (enabled),
-         *     or revokes and re-grants it (revoked), which is admin only and takes effect at once.
+         *     or revokes and re-grants it (revoked), which takes effect at once. Needs `write`: `operate` does not cover secrets.
          */
         patch: operations["patch_project_secret_projects__project_id__secrets__label__patch"];
         trace?: never;
@@ -325,7 +325,7 @@ export interface paths {
          *     the project's results go (target_dir, base_branch, owned_by_federated_node), at any time (the tasks created
          *     before fail instead of delivering to the new place), or turns the project resource on or
          *     off (enabled), or revokes and re-grants it
-         *     (revoked), which is admin only and takes effect at once.
+         *     (revoked), which takes effect at once. Turning it on or off needs `operate`, anything else `write`.
          */
         patch: operations["patch_project_results_repository_projects__project_id__repositories_results__repository_id__patch"];
         trace?: never;
@@ -373,7 +373,7 @@ export interface paths {
          * Delete Dataset
          * @description DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
          *         unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
-         *         other datasets may share it. Admin only.
+         *         other datasets may share it.
          */
         delete: operations["delete_dataset_global_datasets__dataset_id__delete"];
         options?: never;
@@ -406,7 +406,8 @@ export interface paths {
         put?: never;
         /**
          * Post Tasks
-         * @description POST /projects/<project_id>/tasks endpoint. Creates a new task from API request
+         * @description POST /projects/<project_id>/tasks endpoint. Creates a new task from API request. Needs `execute` on the project
+         *     and on the dataset the task runs on (ADR 0038); a dataset denied, or revoked, rejects the request.
          */
         post: operations["post_tasks_projects__project_id__tasks_post"];
         delete?: never;
@@ -496,7 +497,7 @@ export interface paths {
         /**
          * Post Tasks Validate
          * @description POST /projects/<project_id>/tasks/validate endpoint.
-         *         Allows task definition validation without creating the task
+         *         Allows task definition validation without creating the task. Needs `execute` on the project.
          */
         post: operations["post_tasks_validate_projects__project_id__tasks_validate_post"];
         delete?: never;
@@ -978,7 +979,7 @@ export interface paths {
          * @description PATCH /projects/<project_id>/repositories/triggers/<repo_id> — changes what the
          *     project watches (watch_dir, base_branch), at any time, or turns the project resource on or off
          *     (enabled), or revokes and re-grants it
-         *     (revoked), which is admin only and takes effect at once.
+         *     (revoked), which takes effect at once. Turning it on or off needs `operate`, anything else `write`.
          */
         patch: operations["patch_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__patch"];
         trace?: never;
@@ -3438,8 +3439,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                project_id: number;
                 dataset_id: number;
+                project_id: number;
             };
             cookie?: never;
         };
@@ -3607,8 +3608,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                project_id: number;
                 label: string;
+                project_id: number;
             };
             cookie?: never;
         };
@@ -3776,8 +3777,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                project_id: number;
                 repository_id: number;
+                project_id: number;
             };
             cookie?: never;
         };
@@ -5114,8 +5115,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                project_id: number;
                 repo_id: number;
+                project_id: number;
             };
             cookie?: never;
         };

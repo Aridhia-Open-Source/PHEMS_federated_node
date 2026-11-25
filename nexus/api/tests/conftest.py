@@ -28,10 +28,14 @@ from app.models.project_results_repository import ProjectResultsRepository
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
 from app.models.api_request_trigger import ApiRequestTrigger
-from app.helpers.exceptions import KeycloakError
+from app.clients.access_token import access_tokens
+from app.helpers.exceptions import AuthenticationError
+from app.rules.ownership import set_owner
+from app.dtos.caller import Caller
+from app.models.user import User
 from tests.helpers.pull_requests import pr_body
 
-# Sample responses shared with the nexus client (nexus/fednode/tests/contract). The test compose file mounts them at /contract; outside docker they are in the repo.
+# Sample responses shared with the nexus client (nexus/client/tests/contract). The test compose file mounts them at /contract; outside docker they are in the repo.
 CONTRACT_DIR = Path("/contract") if Path("/contract").is_dir() else (
     Path(__file__).resolve().parents[2] / "client" / "tests" / "contract"
 )
@@ -58,11 +62,27 @@ def check_database_connection():
 
 
 sample_repo_uri = "github.com/org/test-repo"
-# The scopes the mocked Keycloak grants the admin token only: a non-admin token is refused (403) on a route with one
-ADMIN_ONLY_SCOPES = ('can_admin_request', 'can_do_admin')
-# The Dagster System user: Keycloak.is_token_valid skips the permission check for it, so it passes every scope, but it is not
-# an admin (is_user_admin, which g.caller_is_admin and so `revoked` use, is False for it)
+# Dagster's token: it passes the admin routers and the system_only routes, but is not an admin (no `revoked`)
 SYSTEM_TOKEN = "system_token"
+# The test bearer tokens and the node role each one's verified claims carry. tests/keycloak/test_token_verification.py
+# checks the real verification; everywhere else access_tokens.claims (app.clients.access_token) is stubbed with these.
+TEST_TOKEN_ROLES = {"admin_token": "Administrator", SYSTEM_TOKEN: "Dagster", "user_token": "Users"}
+# The role group each node role comes from (ADR 0036); a token carries it in its groups claim
+ROLE_GROUPS = {
+    "SuperUser": "/roles/superuser", "Administrator": "/roles/admins", "Service": "/roles/service",
+    "Dagster": "/roles/dagster",
+}
+SYSTEM_UUID = "5d0e7c56-3b1f-4f0a-9d7e-2f4c1a8b9e10"
+
+
+ADMIN_UUID = "9f18d2b5-edbc-4b4a-aab9-3a57bf67adbb"
+
+
+def owned_by_admin(record):
+    """A record made in a test without the API is created and owned by the admin user, who manages it."""
+    admin = Caller(user_id=ADMIN_UUID, role="Administrator", groups=["/roles/admins"], user=User.seen(ADMIN_UUID, "admin"))
+    set_owner(record, admin)
+    return record
 
 
 def provider_of(uri: str, type: str = "github", api_uri: str | None = None) -> GitProvider:
@@ -74,7 +94,7 @@ def provider_of(uri: str, type: str = "github", api_uri: str | None = None) -> G
         provider = GitProvider(
             name=f"{type}-{host}", type=type, uri=f"https://{host}", api_uri=api_uri or default_api
         )
-        provider.add()
+        owned_by_admin(provider).add()
     return provider
 
 
@@ -83,7 +103,7 @@ def new_repo(model, uri: str, secret_id: int, type: str = "github", api_uri: str
     repo = model(
         provider_id=provider_of(uri, type, api_uri).id, repo_path="/".join(uri.split("/")[-2:]), secret_id=secret_id
     )
-    repo.add()
+    owned_by_admin(repo).add()
     return repo
 
 sample_ds_body = {
@@ -100,12 +120,12 @@ def image_name():
 
 @fixture
 def user_token():
-    return "user_refresh_token"
+    return "user_token"
 
 # Users' section
 @fixture
 def admin_user_uuid():
-    return "9f18d2b5-edbc-4b4a-aab9-3a57bf67adbb"
+    return ADMIN_UUID
 
 @fixture
 def user_uuid():
@@ -122,13 +142,6 @@ def admin_user(admin_user_uuid):
 @fixture
 def basic_user(user_uuid):
     return {"email": "test@basicuser.com", "username": "test@basicuser.com", "id": user_uuid}
-
-@fixture
-def project_not_found(mocker):
-    return mocker.patch(
-        'app.helpers.wrappers.Keycloak.exchange_global_token',
-        side_effect=KeycloakError("Could not find project", 400)
-    )
 
 @fixture
 def simple_admin_header(login_admin):
@@ -192,7 +205,8 @@ def client():
 # K8s
 @fixture
 def k8s_config(mocker):
-    mocker.patch('fednode.clients.kubernetes.client.load_kubernetes_config', return_value=None)
+    mocker.patch('kubernetes.config.load_kube_config', return_value=Mock())
+    mocker.patch('app.clients.kubernetes.config.load_kube_config', Mock())
 
 @fixture
 def v1_mock(mocker):
@@ -252,7 +266,7 @@ def reg_k8s_client(k8s_client):
 def project(client) -> Project:
     """The project datasets, tasks and whitelisted images belong to in tests."""
     project = Project(name="TestProject", enabled=True)
-    project.add()
+    owned_by_admin(project).add()
     return project
 
 
@@ -295,7 +309,7 @@ def make_task(client, project):
 def other_project(client) -> Project:
     """A second project, for checking one project cannot reach another's rows."""
     project = Project(name="OtherProject", enabled=True)
-    project.add()
+    owned_by_admin(project).add()
     return project
 
 
@@ -303,7 +317,7 @@ def other_project(client) -> Project:
 @fixture
 def secret(client) -> Secret:
     secret = Secret(label="test-creds", provider=SecretProviderType.K8S)
-    secret.add()
+    owned_by_admin(secret).add()
     return secret
 
 
@@ -354,7 +368,7 @@ def default_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret,
     """The project's assignment of the trigger repository, watching the whole repository."""
     # The project's default dataset, which a pull request of the repository runs against
     dataset = Dataset(name="DefaultDatasetForRepo", host="example.com", port=5432, secret_id=secret.id)
-    dataset.add(user_id=user_uuid)
+    owned_by_admin(dataset).add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
 
     assignment = ProjectTriggerRepository(project.id, trigger_repo.id, watch_dir="", base_branch="main")
@@ -389,7 +403,7 @@ def admin_headers(post_json_admin_header):
 def make_global_secret(client):
     def _make(label="test-creds") -> Secret:
         secret = Secret(label=label, provider=SecretProviderType.K8S)
-        secret.add()
+        owned_by_admin(secret).add()
         return secret
     return _make
 
@@ -398,7 +412,7 @@ def make_global_secret(client):
 def make_global_dataset(client, user_uuid, k8s_client, mock_kc_client, secret):
     def _make(name="GlobalDs", secret=secret) -> Dataset:
         dataset = Dataset(name=name, host="example.com", port=5432, secret_id=secret.id)
-        dataset.add(user_id=user_uuid)
+        owned_by_admin(dataset).add(user_id=user_uuid)
         return dataset
     return _make
 
@@ -559,7 +573,7 @@ def dataset_post_body(default_repo, project):
 @fixture
 def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
     dataset = Dataset(name="TestDs", host="example.com", port=5432, secret_id=secret.id)
-    dataset.add(user_id=user_uuid)
+    owned_by_admin(dataset).add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
     return dataset
 
@@ -568,7 +582,7 @@ def dataset(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> D
 def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, secret) -> Dataset:
     # Create dataset first
     dataset = Dataset(name="TestDsRepo", host="example.com", port=5432, secret_id=secret.id)
-    dataset.add(user_id=user_uuid)
+    owned_by_admin(dataset).add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
 
     # Then the repository, assigned to the project
@@ -580,9 +594,8 @@ def dataset_with_repo(client, user_uuid, k8s_client, mock_kc_client, project, se
 
 @fixture
 def dataset_oracle(mocker, client, user_uuid, k8s_client, project, secret)  -> Dataset:
-    mocker.patch('app.helpers.wrappers.Keycloak.is_token_valid', return_value=True)
     dataset = Dataset(name="AnotherDS", host="example.com", port=5432, secret_id=secret.id, type="oracle")
-    dataset.add(user_id=user_uuid)
+    owned_by_admin(dataset).add(user_id=user_uuid)
     ProjectDataset(project.id, dataset.id).add()
     return dataset
 
@@ -597,45 +610,50 @@ def new_user(new_user_email):
     return {"email": new_user_email, "id": "8b707136-a2d8-4b69-9ab5-ec341011a62f", "username": new_user_email}
 
 
-@fixture
-def mock_keycloak_class(mocker):
-    return mocker.patch(
-        'app.models.dataset.Keycloak',
-        return_value=Mock(
-            get_client_id=Mock(return_value="client_id"),
-            get_token=Mock(return_value="token"),
-            get_policy=Mock(return_value={"id": "policy"}),
-            get_scope=Mock(return_value={"id": "scope"}),
-            create_policy=Mock(return_value={"id": "policy"}),
-            create_resource=Mock(return_value={"_id": "resource"}),
-            create_permission=Mock(return_value={"id": "permission"}),
-            is_token_valid=Mock(return_value=True)
-        )
-    )
+def claims_for(sub: str, username: str, role: str, groups: list[str] | None = None) -> dict:
+    """
+    The claims of a verified access token holding one node role (plus a Keycloak default role, ignored). groups
+    defaults to the role's group.
+    """
+    if groups is None:
+        groups = [ROLE_GROUPS[role]] if role in ROLE_GROUPS else []
+    return {
+        "sub": sub, "preferred_username": username, "groups": groups,
+        "realm_access": {"roles": [role, "default-roles-federatednode"]},
+    }
 
 
 @fixture(autouse=True)
-def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
-    decode_token_return = deepcopy(basic_user)
+def token_claims(mocker, admin_user, basic_user) -> dict:
+    """
+    token -> the claims it verifies to. Add to it for other callers; any other token is a 401. The admin, the
+    user and Dagster are three users, so a grant of one is not the others'.
+    """
+    claims = {
+        "admin_token": claims_for(admin_user["id"], admin_user["username"], "Administrator"),
+        "user_token": claims_for(basic_user["id"], basic_user["username"], "Users"),
+        SYSTEM_TOKEN: claims_for(SYSTEM_UUID, "service-account-dagster", "Dagster"),
+    }
+
+    def decode(token: str) -> dict:
+        if token not in claims:
+            raise AuthenticationError("Token is not valid")
+        return claims[token]
+
+    mocker.patch.object(access_tokens, 'claims', side_effect=decode)
+    return claims
+
+
+@fixture(autouse=True)
+def mock_kc_client(mocker, basic_user):
     create_user_return = deepcopy(basic_user)
-    decode_token_return["sub"] = user_uuid
     create_user_return["password"] = "tempPassword!"
     kc_mock = {
-        "auth_kc": mocker.patch('app.auth_api.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-            get_user_by_email=Mock(return_value=basic_user),
-        )),
-        "wrappers_kc": mocker.patch('app.helpers.wrappers.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-            decode_token=Mock(return_value=decode_token_return),
-            get_user_by_email=Mock(return_value=basic_user),
-            get_user_by_username=Mock(return_value=basic_user),
-            is_user_admin=Mock(side_effect=lambda token: token == "admin_token"),
-            is_system_user=Mock(side_effect=lambda token: token == SYSTEM_TOKEN),
-            is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token in ("admin_token", SYSTEM_TOKEN) or scope not in ADMIN_ONLY_SCOPES)
-        )),
+        "main_tokens": mocker.patch(
+            'app.main.user_tokens', return_value={"token": "access", "refresh_token": "refresh"}
+        ),
         # TODO(DAR): the datasets_api Keycloak mock went with the DAR code in that module
-        "users_api_kc": mocker.patch('app.globals.users_api.Keycloak', return_value=Mock(
+        "users_api_kc": mocker.patch('app.users_api.Keycloak', return_value=Mock(
             get_token=Mock(return_value={"access_token": "token"}),
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),
             get_user_by_email=Mock(return_value=basic_user),
@@ -643,24 +661,5 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             create_user=Mock(return_value=create_user_return),
             get_user_role=Mock(return_value="Users"),
         )),
-        "dataset_kc": mock_keycloak_class,
-        "task_kc": mocker.patch('app.models.task.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
-            decode_token=Mock(return_value=decode_token_return),
-            get_user_by_email=Mock(return_value=basic_user),
-            list_users=Mock(return_value=[basic_user]),
-            create_user=Mock(return_value=create_user_return),
-            get_user_role=Mock(return_value="Users"),
-        )),
-        "tasks_api_kc": mocker.patch('app.projects.tasks_api.Keycloak', return_value=Mock(
-            get_token=Mock(return_value={"access_token": "token"}),
-            get_admin_token=Mock(return_value={"access_token": "admin_token"}),
-            decode_token=Mock(return_value=decode_token_return),
-            get_user_by_email=Mock(return_value=basic_user),
-            list_users=Mock(return_value=[basic_user]),
-            create_user=Mock(return_value=create_user_return),
-            get_user_role=Mock(return_value="Users"),
-        ))
     }
     return kc_mock

@@ -30,14 +30,15 @@ from app.helpers.exceptions import (
     DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
     UnauthorizedError
 )
-from app.clients.keycloak import Keycloak  # noqa: F401  patched by tests/conftest.py
 from app.rules.project_state import require_accepts_tasks
 from app.clients.kubernetes_names import validate_dns_label
 from app.rules.state_rules import transition
 from app.tasks.task_config import decide_launch
 from app.tasks.task_resources import create_run_resources, delete_run_resources
 from app.dtos.task_spec import TaskSpecRequest
-from app.helpers.wrappers import Caller, get_caller, system_only
+from app.rules.authz import SYSTEM_ONLY, Access, Action, require
+from app.helpers.wrappers import Caller, get_caller
+from app.models.node_role import NodeRole
 from app.dtos.dataset import DatasetDTO
 from app.dtos.base import page_of
 from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskResourcesDTO
@@ -67,8 +68,8 @@ def does_user_own_task(task: Task, caller: Caller):
 
     If they don't, an exception is raised with 403 status code
     """
-    # TODO(auth): revisit with the Keycloak/authorization rework.
-    if task.requested_by != caller.user_id and not caller.is_admin and not caller.is_system:
+    # Stopgap owner/role check: Cedar read enforcement (auth/8 #688, T-076) replaces it.
+    if task.requested_by != caller.user_id and not caller.is_admin and caller.role != NodeRole.DAGSTER:
         raise UnauthorizedError("User does not have enough permissions")
 
 
@@ -154,7 +155,7 @@ def get_task_id(project_id: int, task_id: int, caller: Caller = Depends(get_call
 
 @router.patch(
     '/{task_id}', response_model=TaskDTO,
-    dependencies=[Depends(system_only)]
+    dependencies=SYSTEM_ONLY
 )
 def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=dict)):
     """
@@ -211,12 +212,17 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
     return TaskDTO.from_model(task)
 
 
-@router.post('/{task_id}/retry', response_model=TaskDTO)
-def retry_task(project_id: int, task_id: int):
+@router.post(
+    '/{task_id}/retry', response_model=TaskDTO, dependencies=[Depends(Access(model=Project, action=Action.EXECUTE))]
+)
+def retry_task(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
-    POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
+    POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt.
+    Needs `execute` on the project and, as when the task was created, on the dataset it runs on.
     """
     task = get_project_task(project_id, task_id)
+    if task.spec.dataset:
+        require(caller, Action.EXECUTE, task.spec.dataset)
 
     if task.status not in RETRYABLE:
         raise InvalidRequest(f"Only a {TaskStatus.FAILED} or {TaskStatus.CANCELED} task can be retried")
@@ -233,7 +239,7 @@ def retry_task(project_id: int, task_id: int):
     return TaskDTO.from_model(task)
 
 
-@router.post('/{task_id}/cancel')
+@router.post('/{task_id}/cancel', dependencies=[Depends(Access(model=Project, action=Action.EXECUTE))])
 def cancel_tasks(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/cancel endpoint. Cancels a task either scheduled or running one
@@ -243,15 +249,15 @@ def cancel_tasks(project_id: int, task_id: int):
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=TaskCreatedDTO)
 def post_tasks(
-    project_id: int, raw: str = Depends(raw_body), req_body: dict = Body(default_factory=dict),
-    caller: Caller = Depends(get_caller)
+    project_id: int, raw: str = Depends(raw_body), req_body: dict = Body(default_factory=dict), *,
+    project: Project = Depends(Access(model=Project, action=Action.EXECUTE)), caller: Caller = Depends(get_caller),
 ):
     """
-    POST /projects/<project_id>/tasks endpoint. Creates a new task from API request
+    POST /projects/<project_id>/tasks endpoint. Creates a new task from API request. Needs `execute` on the project
+    and on the dataset the task runs on (ADR 0037); a dataset denied, or revoked, rejects the request.
     """
     req_body["project_id"] = project_id
 
-    project = Project.get_by_id(project_id)
     require_accepts_tasks(project)
 
     # The request is recorded before it is evaluated. A rejected one is kept, with
@@ -267,7 +273,9 @@ def post_tasks(
         # against, if any, is the one the task runs on.
         spec = TaskSpecRequest.from_api_body(req_body)
         req_body["docker_image"] = spec.image
-        validated = Task.validate(req_body, caller.token)
+        validated = Task.validate(req_body, caller.user_id)
+        if validated["dataset"]:
+            require(caller, Action.EXECUTE, validated["dataset"])
         spec.dataset = validated["dataset"].name if validated["dataset"] else None
         new_task = NewTaskDTO.from_spec(spec, api_request)
     except VALIDATION_ERRORS as error:
@@ -289,17 +297,19 @@ def post_tasks(
     }
 
 
-@router.post('/validate', response_class=PlainTextResponse)
+@router.post(
+    '/validate', response_class=PlainTextResponse,
+    dependencies=[Depends(Access(model=Project, action=Action.EXECUTE))],
+)
 def post_tasks_validate(project_id: int, req_body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
     """
     POST /projects/<project_id>/tasks/validate endpoint.
-        Allows task definition validation without creating the task
+        Allows task definition validation without creating the task. Needs `execute` on the project.
     """
-    Project.get_by_id(project_id)
     req_body["project_id"] = project_id
     spec = TaskSpecRequest.from_api_body(req_body)
     req_body["docker_image"] = spec.image
-    Task.validate(req_body, caller.token)
+    Task.validate(req_body, caller.user_id)
     return "Ok"
 
 
@@ -340,7 +350,7 @@ def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_
 
 @router.post(
     '/{task_id}/launch', response_model=TaskLaunchDTO,
-    dependencies=[Depends(system_only)]
+    dependencies=SYSTEM_ONLY
 )
 def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
@@ -374,7 +384,7 @@ def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_call
 
 @router.post(
     '/{task_id}/runs/{run_id}/resources', status_code=HTTPStatus.CREATED, response_model=TaskResourcesDTO,
-    dependencies=[Depends(system_only)]
+    dependencies=SYSTEM_ONLY
 )
 def post_run_resources(project_id: int, task_id: int, run_id: str, caller: Caller = Depends(get_caller)):
     """
@@ -411,7 +421,7 @@ def get_tasks_logs(project_id: int, task_id: int):
     raise NotImplementedException()
 
 
-@router.post('/{task_id}/results/approve')
+@router.post('/{task_id}/results/approve', dependencies=[Depends(Access(model=Project, action=Action.WRITE))])
 def approve_results(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/results/approve endpoint.
@@ -421,7 +431,7 @@ def approve_results(project_id: int, task_id: int):
     raise NotImplementedException()
 
 
-@router.post('/{task_id}/results/block')
+@router.post('/{task_id}/results/block', dependencies=[Depends(Access(model=Project, action=Action.WRITE))])
 def block_results(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/results/block endpoint.
