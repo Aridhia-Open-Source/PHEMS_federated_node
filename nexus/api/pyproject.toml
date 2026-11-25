@@ -33,6 +33,7 @@ dependencies = [
     "fastapi-pagination~=0.16.1",
     "uvicorn~=0.54.0",
     "python-multipart~=0.0.32",
+    "cedarpy~=4.12.2",
 ]
 
 [project.optional-dependencies]

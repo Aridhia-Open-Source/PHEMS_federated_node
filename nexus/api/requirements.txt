@@ -14,6 +14,38 @@ anyio==4.15.1 \
     --hash=sha256:6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101 \
     --hash=sha256:9f28306018cbd6d329e64a36d58256edff76dd996fe423bc957326e578b82a94
     # via starlette
+cedarpy==4.12.2 \
+    --hash=sha256:007864e951556b9ec769f3d446f73b3b13f2234aaa00056627bb49218c30aac0 \
+    --hash=sha256:0626f2c55e3982b89423402fe6d91334ef2a780c2951c81408676e9ea2f21ac4 \
+    --hash=sha256:1a27d6d80665068df644059c6a3513700f3df0f50fd65b3f0050661aa13d4170 \
+    --hash=sha256:1b793721d6ffa49a4a94863404332d7da8fe140dc9e97b83217143bfec2a26fe \
+    --hash=sha256:1e777f80ac23f50bcb5319a9724015788e262ed7d4efd7c9bc3aa6d5fe072f66 \
+    --hash=sha256:310afe5d97fc82238592e760e2cef8f25dbb193c6abede93c6c5cc6564842433 \
+    --hash=sha256:33d6430cf5ec485638cb051c91aa6068b0d70d641d01201a2883cf1b5bf11c20 \
+    --hash=sha256:35bf1028237cc3aeb0717d8d1c129c355caf8440ec007e6a1309457be94a86b4 \
+    --hash=sha256:38941ae12f187e00896ce31036d436fc3190fd0f1501daea6265006aea018e4a \
+    --hash=sha256:445ec987b2d39be0e1c55cb4a21121ae10cf95adcebfa156331341f94a8b4d31 \
+    --hash=sha256:48bac292e79f88740b90d0a5abde2e2c61a77ca7876e1048da1379a901e8373f \
+    --hash=sha256:5f85dc340b97e7057ca5ab8249659ced6d69a13bcb01a248c1d8c9544f34a0c6 \
+    --hash=sha256:61e49baf4d075189c068a028a01f6e2f5bb91f1877a2039c55b4fb8709659a07 \
+    --hash=sha256:651e25541c43ce1efbf0c58da6af70a312f6138f56e248522365660031202571 \
+    --hash=sha256:6d4fee5fee0634a41e08432fc33ecbbe3eb5e6a5f058958a333ed8089579442c \
+    --hash=sha256:6fcee9586e069df5b95d369984483b8d2ffcdb588a305a6a738bc934ed1db3f2 \
+    --hash=sha256:82ed87e561db7f468c9262993a41ce20ffcfecdc8c9e98f20619f31d01400ac5 \
+    --hash=sha256:868a741d31599ea3a10e9e4ae62ffe6213837dcd5295349b13c456ed706c026d \
+    --hash=sha256:9b2a3fa0af5fc9369d3be2e761ef98d1bd27b2eb3d6f16260f01642a1ee05b4e \
+    --hash=sha256:9e902ab0faafbe1109cea456daba1b0cabd309eaef8b2e6f517949522c24daa3 \
+    --hash=sha256:a389bc0e930797e23428608304a0fc78dc46d8b5f2405cc80a683dcde2998ceb \
+    --hash=sha256:a38d8d3318cf5067d1240c56e8f76cd3882b048ed1580fdd9794d1d793d5e0eb \
+    --hash=sha256:b1829d4b6163072a04d1e6a774f7771b08d15dcee19901f04d70f5a75c27ebb0 \
+    --hash=sha256:b5545f575fad6667560b3ca6910b879250dc320095b4eb10d183e09ae5da99dd \
+    --hash=sha256:bb52e8af010ee7bd3a4c227d7b20be392085900cd6ef554b0d662e265ed45895 \
+    --hash=sha256:c0214599126a6ee93191fc1f0b559e00fbc1e3f07610ec0e3ab31927b40550e7 \
+    --hash=sha256:e1b7d93a1b47d9afacb9cdb809576bf9fafa61b266c9f7a587cc2cf80034c489 \
+    --hash=sha256:e359db5ae9a1e1e7ec00127b9a97899fd313a931ab4e3f116a47e4996758e897 \
+    --hash=sha256:eb6d1f0f40208a2bbcdd20e711a03f7f45bf8c301bb1560a0f162ed6b2f875af \
+    --hash=sha256:fdbb1ef908bad76d8fa1fa2d774377bf4763e238a2ca6ac2f1cc15b93a389748
+    # via nexus-api (pyproject.toml)
 certifi==2026.10.23 \
     --hash=sha256:a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd \
     --hash=sha256:e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1
@@ -470,9 +502,7 @@ joserfc==1.6.8 \
 kubernetes==33.1.0 \
     --hash=sha256:544de42b24b64287f7e0aa9513c93cb503f7f40eea39b20f66810011a86eabc5 \
     --hash=sha256:f64d829843a54c251061a8e7a14523b521f2dc5c896cf6d65ccf348648a88993
-    # via
-    #   fednode (../fednode/pyproject.toml)
-    #   nexus-api (pyproject.toml)
+    # via nexus-api (pyproject.toml)
 mako==1.4.3 \
     --hash=sha256:723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f \
     --hash=sha256:cd6537fe88d5fec315c55c2f8529bc4ce7a9a352ad7db3eeaa6a66e2dd4ec37a
@@ -667,7 +697,6 @@ pydantic==2.14.1 \
     # via
     #   fastapi
     #   fastapi-pagination
-    #   fednode (../fednode/pyproject.toml)
     #   nexus-api (pyproject.toml)
     #   pydantic-settings
 pydantic-core==2.50.1 \
@@ -812,9 +841,7 @@ pydantic-core==2.50.1 \
 pydantic-settings==2.16.1 \
     --hash=sha256:30f5313340da4e8f1b440d1910b92a5bc3ccbb6b4ba70ec2b8395bc921f418f5 \
     --hash=sha256:aff602a1886338c2df3d1e958e2193a8dc33cec75b91f202e83fd98484b4b0da
-    # via
-    #   fednode (../fednode/pyproject.toml)
-    #   nexus-api (pyproject.toml)
+    # via nexus-api (pyproject.toml)
 pyjwt==2.10.1 \
     --hash=sha256:3cc5772eb20009233caf06e9d8a0577824723b44e6648ee0a2aedb6cf9381953 \
     --hash=sha256:dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb
@@ -955,7 +982,6 @@ requests==2.32.5 \
     --hash=sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6 \
     --hash=sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf
     # via
-    #   fednode (../fednode/pyproject.toml)
     #   kubernetes
     #   nexus-api (pyproject.toml)
     #   requests-oauthlib

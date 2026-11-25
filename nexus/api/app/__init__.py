@@ -2,8 +2,11 @@
 Entrypoint for nexus-api: uvicorn --factory app:create_app.
 Every router is registered here up front; a router module owns its routes and nothing else.
 Deny by default: every router needs an admin node role (or Dagster), except the ones in OPEN_ROUTERS.
+The Cedar policies (ADR 0037) are validated here: nexus-api does not start if they fail. On startup a new policy
+hash is recorded in policy_versions.
 """
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi_pagination import add_pagination
@@ -14,6 +17,7 @@ from app import (
     dagster_api, healthcheck_api, grants_api,
 )
 from app.errors import register_error_handlers
+from app.rules.authz import check_policies, record_policy_version
 from app.helpers.wrappers import require_role
 from app.models.node_role import ADMIN_ROLES, NodeRole
 from app.middleware import JsonObjectBodyMiddleware, SessionMiddleware, TrailingSlashMiddleware
@@ -29,8 +33,16 @@ OPEN_ROUTERS = (
 )
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Startup: records the policy files' hash in policy_versions if it is new."""
+    record_policy_version()
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="Federated Node", redirect_slashes=False)
+    check_policies()
+    app = FastAPI(title="Federated Node", redirect_slashes=False, lifespan=lifespan)
     register_error_handlers(app)
     # The last added runs first: the session scope wraps everything
     app.add_middleware(JsonObjectBodyMiddleware)

@@ -5,16 +5,16 @@ Grants on projects and global records (ADR 0037). Each record path gets:
 - DELETE <record path>/grants/{grant_id}: removes one
 - PUT <record path>/owner: SuperUser only; sets owned_by to the caller (no body) or to a named user, and gives
   them manage. The former owner's manage grant stays.
-Only a manage holder or SuperUser changes a record's grants; a deny is a 409 naming the owner. Checked here in
-Python for now; the Cedar check (Access / can()) replaces it.
+Only a manage holder or SuperUser changes a record's grants; a deny is a 409 naming the owner. Checked through
+Cedar (can(caller, Action.MANAGE, record)); claiming and re-assigning stay a SuperUser role check.
 """
 from collections.abc import Callable
 from http import HTTPStatus
 
-import sqlalchemy as sa
 from fastapi import APIRouter, Depends
 
 from app.dtos.grant import GrantDTO, GrantRequest, OwnerRequest
+from app.rules.authz import Action, can
 from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.rules.ownership import add_manage
@@ -22,7 +22,7 @@ from app.dtos.caller import Caller
 from app.helpers.wrappers import get_caller
 from app.models.dataset import Dataset
 from app.models.git_provider import GitProvider
-from app.models.grant import GROUP, MANAGE, USER, Grant
+from app.models.grant import MANAGE, USER, Grant
 from app.models.node_role import NodeRole
 from app.models.project import Project
 from app.models.results_repository import ResultsRepository
@@ -31,18 +31,8 @@ from app.models.trigger_repository import TriggerRepository
 from app.models.user import OwnedMixin, User
 
 
-def _holds_manage(record: OwnedMixin, caller: Caller) -> bool:
-    """Whether the caller, or one of its groups, holds an unexpired manage grant on the record."""
-    subject = sa.or_(
-        sa.and_(Grant.subject_type == USER, Grant.subject_id == caller.user_id),
-        sa.and_(Grant.subject_type == GROUP, Grant.subject_id.in_(caller.groups)),
-    )
-    unexpired = sa.or_(Grant.expires_at.is_(None), Grant.expires_at > sa.func.timezone('utc', sa.func.now()))
-    return db.session.scalars(Grant.of(record).where(Grant.relation == MANAGE, subject, unexpired)).first() is not None
-
-
 def _check_manage(record: OwnedMixin, caller: Caller) -> None:
-    if caller.role == NodeRole.SUPERUSER or _holds_manage(record, caller):
+    if can(caller, Action.MANAGE, record):
         return
     owner = record.owned_by.username if record.owned_by else "nobody"
     raise InvalidRequest(
