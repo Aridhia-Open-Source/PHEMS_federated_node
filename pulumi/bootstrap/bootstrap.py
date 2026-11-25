@@ -72,7 +72,7 @@ def create_deployment_repository() -> github.Repository:
         has_projects=False,
         has_wiki=False,
         delete_branch_on_merge=True,
-        provider=provider,
+        opts=pulumi.ResourceOptions(provider=provider),
     )
 
     # auto_init gives both a new repository and an imported empty repository a
