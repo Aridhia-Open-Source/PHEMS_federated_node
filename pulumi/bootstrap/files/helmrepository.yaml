@@ -1,7 +1,7 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: federated-node
+  name: fn-charts
   namespace: {{NAMESPACE}}
 spec:
   interval: 10m

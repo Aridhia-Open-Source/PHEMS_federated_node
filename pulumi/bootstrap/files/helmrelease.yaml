@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: federated-node
+  name: {{RELEASE_NAME}}
   namespace: {{NAMESPACE}}
 spec:
   interval: 10m
@@ -11,8 +11,7 @@ spec:
       version: "{{CHART_VERSION}}"
       sourceRef:
         kind: HelmRepository
-        name: federated-node
-        namespace: {{NAMESPACE}}
+        name: fn-charts
   install:
     remediation:
       retries: 2
@@ -23,3 +22,4 @@ spec:
   valuesFrom:
     - kind: ConfigMap
       name: federated-node-values
+      valuesKey: values.yaml

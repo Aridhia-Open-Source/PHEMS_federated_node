@@ -4,3 +4,10 @@ resources:
   - namespaces.yaml
   - helmrepository.yaml
   - helmrelease.yaml
+configMapGenerator:
+  - name: federated-node-values
+    namespace: {{NAMESPACE}}
+    files:
+      - values.yaml
+configurations:
+  - kustomizeconfig.yaml

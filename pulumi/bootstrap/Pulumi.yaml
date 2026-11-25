@@ -19,3 +19,6 @@ config:
   phems-deployment-bootstrap:chart-version:
     description: Federated Node chart version pinned by Flux
     default: 0.0.1
+  phems-deployment-bootstrap:release-name:
+    description: Helm release name used by Flux
+    default: federated-node

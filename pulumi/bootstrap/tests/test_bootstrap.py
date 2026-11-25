@@ -14,11 +14,14 @@ def test_all_bootstrap_files_exist():
         "helmrepository.yaml",
         "helmrelease.yaml",
         "values.yaml",
+        "kustomizeconfig.yaml",
     }
     assert {path.name for path in (ROOT / "files").iterdir()} == expected
 
 
-@pytest.mark.parametrize("placeholder", ("{{SITE}}", "{{NAMESPACE}}", "{{CHART_VERSION}}"))
+@pytest.mark.parametrize(
+    "placeholder", ("{{SITE}}", "{{NAMESPACE}}", "{{CHART_VERSION}}", "{{RELEASE_NAME}}")
+)
 def test_templates_use_only_known_placeholders(placeholder):
     content = "\n".join(
         path.read_text(encoding="utf-8") for path in (ROOT / "files").iterdir()

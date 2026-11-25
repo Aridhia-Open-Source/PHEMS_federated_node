@@ -19,15 +19,24 @@ FILES = (
     "helmrepository.yaml",
     "helmrelease.yaml",
     "values.yaml",
+    "kustomizeconfig.yaml",
 )
 
 
-def _render(path: str, *, site: str, namespace: str, chart_version: str) -> str:
+def _render(
+    path: str,
+    *,
+    site: str,
+    namespace: str,
+    chart_version: str,
+    release_name: str,
+) -> str:
     content = (ROOT / "files" / path).read_text(encoding="utf-8")
     return (
         content.replace("{{SITE}}", site)
         .replace("{{NAMESPACE}}", namespace)
         .replace("{{CHART_VERSION}}", chart_version)
+        .replace("{{RELEASE_NAME}}", release_name)
     )
 
 
@@ -40,6 +49,7 @@ def create_deployment_repository() -> github.Repository:
     site = config.get("site") or "site"
     namespace = config.get("namespace") or "fn"
     chart_version = config.get("chart-version") or "0.0.1"
+    release_name = config.get("release-name") or "federated-node"
     default_branch = "main"
 
     provider = github.Provider("github", owner=owner)
@@ -70,6 +80,7 @@ def create_deployment_repository() -> github.Repository:
                 site=site,
                 namespace=namespace,
                 chart_version=chart_version,
+                release_name=release_name,
             ),
             commit_message=f"Bootstrap {path}",
             commit_author="Pulumi",
