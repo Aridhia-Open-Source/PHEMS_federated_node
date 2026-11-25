@@ -2,46 +2,12 @@ From d7a7dcfe28a57e5f118ac1b3da7e885820556726 Mon Sep 17 00:00:00 2001
 From: codepint <george.eddie@aridhia.com>
 Date: Tue, 24 Nov 2026 02:36:35 +0000
 Subject: [PATCH 3/5] fix(verify): global client gets the basic scope, so
- tokens carry sub (realms.json + kc-init m004) [skip ci]
+ tokens carry sub (realms.json) [skip ci]
 
 ---
- .../migrations/m004_basic_client_scope.py     | 26 +++++++++++++++++++
- k8s/federated-node/scripts/realms.json        |  1 +
- 2 files changed, 27 insertions(+)
- create mode 100644 build/kc-init/migrations/m004_basic_client_scope.py
+ k8s/federated-node/scripts/realms.json | 1 +
+ 1 file changed, 1 insertion(+)
 
-diff --git a/build/kc-init/migrations/m004_basic_client_scope.py b/build/kc-init/migrations/m004_basic_client_scope.py
-new file mode 100644
-index 000000000..aceee141d
---- /dev/null
-+++ b/build/kc-init/migrations/m004_basic_client_scope.py
-@@ -0,0 +1,26 @@
-+"""
-+Give the global client Keycloak's `basic` client scope, which puts `sub` (and `auth_time`) in its tokens.
-+
-+nexus-api requires `sub` in every access token (ADR 0036: it is the caller's user id). Since Keycloak 25
-+`sub` comes from the `basic` scope, and realms.json listed the global client's default scopes without it,
-+so every token was refused as "missing the sub claim". realms.json now lists it for a fresh realm; this
-+adds it to an existing one. Adding a default scope the client already has is a no-op.
-+"""
-+import requests
-+
-+from common import get_client_uuid, is_response_good
-+from settings import settings
-+
-+VERSION = 4
-+DESCRIPTION = "basic client scope (the sub claim) on the global client"
-+
-+
-+def migrate(admin_token: str):
-+    headers = {'Authorization': f'Bearer {admin_token}'}
-+    realm_url = f"{settings.keycloak_url}/admin/realms/{settings.keycloak_realm}"
-+    response = requests.get(f"{realm_url}/client-scopes", headers=headers)
-+    is_response_good(response)
-+    scope_id = next(scope["id"] for scope in response.json() if scope["name"] == "basic")
-+    client_id = get_client_uuid("global", admin_token)
-+    response = requests.put(f"{realm_url}/clients/{client_id}/default-client-scopes/{scope_id}", headers=headers)
-+    is_response_good(response)
 diff --git a/k8s/federated-node/scripts/realms.json b/k8s/federated-node/scripts/realms.json
 index 7a7f401f9..a8f3bd735 100644
 --- a/k8s/federated-node/scripts/realms.json
@@ -56,4 +22,3 @@ index 7a7f401f9..a8f3bd735 100644
          "profile",
 -- 
 2.43.0
-
