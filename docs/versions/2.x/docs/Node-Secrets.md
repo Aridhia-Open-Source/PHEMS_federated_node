@@ -2,7 +2,7 @@
 
 A **NodeSecret** is a nexus-api secret (git credentials, a database login) given by reference: it names the Kubernetes Secret its values are in, never the values. The operator reads that Secret and writes the values to nexus-api. This page is for the admin who sets them up. For the rest of the node's config, see [Node config](./Node-Config).
 
-The design is in [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/project/decisions/0032-declarative-node-config-through-an-operator.md).
+The design is in [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/716).
 
 
 ## Name the Secret

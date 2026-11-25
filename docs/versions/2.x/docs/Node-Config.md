@@ -2,7 +2,7 @@
 
 A node's config is what it needs before it can run a task: git providers, secrets, trigger and results repositories, datasets, and projects with what they are assigned. With the **nexus operator** on, that config lives in git as Helm values, and the operator applies it to nexus-api. This page is for the admin who keeps that config. For the secrets, see [Node secrets](./Node-Secrets).
 
-The design is in [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/blob/main/project/decisions/0032-declarative-node-config-through-an-operator.md).
+The design is in [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/716).
 
 
 ## How it works
