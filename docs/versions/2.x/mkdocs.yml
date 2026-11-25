@@ -63,6 +63,9 @@ nav:
   - Getting started:
       - Prerequisites: Prerequisites.md
       - "Deploy: Core": Deploy-Core.md
+      - Deploy with Flux: Deploy-With-Flux.md
+      - Flux secrets: Flux-Secrets.md
+      - Flux site repository mirror: Flux-Site-Repository-Mirror.md
       - Deploy on Azure (UNTESTED): Deploy-Azure.md
       - Deploy on AWS (UNTESTED): Deploy-AWS.md
       - Deploy on GCP (UNTESTED): Deploy-GCP.md
@@ -84,4 +87,5 @@ nav:
   - Development:
       - Using fncli: Using-fncli.md
       - Experiments: Experiments.md
+      - Flux dev loop: Flux-Dev-Loop.md
   - API reference: api/index.md
