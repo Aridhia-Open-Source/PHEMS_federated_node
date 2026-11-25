@@ -1,0 +1,112 @@
+name: Pulumi deployment bootstrap
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/pulumi-bootstrap.yml"
+      - "pulumi/bootstrap/**"
+      - "pulumi/README.md"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/pulumi-bootstrap.yml"
+      - "pulumi/bootstrap/**"
+      - "pulumi/README.md"
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: Pulumi stack to update
+        required: true
+        default: production
+        type: string
+      site:
+        description: Site identifier used in the deployment repository
+        required: true
+        default: production
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pulumi-bootstrap-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || inputs.stack || vars.PULUMI_STACK || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL || 'https://api.pulumi.com' }}
+      STACK: pr-${{ github.event.pull_request.number }}
+      SITE: pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Pulumi dependencies
+        working-directory: pulumi/bootstrap
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+      - name: Configure preview stack
+        working-directory: pulumi/bootstrap
+        run: |
+          set -euo pipefail
+          pulumi stack select "$STACK" || pulumi stack init "$STACK"
+          pulumi config set github:owner "$GITHUB_REPOSITORY_OWNER"
+          pulumi config set repository "phems-${SITE}-deployment"
+          pulumi config set site "$SITE"
+      - uses: pulumi/actions@v6
+        with:
+          command: preview
+          stack-name: ${{ env.STACK }}
+          work-dir: pulumi/bootstrap
+
+  apply:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: pulumi-bootstrap
+      url: https://app.pulumi.com
+    env:
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL || 'https://api.pulumi.com' }}
+      STACK: ${{ inputs.stack || vars.PULUMI_STACK || 'production' }}
+      SITE: ${{ inputs.site || vars.PULUMI_SITE || 'production' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Pulumi dependencies
+        working-directory: pulumi/bootstrap
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+      - name: Validate deployment inputs
+        run: |
+          set -euo pipefail
+          [[ "$STACK" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]
+          [[ "$SITE" =~ ^[a-z0-9][a-z0-9-]{0,30}$ ]]
+      - name: Configure apply stack
+        working-directory: pulumi/bootstrap
+        run: |
+          set -euo pipefail
+          pulumi stack select "$STACK" || pulumi stack init "$STACK"
+          pulumi config set github:owner "$GITHUB_REPOSITORY_OWNER"
+          pulumi config set repository "phems-${SITE}-deployment"
+          pulumi config set site "$SITE"
+      - uses: pulumi/actions@v6
+        with:
+          command: up
+          stack-name: ${{ env.STACK }}
+          work-dir: pulumi/bootstrap
+          args: --yes
