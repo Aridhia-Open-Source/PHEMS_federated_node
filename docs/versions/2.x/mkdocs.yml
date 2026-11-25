@@ -78,5 +78,6 @@ nav:
       - Operations: Operations.md
   - Development:
       - Using fncli: Using-fncli.md
+      - CI: CI.md
       - Experiments: Experiments.md
   - API reference: api/index.md
