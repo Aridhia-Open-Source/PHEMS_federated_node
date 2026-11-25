@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import random
@@ -868,20 +867,6 @@ class Keycloak:
 
         return user_response.json()[0] if user_response.json() else None
 
-    def get_user_by_id(self, user_id:str) -> dict:
-        """
-        Method to return a dictionary representing a Keycloak user,
-        using their id
-        """
-        user_response = requests.get(
-            f"{URLS["user"]}/{user_id}",
-            headers={"Authorization": f"Bearer {self.admin_token}"}
-        )
-        if not user_response.ok:
-            raise KeycloakError("Failed to fetch the user")
-
-        return user_response.json() if user_response.json() else None
-
     def get_user_role(self, user_id:str) -> list[str]:
         """
         From a user id, get all of their realm roles
@@ -894,12 +879,6 @@ class Keycloak:
             raise KeycloakError("Failed to get the user's role")
 
         return [role["name"] for role in role_response.json()]
-
-    def has_user_roles(self, user_id:str, roles:set) -> bool:
-        """
-        With the user id checks if it has certain realm roles
-        """
-        return roles.intersection(self.get_user_role(user_id))
 
     def reset_user_pass(self, user_id:str, username:str, old_pass:str, new_pass:str):
         """

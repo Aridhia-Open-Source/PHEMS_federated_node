@@ -61,12 +61,3 @@ class DagsterError(LogAndException):
 
 class GitProviderError(LogAndException):
     code = 502
-
-class ContainerRegistryException(LogAndException):
-    pass
-
-class FeatureNotAvailableException(LogAndException):
-    code = 400
-    def __init__(self, feature:str):
-        description = f"The {feature} feature is not available on this Federated Node"
-        super().__init__("", self.code, description)

@@ -661,7 +661,6 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             get_user_by_username=Mock(return_value=basic_user),
             is_user_admin=Mock(side_effect=lambda token: token == "admin_token"),
             is_system_user=Mock(side_effect=lambda token: token == SYSTEM_TOKEN),
-            has_user_roles=Mock(side_effect=lambda user_id, roles: False),
             is_token_valid=Mock(side_effect=lambda token, scope, *args, **kwargs: token in ("admin_token", SYSTEM_TOKEN) or scope not in ADMIN_ONLY_SCOPES)
         )),
         # TODO(DAR): the datasets_api Keycloak mock went with the DAR code in that module
@@ -679,7 +678,6 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),
             decode_token=Mock(return_value=decode_token_return),
             get_user_by_email=Mock(return_value=basic_user),
-            get_user_by_id=Mock(return_value=basic_user),
             list_users=Mock(return_value=[basic_user]),
             create_user=Mock(return_value=create_user_return),
             get_user_role=Mock(return_value="Users"),
@@ -689,7 +687,6 @@ def mock_kc_client(mocker, basic_user, user_uuid, mock_keycloak_class):
             get_admin_token=Mock(return_value={"access_token": "admin_token"}),
             decode_token=Mock(return_value=decode_token_return),
             get_user_by_email=Mock(return_value=basic_user),
-            get_user_by_id=Mock(return_value=basic_user),
             list_users=Mock(return_value=[basic_user]),
             create_user=Mock(return_value=create_user_return),
             get_user_role=Mock(return_value="Users"),
