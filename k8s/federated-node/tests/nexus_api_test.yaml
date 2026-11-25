@@ -172,6 +172,17 @@ tests:
           path: data.OWNER_GROUPS
           value: service-account
 
+  - it: passes the allowed Keycloak clients as a comma-separated list
+    template: nexus-api-configmap.yaml
+    set:
+      nexus:
+        api:
+          allowedClients: [global, dagster]
+    asserts:
+      - equal:
+          path: data.SERVICES_KEYCLOAK_ALLOWED_CLIENTS
+          value: global,dagster
+
   - it: takes several owner groups
     template: nexus-api-configmap.yaml
     set:
