@@ -68,3 +68,4 @@ class TestCodeLocation:
 
     def test_every_sensor_uses_the_configured_minimum_interval(self):
         assert all(s.minimum_interval_seconds == MIN_SENSOR_INTERVAL_SECONDS for s in SENSORS)
+# CI path-filter smoke test
