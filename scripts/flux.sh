@@ -24,6 +24,8 @@ source scripts/gitea_lib.sh
 
 SITE_DIR=site-example
 SITE_REPO=fn-site
+LOCAL_SITE_DIR=.local/fn-site
+LOCAL_SITE_URL="${GITEA_LOCAL_URL:-http://localhost:4000}"
 HR_NAME=federated-node
 # Flux's own objects (the site repository and its Kustomization) live with Flux
 FLUX_NS=flux-system
@@ -104,15 +106,16 @@ case "$COMMAND" in
     echo "=== Site repository $GITEA_ADMIN_USER/$SITE_REPO =========================="
     gitea_connect
     if [ "$(gitea_ensure_repo "$SITE_REPO")" = created ]; then
-      # A fresh history: the site repository is the site's, not a copy of this one
-      SEED="$(mktemp -d)"
-      trap 'rm -rf "$SEED"; kill "${GITEA_PF_PID:-}" 2>/dev/null || true' EXIT
-      cp -r "$SITE_DIR"/. "$SEED"/
+      # A fresh history: the site repository is the site's, not a copy of this one.
+      # Keep the checkout locally so the demo can create branches and push Gitea PRs.
+      rm -rf "$LOCAL_SITE_DIR"
+      mkdir -p "$(dirname "$LOCAL_SITE_DIR")"
+      cp -r "$SITE_DIR"/. "$LOCAL_SITE_DIR"/
       # Encrypt the example Secret for this cluster's age key, as a site does before it commits one
-      sed -i "s/AGE_PUBLIC_KEY/$(age_public_key)/" "$SEED"/.sops.yaml
+      sed -i "s/AGE_PUBLIC_KEY/$(age_public_key)/" "$LOCAL_SITE_DIR"/.sops.yaml
       # The first user's login from .dev.env (scripts/load_env.sh), as a site writes its own
       # (written as JSON strings, which are YAML, so no character in them needs escaping)
-      EMAIL="$KEYCLOAK_FIRST_USER_EMAIL" PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" python3 - "$SEED"/secrets/sops/first-user-secret.yaml <<'PY'
+      EMAIL="$KEYCLOAK_FIRST_USER_EMAIL" PASSWORD="$KEYCLOAK_FIRST_USER_PASSWORD" python3 - "$LOCAL_SITE_DIR"/secrets/sops/first-user-secret.yaml <<'PY'
 import json
 import os
 import sys
@@ -124,17 +127,24 @@ for placeholder, variable in (("FIRST_USER_EMAIL", "EMAIL"), ("FIRST_USER_PASSWO
 open(path, "w", encoding="utf-8").write(text)
 PY
       # From the repo root, so a mise shim still finds the sops version mise.toml pins
-      sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/secrets/sops/first-user-secret.yaml"
+      sops --config "$LOCAL_SITE_DIR/.sops.yaml" encrypt -i "$LOCAL_SITE_DIR/secrets/sops/first-user-secret.yaml"
       sed -i -e "s|SUPERUSER_USERNAME|${KEYCLOAK_SUPERUSER_USERNAME:-}|" -e "s|SUPERUSER_PASSWORD|${KEYCLOAK_SUPERUSER_PASSWORD:-}|" \
-        "$SEED"/secrets/sops/superuser-secret.yaml
-      sops --config "$SEED/.sops.yaml" encrypt -i "$SEED/secrets/sops/superuser-secret.yaml"
-      git -C "$SEED" init -q -b main
-      git -C "$SEED" add .
-      git -C "$SEED" -c user.name=fn-dev -c user.email=fn-dev@example.org commit -q -m "Site: node pinned to its first release"
-      gitea_git -C "$SEED" push -q "$(gitea_repo_url "$SITE_REPO")" main
+        "$LOCAL_SITE_DIR"/secrets/sops/superuser-secret.yaml
+      sops --config "$LOCAL_SITE_DIR/.sops.yaml" encrypt -i "$LOCAL_SITE_DIR/secrets/sops/superuser-secret.yaml"
+      git -C "$LOCAL_SITE_DIR" init -q -b main
+      git -C "$LOCAL_SITE_DIR" remote add origin "$LOCAL_SITE_URL/$GITEA_ADMIN_USER/$SITE_REPO.git"
+      git -C "$LOCAL_SITE_DIR" add .
+      git -C "$LOCAL_SITE_DIR" -c user.name=fn-dev -c user.email=fn-dev@example.org commit -q -m "Site: node pinned to its first release"
+      gitea_git -C "$LOCAL_SITE_DIR" push -q origin main
       echo "Pushed $SITE_DIR/ as $GITEA_URL/$GITEA_ADMIN_USER/$SITE_REPO"
+      echo "Local site checkout: $LOCAL_SITE_DIR"
     else
-      echo "Already there (a mirror from mise run mirror-to-gitea, or an earlier up), left as it is (mise run flux down deletes it)"
+      if [ ! -d "$LOCAL_SITE_DIR/.git" ]; then
+        mkdir -p "$(dirname "$LOCAL_SITE_DIR")"
+        gitea_git clone -q "$(gitea_repo_url "$SITE_REPO")" "$LOCAL_SITE_DIR"
+        git -C "$LOCAL_SITE_DIR" remote set-url origin "$LOCAL_SITE_URL/$GITEA_ADMIN_USER/$SITE_REPO.git"
+      fi
+      echo "Using local site checkout: $LOCAL_SITE_DIR"
     fi
 
     echo
@@ -208,6 +218,7 @@ PY
     gitea_connect
     gitea_api DELETE "/repos/$GITEA_ADMIN_USER/$SITE_REPO" >/dev/null 2>&1 || true
     echo "Deleted $GITEA_ADMIN_USER/$SITE_REPO (if it was there)"
+    echo "Kept local site checkout at $LOCAL_SITE_DIR"
 
     echo
     echo "Release $RELEASE_NAME kept at its current version; mise run deploy takes it back to the dev images."
