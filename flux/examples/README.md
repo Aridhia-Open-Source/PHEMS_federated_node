@@ -10,7 +10,7 @@ Docker Gitea + Actions runner
     -> Federated Node HelmRelease
     -> project/resources PR
     -> Nexus operator
-    -> merged trigger PR
+    -> optional trigger command
     -> Dagster task and results PR
 ```
 
@@ -53,6 +53,9 @@ For an unattended local demonstration, explicitly opt in to API merges:
 ./flux/examples/demo.sh --auto-merge
 ```
 
+`--auto-merge` applies only to the two setup pull requests; it does not run
+the experiment or create a trigger pull request.
+
 The script is safe to rerun against the same local state. It reuses the
 persistent Gitea data in `.local/gitea/`, the generated site checkout in
 `.local/fn-site/`, and the cluster's `~/.fn/data`. If a previous run is
@@ -84,12 +87,24 @@ kubectl get gitproviders,nodesecrets,repositories,projects -n fn-operator
 8. Runs `fncli gitea setup` after that PR is merged. This creates
    `demo-trigger-repo` and `demo-results-repo` in Gitea and writes their OAuth
    credentials into Kubernetes Secrets.
-9. Starts all Dagster sensors, creates and merges the demo trigger PR, waits
-   for the task and watches delivery of the results PR.
+
+The setup script stops after the project and repositories are synced. It does
+not start sensors or create a trigger PR.
 
 The deployment repository files use `gitea-bootstrap:3000`, which is reachable
 from the cluster. Host-side fncli uses `GITEA_LOCAL_URL=http://localhost:4000`
 to translate those URLs for the researcher-side Gitea operations.
+
+## Run the experiment
+
+After `demo.sh` completes, run the separate trigger command:
+
+```bash
+./flux/examples/run-demo.sh
+```
+
+This starts all Dagster sensors, creates and merges the demo trigger PR, waits
+for the task, and watches delivery of the results PR.
 
 ## Useful URLs
 

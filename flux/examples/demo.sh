@@ -32,7 +32,6 @@ Creates the complete local Flux demo:
   - installation PR for the site repository
   - project/resources PR for the demo repositories
   - experiment database and seed data
-  - Dagster sensors and a merged demo trigger PR
 
 Without --auto-merge, stop at each PR and merge it in Gitea before continuing.
 EOF
@@ -226,16 +225,6 @@ flux reconcile kustomization "$SITE_REPO" -n flux-system --with-source
   -f flux/examples/site/node-config/demo.yaml
 wait_for_fn_resources "gitea-local demo-trigger-repo-creds demo-results-repo-creds demo-trigger-repo demo-results-repo demo-gitea"
 
-echo "== Running the demo trigger and results flow"
-export FN_USERNAME="${FN_USERNAME:-dagster}"
-if [ -z "${FN_PASSWORD:-}" ] && [ "$FN_USERNAME" = dagster ]; then
-  FN_PASSWORD="$(kubectl get secret dagster-keycloak-creds -n keycloak \
-    -o jsonpath='{.data.DAGSTER_KC_PASSWORD}' | base64 -d)"
-  export FN_PASSWORD
-fi
-"$FNCLI" start-sensor --group all
-"$FNCLI" trigger triggers/examples/demo.json \
-  --project demo-gitea --pr --merge --watch --timeout 600
-
 echo
-echo "Flux demo completed. Site: $GITEA_URL/$GITEA_ADMIN_USER/$SITE_REPO"
+echo "Flux and Nexus setup completed. Site: $GITEA_URL/$GITEA_ADMIN_USER/$SITE_REPO"
+echo "Run ./flux/examples/run-demo.sh to start sensors and run the trigger PR."

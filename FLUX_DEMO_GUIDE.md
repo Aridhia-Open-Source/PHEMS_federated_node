@@ -2,7 +2,9 @@
 
 > **Automated version:** [`flux/examples/README.md`](flux/examples/README.md)
 > and [`flux/examples/demo.sh`](flux/examples/demo.sh) run this complete flow,
-> including the two Gitea pull requests, operator resources and demo trigger.
+> including the two Gitea setup pull requests and operator resources.
+> [`flux/examples/run-demo.sh`](flux/examples/run-demo.sh) runs the separate
+> trigger/results demonstration.
 > Use the manual sections below when presenting or troubleshooting individual
 > stages.
 
