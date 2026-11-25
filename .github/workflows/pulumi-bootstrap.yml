@@ -61,6 +61,10 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/pip install -r requirements.txt
+      - name: Set up Pulumi CLI
+        uses: pulumi/actions@v6
+        with:
+          pulumi-version: "^3"
       - name: Configure preview stack
         working-directory: pulumi/bootstrap
         run: |
@@ -98,6 +102,10 @@ jobs:
         run: |
           python -m venv .venv
           .venv/bin/pip install -r requirements.txt
+      - name: Set up Pulumi CLI
+        uses: pulumi/actions@v6
+        with:
+          pulumi-version: "^3"
       - name: Validate deployment inputs
         run: |
           set -euo pipefail
