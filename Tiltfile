@@ -102,9 +102,8 @@ custom_build_with_restart(
 # ==============================================================================
 # What the code server and the run pods use from the Dagster image, plus the shared nexus-api
 # client (nexus/fednode), which the image takes from the fednode named build context.
-# Everything else under dagster/ (fncli, tests, docs, lint and CI files) is not used by either,
-# so changing it rebuilds nothing. (The build still copies fncli and conftest.py, per
-# dagster/.dockerignore.)
+# Everything else under dagster/ (tests, docs, lint and CI files) is not used by either,
+# so changing it rebuilds nothing.
 DAGSTER_IMAGE_FILES = [
   'app',
   'requirements.txt',

@@ -76,7 +76,7 @@ cp "${ROOT}/bootstrap/examples/context.yaml" "$CONTEXT_FILE"
 # Without .dev.env's PYTHONPATH=./app, whose secrets.py hides the standard library's.
 fncli() {
   (cd "$ROOT/dagster" && env -u PYTHONPATH FNCLI_CONTEXT="$CONTEXT_FILE" NAMESPACE="$NAMESPACE" \
-    "$FNCLI_PYTHON" -m fncli "$@")
+    "$FNCLI_PYTHON" -m fednode.cli "$@")
 }
 
 # Runs the rest of the line (a command or a function) with its HTTPS calls going through proxysim and

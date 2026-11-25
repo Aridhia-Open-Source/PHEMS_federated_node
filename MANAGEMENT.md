@@ -271,7 +271,7 @@ mise run setup
 fncli hello-world        # prints "Hello, world!"
 ```
 
-`mise run setup` installs fncli, editable, into `.venv` at the repo root. If you installed it with pipx before, run `pipx uninstall phems`. The full install notes, troubleshooting and uninstall are in [dagster/fncli/README.md](dagster/fncli/README.md).
+`mise run setup` installs fncli, editable, into `.venv` at the repo root. If you installed it with pipx before, run `pipx uninstall phems`. The full install notes, troubleshooting and uninstall are in [nexus/fednode/cli/README.md](nexus/fednode/cli/README.md).
 
 ### What it needs
 
