@@ -1,9 +1,9 @@
-# {{SITE}} deployment
+# {{ENVIRONMENT}} deployment
 
 This repository is managed by Pulumi and consumed by Flux.
 
 * `helmrelease.yaml` pins the Federated Node chart.
-* `values.yaml` contains non-secret site configuration.
+* `values.yaml` contains non-secret environment configuration.
 * Secrets must be added as SOPS-encrypted files or ExternalSecrets; never
   commit credentials here.
 

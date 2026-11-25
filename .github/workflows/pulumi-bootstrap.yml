@@ -20,10 +20,15 @@ on:
         required: true
         default: production
         type: string
-      site:
-        description: Site identifier used in the deployment repository
+      repository:
+        description: GitHub repository to manage
         required: true
-        default: production
+        default: phems-deployment
+        type: string
+      environments:
+        description: Comma-separated deployment environments
+        required: true
+        default: develop
         type: string
 
 permissions:
@@ -44,7 +49,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL || 'https://api.pulumi.com' }}
       STACK: pr-${{ github.event.pull_request.number }}
-      SITE: pr-${{ github.event.pull_request.number }}
+      REPOSITORY: phems-pr-${{ github.event.pull_request.number }}-deployment
+      ENVIRONMENTS: develop
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -61,8 +67,8 @@ jobs:
           set -euo pipefail
           pulumi stack select "$STACK" || pulumi stack init "$STACK"
           pulumi config set github:owner "$GITHUB_REPOSITORY_OWNER"
-          pulumi config set repository "phems-${SITE}-deployment"
-          pulumi config set site "$SITE"
+          pulumi config set repository "$REPOSITORY"
+          pulumi config set environments "$ENVIRONMENTS"
       - uses: pulumi/actions@v6
         with:
           command: preview
@@ -80,7 +86,8 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL || 'https://api.pulumi.com' }}
       STACK: ${{ inputs.stack || vars.PULUMI_STACK || 'production' }}
-      SITE: ${{ inputs.site || vars.PULUMI_SITE || 'production' }}
+      REPOSITORY: ${{ inputs.repository || vars.PULUMI_REPOSITORY || 'phems-deployment' }}
+      ENVIRONMENTS: ${{ inputs.environments || vars.PULUMI_ENVIRONMENTS || 'develop' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -95,15 +102,24 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$STACK" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]
-          [[ "$SITE" =~ ^[a-z0-9][a-z0-9-]{0,30}$ ]]
+          [[ "$REPOSITORY" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$ ]]
+          IFS=',' read -ra RAW_ENVIRONMENTS <<< "$ENVIRONMENTS"
+          [[ "${#RAW_ENVIRONMENTS[@]}" -gt 0 ]]
+          declare -A SEEN=()
+          for raw_environment in "${RAW_ENVIRONMENTS[@]}"; do
+            environment="$(printf '%s' "$raw_environment" | xargs)"
+            [[ "$environment" =~ ^[a-z][a-z0-9-]{0,62}$ ]]
+            [[ -z "${SEEN[$environment]+x}" ]]
+            SEEN["$environment"]=1
+          done
       - name: Configure apply stack
         working-directory: pulumi/bootstrap
         run: |
           set -euo pipefail
           pulumi stack select "$STACK" || pulumi stack init "$STACK"
           pulumi config set github:owner "$GITHUB_REPOSITORY_OWNER"
-          pulumi config set repository "phems-${SITE}-deployment"
-          pulumi config set site "$SITE"
+          pulumi config set repository "$REPOSITORY"
+          pulumi config set environments "$ENVIRONMENTS"
       - uses: pulumi/actions@v6
         with:
           command: up

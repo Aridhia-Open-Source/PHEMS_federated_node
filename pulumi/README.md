@@ -1,8 +1,9 @@
 # Pulumi
 
-The `bootstrap` project creates the GitHub deployment repository for a site.
-The repository is the GitOps boundary: Pulumi owns its initial Flux and Helm
-files, and Flux reconciles the committed state into the site's cluster.
+The `bootstrap` project creates one GitHub deployment repository for one or
+more environments. The repository is the GitOps boundary: Pulumi owns the
+initial Flux and Helm files, and Flux reconciles each environment's committed
+state into its cluster.
 
 ## Bootstrap
 
@@ -11,10 +12,10 @@ From `pulumi/bootstrap`:
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
-pulumi stack init <site>
+pulumi stack init <stack>
 pulumi config set github:owner Aridhia-Open-Source
-pulumi config set repository phems-<site>-deployment
-pulumi config set site <site>
+pulumi config set repository phems-deployment
+pulumi config set environments develop,qa
 pulumi config set namespace fn
 pulumi config set chart-version <version>
 pulumi up
@@ -30,8 +31,9 @@ make subsequent `pulumi up` runs idempotent.
 The default chart version follows the chart currently published by the release
 workflow (`2.0.0`). Set `chart-version` explicitly when bootstrapping a
 different release. The generated repository contains no credentials: provide
-site secrets separately through SOPS or External Secrets before Flux installs
-the release.
+environment secrets separately through SOPS or External Secrets before Flux
+installs the release. Each environment's files are under
+`clusters/<environment>/`.
 
 ## GitHub Actions
 
@@ -50,11 +52,23 @@ Set these secrets in the repository for previews and in the
 * `GITHUB_TOKEN` - a fine-grained GitHub token with repository administration
   permission for the deployment repositories created by this stack.
 
-Set repository variables `PULUMI_STACK` and `PULUMI_SITE` for the protected
-push path. A manual run can override both values from the Actions form. Stack
-and site values are validated before apply, and each stack has its own
-concurrency group. Pull-request previews use an isolated `pr-<number>` stack
-and repository name; previews from forks are skipped because GitHub does not
+Set repository variables `PULUMI_STACK`, `PULUMI_REPOSITORY`, and
+`PULUMI_ENVIRONMENTS` for the protected push path. A manual run can override
+all three values from the Actions form, for example:
+
+```bash
+gh workflow run pulumi-bootstrap.yml \
+  -f stack=production \
+  -f repository=phems-deployment \
+  -f environments='develop,qa'
+```
+
+Environments are trimmed, must use lowercase DNS-style names, and must be
+unique. The workflow rejects empty, duplicate, or invalid values before
+changing the stack. One Pulumi stack manages the target repository and all
+of its `clusters/<environment>/` files; environments are not separate
+stacks. Pull-request previews use an isolated `pr-<number>` stack and
+repository name; previews from forks are skipped because GitHub does not
 expose repository secrets to fork workflows.
 
 The workflow URL is

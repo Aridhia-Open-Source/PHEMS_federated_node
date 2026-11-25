@@ -8,9 +8,9 @@ config:
   phems-deployment-bootstrap:repository:
     description: Name of the deployment repository
     default: phems-deployment
-  phems-deployment-bootstrap:site:
-    description: Site name used in the repository path
-    default: site
+  phems-deployment-bootstrap:environments:
+    description: Comma-separated deployment environments
+    default: develop
   phems-deployment-bootstrap:namespace:
     description: Kubernetes namespace for the Federated Node
     default: fn

@@ -17,11 +17,12 @@ def test_all_bootstrap_files_exist():
         "values.yaml",
         "kustomizeconfig.yaml",
     }
-    assert {path.name for path in (ROOT / "files").iterdir()} == expected
+    assert set(bootstrap.TEMPLATE_FILES) == expected
 
 
 @pytest.mark.parametrize(
-    "placeholder", ("{{SITE}}", "{{NAMESPACE}}", "{{CHART_VERSION}}", "{{RELEASE_NAME}}")
+    "placeholder",
+    ("{{ENVIRONMENT}}", "{{NAMESPACE}}", "{{CHART_VERSION}}", "{{RELEASE_NAME}}"),
 )
 def test_templates_use_only_known_placeholders(placeholder):
     content = "\n".join(
@@ -38,7 +39,7 @@ def test_render_rejects_unresolved_placeholders(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="UNKNOWN"):
         bootstrap._render(
             "template.yaml",
-            site="site",
+            environment="develop",
             namespace="fn",
             chart_version="2.0.0",
             release_name="federated-node",
@@ -46,10 +47,10 @@ def test_render_rejects_unresolved_placeholders(tmp_path, monkeypatch):
 
 
 def test_rendered_templates_are_complete():
-    for path in bootstrap.FILES:
+    for path in bootstrap.TEMPLATE_FILES:
         rendered = bootstrap._render(
             path,
-            site="example-site",
+            environment="qa",
             namespace="example-fn",
             chart_version="2.3.4",
             release_name="example-release",
@@ -61,7 +62,7 @@ def test_rendered_templates_are_complete():
 def test_rendered_templates_use_configured_values():
     rendered = bootstrap._render(
         "helmrelease.yaml",
-        site="example-site",
+        environment="qa",
         namespace="example-fn",
         chart_version="2.3.4",
         release_name="example-release",
@@ -70,3 +71,24 @@ def test_rendered_templates_use_configured_values():
     assert "name: example-release" in rendered
     assert "namespace: example-fn" in rendered
     assert 'version: "2.3.4"' in rendered
+
+
+def test_parse_environments_trims_values():
+    assert bootstrap.parse_environments(" develop, qa ") == ("develop", "qa")
+
+
+@pytest.mark.parametrize(
+    "value",
+    ("", "develop,,qa", "develop,develop", "Develop,qa", "qa_1"),
+)
+def test_parse_environments_rejects_invalid_values(value):
+    with pytest.raises(ValueError):
+        bootstrap.parse_environments(value)
+
+
+def test_deployment_files_are_grouped_by_environment():
+    files = bootstrap.deployment_files(("develop", "qa"))
+
+    assert files[0] == ("clusters/develop/README.md", "README.md")
+    assert files[len(bootstrap.TEMPLATE_FILES)] == ("clusters/qa/README.md", "README.md")
+    assert len(files) == len(bootstrap.TEMPLATE_FILES) * 2
