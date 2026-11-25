@@ -115,6 +115,8 @@ Tests and lint:
   - Migrations: see `nexus/api/migrations/README` and ADR 0023 before adding one.
 - Chart changes: keep `values.yaml` and `values.schema.json` in step, and add or update a suite in `k8s/federated-node/tests/`.
 
+- `nexus/api/app/` is organised by URL scope and owning area; see [API layout and refactoring](docs/versions/2.x/docs/Refactoring.md) before adding a route or helper.
+
 ## Read next
 
 - `DEPLOYMENT.md` - local dev cluster and production deploy; `MANAGEMENT.md` - setting up projects, and `fncli`.

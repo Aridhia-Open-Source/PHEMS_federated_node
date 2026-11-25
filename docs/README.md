@@ -60,6 +60,8 @@ Testing and open items:
 
 Wiki ([docs/versions/2.x/docs](versions/2.x/docs/)):
 
+- [API layout and refactoring](versions/2.x/docs/Refactoring.md): router scopes, shared packages and removed catalogue code.
+
 - The GitHub wiki pages live here, file names the same as on the wiki. Edit them in a pull request. The `Wiki sync` workflow copies this folder to the wiki when a change to it reaches `main`, so an edit made in the wiki itself is overwritten by the next sync.
 
 Operations:

@@ -27,4 +27,5 @@
 
 **Development**
 - [Using fncli](./Using-fncli)
+- [API layout and refactoring](./Refactoring)
 - [Experiments](./Experiments)
