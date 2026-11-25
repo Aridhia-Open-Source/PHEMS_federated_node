@@ -69,8 +69,9 @@ def create_deployment_repository() -> github.Repository:
     # auto_init gives both a new repository and an imported empty repository a
     # commit on main. RepositoryFile is then safe to retry and overwrites only
     # the files owned by this stack.
+    previous_file = None
     for path in FILES:
-        github.RepositoryFile(
+        repository_file = github.RepositoryFile(
             f"deployment-file-{path.replace('/', '-')}",
             repository=repository.name,
             branch=default_branch,
@@ -86,8 +87,12 @@ def create_deployment_repository() -> github.Repository:
             commit_author="Pulumi",
             commit_email="pulumi@aridhia.com",
             overwrite_on_create=True,
-            opts=pulumi.ResourceOptions(provider=provider, depends_on=[repository]),
+            opts=pulumi.ResourceOptions(
+                provider=provider,
+                depends_on=[resource for resource in (repository, previous_file) if resource],
+            ),
         )
+        previous_file = repository_file
 
     pulumi.export("repository", repository.html_url)
     pulumi.export("site", site)
