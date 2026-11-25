@@ -10,6 +10,16 @@ dependencies = [
     "kubernetes>=33.1,<36",
 ]
 
+[project.optional-dependencies]
+cli = [
+    "click~=8.1",
+    "python-dotenv~=1.0",
+    "pyyaml~=6.0",
+]
+
+[project.scripts]
+fncli = "fednode.cli:main"
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
@@ -19,6 +29,9 @@ build-backend = "setuptools.build_meta"
 package-dir = {"fednode" = "."}
 packages = [
     "fednode",
+    "fednode.cli",
+    "fednode.cli.cmds",
+    "fednode.cli.nodefile",
     "fednode.clients",
     "fednode.clients.dagster",
     "fednode.clients.git",

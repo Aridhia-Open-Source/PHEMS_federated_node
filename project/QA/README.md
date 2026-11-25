@@ -24,7 +24,7 @@ It is written against the code at commit `6c46e803` (branch `moonshot/shared-res
 | The Dagster UI | Sensor status, runs, ticks, run keys |
 | The git host's UI (Gitea on the dev cluster) | Results pull requests, manual commits, closing a pull request |
 | `jq`, `curl` | The state and counts commands below |
-| `fncli` on the dev cluster (installed by `mise run setup`, see [../../dagster/fncli/README.md](../../dagster/fncli/README.md)) | Setup, pull requests, switches, sensors |
+| `fncli` on the dev cluster (installed by `mise run setup`, see [../../nexus/fednode/cli/README.md](../../nexus/fednode/cli/README.md)) | Setup, pull requests, switches, sensors |
 | A task image that runs for a while, and one that writes more than 10 MiB | A few cases; they say when they need it |
 
 Which environment the commands are for:
@@ -139,4 +139,4 @@ This is the dependency order; use the table above to choose where to put your ti
 
 ## Sources
 
-The cases are based on the end-to-end suites ([../../dagster/fncli/tests/e2e/README.md](../../dagster/fncli/tests/e2e/README.md)), the unit tests ([../TESTING.md](../TESTING.md)), the decision records in [../decisions/](../decisions/) and the architecture notes in [../../docs/architecture/](../../docs/architecture/): [revoke-and-enabled.md](../../docs/architecture/revoke-and-enabled.md), [flows.md](../../docs/architecture/flows.md), [entities.md](../../docs/architecture/entities.md) and [sensors/](../../docs/architecture/sensors/README.md).
+The cases are based on the end-to-end suites ([../../nexus/fednode/tests/e2e/README.md](../../nexus/fednode/tests/e2e/README.md)), the unit tests ([../TESTING.md](../TESTING.md)), the decision records in [../decisions/](../decisions/) and the architecture notes in [../../docs/architecture/](../../docs/architecture/): [revoke-and-enabled.md](../../docs/architecture/revoke-and-enabled.md), [flows.md](../../docs/architecture/flows.md), [entities.md](../../docs/architecture/entities.md) and [sensors/](../../docs/architecture/sensors/README.md).

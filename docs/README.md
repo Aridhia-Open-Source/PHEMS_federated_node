@@ -56,7 +56,7 @@ Research ([project](../project/)):
 
 Testing and open items:
 
-- [dagster/fncli/tests/e2e/README.md](../dagster/fncli/tests/e2e/README.md): how to run the live-cluster end-to-end suites.
+- [nexus/fednode/tests/e2e/README.md](../nexus/fednode/tests/e2e/README.md): how to run the live-cluster end-to-end suites.
 - The mirror service is developed on branch `moonshot/gitea-mirror`.
 
 Wiki ([docs/versions/2.x/docs](versions/2.x/docs/)):
@@ -66,7 +66,7 @@ Wiki ([docs/versions/2.x/docs](versions/2.x/docs/)):
 Operations:
 
 - [DEPLOYMENT.md](../DEPLOYMENT.md), [k8s/federated-node/README.md](../k8s/federated-node/README.md): install and chart values.
-- [dagster/fncli/README.md](../dagster/fncli/README.md): the Dagster code location and the fncli tool.
+- [nexus/fednode/cli/README.md](../nexus/fednode/cli/README.md): the fncli tool.
 
 ## Suggested reading order
 

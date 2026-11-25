@@ -25,7 +25,7 @@ Pull requests are stored once per global repository ([0011](0011-pull-requests-s
 
 **One interval.** Every sensor uses `fnDagster.sensors.minIntervalSeconds` (default 30; env `DAGSTER_SENSORS_MIN_INTERVAL_SECONDS`; the dev values use 5), read once in `dagster/app/config.py`. Related values under `fnDagster.sensors`: `retryIntervalSeconds` (60) and `deliveryMaxAttempts` (5).
 
-**Sensors default to STOPPED.** `fnDagster.sensors.initialStatus` is `STOPPED` and applies to a sensor Dagster has not seen before. `fncli start-sensor --group all` starts them in the order in `dagster/fncli/cmds/sensor.py`. The order does not matter: a run-status sensor only sees events from when it starts, and the reconcile sensor sets a task whose event was missed to the status of its run. `stop-sensor` goes the other way round.
+**Sensors default to STOPPED.** `fnDagster.sensors.initialStatus` is `STOPPED` and applies to a sensor Dagster has not seen before. `fncli start-sensor --group all` starts them in the order in `nexus/fednode/cli/cmds/sensor.py`. The order does not matter: a run-status sensor only sees events from when it starts, and the reconcile sensor sets a task whose event was missed to the status of its run. `stop-sensor` goes the other way round.
 
 **Launcher and task status.** The launcher lists the `PENDING` tasks of enabled projects with one `GET /tasks?status=PENDING&project_enabled=true` (nexus-api filters, [0021](0021-nexus-api-owns-the-record-and-the-rules.md)) and calls `POST /projects/<pid>/tasks/<id>/launch` once for each ([0009](0009-task-pinned-to-its-configuration.md)), which returns the decision, `outcome` and `cause` ([0021](0021-nexus-api-owns-the-record-and-the-rules.md)). The launcher holds no rule. On `fail` nexus-api has already moved the task to `FAILED` with the `state_cause` (cut at 1024 characters) and the launcher does nothing more; on `launch` the answer carries the task and its dataset, and the launcher builds the run request from it. nexus-api fails a task when, checked in this order: something the task uses is revoked or deleted (the cause starts "revoked: "), its pinned configuration changed, its dataset resource is not active, or the dataset's secret is disabled. This is the one other writer of the status besides the run-status sensors ([0003](0003-task-status-written-by-run-status-sensors.md)): no run will exist for these failures. A task that is no longer `PENDING` answers 409 and is skipped. Any other error (for example the launch call fails) leaves the task `PENDING`, is logged, and is retried on the next tick; its run key is unused because no run was created. The run key is `task/<id>/<attempt>`; a manual retry bumps the attempt. The run-status sensors and the reconcile sensor write `status` and `executor_run_id` (the Dagster run id, unique on `tasks`).
 
@@ -47,7 +47,7 @@ Pull requests are stored once per global repository ([0011](0011-pull-requests-s
 ## Where it lives
 
 - `dagster/app/definitions/sensors/base.py`, `git/` (`pr_ingest.py`, `ingest_job.py`, `pr_evaluate.py`, `evaluate_job.py`, `pr_parser.py`), `task/` (`launcher.py`, `run_status.py`, `delivery.py`, `pull_request_sync.py`)
-- `dagster/app/config.py`, `dagster/app/backend.py`; `dagster/fncli/cmds/sensor.py`
+- `dagster/app/config.py`, `dagster/app/backend.py`; `nexus/fednode/cli/cmds/sensor.py`
 - Chart: `k8s/federated-node/values.yaml` (`fnDagster.sensors`), `templates/dagster-env-config.yaml`
 
 ## Open questions

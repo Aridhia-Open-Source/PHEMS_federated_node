@@ -1,0 +1,71 @@
+from typing import cast
+
+from kubernetes.client import V1Secret
+from kubernetes.config import list_kube_config_contexts
+
+from fednode.clients.kubernetes.client import KubernetesAppsClient, KubernetesClient
+
+
+def current_context() -> str:
+    """The name of the kubectl context that cluster secrets are read from"""
+    return list_kube_config_contexts()[1]["name"]
+
+
+def get_k8s_secret(secret_name: str, namespace: str, key: str) -> str:
+    """The decoded value stored under key in a Kubernetes secret."""
+    secret = cast(V1Secret, KubernetesClient(in_cluster=False).read_namespaced_secret(secret_name, namespace))
+    if secret.data is None:
+        raise ValueError(f"Secret {secret_name} has no data")
+    return KubernetesClient.decode_secret_value(secret.data[key])
+
+
+def remove_k8s_secret_keys(secret_name: str, namespace: str, keys: list[str]):
+    """Remove keys from a Kubernetes secret and leave the others as they are."""
+    KubernetesClient(in_cluster=False).patch_namespaced_secret(
+        secret_name, namespace, {"data": {key: None for key in keys}}
+    )
+
+
+CODE_SERVER_CONTAINER = "dagster-code-server"
+ENV_CONFIGMAP = "dagster-env-config"
+
+
+def get_configmap_value(name: str, namespace: str, key: str) -> str | None:
+    configmap = KubernetesClient(in_cluster=False).read_namespaced_config_map(name, namespace)
+    return (configmap.data or {}).get(key)
+
+
+def set_configmap_value(name: str, namespace: str, key: str, value: str):
+    KubernetesClient(in_cluster=False).patch_namespaced_config_map(name, namespace, {"data": {key: value}})
+
+
+def restart_code_server(namespace: str, timeout: int = 180):
+    """Roll the Dagster code server (the deployment with a dagster-code-server container) and wait until it is ready again."""
+    import datetime
+    import time
+
+    apps = KubernetesAppsClient(in_cluster=False)
+    deployment = next(
+        d
+        for d in apps.list_namespaced_deployment(namespace).items
+        if any(c.name == CODE_SERVER_CONTAINER for c in d.spec.template.spec.containers)
+    )
+    stamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    apps.patch_namespaced_deployment(
+        deployment.metadata.name,
+        namespace,
+        {"spec": {"template": {"metadata": {"annotations": {"kubectl.kubernetes.io/restartedAt": stamp}}}}},
+    )
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        current = apps.read_namespaced_deployment(deployment.metadata.name, namespace)
+        status = current.status
+        if (
+            current.metadata.generation == status.observed_generation
+            and status.updated_replicas == current.spec.replicas
+            and status.replicas == current.spec.replicas
+            and status.available_replicas == current.spec.replicas
+        ):
+            return
+        time.sleep(3)
+    raise TimeoutError(f"The code server did not become ready within {timeout}s")

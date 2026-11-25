@@ -12,7 +12,7 @@ Needs: the dev project (called here "the first project") and a second project fr
 
 - **Expected:** the pull request is stored once (`stored_pr_count` is 1 higher in both views). Each project has its own trigger `YIELDED` and its own task; the task ids differ. Each task delivers its own result (branches differ because they carry the task id).
 - **Rule:** pull requests are stored once and fanned out, a trigger per project resource ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "a second project on the same repository" (`dagster/fncli/tests/e2e/test_failure_paths.py`, written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_two_projects_on_one_repo_are_independent`). It checks the two tasks, not that both results land in the one results repository.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "a second project on the same repository" (`nexus/fednode/tests/e2e/test_failure_paths.py`, written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_two_projects_on_one_repo_are_independent`). It checks the two tasks, not that both results land in the one results repository.
 - [ ] Pass
 - [ ] Fail — notes:
 
