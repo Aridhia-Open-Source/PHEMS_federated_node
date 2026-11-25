@@ -13,12 +13,13 @@ from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import relationship
 from sqlalchemy.pool import NullPool
 
-from app.helpers.base_model import BaseModel, db
-from app.helpers.const import PUBLIC_URL, build_sql_uri
+from app.database.base_model import BaseModel, db
+from app.helpers.const import PUBLIC_URL
+from app.database.uri import build_sql_uri
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.keycloak import Keycloak
-from app.helpers.soft_delete import SoftDeleteMixin
-from app.helpers.kubernetes import KubernetesClient
+from app.clients.keycloak import Keycloak
+from app.database.soft_delete import SoftDeleteMixin
+from app.clients.kubernetes import KubernetesClient
 from app.models import sqla_column
 from app.models.git_provider import ConnectionCheck, ConnectionStatus
 from app.models.user import OwnedMixin

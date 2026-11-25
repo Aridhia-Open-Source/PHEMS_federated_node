@@ -8,7 +8,7 @@ dagster endpoints:
 from fastapi import APIRouter, Body
 
 from app.dtos.sensor import SensorDTO
-from app.helpers.dagster import list_sensors, set_sensor_status
+from app.clients.dagster import list_sensors, set_sensor_status
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 
 router = APIRouter(prefix='/dagster', tags=["dagster"])

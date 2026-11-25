@@ -24,12 +24,12 @@ from app.dtos.trigger_repository import (
     ProjectTriggerRepositoryDTO, ProjectTriggerRepositoryPatchRequest, ProjectTriggerRepositoryRequest,
     PullRequestTriggerDTO,
 )
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
-from app.helpers.project_state import require_accepts_tasks
-from app.helpers.pull_request_fanout import skip_gap
-from app.helpers.repository_loop import check_no_loop, normalise_dir
-from app.helpers.ownership import get_for_write, require_member, set_owner
+from app.rules.project_state import require_accepts_tasks
+from app.repos.pull_request_fanout import skip_gap
+from app.repos.repository_loop import check_no_loop, normalise_dir
+from app.rules.ownership import get_for_write, require_member, set_owner
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.project import Project
 from app.models.project_trigger_repository import ProjectTriggerRepository

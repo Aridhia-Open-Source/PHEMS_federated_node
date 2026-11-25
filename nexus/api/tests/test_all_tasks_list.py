@@ -1,7 +1,7 @@
 """GET /tasks, the tasks of all projects."""
 import json
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.models.project import Project
 from tests.conftest import CONTRACT_DIR
 

@@ -8,7 +8,7 @@ only the network calls run in the threads (a repository's check first gets its t
 - GET /global/healthcheck, every global resource of the four kinds
 - GET /global/datasets/<dataset_id>/healthcheck, can the node connect to its database
 - GET /global/secrets/<label>/healthcheck, is it in its store with the keys its users need (a git
-  credential is any complete set of keys: see helpers/git_tokens.py)
+  credential is any complete set of keys: see repos/git_tokens.py)
 - GET /global/providers/<provider_id>/healthcheck, does the git provider's API answer
 - GET /global/repositories/triggers/<repository_id>/healthcheck
 - GET /global/repositories/results/<repository_id>/healthcheck
@@ -29,7 +29,7 @@ from app.dtos.healthcheck import (
 )
 from app.dtos.project import HealthCheckDTO, ProjectHealthDTO, RepositoryHealthDTO, ResultsRepositoryHealthDTO
 from app.helpers.exceptions import DBRecordNotFoundError
-from app.helpers.git_tokens import missing_credential_keys
+from app.repos.git_tokens import missing_credential_keys
 from app.models.dataset import Dataset
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, GitProvider
 from app.models.git_repository import GitRepositoryMixin

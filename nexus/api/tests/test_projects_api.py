@@ -4,7 +4,7 @@ import inspect
 import pytest
 from fastapi.routing import APIRoute, RouteContext, iter_route_contexts
 
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.project_results_repository import ProjectResultsRepository

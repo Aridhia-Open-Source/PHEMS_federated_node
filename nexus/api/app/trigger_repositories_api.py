@@ -23,12 +23,12 @@ from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.trigger_repository import (
     PullRequestBatchDTO, PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
 )
-from app.helpers.base_model import db
+from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.helpers.git_tokens import mint_token, require_token_allowed
-from app.helpers.ownership import get_for_write, set_owner
-from app.helpers.pull_request_fanout import ingest_pull_requests, skip_gap
-from app.helpers.soft_delete import delete_global
+from app.repos.git_tokens import mint_token, require_token_allowed
+from app.rules.ownership import get_for_write, set_owner
+from app.repos.pull_request_fanout import ingest_pull_requests, skip_gap
+from app.database.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.git_provider import GitProvider
 from app.models.project_trigger_repository import ProjectTriggerRepository
@@ -117,7 +117,7 @@ def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dic
 def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitTokenRequest)):
     """
     POST /global/repositories/triggers/<id>/token — a short-lived read token for the repository, minted from the
-    credential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the
+    credential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the
     repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
     its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
     project or resource still gets a token. Dagster asks at the moment of use.

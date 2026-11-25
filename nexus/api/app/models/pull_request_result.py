@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import validates
 
 from app.helpers.exceptions import InvalidRequest
-from app.helpers.state_rules import forward_only
+from app.rules.state_rules import forward_only
 from app.models.pull_request_result_step import RESULT_ORDER, PullRequestResultStep
 from app.models.result_state import ResultState
 from app.models.result import Result

@@ -6,7 +6,7 @@ Triggers, tasks and delivery results each have a state that should only move one
 
 ## Decision
 
-The allowed moves are data, in tables next to the enums in `nexus/api/app/models`. Two helpers in `nexus/api/app/helpers/state_rules.py` check them. Writing the same value again is always allowed. Any other refused move raises `InvalidRequest` with status 409 (the request is valid but conflicts with the current state).
+The allowed moves are data, in tables next to the enums in `nexus/api/app/models`. Two helpers in `nexus/api/app/rules/state_rules.py` check them. Writing the same value again is always allowed. Any other refused move raises `InvalidRequest` with status 409 (the request is valid but conflicts with the current state).
 
 - `transition(moves, current, new)`: `new` must be in `moves[current]`.
 - `forward_only(order, current, new)`: `new` must have a higher rank than `current`.
@@ -43,7 +43,7 @@ The allowed moves are data, in tables next to the enums in `nexus/api/app/models
 ## Where it lives
 
 - `nexus/api/app/models/trigger_state.py`, `task_status.py`, `pull_request_result_step.py`, `result_state.py`
-- `nexus/api/app/helpers/state_rules.py`
+- `nexus/api/app/rules/state_rules.py`
 - `nexus/api/app/models/trigger.py`, `pull_request_result.py`; `nexus/api/app/tasks_api.py`, `results_api.py`, `project_trigger_repositories_api.py`
 - `dagster/app/models/` (enum copies)
 

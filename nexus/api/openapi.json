@@ -2934,7 +2934,7 @@
           "trigger_repositories"
         ],
         "summary": "Post Token",
-        "description": "POST /global/repositories/triggers/<id>/token \u2014 a short-lived read token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
+        "description": "POST /global/repositories/triggers/<id>/token \u2014 a short-lived read token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
         "operationId": "post_token_global_repositories_triggers__repo_id__token_post",
         "parameters": [
           {
@@ -4160,7 +4160,7 @@
           "results_repositories"
         ],
         "summary": "Post Token",
-        "description": "POST /global/repositories/results/<id>/token \u2014 a short-lived write token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (helpers/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
+        "description": "POST /global/repositories/results/<id>/token \u2014 a short-lived write token for the repository, minted from the\ncredential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the\nrepository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or\nits resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled\nproject or resource still gets a token. Dagster asks at the moment of use.\nBody: {\"project_id\": int | null}\nResponds with token and expires_at (UTC).",
         "operationId": "post_token_global_repositories_results__repo_id__token_post",
         "parameters": [
           {

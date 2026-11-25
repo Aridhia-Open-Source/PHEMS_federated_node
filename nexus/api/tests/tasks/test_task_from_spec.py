@@ -4,8 +4,8 @@ import pytest
 
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
-from app.helpers.base_model import db
-from app.helpers.const import SPEC_RAW_MAX_BYTES, TASK_NAME_MAX_LENGTH
+from app.database.base_model import db
+from app.tasks.limits import SPEC_RAW_MAX_BYTES, TASK_NAME_MAX_LENGTH
 from app.helpers.exceptions import InvalidRequest
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.dataset import Dataset

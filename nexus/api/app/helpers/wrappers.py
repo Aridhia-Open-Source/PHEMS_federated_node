@@ -10,7 +10,7 @@ from fastapi import Depends, Request
 
 from app.helpers.const import OWNER_GROUPS
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
-from app.helpers.keycloak import Keycloak
+from app.clients.keycloak import Keycloak
 from app.models.user import User
 
 logger = logging.getLogger('wrappers')

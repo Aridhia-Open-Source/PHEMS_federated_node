@@ -5,7 +5,7 @@ threadpool call with a copy of this context).
 import json
 from itertools import count
 
-from app.helpers.base_model import request_scope, session
+from app.database.base_model import request_scope, session
 
 _scope_ids = count()
 

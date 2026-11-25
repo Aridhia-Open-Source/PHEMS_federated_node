@@ -2,7 +2,7 @@
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
-from app.helpers.base_model import BaseModel, db
+from app.database.base_model import BaseModel, db
 from app.models import sqla_column
 
 
