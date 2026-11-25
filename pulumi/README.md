@@ -59,13 +59,13 @@ duration of that job and is discarded afterwards. The workflow is therefore
 intended for the one-off bootstrap: rerunning it is not state-aware and may
 attempt to recreate or conflict with resources that already exist.
 
-Set repository variables `PULUMI_STACK`, `PULUMI_REPOSITORY`, and
-`PULUMI_ENVIRONMENTS` for the protected push path. A manual run can override
-all three values from the Actions form, for example:
+Set repository variables `PULUMI_REPOSITORY` and `PULUMI_ENVIRONMENTS` for the
+protected push path. The repository name is also used as the ephemeral Pulumi
+stack name. A manual run can override both values from the Actions form, for
+example:
 
 ```bash
 gh workflow run pulumi-bootstrap.yml \
-  -f stack=production \
   -f repository=phems-deployment \
   -f environments='develop,qa'
 ```

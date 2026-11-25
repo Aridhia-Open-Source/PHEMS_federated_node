@@ -15,11 +15,6 @@ on:
       - "pulumi/README.md"
   workflow_dispatch:
     inputs:
-      stack:
-        description: Pulumi stack to update
-        required: true
-        default: production
-        type: string
       repository:
         description: GitHub repository to manage
         required: true
@@ -35,7 +30,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pulumi-bootstrap-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || inputs.stack || vars.PULUMI_STACK || 'production' }}
+  group: pulumi-bootstrap-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || inputs.repository || vars.PULUMI_REPOSITORY || 'phems-deployment' }}
   cancel-in-progress: false
 
 jobs:
@@ -100,8 +95,8 @@ jobs:
     environment:
       name: pulumi-bootstrap
     env:
-      STACK: ${{ inputs.stack || vars.PULUMI_STACK || 'production' }}
       REPOSITORY: ${{ inputs.repository || vars.PULUMI_REPOSITORY || 'phems-deployment' }}
+      STACK: ${{ inputs.repository || vars.PULUMI_REPOSITORY || 'phems-deployment' }}
       ENVIRONMENTS: ${{ inputs.environments || vars.PULUMI_ENVIRONMENTS || 'develop' }}
     steps:
       - uses: actions/checkout@v4
