@@ -127,31 +127,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id')
     )
     _unique_when_live('uq_trigger_repositories_provider_repo_path', 'trigger_repositories', ['provider_id', 'repo_path'])
-    op.create_table('catalogues',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('dataset_id', sa.Integer(), nullable=True),
-        sa.Column('version', sa.String(length=256), nullable=True),
-        sa.Column('title', sa.String(length=256), nullable=False),
-        sa.Column('description', sa.String(length=4096), nullable=False),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('title', 'dataset_id')
-    )
-    op.create_table('dictionaries',
-        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('dataset_id', sa.Integer(), nullable=True),
-        sa.Column('table_name', sa.String(length=256), nullable=False),
-        sa.Column('field_name', sa.String(length=256), nullable=False),
-        sa.Column('label', sa.String(length=256), nullable=True),
-        sa.Column('description', sa.String(length=4096), nullable=False),
-        sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-        sa.ForeignKeyConstraint(['dataset_id'], ['datasets.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('table_name', 'dataset_id', 'field_name')
-    )
     op.create_table('projects',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
@@ -387,8 +362,6 @@ def downgrade() -> None:
     op.drop_table('task_specs')
     op.drop_table('pull_requests')
     op.drop_table('projects')
-    op.drop_table('dictionaries')
-    op.drop_table('catalogues')
     op.drop_table('trigger_repositories')
     op.drop_table('results_repositories')
     op.drop_table('datasets')

@@ -4,7 +4,7 @@ API returns, and the Dagster wire models in dagster/app/models.py depend on them
 """
 import re
 
-from app.dtos.dataset import CatalogueDTO, DatasetDTO, DictionaryDTO
+from app.dtos.dataset import DatasetDTO
 from app.dtos.project import ProjectDTO
 from app.dtos.results_repository import ProjectResultsRepositoryDTO
 from app.dtos.task import TaskDTO
@@ -66,33 +66,6 @@ class TestDatasetDTO:
         dumped = DatasetDTO.from_model(dataset).dump()
         assert WIRE_DATETIME.match(dumped["created_at"])
         assert WIRE_DATETIME.match(dumped["updated_at"])
-
-
-class TestCatalogueDTO:
-    def test_fields(self, catalogue):
-        assert set(CatalogueDTO.from_model(catalogue).dump()) == {
-            "id", "dataset_id", "version", "title", "description", "created_at", "updated_at",
-        }
-
-    def test_values(self, catalogue):
-        dumped = CatalogueDTO.from_model(catalogue).dump()
-        assert dumped["title"] == "new catalogue"
-        assert dumped["dataset_id"] == catalogue.dataset_id
-
-
-class TestDictionaryDTO:
-    def test_fields(self, dictionary):
-        assert set(DictionaryDTO.from_model(dictionary[0]).dump()) == {
-            "id", "dataset_id", "table_name", "field_name", "label", "description",
-            "created_at", "updated_at",
-        }
-
-    def test_values(self, dictionary):
-        dumped = DictionaryDTO.from_model(dictionary[0]).dump()
-        assert dumped["table_name"] == "patients"
-        assert dumped["field_name"] == "id"
-        assert dumped["label"] == "p_id"
-
 
 
 class TestTaskDTO:

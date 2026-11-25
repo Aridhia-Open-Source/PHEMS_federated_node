@@ -13,6 +13,7 @@
 - CI runs only the jobs a PR's changed files need, adds a `ci-ok` check to require instead of the individual jobs, and runs tests in the merge queue; images, the chart and the summary publish only from trunk pushes, tags and manual runs ([#729](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/729)); `actions-sandbox` is a throwaway branch that behaves like a trunk branch for testing these changes, reset from dagster-develop on every push to it
 - Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart
 - Removed unused nexus-api code: five `Task` methods, two exceptions, two `Keycloak` methods, `GitRepositoryMixin.check_connection` and the `ENABLE_IMAGE_WHITELIST` setting
+- Removed the dataset catalogue and dictionaries: the `catalogue` and `dictionaries` fields on dataset create and update, their tables, the UI fields and the Dagster models
 
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller

@@ -80,27 +80,6 @@ class ProjectDatasetDTO(DTO):
         )
 
 
-class CatalogueDTO(DTO):
-    id: int
-    dataset_id: int | None
-    version: str | None
-    title: str
-    description: str
-    created_at: WireDatetime
-    updated_at: WireDatetime
-
-
-class DictionaryDTO(DTO):
-    id: int
-    dataset_id: int | None
-    table_name: str
-    field_name: str
-    label: str | None
-    description: str
-    created_at: WireDatetime
-    updated_at: WireDatetime
-
-
 class DatasetPatchRequest(BaseModel):
     """The fields a dataset PATCH may change, all optional. Anything else is refused."""
     model_config = ConfigDict(extra="forbid", strict=True)
@@ -115,8 +94,6 @@ class DatasetPatchRequest(BaseModel):
     enabled: StrictBool | None = None
     revoked: StrictBool | None = None
     secret_label: str | None = Field(default=None, min_length=1)
-    catalogue: dict | None = None
-    dictionaries: list | None = None
 
     @field_validator("name")
     @classmethod
@@ -163,8 +140,6 @@ class DatasetRequest(DatasetPatchRequest):
     type: str = "postgres"
     enabled: StrictBool = True
     secret_label: str = Field(min_length=1)
-    catalogue: dict = Field(default_factory=dict)
-    dictionaries: list = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
