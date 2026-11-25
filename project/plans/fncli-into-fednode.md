@@ -1,6 +1,6 @@
 # Plan: fncli into fednode (fednode/3, #766)
 
-Status: not started.
+Status: complete.
 - Move `nexus/fednode/cli` to `fednode/cli` (subpackage). Keep commands and behaviour.
 - CLI-only deps (click etc.) as an optional extra: `[project.optional-dependencies] cli = [...]`; entry point
   `fncli = "fednode.cli:main"`. Services install plain `fednode`; dev machines and CI install `fednode[cli]`.

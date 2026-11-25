@@ -1,6 +1,6 @@
 # 0039. Fednode shared package
 
-Status: Proposed, 2026-11-24. Supersedes 0038 (one outbound client layer for nexus-api).
+Status: Accepted, 2026-11-24. Supersedes 0038 (one outbound client layer for nexus-api).
 
 ## Context
 

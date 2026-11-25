@@ -1,6 +1,6 @@
 # Plan: unified settings (fednode/4, #742; #743 folded in)
 
-Status: existing PR (nexus-api + Dagster settings); rework to the agreed design not started.
+Status: complete.
 Full design and env rename table: see `project/plans/settings-design.md` on this branch.
 - Shared classes in `fednode/settings.py` (all fields optional): EnvSettings, NodeSettings, NamespacesSettings, HttpSettings,
   DatabaseSettings, NexusSettings, DagsterSettings, KeycloakSettings. env_prefix per class, no aliases.
