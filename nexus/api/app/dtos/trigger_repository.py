@@ -22,7 +22,8 @@ class TriggerRepositoryDTO(DTO):
     revoked: bool
     # Where polling the provider resumes, see TriggerRepository.get_ingest_cursor
     pr_cursor: str
-    owner: UserRefDTO | None
+    created_by: UserRefDTO | None
+    owned_by: UserRefDTO | None
 
     @classmethod
     def from_model(cls, obj: TriggerRepository):
@@ -35,7 +36,8 @@ class TriggerRepositoryDTO(DTO):
             enabled=obj.enabled,
             revoked=obj.revoked,
             pr_cursor=obj.get_ingest_cursor(),
-            owner=UserRefDTO.of(obj.owner),
+            created_by=UserRefDTO.of(obj.created_by),
+            owned_by=UserRefDTO.of(obj.owned_by),
         )
 
 
@@ -58,7 +60,7 @@ class ProjectTriggerRepositoryDTO(DTO):
     enabled: bool
     revoked: bool
     active: bool
-    owner: UserRefDTO | None
+    created_by: UserRefDTO | None
 
     @classmethod
     def from_model(cls, obj: ProjectTriggerRepository):
@@ -73,7 +75,7 @@ class ProjectTriggerRepositoryDTO(DTO):
             enabled=obj.enabled,
             revoked=obj.revoked,
             active=obj.active,
-            owner=UserRefDTO.of(obj.owner),
+            created_by=UserRefDTO.of(obj.created_by),
         )
 
 

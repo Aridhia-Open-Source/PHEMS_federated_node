@@ -1,6 +1,6 @@
 """
-The users table and the record creator (ADR 0035): each authenticated call upserts the caller's row, and the
-creator of a record is its owner_id.
+The users table, the record creator and owner (ADR 0037): each authenticated call upserts the caller's row; the
+creator of a record is its created_by, and of a project or global record also its owned_by, with a manage grant.
 """
 from datetime import datetime as dt
 
@@ -8,6 +8,7 @@ import pytest
 
 from app import create_app
 from app.database.base_model import db
+from app.models.grant import Grant
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.user import User
@@ -83,24 +84,51 @@ def test_a_call_soon_after_the_last_leaves_the_row_alone_unless_the_username_cha
     assert db.session.get(User, "id-person").username == "renamed"
 
 
-# Creator on create
+# Creator and owner on create
 
-def test_the_creator_of_a_record_is_its_owner(client, callers):
+def grants_on(object_type: str, object_id: int) -> set[tuple]:
+    db.session.expire_all()
+    return {
+        (g.relation, g.subject_type, g.subject_id)
+        for g in Grant.query.filter_by(object_type=object_type, object_id=object_id)
+    }
+
+
+def test_the_creator_of_a_record_creates_and_owns_it_and_manages_it(client, callers):
     by_person = create_provider(client, "person_token", "p1")
+
+    assert by_person["created_by"] == {"id": "id-person", "username": "person"}
+    assert by_person["owned_by"] == {"id": "id-person", "username": "person"}
+    assert grants_on("GitProvider", by_person["id"]) == {("manage", "user", "id-person")}
+
+
+def test_an_operator_record_is_owned_by_its_account_and_managed_by_the_service_group(client, callers):
     by_service = create_provider(client, "service_token", "p2")
 
-    assert by_person["owner"] == {"id": "id-person", "username": "person"}
-    assert by_service["owner"] == {"id": "id-svc", "username": "svc"}
+    assert by_service["owned_by"] == {"id": "id-svc", "username": "svc"}
+    assert grants_on("GitProvider", by_service["id"]) == {("manage", "group", "/roles/service")}
 
 
-def test_a_project_and_its_assignment_are_owned_by_their_creator(client, callers, global_dataset):
+def test_a_project_resource_has_a_creator_and_no_grants(client, callers, global_dataset):
     project_id = client.post("/projects", json={"name": "owned"}, headers=as_("service_token")).json()["id"]
     response = client.put(f"/projects/{project_id}/datasets/{global_dataset.id}", json={}, headers=as_("service_token"))
 
     assert response.status_code == 201
-    assert response.json()["owner"]["id"] == "id-svc"
-    assert Project.get_by_id(project_id).owner_id == "id-svc"
-    assert ProjectDataset.query.filter_by(project_id=project_id).one().owner_id == "id-svc"
+    assert response.json()["created_by"]["id"] == "id-svc"
+    assert "owned_by" not in response.json()
+    project = Project.get_by_id(project_id)
+    assert (project.created_by_id, project.owned_by_id) == ("id-svc", "id-svc")
+    assert ProjectDataset.query.filter_by(project_id=project_id).one().created_by_id == "id-svc"
+    assert Grant.query.count() == 1
+
+
+def test_deleting_a_record_deletes_its_grants(client, callers):
+    provider = create_provider(client, "person_token", "p1")
+
+    response = client.delete(f"{PROV}/{provider['id']}", headers=as_("person_token"))
+
+    assert response.status_code == 204
+    assert grants_on("GitProvider", provider["id"]) == set()
 
 
 # Every write route on a record, walked from the OpenAPI document
@@ -140,15 +168,24 @@ UNOWNED_WRITE_ROUTES = {
     ("PATCH", "/projects/{project_id}/tasks/{task_id}"),
     ("PUT", "/global/users/reset-password"),
 }
+# The grants routes (grants_api), checked there: a manage holder or SuperUser
+GRANT_ROUTES = {
+    (method, f"{record}{route}")
+    for record in (
+        "/projects/{project_id}", "/global/datasets/{dataset_id}", "/global/providers/{provider_id}",
+        "/global/secrets/{label}", "/global/repositories/triggers/{repo_id}", "/global/repositories/results/{repo_id}",
+    )
+    for method, route in (("DELETE", "/grants/{grant_id}"), ("PUT", "/owner"))
+}
 
 
 def test_every_write_route_is_classed_as_owned_or_not():
-    """A new PUT, PATCH or DELETE route has to be added to one of the two lists, and tested if owned."""
+    """A new PUT, PATCH or DELETE route has to be added to one of the lists, and tested if owned."""
     routes = {
         (method.upper(), path) for path, operations in create_app().openapi()["paths"].items()
         for method in operations if method in ("put", "patch", "delete")
     }
-    assert routes == set(OWNED_WRITE_ROUTES) | UNOWNED_WRITE_ROUTES
+    assert routes == set(OWNED_WRITE_ROUTES) | UNOWNED_WRITE_ROUTES | GRANT_ROUTES
 
 
 @pytest.fixture
@@ -165,7 +202,7 @@ def every_owned_record(
     }
 
 
-@pytest.mark.skip(reason="owner groups removed; grants in T-057")
+@pytest.mark.skip(reason="owner groups removed; the check lands with Cedar (auth/6 #687)")
 @pytest.mark.parametrize("method,path", list(OWNED_WRITE_ROUTES), ids=[f"{m} {p}" for m, p in OWNED_WRITE_ROUTES])
 def test_a_write_to_a_record_locked_to_another_group_is_a_409(client, callers, every_owned_record, method, path):
     params = dict(every_owned_record)

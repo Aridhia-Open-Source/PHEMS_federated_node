@@ -14,22 +14,22 @@ type S = Schemas;
 // Fixtures are typed with the generated DTOs, so they break when the API's shapes change
 const secret: S["SecretDTO"] = {
   id: 1, label: "s", description: null, provider: "K8S", key: "fn-secret-s", namespace: null, enabled: true,
-  created_at: "2026-01-01 00:00:00", updated_at: "2026-01-01 00:00:00", owner: null,
+  created_at: "2026-01-01 00:00:00", updated_at: "2026-01-01 00:00:00", created_by: null, owned_by: null,
 };
 const provider: S["GitProviderRefDTO"] = {
   id: 1, name: "gh", type: "github", uri: "https://github.com", api_uri: "https://api.github.com", enabled: true, revoked: false,
 };
 const repository: S["TriggerRepositoryDTO"] = {
   id: 5, uri: "https://github.com/org/trig", repo_path: "org/trig", provider, secret, enabled: true, revoked: false,
-  pr_cursor: "2026-01-01T00:00:00", owner: null,
+  pr_cursor: "2026-01-01T00:00:00", created_by: null, owned_by: null,
 };
 const trigger: S["ProjectTriggerRepositoryDTO"] = {
   project_id: 1, trigger_repository: repository, watch_dir: "specs", base_branch: "main", dataset_id: null,
-  pr_cursor: "2026-01-01T00:00:00", pr_count: 1, enabled: true, revoked: false, active: true, owner: null,
+  pr_cursor: "2026-01-01T00:00:00", pr_count: 1, enabled: true, revoked: false, active: true, created_by: null,
 };
 const project: S["ProjectDTO"] = {
   id: 1, name: "p1", description: null, enabled: true, revoked: false, default_dataset_id: null,
-  created_at: "2026-01-01 00:00:00", updated_at: "2026-01-01 00:00:00", owner: null,
+  created_at: "2026-01-01 00:00:00", updated_at: "2026-01-01 00:00:00", created_by: null, owned_by: null,
 };
 const pullRequest: S["PullRequestTriggerDTO"] = {
   project_id: 1, trigger_repository_id: 5, number: 7, title: "PR seven", raised_by: "u", merge_commit_sha: "abc",
