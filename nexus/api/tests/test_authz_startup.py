@@ -1,6 +1,7 @@
 """
-Startup checks of the Cedar policies (ADR 0037): a policy or schema that fails validation, or an Action missing
-from the schema, stops create_app; each new policy hash writes one policy_versions row.
+Startup checks of the Cedar policies (ADR 0037): a policy or schema that fails validation, an Action missing from
+the schema, a rule without an @id or a roles.yaml that disagrees with the rules or the node roles stops create_app;
+each new policy hash writes one policy_versions row.
 """
 import shutil
 
@@ -49,14 +50,43 @@ def test_unparsable_policy_stops_startup(policy_dir):
 
 
 def test_action_missing_from_schema_stops_startup(policy_dir):
-    """operate is in Action but taken out of the schema (and of the rules, which would fail first)."""
-    edit(policy_dir / "schema.cedarschema", "action read, write, execute, assign, operate, manage",
-         "action read, write, execute, assign, manage")
+    """operate is in Action but its model actions are taken out of the schema (and the rules, which would fail first)."""
+    schema = (policy_dir / "schema.cedarschema").read_text()
+    start = schema.index("// operate")
+    end = schema.index("// manage")
+    (policy_dir / "schema.cedarschema").write_text(
+        schema[:start].replace("action read, write, execute, assign, operate, manage",
+                               "action read, write, execute, assign, manage") + schema[end:]
+    )
     policies = (policy_dir / "policies.cedar").read_text()
     start = policies.index("// operate turns")
     end = policies.index("// Any current grant")
     (policy_dir / "policies.cedar").write_text(policies[:start] + policies[end:])
     with pytest.raises(PolicyError, match="Action operate"):
+        create_app()
+
+
+def test_rule_without_an_id_stops_startup(policy_dir):
+    edit(policy_dir / "policies.cedar", '@id("dataset.execute.revoked")\n', "")
+    with pytest.raises(PolicyError, match="without an @id"):
+        create_app()
+
+
+def test_permission_without_a_rule_stops_startup(policy_dir):
+    edit(policy_dir / "roles.yaml", "Service: [global.write.all]", "Service: [global.write.all, global.delete.all]")
+    with pytest.raises(PolicyError, match="global.delete.all"):
+        create_app()
+
+
+def test_unknown_role_stops_startup(policy_dir):
+    edit(policy_dir / "roles.yaml", "Users: []", "Users: []\nVisitor: []")
+    with pytest.raises(PolicyError, match="Visitor"):
+        create_app()
+
+
+def test_role_missing_from_roles_stops_startup(policy_dir):
+    edit(policy_dir / "roles.yaml", "Users: []  # grants only", "")
+    with pytest.raises(PolicyError, match="node roles"):
         create_app()
 
 

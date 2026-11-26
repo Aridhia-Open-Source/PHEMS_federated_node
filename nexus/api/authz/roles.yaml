@@ -1,0 +1,9 @@
+# Which permissions each node role holds (ADR 0037); Keycloak says who is in a role (ADR 0036).
+# A permission is the @id of a rule in policies.cedar, which checks it; nexus-api refuses to start on a permission
+# with no rule or a role that is not a node role. Grant-based permissions (*.read.granted, ...) need no line:
+# every caller holds them and the grants table decides per record. Every node role is listed.
+SuperUser: ["*.all.superuser"]
+Administrator: [global.write.all, global.read.all, global.assign.all]
+Service: [global.write.all]
+Dagster: ["*.read.all"]
+Users: []  # grants only

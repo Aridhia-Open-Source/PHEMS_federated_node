@@ -1,10 +1,12 @@
 // Entity types, attributes and actions for nexus-api's access checks (ADR 0037).
 // app/rules/authz.py builds every request against this schema.
 
-// A caller: its node role (Keycloak realm role) and its Keycloak groups are its parents.
+// A caller: its node role (Keycloak realm role), its Keycloak groups and the permissions roles.yaml gives its role
+// are its parents.
 entity Role;
 entity Group;
-entity User in [Role, Group];
+entity Permission;
+entity User in [Role, Group, Permission];
 
 // The container of global records; Global::"0" is the only one. Not a table.
 entity Global;
@@ -36,7 +38,48 @@ type Context = {
   grants: Grants,
 };
 
-action read, write, execute, assign, operate, manage appliesTo {
+// The verbs are action groups. A request asks for a model action, <model>.<verb> (dataset.read, project.operate),
+// which sits in its verb's group, so a rule about every model says action in Action::"read".
+action read, write, execute, assign, operate, manage;
+
+// read
+action "global.read", "project.read", "dataset.read", "git_provider.read", "secret.read", "trigger_repository.read", "results_repository.read"
+  in [read] appliesTo {
+  principal: [User],
+  resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository],
+  context: Context,
+};
+// write
+action "global.write", "project.write", "dataset.write", "git_provider.write", "secret.write", "trigger_repository.write", "results_repository.write"
+  in [write] appliesTo {
+  principal: [User],
+  resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository],
+  context: Context,
+};
+// execute
+action "global.execute", "project.execute", "dataset.execute", "git_provider.execute", "secret.execute", "trigger_repository.execute", "results_repository.execute"
+  in [execute] appliesTo {
+  principal: [User],
+  resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository],
+  context: Context,
+};
+// assign
+action "global.assign", "project.assign", "dataset.assign", "git_provider.assign", "secret.assign", "trigger_repository.assign", "results_repository.assign"
+  in [assign] appliesTo {
+  principal: [User],
+  resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository],
+  context: Context,
+};
+// operate
+action "global.operate", "project.operate", "dataset.operate", "git_provider.operate", "secret.operate", "trigger_repository.operate", "results_repository.operate"
+  in [operate] appliesTo {
+  principal: [User],
+  resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository],
+  context: Context,
+};
+// manage
+action "global.manage", "project.manage", "dataset.manage", "git_provider.manage", "secret.manage", "trigger_repository.manage", "results_repository.manage"
+  in [manage] appliesTo {
   principal: [User],
   resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository],
   context: Context,

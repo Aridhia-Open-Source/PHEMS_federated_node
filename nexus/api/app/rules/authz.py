@@ -8,7 +8,9 @@ cedarpy is only called from this module, so swapping the wrapper stays local.
 """
 import hashlib
 import inspect
+import json
 import logging
+import re
 import time
 from datetime import timezone
 from dataclasses import dataclass, field
@@ -19,6 +21,7 @@ from pathlib import Path
 
 import cedarpy
 import sqlalchemy as sa
+import yaml
 from fastapi import Depends
 from sqlalchemy.dialects.postgresql import insert
 
@@ -26,19 +29,21 @@ from app.database.base_model import db, engine
 from app.dtos.caller import Caller
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.helpers.wrappers import get_caller, require_role, system_only
-from app.models.node_role import ADMIN_ROLES
+from app.models.node_role import ADMIN_ROLES, NodeRole
 from app.models.grant import GROUP, USER, Grant
 from app.models.policy_version import PolicyVersion
 from app.models.secret import Secret
 
 AUTHZ_DIR = Path(__file__).resolve().parents[2] / "authz"
-POLICY_FILES = ("policies.cedar", "schema.cedarschema", "cases.yaml")
+POLICY_FILES = ("policies.cedar", "schema.cedarschema", "roles.yaml", "cases.yaml")
 # The expiry passed for a grant with none: year 9999, far past any context.now
 NEVER = 253402300799
 logger = logging.getLogger("authz")
 
 # The record types under Global::"0"; projects are created under it but are not its children
 GLOBAL_TYPES = frozenset({"Dataset", "GitProvider", "Secret", "TriggerRepository", "ResultsRepository"})
+# Every record type a request can be about; each has a model action per Action in the schema
+MODELS = ("Global", "Project", *sorted(GLOBAL_TYPES))
 
 
 class Action(StrEnum):
@@ -67,7 +72,10 @@ class PolicyError(RuntimeError):
 
 @dataclass(frozen=True)
 class Principal:
-    """The caller as Cedar sees it: User::"<user_id>", in Role::"<role>" and each Group::"<path>"."""
+    """
+    The caller as Cedar sees it: User::"<user_id>", in Role::"<role>", each Group::"<path>" and each
+    Permission::"<name>" that roles.yaml gives its role.
+    """
     user_id: str
     role: str
     groups: tuple[str, ...] = ()
@@ -86,9 +94,21 @@ class Policies:
     """The policy files as read at startup."""
     policies: str
     schema: str
-    # sha256 of the three policy files, hex
+    # node role -> the permissions roles.yaml gives it
+    roles: dict[str, tuple[str, ...]]
+    # Cedar's id for each rule (policy0, ...) -> its @id, None if it has none
+    rules: dict[str, str | None]
+    # sha256 of the policy files, hex
     hash: str
     contents: str
+
+
+@dataclass(frozen=True)
+class Decision:
+    """Cedar's answer for one request and the @ids of the rules that decided it: the permits that allowed it, or the
+    forbids that refused it; none if nothing allowed it."""
+    allowed: bool
+    rules: tuple[str, ...]
 
 
 @cache
@@ -96,29 +116,60 @@ def load_policies() -> Policies:
     """Reads the policy files once."""
     texts = {name: (AUTHZ_DIR / name).read_text() for name in POLICY_FILES}
     contents = "".join(f"// {name}\n{text}" for name, text in texts.items())
+    try:
+        static = json.loads(cedarpy.policies_to_json_str(texts["policies.cedar"]))["staticPolicies"]
+    except ValueError as error:
+        raise PolicyError(f"Cedar policies do not parse: {error}") from error
     return Policies(
         policies=texts["policies.cedar"], schema=texts["schema.cedarschema"],
+        roles={role: tuple(permissions) for role, permissions in yaml.safe_load(texts["roles.yaml"]).items()},
+        rules={policy_id: policy.get("annotations", {}).get("id") for policy_id, policy in static.items()},
         hash=hashlib.sha256(contents.encode()).hexdigest(), contents=contents,
     )
 
 
+def model_action(model: str, action: Action) -> str:
+    """The Cedar action a request asks for: the model and the verb, e.g. dataset.read, git_provider.write."""
+    return f"{re.sub(r'(?<!^)(?=[A-Z])', '_', model).lower()}.{action}"
+
+
 def validate(policies: str, schema: str) -> None:
-    """Raises PolicyError if the policies fail the schema or an Action but UNCHECKED is not in it."""
+    """Raises PolicyError if the policies fail the schema, or an Action but UNCHECKED or its model action is missing."""
     result = cedarpy.validate_policies(policies, schema)
     if not result.validation_passed:
         raise PolicyError(f"Cedar policies are not valid: {[error.error for error in result.errors]}")
-    for action in Action:
-        if action == Action.UNCHECKED:
-            continue
-        probe = cedarpy.validate_policies(f'permit (principal, action == Action::"{action}", resource);', schema)
-        if not probe.validation_passed:
-            raise PolicyError(f"Action {action} is not in the Cedar schema")
+    verbs = [Action(action) for action in Action if action != Action.UNCHECKED]
+    # The verbs are groups no request names, so probe them with in; the model actions with ==
+    scopes = [
+        *(f'action in Action::"{verb}"' for verb in verbs),
+        *(f'action == Action::"{model_action(model, verb)}"' for verb in verbs for model in MODELS),
+    ]
+
+    def permits(*probed: str) -> bool:
+        probe = "\n".join(f"permit (principal, {scope}, resource);" for scope in probed)
+        return cedarpy.validate_policies(probe, schema).validation_passed
+
+    # One probe for all; only a failure looks for the action it names
+    if not permits(*scopes):
+        missing = next(scope.split('"')[1] for scope in scopes if not permits(scope))
+        raise PolicyError(f"Action {missing} is not in the Cedar schema")
 
 
 def check_policies() -> None:
-    """The startup check: the repo's policy files are valid."""
+    """The startup check: the policy files are valid, every rule is named and roles.yaml agrees with them."""
     policies = load_policies()
     validate(policies.policies, policies.schema)
+    names = {name for name in policies.rules.values() if name}
+    unnamed = [policy_id for policy_id, name in policies.rules.items() if not name]
+    if unnamed:
+        raise PolicyError(f"Rules without an @id: {unnamed}")
+    roles = {str(role) for role in NodeRole}
+    if set(policies.roles) != roles:
+        raise PolicyError(f"roles.yaml must list exactly the node roles {sorted(roles)}, not {sorted(policies.roles)}")
+    for role, permissions in policies.roles.items():
+        for permission in permissions:
+            if permission not in names:
+                raise PolicyError(f"roles.yaml gives {role} the permission {permission}, which no rule is named")
 
 
 def record_policy_version() -> None:
@@ -135,13 +186,17 @@ def _uid(type_: str, id_: str) -> dict:
     return {"type": type_, "id": str(id_)}
 
 
-def is_allowed(principal: Principal, action: Action, resource: Resource, grants: dict[str, int], now: int) -> bool:
+def decide(principal: Principal, action: Action, resource: Resource, grants: dict[str, int], now: int) -> Decision:
     """
-    Cedar's answer for one request. grants is the caller's latest expiry per relation, epoch seconds; the
-    user's parents are its node role and its groups, and a global record's parent is Global::"0".
+    Cedar's answer for one request, with the rules that decided it. grants is the caller's latest expiry per
+    relation, epoch seconds; the user's parents are its node role, its groups and the permissions roles.yaml gives
+    its role, and a global record's parent is Global::"0".
     """
     policies = load_policies()
-    parents = [_uid("Role", principal.role), *(_uid("Group", group) for group in principal.groups)]
+    parents = [
+        _uid("Role", principal.role), *(_uid("Group", group) for group in principal.groups),
+        *(_uid("Permission", permission) for permission in policies.roles[str(principal.role)]),
+    ]
     entities = [
         {"uid": _uid("User", principal.user_id), "attrs": {}, "parents": parents},
         *({"uid": parent, "attrs": {}, "parents": []} for parent in parents),
@@ -154,7 +209,7 @@ def is_allowed(principal: Principal, action: Action, resource: Resource, grants:
         })
     request = {
         "principal": f'User::"{principal.user_id}"',
-        "action": f'Action::"{action}"',
+        "action": f'Action::"{model_action(resource.type, action)}"',
         "resource": f'{resource.type}::"{resource.id}"',
         "context": {"now": now, "grants": grants},
     }
@@ -162,7 +217,18 @@ def is_allowed(principal: Principal, action: Action, resource: Resource, grants:
     # A malformed request comes back as a deny with errors: fail loudly instead of denying quietly
     if result.diagnostics.errors:
         raise PolicyError(f"Cedar could not evaluate {request}: {result.diagnostics.errors}")
-    return result.allowed
+    rules = sorted(policies.rules[policy_id] for policy_id in result.diagnostics.reasons)
+    return Decision(result.allowed, tuple(rules))
+
+
+def is_allowed(principal: Principal, action: Action, resource: Resource, grants: dict[str, int], now: int) -> bool:
+    """decide(), logging the decision with the rules that made it: allowed dataset.read Dataset 12 user alice by ..."""
+    decision = decide(principal, action, resource, grants, now)
+    logger.info(
+        "%s %s %s %s user %s by %s", "allowed" if decision.allowed else "refused", model_action(resource.type, action),
+        resource.type, resource.id, principal.user_id, ", ".join(decision.rules) or "none",
+    )
+    return decision.allowed
 
 
 def _grant_rows(caller: Caller):
