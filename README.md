@@ -48,6 +48,16 @@ flowchart LR
     NP -->|"only route out"| DS
 ```
 
+## Access
+
+Keycloak signs people and programs in; nexus-api decides what each may do.
+
+- Every account holds one of five fixed roles: `SuperUser` (recovery), `Administrator` (sets up the node), `Service` (the operator), `Users` and `Dagster`. A role is a Keycloak group under `/roles`, so a hospital can feed it from its own directory.
+- What a person may do to a project or global record is a list of grants in nexus-api: `read`, `assign`, `execute`, `operate`, `write` or `manage`, for a user or a Keycloak group, optionally until a date. Every call is checked, reads included, by one reviewed Cedar policy file (`nexus/api/authz/`). Revoking applies at once.
+- Install sets a first admin (`firstUserSecret`) and a break-glass superuser (`superuserSecret`).
+
+Pages: [Sign-in and roles](docs/versions/2.x/docs/Sign-In-And-Roles.md), [Granting access](docs/versions/2.x/docs/Granting-Access.md), [Auth setup](docs/versions/2.x/docs/Auth-Setup.md). Design: ADRs [0035](project/decisions/0035-api-authorization-oidc-authentication.md), [0036](project/decisions/0036-keycloak-authentication-roles-and-system-accounts.md) and [0037](project/decisions/0037-cedar-authorization-grants-and-policies.md).
+
 ## Principles
 
 - Pull request review is the approval: a task starts when its pull request is merged, and results leave the node only when a results pull request is merged.
@@ -59,6 +69,7 @@ flowchart LR
 
 - Deploying a node: [Deploy-Core](docs/versions/2.x/docs/Deploy-Core.md), plus the page for your platform ([Azure](docs/versions/2.x/docs/Deploy-Azure.md), [AWS](docs/versions/2.x/docs/Deploy-AWS.md), [GCP](docs/versions/2.x/docs/Deploy-GCP.md), [On-Premises](docs/versions/2.x/docs/Deploy-On-Premises.md)). Start with [Prerequisites](docs/versions/2.x/docs/Prerequisites.md).
 - Running it locally: [DEPLOYMENT.md](DEPLOYMENT.md), "Run it locally".
+- Who can sign in and who can do what: [Sign-in and roles](docs/versions/2.x/docs/Sign-In-And-Roles.md), [Granting access](docs/versions/2.x/docs/Granting-Access.md), [Auth setup](docs/versions/2.x/docs/Auth-Setup.md).
 - Setting up a project: [MANAGEMENT.md](MANAGEMENT.md), then [Datasets](docs/versions/2.x/docs/Datasets.md) and the [Researcher guide](docs/versions/2.x/docs/Researcher-Guide.md). Git credentials are in [SETUP_GIT_APPS.md](SETUP_GIT_APPS.md).
 - Contributing: [AGENTS.md](AGENTS.md) for the repo map, mise tasks and conventions, and the [decision records](project/decisions/README.md).
 - Licences for the component projects: [sub-licenses](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/sub-licenses).
