@@ -80,6 +80,31 @@ def test_secret_sent_when_the_record_is_missing(api):
     api.upsert_secret.assert_called_once_with("creds", {"APP_ID": "1"})
 
 
+def test_secret_waits_for_a_missing_key_and_names_no_value(api):
+    spec = {"values": {"TOKEN": {"secretKeyRef": {"name": "db", "key": "token"}}}}
+    with pytest.raises(kopf.TemporaryError, match="waiting for key token in Secret db") as error:
+        sync.sync_secret(api, "creds", spec, "fn", lambda ns, n: ({"other": "s3cret"}, "5"), {}, True)
+    assert "s3cret" not in str(error.value)
+    api.upsert_secret.assert_not_called()
+
+
+def test_secret_waits_for_an_empty_source(api):
+    with pytest.raises(kopf.TemporaryError, match="waiting for keys in Secret app"):
+        sync.sync_secret(api, "creds", {"fromSecret": {"name": "app"}}, "fn", lambda ns, n: ({}, "1"), {}, True)
+    api.upsert_secret.assert_not_called()
+
+
+def test_decode_secret():
+    assert sync.decode_secret("app", {"APP_ID": "MTIz"}) == {"APP_ID": "123"}
+    assert sync.decode_secret("app", None) == {}
+
+
+def test_decode_secret_error_names_the_key_not_the_bytes():
+    with pytest.raises(kopf.TemporaryError, match="key KEY of Secret app is not UTF-8 text") as error:
+        sync.decode_secret("app", {"KEY": "/w=="})  # 0xff
+    assert error.value.__cause__ is None and error.value.__suppress_context__
+
+
 def test_repository_waits_for_its_provider_and_secret(api):
     api.get_secrets.return_value = []
     with pytest.raises(kopf.TemporaryError, match="a git provider on gitea:4000, secret creds"):

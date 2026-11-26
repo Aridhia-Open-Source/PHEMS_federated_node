@@ -120,6 +120,51 @@ tests:
           value: node-config
         documentIndex: 0
 
+  - it: may get any Secret in a watched namespace while operator.sourceSecrets is empty
+    template: nexus-operator-roles.yaml
+    set:
+      nodeConfig.secrets.creds.fromSecret.name: app
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get"]
+        documentIndex: 0
+      - notExists:
+          path: rules[2].resourceNames
+        documentIndex: 0
+
+  - it: may get only operator.sourceSecrets and the Secrets nodeConfig.secrets names once sourceSecrets is set
+    template: nexus-operator-roles.yaml
+    set:
+      operator.sourceSecrets: [flux-app, shared]
+      nodeConfig.secrets:
+        app-creds:
+          fromSecret: {name: shared}
+        db-creds:
+          values:
+            USERNAME: {secretKeyRef: {name: db, key: username}}
+            PASSWORD: {secretKeyRef: {name: db, key: password}}
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get"]
+            resourceNames: [db, flux-app, shared]
+        documentIndex: 0
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get"]
+            resourceNames: [db, flux-app, shared]
+        documentIndex: 2
+
   - it: strips the finalizers in a pre-delete hook
     template: nexus-operator-uninstall-hook.yaml
     documentSelector:
