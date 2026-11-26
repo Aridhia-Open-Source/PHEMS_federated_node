@@ -38,6 +38,7 @@ RUN pip install --no-cache-dir --no-deps -e /opt/fednode
 
 COPY --chown=${APP_USER}:${APP_USER} app ./app
 COPY --chown=${APP_USER}:${APP_USER} migrations ./migrations
+COPY --chown=${APP_USER}:${APP_USER} authz ./authz
 COPY --chown=${APP_USER}:${APP_USER} alembic.ini .
 
 USER ${USER_UID}

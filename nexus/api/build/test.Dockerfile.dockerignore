@@ -2,6 +2,7 @@
 
 !app/**
 !migrations/**
+!authz/**
 !requirements-dev.txt
 !alembic.ini
 !setup.cfg
