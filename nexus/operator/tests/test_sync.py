@@ -314,3 +314,87 @@ def test_delete_never_forces(api):
     api.find_project.return_value = record(id=9)
     sync.delete_project(api, "cohort", PROJECT)
     api.delete_project.assert_called_once_with(9)
+
+
+# Access
+
+def grant(grant_id, relation, subject_id, subject_type="group"):
+    return {"id": grant_id, "relation": relation, "subject_type": subject_type, "subject_id": subject_id}
+
+
+def test_access_adds_missing_group_grants(api):
+    api.get_grants.return_value = [grant(1, "manage", "/roles/service"), grant(2, "read", "/studies/uc1")]
+
+    changed, applied = sync.sync_access(
+        api, "/projects/3",
+        [{"group": "/studies/uc1", "relation": "read"}, {"group": "/studies/uc1", "relation": "execute"}], [],
+    )
+
+    api.add_grant.assert_called_once_with("/projects/3", "execute", "group", "/studies/uc1")
+    api.delete_grant.assert_not_called()
+    assert changed
+    # read already existed, so the operator did not add it and status.access leaves it out
+    assert applied == [{"group": "/studies/uc1", "relation": "execute"}]
+
+
+def test_access_removes_only_what_it_applied(api):
+    api.get_grants.return_value = [
+        grant(1, "manage", "/roles/service"),
+        grant(2, "read", "/studies/uc1"),
+        grant(3, "execute", "/studies/uc1"),  # an approved data access request, made at runtime
+        grant(4, "read", "alice-id", subject_type="user"),
+    ]
+
+    changed, applied = sync.sync_access(api, "/global/datasets/12", [], [{"group": "/studies/uc1", "relation": "read"}])
+
+    api.delete_grant.assert_called_once_with("/global/datasets/12", 2)
+    api.add_grant.assert_not_called()
+    assert (changed, applied) == (True, [])
+
+
+def test_access_unchanged_sends_nothing(api):
+    api.get_grants.return_value = [grant(2, "read", "/studies/uc1")]
+    access = [{"group": "/studies/uc1", "relation": "read"}]
+
+    assert sync.sync_access(api, "/projects/3", access, access) == (False, access)
+    api.add_grant.assert_not_called()
+    api.delete_grant.assert_not_called()
+
+
+def test_a_grant_the_operator_did_not_add_is_never_deleted(api):
+    """A group grant that already existed (an approved access request) stays, even when the spec named it and then drops it"""
+    api.get_grants.return_value = [grant(2, "read", "/studies/uc1")]
+    access = [{"group": "/studies/uc1", "relation": "read"}]
+
+    changed, applied = sync.sync_access(api, "/projects/3", access, [])
+    assert (changed, applied) == (False, [])
+    api.add_grant.assert_not_called()
+
+    assert sync.sync_access(api, "/projects/3", [], applied) == (False, [])
+    api.delete_grant.assert_not_called()
+
+
+def test_no_access_list_reads_no_grants(api):
+    assert sync.sync_access(api, "/projects/3", [], []) == (False, [])
+    api.get_grants.assert_not_called()
+
+
+def test_access_already_removed_by_hand(api):
+    api.get_grants.return_value = []
+
+    changed, _ = sync.sync_access(api, "/projects/3", [], [{"group": "/studies/uc1", "relation": "read"}])
+
+    assert not changed
+    api.delete_grant.assert_not_called()
+
+
+@pytest.mark.parametrize("plural, name, spec, nexus_id, path", [
+    ("projects", "uc1", {}, 3, "/projects/3"),
+    ("datasets", "cdm", {}, 12, "/global/datasets/12"),
+    ("gitproviders", "gitea", {}, 1, "/global/providers/1"),
+    ("nodesecrets", "creds", {}, None, "/global/secrets/creds"),
+    ("repositories", "r", {"type": "trigger"}, 4, "/global/repositories/triggers/4"),
+    ("repositories", "r", {"type": "results"}, 5, "/global/repositories/results/5"),
+])
+def test_record_path(plural, name, spec, nexus_id, path):
+    assert sync.record_path(plural, name, spec, nexus_id) == path
