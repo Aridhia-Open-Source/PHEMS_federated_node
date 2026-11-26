@@ -1,0 +1,33 @@
+name: Reset actions-sandbox
+run-name: Resetting actions-sandbox to dagster-develop
+# actions-sandbox is a throwaway target for testing workflow changes (the merge queue, trunk-only publishing) on a
+# branch that behaves like dagster-develop. Every push to dagster-develop resets it to that commit, creating the
+# branch if it is missing, so anything left on it is lost. Test a change by opening a draft PR into it.
+# Pushes made with GITHUB_TOKEN do not start other workflows, so a reset builds nothing.
+# Its ruleset must allow force-pushes by this workflow.
+on:
+  push:
+    branches:
+      - dagster-develop
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: reset-actions-sandbox
+  cancel-in-progress: true
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point actions-sandbox at dagster-develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          sha=$(gh api "repos/$REPO/git/ref/heads/dagster-develop" -q .object.sha)
+          if gh api "repos/$REPO/git/ref/heads/actions-sandbox" > /dev/null 2>&1; then
+            gh api -X PATCH "repos/$REPO/git/refs/heads/actions-sandbox" -f sha="$sha" -F force=true > /dev/null
+          else
+            gh api -X POST "repos/$REPO/git/refs" -f ref=refs/heads/actions-sandbox -f sha="$sha" > /dev/null
+          fi
+          echo "actions-sandbox is at $sha"

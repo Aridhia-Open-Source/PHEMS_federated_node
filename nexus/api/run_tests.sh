@@ -31,6 +31,8 @@ export TASK_COMPUTE_DEFAULT_LIMIT_CPU=2 TASK_COMPUTE_DEFAULT_LIMIT_MEMORY=4Gi
 
 is_ci=$1
 pytest_args="${2:-.}"
+# pytest-xdist workers, each with its own database (conftest.py); NEXUS_TEST_WORKERS=0 runs serially.
+pytest_args="-n ${NEXUS_TEST_WORKERS:-auto} $pytest_args"
 
 # Each run gets its own compose project (containers, network, volumes) so parallel runs
 # don't collide.
