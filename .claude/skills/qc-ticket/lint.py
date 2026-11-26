@@ -94,7 +94,7 @@ def lint_ticket(path: Path) -> tuple[list[str], list[str]]:
             errors.append(f"check {n} is a refusal with no Postman request and status code")
         if words(first) > 40:
             warnings.append(f"check {n} is {words(first)} words, aim for under 40")
-        if re.search(r"\bThen\b", first) or len(re.findall(r"\bAs (the |a |an )?\w+,", first)) > 2:
+        if re.search(r"\bThen\b", first) or len(re.findall(r"\bAs (the |a |an )?[\w ]+?,", first)) > 1:
             warnings.append(f"check {n} may chain more than one action")
     changed = section(text, "What changed")
     if words(changed) > 60:

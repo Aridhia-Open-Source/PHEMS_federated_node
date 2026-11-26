@@ -83,6 +83,8 @@ For a change in a risky area, cover the ways it should refuse as well as what it
 - **Task isolation:** each thing a task should not reach (the internet, the node's services, other tasks' files and Secrets), plus the one thing it should (its own dataset).
 - **Uploads and user input:** a value that is too big, the wrong type, or tries to escape a path, rejected with a clear error.
 
+For each case on this list that a ticket leaves out, add a line at the end of its evidence file saying what in the code makes it not apply (for example "another realm's token: not checked, access_token.py verifies the signature but not the issuer"). If you cannot find that line, the case applies: write the check.
+
 If nothing qualifies, say "No QC ticket needed" with one line why. That is a valid result. But a change that qualifies and that QC cannot test yet (QC's cluster lacks something, a setting is off, an image is missing) still gets its full ticket, listed under "Needs the dev team first" with what is missing. Never turn "QC cannot test this yet" into "no ticket needed".
 
 ### 5. Group into tickets
