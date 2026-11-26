@@ -3,8 +3,7 @@ import random
 import re
 import string
 import time
-
-from fednode.clients.kubernetes.mounted import MountedSecret
+from pathlib import Path
 
 from fednode.clients.keycloak.admin import KeycloakAdmin
 from fednode.clients.keycloak.login import KeycloakLogin
@@ -33,32 +32,36 @@ KEYCLOAK_ADMIN = settings.services.keycloak.admin
 # exactly what the `admin` realm user used to hold, so the permissions are unchanged.
 KEYCLOAK_SERVICE_USER = settings.services.keycloak.service_user
 
-# kc-secrets is mounted as a directory (see the chart's kcSecretsMountPath helper) rather than
-# injected via envFrom, so that a credential rotation reaches this process without a restart.
-KC_SECRETS_PATH = settings.services.keycloak.secrets_path
 
-
-def read_secret(name: str, default: str = "") -> str:
+def read_secret(name: str, fallback: str | None) -> str:
     """
     Read a credential, preferring the mounted file over the environment.
+
+    kc-secrets is mounted as a directory (see the chart's kcSecretsMountPath helper) rather than injected via envFrom,
+    so that a credential rotation reaches this process without a restart.
 
     Kubernetes refreshes a mounted secret within roughly two minutes, and only when it is mounted as
     a directory; a `subPath` mount is never updated. Reads are from tmpfs, so doing this per call is
     cheap.
 
-    Falls back to the environment so local runs and docker-compose, which have no mount, keep
-    working unchanged.
+    Local runs may supply a fallback; a missing credential or an unreadable file is an error.
     """
-    return MountedSecret(KC_SECRETS_PATH).read(name, default)
+    path = Path(settings.services.keycloak.secrets_path) / name
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        if fallback is None:
+            raise KeycloakError(f"Credential {name} is neither mounted at {path} nor set in the environment") from None
+        return fallback
 
 
 def keycloak_secret() -> str:
     """The `global` client secret."""
-    return read_secret("KEYCLOAK_SECRET", settings.services.keycloak.secret or "")
+    return read_secret("KEYCLOAK_SECRET", settings.services.keycloak.secret)
 
 
 def keycloak_service_password() -> str:
-    return read_secret("KEYCLOAK_SERVICE_PASSWORD", settings.services.keycloak.service_password or "")
+    return read_secret("KEYCLOAK_SERVICE_PASSWORD", settings.services.keycloak.service_password)
 
 
 # How long a service-account token may be reused, in seconds. 0 disables caching.

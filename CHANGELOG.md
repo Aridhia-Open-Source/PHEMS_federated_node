@@ -1,5 +1,6 @@
 # Releases Changelog
 ## Unreleased
+- Added operator documentation for OIDC authentication, Keycloak roles, system accounts and token handling.
 - Run behind a TLS-intercepting proxy, or with a private CA ([#652](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/652), ADR 0033, `PROXY_CA_SETUP.md`):
   - `mise run configure` replaces `mise run init-conf`. Every run creates `.dev.env` and `dev.values.yaml` from the examples if they are missing; it no longer asks for the first Keycloak user, which `.dev.env.example` now sets to `admin@fn.local` / `admin`. `--proxy[=URL]` (no value: `HTTPS_PROXY`) and `--ca-cert[=FILE]` (no value: the system CA bundle; alone: a private CA, no proxy) check the proxy and CA, then set up Docker and the tooling; `--no-proxy` and `--no-ca` remove them, and a run that changes one keeps the other. `--devcontainer` is what the dev container runs before its image build. It replaces `scripts/setup-proxy-ca.sh`.
   - The checks run before anything is written: the CA bundle is PEM, and with a proxy, `registry-1.docker.io`, `pypi.org` and `github.com` verify through it.
@@ -12,10 +13,15 @@
 - nexus-api tests run on pytest-xdist workers, each with its own Postgres database ([#727](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/727)); `NEXUS_TEST_WORKERS=0` runs them serially
 - CI runs only the jobs a PR's changed files need, adds a `ci-ok` check to require instead of the individual jobs, and runs tests in the merge queue; images, the chart and the summary publish only from trunk pushes, tags and manual runs ([#729](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/729)); `actions-sandbox` is a throwaway branch that behaves like a trunk branch for testing these changes, reset from dagster-develop on every push to it
 - Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart
-- nexus-api accepts access tokens from the configured Keycloak client list, allowing service-account clients such as Dagster
 - Removed unused nexus-api code: five `Task` methods, two exceptions, two `Keycloak` methods, `GitRepositoryMixin.check_connection` and the `ENABLE_IMAGE_WHITELIST` setting
 - Removed the dataset catalogue and dictionaries: the `catalogue` and `dictionaries` fields on dataset create and update, their tables, the UI fields and the Dagster models
 - nexus-api helpers are grouped by area: `app/clients/`, `app/repos/`, `app/tasks/`, `app/rules/` and `app/database/`, and `const.py` is split (task limits to `app/tasks/limits.py`, `build_sql_uri` to `app/database/uri.py`)
+- nexus-api verifies Keycloak access tokens itself, against the realm's cached keys, instead of asking Keycloak on every request ([#686](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/686), ADR 0035):
+  - `/login` and `/refresh_token` return `{"token": <access token>, "refresh_token": ...}`. Send the access token as the Bearer; refresh tokens are no longer accepted there. Access tokens live 5 minutes: nexus-ui refreshes them, Dagster and fncli log in again on a 401.
+  - A caller holds exactly one node role (SuperUser, Administrator, Service, Users, Dagster), or gets a 401. `POST /global/users` creates Users, or an Administrator when the SuperUser asks.
+  - Keycloak issues tokens for its address on the node's host (`KC_HOSTNAME=https://<host>/keycloak`); nexus-api gets `KEYCLOAK_ISSUER` and `KEYCLOAK_JWKS_URL`.
+  - Tokens are accepted from the Keycloak client and from any client in `KEYCLOAK_ALLOWED_CLIENTS` (comma-separated, for the operator's and Dagster's own clients).
+  - The global client no longer uses Keycloak Authorization Services (removed from `realms.json`; no realm migration for existing realms).
 
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller
