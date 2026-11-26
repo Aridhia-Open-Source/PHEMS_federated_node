@@ -44,6 +44,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0035](../project/decisions/0035-api-authorization-oidc-authentication.md) | API authorization, OIDC authentication | An OIDC provider signs people in and supplies a user id, one node role and groups; nexus-api decides every access per record from its own database. |
 | [0037](../project/decisions/0037-cedar-authorization-grants-and-policies.md) | Cedar Authz Grants | A `grants` table per record (owner, read, write, execute, assign, optional expiry); Cedar policies say what each allows; every route declares an `Access` check. |
 | [0031](../project/decisions/0031-gitops-deployment-with-flux.md) | GitOps Flux Deployment | OpenTofu only for infrastructure we own; versioned OCI releases; Flux in each site's cluster reads a client-owned site repository; rollback by Flux or git revert. |
+| [0044](../project/decisions/0044-security-scanning-and-version-pinning.md) | Security Scanning and Version Pinning | Every version locked to a hash and one bot proposing bumps; Trivy, Gitleaks, Semgrep, zizmor and actionlint picked over their alternatives; MegaLinter runs them report-only from one pinned image, then each gate is turned on. |
 
 ## Other docs by topic
 
