@@ -42,6 +42,8 @@ You also need a git host for the trigger and results repositories: GitHub (with 
 
 **Setting up a project for researchers:** [Set up a project](./Set-Up-A-Project) covers the git provider, repositories, dataset and project, in the order they have to be made.
 
+**Keeping the node's config in git:** [Node config](./Node-Config) and [Node secrets](./Node-Secrets) cover the nexus operator, which applies providers, repositories, datasets and projects from Helm values.
+
 **Running tasks as a researcher:** [Researcher guide](./Researcher-Guide).
 
 **Building an analytics container:** [Analytics container development](./Analytics-Container-Development) covers the environment variables, where to write results, and what the pod is and is not allowed to do.

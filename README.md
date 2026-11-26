@@ -65,11 +65,23 @@ Pages: [Sign-in and roles](docs/versions/2.x/docs/Sign-In-And-Roles.md), [Granti
 - The node only pulls and reaches out. It polls the git provider and pushes results, and nothing outside has to call in to start a task.
 - One record and its rules live in `nexus/api`: projects, datasets, repositories, tasks and results, and every state change. Dagster carries out what the API decides.
 
+## Node config
+
+A node's config (git providers, secrets, repositories, datasets, projects) can live in git as Helm values, applied by the nexus operator.
+
+- With `operator.enabled`, the chart turns each `nodeConfig` entry into a custom resource (`fn.aridhia.com/v1alpha1`) in the operator's namespace, `fn-operator`. The operator creates, updates and soft-deletes the matching record in nexus-api.
+- No secret values in values: a `NodeSecret` names the Kubernetes Secret its values are in, filled by External Secrets, SOPS or by hand.
+- Review, repeat and revert config like the chart: merge and `helm upgrade` (or let Flux do it). `kubectl get fn -n fn-operator` shows what is synced.
+- Turning the operator off or uninstalling keeps the records in nexus-api. Dev applies the same resources with `kubectl apply -f config/`.
+
+Pages: [Node config](docs/versions/2.x/docs/Node-Config.md), [Node secrets](docs/versions/2.x/docs/Node-Secrets.md). Design: [ADR 0032](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/716).
+
 ## Where to go next
 
 - Deploying a node: [Deploy-Core](docs/versions/2.x/docs/Deploy-Core.md), plus the page for your platform ([Azure](docs/versions/2.x/docs/Deploy-Azure.md), [AWS](docs/versions/2.x/docs/Deploy-AWS.md), [GCP](docs/versions/2.x/docs/Deploy-GCP.md), [On-Premises](docs/versions/2.x/docs/Deploy-On-Premises.md)). Start with [Prerequisites](docs/versions/2.x/docs/Prerequisites.md).
 - Running it locally: [DEPLOYMENT.md](DEPLOYMENT.md), "Run it locally".
 - Who can sign in and who can do what: [Sign-in and roles](docs/versions/2.x/docs/Sign-In-And-Roles.md), [Granting access](docs/versions/2.x/docs/Granting-Access.md), [Auth setup](docs/versions/2.x/docs/Auth-Setup.md).
+- Keeping node config in git: [Node config](docs/versions/2.x/docs/Node-Config.md), [Node secrets](docs/versions/2.x/docs/Node-Secrets.md).
 - Setting up a project: [MANAGEMENT.md](MANAGEMENT.md), then [Datasets](docs/versions/2.x/docs/Datasets.md) and the [Researcher guide](docs/versions/2.x/docs/Researcher-Guide.md). Git credentials are in [SETUP_GIT_APPS.md](SETUP_GIT_APPS.md).
 - Contributing: [AGENTS.md](AGENTS.md) for the repo map, mise tasks and conventions, and the [decision records](project/decisions/README.md).
 - Licences for the component projects: [sub-licenses](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/tree/main/sub-licenses).

@@ -19,6 +19,8 @@
 
 **Using the node**
 - [Set up a project](./Set-Up-A-Project)
+- [Node config](./Node-Config)
+- [Node secrets](./Node-Secrets)
 - [Researcher guide](./Researcher-Guide)
 - [Analytics container development](./Analytics-Container-Development)
 - [Datasets](./Datasets)
