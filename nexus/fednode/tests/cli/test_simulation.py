@@ -1,4 +1,4 @@
-"""The simulation's plan and checker (fednode.cli.simulation) on built states, with no cluster."""
+"""The simulation's plan and checker (fncli.simulation) on built states, with no cluster."""
 
 import copy
 

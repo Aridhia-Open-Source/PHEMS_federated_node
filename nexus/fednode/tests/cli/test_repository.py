@@ -66,5 +66,5 @@ def test_a_gitea_repo_that_is_not_the_admin_users_is_refused():
 
 
 def test_a_project_that_is_not_on_the_node_says_to_apply_it():
-    with pytest.raises(click.ClickException, match="fncli apply"):
+    with pytest.raises(click.ClickException, match="kubectl apply -f config/"):
         repository.load_repo_config("trigger", SimpleNamespace(node=NODE), "demo", node_with(trigger_record(), project=None))

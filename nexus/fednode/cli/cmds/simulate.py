@@ -7,7 +7,7 @@ Both providers are the cluster's one Gitea, under two names: the second is a Kub
 this module creates, so the providers' uris stay unique.
 
 Every command takes --context (bootstrap/context.yaml): the node it works on. The node must already have its one Gitea
-provider (`fncli apply -f examples/globals-gitea.yaml`), whose address the simulation's providers are made from.
+provider (`kubectl apply -f config/gitea.yaml`), whose address the simulation's providers are made from.
 
     fncli simulate-setup        # the alias service, Gitea repos, tokens, providers, repositories and projects
     fncli simulate-run          # start the sensors, merge the pull requests, wait for the sensors, check
@@ -38,14 +38,14 @@ from fednode.cli.cmds.common import (
     TriggerRepoConfig,
     build_gitea_api,
 )
-from fednode.cli.cmds.nodefile import context_option, open_target
+from fednode.cli.cmds.target import context_option, open_target
 from fednode.cli.cmds.pr import DEFAULT_TRIGGER_FILE, file_for, load_trigger, new_branch_name
 from fednode.cli.cmds.project import init_backend_project
 from fednode.cli.cmds.repository import init_backend_results_repo, init_backend_trigger_repo, init_gitea_repo
 from fednode.cli.cmds.secret import init_git_secret, verify_gitea_accepts_bearer_token
 from fednode.cli.cmds.sensor import ALL_SENSORS
 from fednode.cli.cmds.state import snapshot
-from fednode.cli.nodefile.loader import Context
+from fednode.cli.context import Context
 from fednode.clients.dagster.client import DagsterClient
 from fednode.clients.kubernetes.client import KubernetesClient
 
@@ -78,13 +78,13 @@ class Target:
 
 
 def open_simulation(context: Context) -> Target:
-    """Opens the node, and takes the Gitea from the node's one gitea provider, which `fncli apply` of a globals file made"""
+    """Opens the node, and takes the Gitea from the node's one gitea provider, which `kubectl apply -f config/gitea.yaml` made"""
     backend_api = open_target(context)
     providers = [provider for provider in backend_api.get_git_providers() if provider.type == "gitea"]
     if len(providers) != 1:
         raise click.ClickException(
             f"The simulation needs the node to have exactly one gitea provider, it has {len(providers)}: "
-            "fncli apply -f examples/globals-gitea.yaml"
+            "kubectl apply -f config/gitea.yaml"
         )
     return Target(context, backend_api, providers[0].uri, providers[0].api_uri)
 

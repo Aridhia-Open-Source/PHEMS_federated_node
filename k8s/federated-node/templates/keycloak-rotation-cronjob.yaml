@@ -14,6 +14,11 @@
   {{- /* Must match the namespaces keycloak-secrets.yaml writes dagster-keycloak-creds into. */ -}}
   {{- $dagsterNs = list $kcNs .Release.Namespace | uniq -}}
 {{- end -}}
+{{- $operatorNs := list -}}
+{{- if (.Values.operator).enabled -}}
+  {{- /* Must match the namespaces keycloak-secrets.yaml writes operator-keycloak-creds into. */ -}}
+  {{- $operatorNs = list $kcNs (include "operator_namespace" .) | uniq -}}
+{{- end -}}
 {{- /*
   Per-credential switches, resolved with hasKey rather than `| default true`.
 
@@ -25,9 +30,11 @@
 {{- $rotateClientSecret := true -}}
 {{- $rotateServicePassword := true -}}
 {{- $rotateDagsterPassword := true -}}
+{{- $rotateOperatorPassword := true -}}
 {{- if hasKey $rotate "clientSecret" -}}{{- $rotateClientSecret = $rotate.clientSecret -}}{{- end -}}
 {{- if hasKey $rotate "servicePassword" -}}{{- $rotateServicePassword = $rotate.servicePassword -}}{{- end -}}
 {{- if hasKey $rotate "dagsterPassword" -}}{{- $rotateDagsterPassword = $rotate.dagsterPassword -}}{{- end -}}
+{{- if hasKey $rotate "operatorPassword" -}}{{- $rotateOperatorPassword = $rotate.operatorPassword -}}{{- end -}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -79,6 +86,10 @@ spec:
                   value: {{ $rotateServicePassword | quote }}
                 - name: ROTATE_DAGSTER_PASSWORD
                   value: {{ $rotateDagsterPassword | quote }}
+                - name: OPERATOR_SECRET_NAMESPACES
+                  value: {{ join "," $operatorNs | quote }}
+                - name: ROTATE_OPERATOR_PASSWORD
+                  value: {{ $rotateOperatorPassword | quote }}
               envFrom:
                 - configMapRef:
                     name: keycloak-config

@@ -1,0 +1,55 @@
+# The uc1 experiment's repositories, their credentials and its project. Its dataset uc1-omop is the experiments
+# chart's (experiments/uc1/values.yaml), the provider is config/gitea.yaml. `fncli experiment setup uc1` runs
+# `fncli gitea setup` and `kubectl apply` of this file and waits for it to sync; `teardown uc1` deletes it.
+apiVersion: fn.aridhia.com/v1alpha1
+kind: NodeSecret
+metadata:
+  name: uc1-trigger-repo-creds
+  namespace: fn-operator
+spec:
+  fromSecret: {name: uc1-trigger-repo-creds}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: NodeSecret
+metadata:
+  name: uc1-results-repo-creds
+  namespace: fn-operator
+spec:
+  fromSecret: {name: uc1-results-repo-creds}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Repository
+metadata:
+  name: uc1-trigger-repo
+  namespace: fn-operator
+spec:
+  type: trigger
+  uri: http://gitea.fn.svc:4000/gitea_admin/uc1-trigger-repo
+  secret: uc1-trigger-repo-creds
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Repository
+metadata:
+  name: uc1-results-repo
+  namespace: fn-operator
+spec:
+  type: results
+  uri: http://gitea.fn.svc:4000/gitea_admin/uc1-results-repo
+  secret: uc1-results-repo-creds
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Project
+metadata:
+  name: uc1
+  namespace: fn-operator
+spec:
+  datasets: [uc1-omop]
+  repositories:
+    triggers:
+      - repository: http://gitea.fn.svc:4000/gitea_admin/uc1-trigger-repo
+        watchDir: specs/
+        baseBranch: main
+    results:
+      repository: http://gitea.fn.svc:4000/gitea_admin/uc1-results-repo
+      targetDir: results/
+      baseBranch: main

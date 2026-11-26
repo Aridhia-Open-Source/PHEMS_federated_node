@@ -94,6 +94,7 @@ jobs:
       dagster: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.dagster == 'true' || steps.filter.outputs.workflows == 'true' }}
       chart: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.chart == 'true' || steps.filter.outputs.workflows == 'true' }}
       build: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.build == 'true' || steps.filter.outputs.workflows == 'true' }}
+      operator: ${{ steps.filter.outcome == 'skipped' || steps.filter.outputs.operator == 'true' || steps.filter.outputs.workflows == 'true' }}
     steps:
       # Use the complete history for both event types. For pull requests, forcing git mode makes
       # paths-filter compare the branch tip with the merge-base instead of only the latest commit.
@@ -125,6 +126,9 @@ jobs:
               - 'nexus/api/app/models/**'
             chart:
               - 'k8s/**'
+            operator:
+              - 'nexus/operator/**'
+              - 'nexus/fednode/**'
             build:
               - 'build/**'
               - '**/Dockerfile*'
@@ -200,7 +204,7 @@ jobs:
       - changes
     if: >-
       needs.init.outputs.is_tag == 'false' &&
-      (needs.changes.outputs.api == 'true' || needs.changes.outputs.dagster == 'true' || needs.changes.outputs.build == 'true')
+      (needs.changes.outputs.api == 'true' || needs.changes.outputs.dagster == 'true' || needs.changes.outputs.operator == 'true' || needs.changes.outputs.build == 'true')
     defaults:
       run:
         shell: bash
@@ -228,6 +232,11 @@ jobs:
         run: |
           mise run pylint dagster
 
+      - name: Run pylint (operator)
+        if: ${{ !cancelled() && needs.changes.outputs.operator == 'true' }}
+        run: |
+          mise run pylint operator
+
       - name: Run hadolint
         if: needs.changes.outputs.build == 'true'
         run: |
@@ -240,6 +249,7 @@ jobs:
           path: |
             artifacts/pylint.txt
             artifacts/pylint-dagster.txt
+            artifacts/pylint-nexus-operator.txt
             artifacts/hadolint.xml
           if-no-files-found: ignore
   # Each test job runs only when its area changed (always on push, tag and manual runs). `linters` is
@@ -331,8 +341,30 @@ jobs:
       - name: Run Dagster Tests
         run: |
           mise run tests-dagster
-  # The steps of Aridhia-Open-Source/pipelines build-docker.yml (HASH_SUFFIX false), inline because the
-  # image needs the fednode named build context (nexus/fednode), which that workflow cannot pass.
+
+  operator-tests:
+    needs:
+      - init
+      - changes
+      - linters
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.changes.outputs.operator == 'true'
+    defaults:
+      run:
+        shell: bash
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The mise binary runs the task; the tests themselves run in docker
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+
+      - name: Run Operator Tests
+        run: |
+          mise run tests-operator
+
   build-nexus-api-image:
     needs:
       - init
@@ -486,6 +518,41 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  # Inline like the Dagster image, for the same fednode build context
+  build-nexus-operator-image:
+    needs:
+      - init
+      - chart-tests
+      - api-tests
+      - dagster-tests
+      - operator-tests
+    if: >-
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.DOCKER_CR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set lower case owner name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> "${GITHUB_ENV}"
+        env:
+          OWNER: '${{ github.repository_owner }}'
+      - name: Build and push nexus_operator image
+        uses: docker/build-push-action@v5
+        with:
+          context: nexus/operator
+          file: nexus/operator/Dockerfile
+          build-contexts: fednode=nexus/fednode
+          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/nexus_operator:${{ needs.init.outputs.tag }}
+          push: true
+          cache-from: type=gha,scope=nexus-operator
+          cache-to: type=gha,mode=max,scope=nexus-operator
   promote:
     needs: init
     if: needs.init.outputs.is_tag == 'true'
@@ -503,7 +570,7 @@ jobs:
           RC_TAG: ${{ needs.init.outputs.rc_tag }}
           TAG: ${{ needs.init.outputs.tag }}
         run: |
-          for image in nexus_api federated_keycloak alpine keycloak_initializer dagster_fn; do
+          for image in nexus_api federated_keycloak alpine keycloak_initializer dagster_fn nexus_operator; do
             repo="${REGISTRY}/${OWNER,,}/${image}"
             docker buildx imagetools create -t "${repo}:${TAG}" "${repo}:${RC_TAG}"
           done
@@ -517,6 +584,7 @@ jobs:
       - build-alpine-image
       - build-kc-init-image
       - build-dagster-image
+      - build-nexus-operator-image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -583,11 +651,13 @@ jobs:
       - chart-tests
       - api-tests
       - dagster-tests
+      - operator-tests
       - build-nexus-api-image
       - build-keycloak-image
       - build-alpine-image
       - build-kc-init-image
       - build-dagster-image
+      - build-nexus-operator-image
       - promote
       - release
       - release-gh-pages

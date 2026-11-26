@@ -6,7 +6,7 @@ set -eu
 #
 PRE_LINT=${PRE_LINT:-"pip3 install --no-cache-dir pipenv && pipenv install --categories \"packages dev-packages\" && pipenv run "} # Bash to run before executing the linter
 OUTPUT_DIR=${OUTPUT_DIR:-artifacts} # Path to write the results file in
-PROJECT=${PROJECT:-nexus/api} # Directory to lint: nexus/api or dagster
+PROJECT=${PROJECT:-nexus/api} # Directory to lint: nexus/api, dagster or nexus/operator
 
 # Internal variables
 BUILD_ID=${BUILD_ID:-$(uuidgen)}

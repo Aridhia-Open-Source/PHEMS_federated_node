@@ -1,0 +1,57 @@
+# The dev project the end-to-end suites use (fn-dev): its repositories and their credentials. Its stand-in dataset is
+# dev-dataset.yaml, the provider is config/gitea.yaml. The suites' setup does this:
+#   fncli gitea setup -f config/gitea.yaml -f config/e2e/fn-dev.yaml
+#   kubectl apply -f config/gitea.yaml -f config/e2e/dev-dataset.yaml -f config/e2e/fn-dev.yaml
+# and waits for every resource's status.synced. Teardown: kubectl delete -f config/e2e/fn-dev.yaml.
+apiVersion: fn.aridhia.com/v1alpha1
+kind: NodeSecret
+metadata:
+  name: fn-trigger-repo-creds
+  namespace: fn-operator
+spec:
+  fromSecret: {name: fn-trigger-repo-creds}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: NodeSecret
+metadata:
+  name: fn-results-repo-creds
+  namespace: fn-operator
+spec:
+  fromSecret: {name: fn-results-repo-creds}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Repository
+metadata:
+  name: fn-trigger-repo
+  namespace: fn-operator
+spec:
+  type: trigger
+  uri: http://gitea.fn.svc:4000/gitea_admin/fn-trigger-repo
+  secret: fn-trigger-repo-creds
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Repository
+metadata:
+  name: fn-results-repo
+  namespace: fn-operator
+spec:
+  type: results
+  uri: http://gitea.fn.svc:4000/gitea_admin/fn-results-repo
+  secret: fn-results-repo-creds
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Project
+metadata:
+  name: fn-dev
+  namespace: fn-operator
+spec:
+  datasets: [dev-dataset]
+  repositories:
+    triggers:
+      - repository: http://gitea.fn.svc:4000/gitea_admin/fn-trigger-repo
+        watchDir: specs/
+        baseBranch: main
+    results:
+      repository: http://gitea.fn.svc:4000/gitea_admin/fn-results-repo
+      targetDir: results/
+      baseBranch: main

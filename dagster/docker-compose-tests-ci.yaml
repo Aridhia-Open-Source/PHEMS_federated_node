@@ -21,4 +21,5 @@ services:
       # fncli's tests check the committed experiment, bootstrap and trigger files at the repo root
       - ../experiments:/opt/dagster/experiments:ro
       - ../bootstrap:/opt/dagster/bootstrap:ro
+      - ../config:/opt/dagster/config:ro
       - ../triggers:/opt/dagster/triggers:ro

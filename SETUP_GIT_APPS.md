@@ -15,15 +15,16 @@ the API client.
 2. Note the **App ID**, then **Generate a private key** (a `.pem`; keep it out of git).
 3. **Install App** on only the repositories the node uses. The number at the end of the
    installation URL is the **installation ID**.
-4. Store the credentials and register the repositories from a node file
-   (`bootstrap/examples/globals-github.yaml` is the pattern). Put the two ids in `.dev.env` (the `node.env_file` of
-   your `bootstrap/context.yaml`, `cp bootstrap/examples/context.yaml bootstrap/context.yaml`)
-   as `GH_APP_ID` and `GH_INSTALLATION_ID`, and the key at the path the file names (`~/.config/phems/phems-sandbox.private-key.pem`):
+4. Store the credentials in a Kubernetes Secret and register the repositories as node resources
+   (`config/github/demo-github.yaml` is the pattern, ADR 0032). Put the two ids in `.dev.env`
+   as `GH_APP_ID` and `GH_INSTALLATION_ID`, and keep the key at `~/.config/phems/phems-sandbox.private-key.pem`:
 
 ```bash
-fncli diff  -f examples/globals-github.yaml     # what it would create; shows each value's source, never the value
-fncli apply -f examples/globals-github.yaml
-fncli apply -f examples/projects/demo-github.yaml   # the project the checks below work on: its repos are read from the node
+kubectl create secret generic phems-sandbox-github-app -n fn-operator \
+  --from-literal=APP_ID="$GH_APP_ID" --from-literal=INSTALLATION_ID="$GH_INSTALLATION_ID" \
+  --from-file=PRIVATE_KEY=$HOME/.config/phems/phems-sandbox.private-key.pem
+kubectl apply -f config/github/demo-github.yaml     # provider, NodeSecret, repositories and the project
+kubectl get fn -n fn-operator                                # each resource's Synced and Message
 fncli verify-git-secret --entity trigger --project demo-github   # nexus-api mints a token, GitHub accepts it
 fncli verify-git-secret --entity results --project demo-github
 ```
@@ -33,8 +34,11 @@ GitHub OAuth Apps (user tokens) are not supported.
 
 ## Gitea: an OAuth2 application
 
-The default dev setup. `fncli apply` of a node file with a `gitea_oauth` secret creates an OAuth2 application for the admin user
-and stores `CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN`; nexus-api refreshes from them.
+The default dev setup. `fncli gitea setup -f config/gitea.yaml -f config/demo.yaml` creates the Gitea repositories of the file's Repository
+resources and, for each NodeSecret they name, an OAuth2 application of that name for the admin user. It writes
+`CLIENT_ID`, `CLIENT_SECRET` and `REFRESH_TOKEN` into the Kubernetes Secret the NodeSecret's `fromSecret` names, and
+keeps a Secret that exists unless you pass `--rotate NODESECRET`. Run it before `kubectl apply` of the same file;
+nexus-api refreshes from the values.
 The chart pins Gitea's `INVALIDATE_REFRESH_TOKENS=false`, which is what makes concurrent
 refreshes safe (see the concurrent-refresh e2e test).
 

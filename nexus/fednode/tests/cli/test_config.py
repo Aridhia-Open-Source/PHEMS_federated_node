@@ -137,7 +137,7 @@ def test_get_repository_names_the_command_that_registers_a_missing_repository():
     backend_api = MagicMock()
     backend_api.find_trigger_repository.return_value = None
 
-    with pytest.raises(click.ClickException, match="fncli apply"):
+    with pytest.raises(click.ClickException, match="kubectl apply -f config/"):
         get_repository(trigger_config(), backend_api)
 
 
