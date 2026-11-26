@@ -31,7 +31,7 @@ const createFields: Field[] = [
 ];
 
 const editFields: Field[] = [
-  { name: "values", type: "json", required: true, help: "Keys to set; keys left out keep their values" },
+  { name: "values", type: "json", required: true, help: "Every key the secret needs: keys left out are removed" },
 ];
 
 export default function SecretsPage() {
