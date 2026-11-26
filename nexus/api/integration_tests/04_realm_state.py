@@ -1,4 +1,4 @@
-"""Realm state after the runs above: credentials, migration version, and the authz model."""
+"""Realm state after the runs above: credentials, migration version, roles and tokens."""
 import json
 import os
 from pathlib import Path
@@ -58,14 +58,12 @@ pnames = [p.get("name") for p in (profiles.get("profiles") or [])]
 check("fn-client-secret-rotation" in pnames,
       f"client secret rotation profile is configured (profiles: {pnames})")
 
-# The FN authz model lives inside the `global` client, which partialImport SKIPs. Confirm it is
-# intact -- if a future change switched SKIP to OVERWRITE, this is what would break.
-gid = api("/clients?clientId=global", svc)[0]["id"]
-scopes = api(f"/clients/{gid}/authz/resource-server/scope", svc)
-scope_names = {s["name"] for s in scopes}
-expected = {"can_admin_dataset", "can_exec_task", "can_access_dataset", "can_do_admin"}
-check(expected.issubset(scope_names),
-      f"global client authz scopes intact (missing: {sorted(expected - scope_names)})")
+# ADR 0035: nexus-api verifies tokens itself. The global client has no Authorization Services
+# (migration 4 turns them off on an older realm) and access tokens are short-lived.
+global_client = api("/clients?clientId=global", svc)[0]
+check(not global_client.get("authorizationServicesEnabled"), "the global client has no Authorization Services")
+check(realm_rep.get("accessTokenLifespan") == 300,
+      f"access tokens live 5 minutes (got {realm_rep.get('accessTokenLifespan')!r})")
 
 # ADR 0036: five node roles, none including another, each carried by one /roles group.
 role_names = {r["name"] for r in api("/roles?max=200", svc)}
@@ -103,16 +101,5 @@ check(len(supers) == 1, "the superuser exists")
 if supers:
     groups = [g["path"] for g in api(f"/users/{supers[0]['id']}/groups", svc)]
     check(groups == ["/roles/superuser"], f"the superuser is in /roles/superuser only (got {groups})")
-
-# The global client's role policies name the new roles, so nexus-api's can_* scopes keep working.
-policies = {p["name"]: p for p in api(f"/clients/{gid}/authz/resource-server/policy?type=role", svc)}
-expected_policies = {
-    "admin-policy": {"Administrator", "SuperUser", "Service"},
-    "system-policy": {"Dagster"},
-}
-for name, roles in expected_policies.items():
-    detail = api(f"/clients/{gid}/authz/resource-server/policy/role/{policies[name]['id']}", svc)
-    got = {api(f"/roles-by-id/{r['id']}", svc)["name"] for r in detail.get("roles", [])}
-    check(got == roles, f"{name} names {sorted(roles)} (got {sorted(got)})")
 
 report()

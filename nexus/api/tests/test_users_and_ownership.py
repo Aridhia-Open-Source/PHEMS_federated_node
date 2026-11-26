@@ -11,27 +11,22 @@ from app.database.base_model import db
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.user import User
+from tests.conftest import claims_for
 
 PROV = "/global/providers"
-# token -> the Keycloak user it decodes to, and its realm roles
+# token -> the Keycloak user it verifies to, and its node role
 USERS = {
-    "admin_token": {"id": "id-admin", "username": "admin", "roles": ["Administrator"]},
-    "person_token": {"id": "id-person", "username": "person", "roles": ["Administrator"]},
-    "service_token": {"id": "id-svc", "username": "svc", "roles": ["service-account"]},
+    "admin_token": {"id": "id-admin", "username": "admin", "role": "Administrator"},
+    "person_token": {"id": "id-person", "username": "person", "role": "Administrator"},
+    "service_token": {"id": "id-svc", "username": "svc", "role": "Service"},
 }
 
 
 @pytest.fixture
-def callers(mock_kc_client):
-    """Each token in USERS decodes to its own user, and holds every scope."""
-    kc = mock_kc_client["wrappers_kc"].return_value
-    kc.decode_token.side_effect = lambda token: {
-        "username": USERS[token]["username"], "realm_access": {"roles": USERS[token]["roles"]}
-    }
-    kc.get_user_by_username.side_effect = lambda username: next(
-        u for u in USERS.values() if u["username"] == username
-    )
-    kc.is_token_valid.side_effect = lambda token, *args, **kwargs: token in USERS
+def callers(token_claims):
+    """Each token in USERS verifies to its own user."""
+    for token, user in USERS.items():
+        token_claims[token] = claims_for(user["id"], user["username"], user["role"])
 
 
 def as_(token: str) -> dict:
@@ -59,11 +54,11 @@ def test_a_call_creates_the_callers_row(client, callers):
     assert (person.username, svc.username) == ("person", "svc")
 
 
-def test_a_later_call_refreshes_the_row_instead_of_adding_one(client, callers, monkeypatch):
+def test_a_later_call_refreshes_the_row_instead_of_adding_one(client, callers, token_claims):
     client.get(PROV, headers=as_("person_token"))
     db.session.get(User, "id-person").last_seen_at = dt(2020, 1, 1)
     db.session.commit()
-    monkeypatch.setitem(USERS["person_token"], "username", "renamed")
+    token_claims["person_token"]["preferred_username"] = "renamed"
 
     client.get(PROV, headers=as_("person_token"))
 
@@ -74,7 +69,7 @@ def test_a_later_call_refreshes_the_row_instead_of_adding_one(client, callers, m
     assert user.last_seen_at > dt(2020, 1, 1)
 
 
-def test_a_call_soon_after_the_last_leaves_the_row_alone_unless_the_username_changed(client, callers, monkeypatch):
+def test_a_call_soon_after_the_last_leaves_the_row_alone_unless_the_username_changed(client, callers, token_claims):
     client.get(PROV, headers=as_("person_token"))
     seen = db.session.get(User, "id-person").last_seen_at
 
@@ -82,7 +77,7 @@ def test_a_call_soon_after_the_last_leaves_the_row_alone_unless_the_username_cha
     db.session.expire_all()
     assert db.session.get(User, "id-person").last_seen_at == seen
 
-    monkeypatch.setitem(USERS["person_token"], "username", "renamed")
+    token_claims["person_token"]["preferred_username"] = "renamed"
     client.get(PROV, headers=as_("person_token"))
     db.session.expire_all()
     assert db.session.get(User, "id-person").username == "renamed"

@@ -1,8 +1,7 @@
 """
-The Dagster System user (role System, not an admin) writes the global resources Dagster and fncli manage, and
-can never revoke: `revoked` is admin only. Keycloak.is_token_valid skips the permission check for a System
-token (tests/keycloak/test_tokens.py runs that for real), which the conftest mock mirrors, so the global write
-routes need no opt in. A caller who is neither admin nor System is refused on all of them. The state-machine writes
+Dagster (role Dagster, not an admin) writes the global resources Dagster and fncli manage, and can never
+revoke: `revoked` is admin only. The admin routers let the Dagster role through, so the global write routes
+need no opt in. A caller who is neither admin nor Dagster is refused on all of them. The state-machine writes
 (@system_only) are the System user's alone: an admin is refused too.
 """
 import pytest

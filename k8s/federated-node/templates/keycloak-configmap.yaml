@@ -32,6 +32,11 @@ data:
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" $ }}
   KEYCLOAK_REALM: {{ $.Values.keycloak.realm | quote }}
   KEYCLOAK_HOSTNAME: {{ $.Values.host }}
+  {{- /*
+    Tokens carry the issuer on the node's host even when fetched in-cluster (nexus-api's /login).
+    In-cluster callers reach Keycloak at its service address either way.
+  */}}
+  KC_HOSTNAME: {{ include "keycloakHostnameUrl" $ | quote }}
   KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "false"
 ---
 {{- end }}

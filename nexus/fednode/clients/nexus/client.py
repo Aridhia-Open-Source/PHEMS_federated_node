@@ -28,7 +28,7 @@ class BackendAPI:
             data={"username": username, "password": password},
         )
         data = response.json()
-        token = data.get("refresh_token") or data.get("token")
+        token = data.get("token")
         if token:
             self.session.adapter.access_token = token
         return data

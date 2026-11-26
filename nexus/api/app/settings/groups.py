@@ -1,7 +1,7 @@
 """Nexus API's settings groups."""
 # pylint: disable=too-few-public-methods
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import SettingsConfigDict
 
 from fednode import settings as shared
@@ -50,6 +50,19 @@ class KeycloakSettings(shared.KeycloakSettings):
     token_cache_ttl: int = 0
     login_attempts: int = 3
     login_backoff: float = 1.5
+
+    @model_validator(mode="after")
+    def default_token_checks(self):
+        """
+        How access tokens are checked (ADR 0035). `issuer` is Keycloak's address on the node's host, which the chart sets;
+        `allowed_clients` is the comma-separated client ids whose tokens are accepted (the token's azp). A value left
+        unset defaults to this realm's address and the Keycloak client.
+        """
+        if self.issuer is None:
+            self.issuer = f"{self.url}/realms/{self.realm}"
+        if self.allowed_clients is None:
+            self.allowed_clients = self.client
+        return self
 
 
 class ServicesSettings(shared.EnvSettings):

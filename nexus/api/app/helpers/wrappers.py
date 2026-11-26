@@ -1,67 +1,37 @@
 """
-Auth dependencies. require_scope replaces the previous backend's @auth(scope), system_only its @system_only.
-A route (or a router, through dependencies=[...]) depends on require_scope(scope); a handler that needs
-who is calling takes `caller: Caller = Depends(get_caller)`, which FastAPI resolves once per request.
-"""
-import logging
-from dataclasses import dataclass
+Auth dependencies (ADR 0035). nexus-api checks Keycloak access tokens itself, against the realm's published
+keys, so a normal request makes no Keycloak call.
 
+A handler that needs who is calling takes `caller: Caller = Depends(get_caller)`, which FastAPI resolves once
+per request. Routers depend on require_role(...); the routes only Dagster may call add system_only.
+"""
 from fastapi import Depends, Request
 
+from app.dtos.caller import Caller
+from app.clients.access_token import access_tokens
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
-from app.clients.keycloak import Keycloak
-from app.models.user import User
-
-logger = logging.getLogger('wrappers')
-logger.setLevel(logging.INFO)
-
-
-@dataclass
-class Caller:
-    token: str
-    user_id: str
-    is_admin: bool
-    is_system: bool
-    kc_client: Keycloak
-    # The caller's row in users, created or refreshed on this call (ADR 0036)
-    user: User
+from app.models.node_role import NodeRole
 
 
 def get_caller(request: Request) -> Caller:
-    """The decoded caller, cached per request by FastAPI's dependency cache."""
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    """The verified caller, cached per request by FastAPI's dependency cache."""
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
     if not token:
         raise AuthenticationError("Token not provided")
 
-    kc_client = Keycloak()
-    token_info = kc_client.decode_token(token)
-    user = kc_client.get_user_by_username(token_info['username'])
-
-    # TODO(DAR): DAR checking is disconnected, as in the previous backend. Every caller takes the plain path.
-    return Caller(
-        token=token,
-        user_id=user["id"],
-        is_admin=kc_client.is_user_admin(token),
-        is_system=kc_client.is_system_user(token),
-        kc_client=kc_client,
-        user=User.seen(user["id"], user["username"]),
-    )
+    return Caller.from_claims(access_tokens.claims(token))
 
 
-def require_scope(scope: str):
-    def _require_scope(caller: Caller = Depends(get_caller)) -> Caller:
-        if not caller.kc_client.is_token_valid(caller.token, scope, 'endpoints', 'refresh_token'):
-            raise UnauthorizedError("Token is not valid, or the user has not enough permissions.")
+def require_role(*roles: NodeRole):
+    def _require_role(caller: Caller = Depends(get_caller)) -> Caller:
+        if caller.role not in roles:
+            raise UnauthorizedError("The user has not enough permissions.")
         return caller
-    return _require_scope
+    return _require_role
 
 
 def system_only(caller: Caller = Depends(get_caller)) -> Caller:
-    """
-    Only the system user (Dagster) may call it, whatever scope the caller holds. Admins hold the scopes
-    of the state-machine routes to manage datasets. Goes next to the route's require_scope.
-    """
-    if not caller.is_system:
+    """Only Dagster may call it, whatever else the router allows. Goes next to the router's require_role."""
+    if caller.role != NodeRole.DAGSTER:
         raise UnauthorizedError("Only the system user can change this state.")
     return caller
-

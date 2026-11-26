@@ -15,6 +15,8 @@ data:
   SERVICES_KEYCLOAK_ALLOWED_CLIENTS: {{ .Values.nexus.api.allowedClients | join "," | quote }}
   DEFAULT_NAMESPACE: {{ .Release.Namespace }}
   KEYCLOAK_NAMESPACE: {{ include "kc_namespace" . }}
+  {{- /* nexus-api verifies tokens itself: the issuer is on the node's host, the keys are fetched in-cluster (ADR 0035) */}}
+  SERVICES_KEYCLOAK_ISSUER: {{ include "keycloakIssuer" . | quote }}
   {{- /*
     Where kc-secrets is mounted. nexus-api reads credentials from these files rather than from its
     environment, so a rotation reaches it without a restart.
