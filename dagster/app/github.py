@@ -5,7 +5,7 @@ from datetime import datetime as dt
 
 import requests as req
 
-from fednode.http import HttpClient
+from app.utils import HttpClient
 
 GH_API_BASE_URL = "https://api.github.com"
 GH_PAGE_SIZE = 100
