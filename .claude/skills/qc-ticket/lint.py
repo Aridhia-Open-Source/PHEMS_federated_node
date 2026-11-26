@@ -18,7 +18,7 @@ SENSITIVE = [
     (re.compile(r"\b(?!169\.254\.169\.254\b)(?:\d{1,3}\.){3}\d{1,3}(?:/\d+)?\b"), "an IP address"),
     (re.compile(r"--context\b|use-context\b|--kube-context\b"), "a kube context"),
     (re.compile(r"\b[\w.-]+\.(?:postgres\.database\.azure\.com|azmk8s\.io|blob\.core\.windows\.net|file\.core\.windows\.net|vault\.azure\.net)\b"), "a cloud resource name"),
-    (re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"), "an email address"),
+    (re.compile(r"\b[\w.+-]+@(?!example\.(?:com|org)\b)[\w-]+\.[\w.-]+\b"), "an email address (made-up ones must be @example.com or @example.org)"),
     (re.compile(r"\b(?:ghp|gho|github_pat|glpat|xox[bp])_[A-Za-z0-9_]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY|\bAGE-SECRET-KEY-|\bage1[0-9a-z]{50,}"), "a token or key"),
 ]
 
