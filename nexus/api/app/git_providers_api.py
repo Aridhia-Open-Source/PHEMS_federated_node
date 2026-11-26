@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitProviderRequest
 from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.rules.ownership import get_for_write, set_owner
+from app.rules.ownership import set_owner
 from app.repos.pull_request_fanout import skip_gap
 from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
@@ -80,7 +80,7 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
     the provider, and so every repository on it, from every project at once, or restores it, and does not
     change `enabled`: see helpers/task_config.revoked_resources.
     """
-    provider = get_for_write(session, GitProvider, provider_id, caller)
+    provider = GitProvider.get_by_id(provider_id)
 
     sent = req.model_fields_set
     if not sent:
@@ -111,12 +111,12 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
 
 
 @router.delete('/{provider_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_provider(provider_id: int, caller: Caller = Depends(get_caller)):
+def delete_provider(provider_id: int):
     """
     DELETE /global/providers/<id> — delete the provider. Refused with a 409 while a repository
     is on it.
     """
-    provider = get_for_write(session, GitProvider, provider_id, caller)
+    provider = GitProvider.get_by_id(provider_id)
     users = len(provider.trigger_repositories) + len(provider.results_repositories)
     if users:
         raise InvalidRequest(

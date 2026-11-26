@@ -25,8 +25,8 @@ export function useToken() {
   );
 }
 
-// The viewer's groups, as nexus-api reads them from the token (helpers/wrappers.py:token_groups): its
-// realm roles and its Keycloak groups. The UI only uses them to grey out what the API would refuse.
+// The viewer's groups from the token: its realm roles and its Keycloak groups. The UI only uses them to
+// grey out what the API would refuse.
 export function tokenGroups(t: string | null): Set<string> {
   const payload = t?.split(".")[1];
   if (!payload) return new Set();

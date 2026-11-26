@@ -12,7 +12,7 @@ type Props = {
   revoked: boolean;
   what: string;
   onChange: (revoked: boolean) => void;
-  // The owner group, when the viewer is not in it: greyed out
+  // Who owns the record, when the viewer may not change it: greyed out
   ownedBy?: string | null;
 };
 

@@ -143,13 +143,6 @@
         },
         "clientRole": false,
         "attributes": {}
-      },
-      {
-        "name": "service-account",
-        "description": "Programs, not people: nexus-api records them as services, and only they change the records they own",
-        "composite": false,
-        "clientRole": false,
-        "attributes": {}
       }
     ]
   },
