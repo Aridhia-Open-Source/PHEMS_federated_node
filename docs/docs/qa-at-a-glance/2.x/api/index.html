@@ -518,6 +518,17 @@
 </li>
 <li class="md-nav__item md-nav__item--active">
 <input class="md-nav__toggle md-toggle" id="__toc" type="checkbox"/>
+<label class="md-nav__link md-nav__link--active" for="__toc">
+<span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+<span class="md-nav__icon md-icon"></span>
+</label>
 <a class="md-nav__link md-nav__link--active" href="./">
 <span class="md-ellipsis">
     
@@ -528,6 +539,23 @@
     
   </span>
 </a>
+<nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#postman">
+<span class="md-ellipsis">
+      
+        Postman
+      
+    </span>
+</a>
+</li>
+</ul>
+</nav>
 </li>
 </ul>
 </nav>
@@ -538,6 +566,21 @@
 <div class="md-sidebar__scrollwrap">
 <div class="md-sidebar__inner">
 <nav aria-label="Table of contents" class="md-nav md-nav--secondary">
+<label class="md-nav__title" for="__toc">
+<span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+<ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+<li class="md-nav__item">
+<a class="md-nav__link" href="#postman">
+<span class="md-ellipsis">
+      
+        Postman
+      
+    </span>
+</a>
+</li>
+</ul>
 </nav>
 </div>
 </div>
@@ -546,6 +589,13 @@
 <article class="md-content__inner md-typeset">
 <h1 id="api-reference">API reference<a class="headerlink" href="#api-reference" title="Permanent link">¶</a></h1>
 <p>The Federated Node REST API, rendered from the <code>openapi.json</code> committed with this version of the node.</p>
+<h2 id="postman">Postman<a class="headerlink" href="#postman" title="Permanent link">¶</a></h2>
+<p>A Postman collection of the same routes, with sign-in done for you, and an empty environment:</p>
+<ul>
+<li><a href="fn.postman_collection.json">fn.postman_collection.json</a></li>
+<li><a href="fn.postman_environment.json">fn.postman_environment.json</a></li>
+</ul>
+<p>In Postman, use Import &gt; Link with each file's address (right-click, copy link). Select the environment <strong>Federated Node</strong> and fill in <code>baseUrl</code> (nexus-api's URL), <code>username</code> and <code>password</code>. Each request signs in through <code>POST /login</code> when it has no token or the token is about to expire.</p>
 <p><iframe class="swagger-ui-iframe" frameborder="0" id="62326fbc" onload="this.style.display = 'block'; this.style.overflow = 'hidden'; this.style.width = '100%';" src="swagger-62326fbc.html" style="display:none;" width="100%"></iframe></p>
 </article>
 </div>
