@@ -45,6 +45,7 @@ services:
       KEYCLOAK_LOGLEVEL: DEBUG
       KEYCLOAK_TOKEN_LIFE: 3600
       KEYCLOAK_HOSTNAME: ${KEYCLOAK_URL}
+      KEYCLOAK_REALM:
     volumes:
       - ../../k8s/federated-node/scripts/realms.json:/opt/keycloak/data/import/realms.json
   kc_init:
