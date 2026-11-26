@@ -254,3 +254,14 @@ def test_get_sensor_status_reads_the_sensor_from_nexus_api(api, session):
 
     assert api.get_sensor_status("s") == "STOPPED"
     session.get.assert_called_once_with("/dagster/sensors/s")
+
+
+def test_grants_routes(api, session):
+    session.post.return_value = response({"id": 5})
+
+    api.add_grant("/projects/3", "read", "group", "/studies/uc1")
+    api.delete_grant("/global/secrets/creds", 5)
+
+    assert session.post.call_args.args == ("/projects/3/grants",)
+    assert session.post.call_args.kwargs["json"] == {"relation": "read", "subject_type": "group", "subject_id": "/studies/uc1"}
+    session.delete.assert_called_once_with("/global/secrets/creds/grants/5")

@@ -62,6 +62,22 @@ spec:
                   type: string
                   minLength: 1
                   description: The NodeSecret with the repository's git credentials
+                access:
+                  type: array
+                  description: >-
+                    Keycloak groups and what each may do with the record (ADR 0037). The operator adds a group grant
+                    for each entry and removes the ones it added when they leave the list; other grants stay.
+                  items:
+                    type: object
+                    required: [group, relation]
+                    properties:
+                      group:
+                        type: string
+                        pattern: '^/'
+                        description: The group's full Keycloak path, e.g. /studies/uc1
+                      relation:
+                        type: string
+                        enum: [read, assign, execute, operate, write]
             status:
               type: object
               properties:
@@ -74,6 +90,16 @@ spec:
                 observedGeneration:
                   type: integer
                   format: int64
+                access:
+                  type: array
+                  description: The access entries the operator last applied, so it removes only its own grants
+                  items:
+                    type: object
+                    properties:
+                      group:
+                        type: string
+                      relation:
+                        type: string
                 sourceVersions:
                   type: object
                   description: NodeSecret only, source Secret name -> its resourceVersion last sent
