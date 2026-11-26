@@ -1,4 +1,4 @@
-# 0035. Keycloak Authentication
+# 0035. API authorization, OIDC authentication
 
 Status: Proposed, 2026-11-20.
 
