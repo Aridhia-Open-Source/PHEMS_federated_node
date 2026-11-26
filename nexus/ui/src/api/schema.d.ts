@@ -89,6 +89,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/global/users/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Reset Password
+         * @description PUT /global/users/reset-password endpoint. Interface to keycloak
+         *         API, so we can change the credentials and make sure
+         *         there are no pending action to undertake
+         */
+        put: operations["reset_password_global_users_reset_password_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects": {
         parameters: {
             query?: never;
@@ -143,7 +165,7 @@ export interface paths {
          *     on again skips the gap: what was merged while it was off gets no trigger. With
          *     `"backfill": true` it creates those triggers instead. `backfill` is only for enabling a
          *     disabled project (`"enabled": true`), otherwise a 400, and is not stored.
-         *     `revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:
+         *     `revoked` (a boolean, needs `write`; the rest needs `operate`) withdraws the project, or restores it, and does not change `enabled`:
          *     while it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger
          *     (see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.
          */
@@ -203,7 +225,7 @@ export interface paths {
         /**
          * Patch Project Dataset
          * @description PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the project resource on or
-         *     off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
+         *     off (enabled, needs `operate`), or revokes and re-grants it (revoked, needs `write`), which takes effect at once.
          */
         patch: operations["patch_project_dataset_projects__project_id__datasets__dataset_id__patch"];
         trace?: never;
@@ -260,7 +282,7 @@ export interface paths {
         /**
          * Patch Project Secret
          * @description PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the project resource on or off (enabled),
-         *     or revokes and re-grants it (revoked), which is admin only and takes effect at once.
+         *     or revokes and re-grants it (revoked), which takes effect at once. Needs `write`: `operate` does not cover secrets.
          */
         patch: operations["patch_project_secret_projects__project_id__secrets__label__patch"];
         trace?: never;
@@ -325,9 +347,72 @@ export interface paths {
          *     the project's results go (target_dir, base_branch, owned_by_federated_node), at any time (the tasks created
          *     before fail instead of delivering to the new place), or turns the project resource on or
          *     off (enabled), or revokes and re-grants it
-         *     (revoked), which is admin only and takes effect at once.
+         *     (revoked), which takes effect at once. Turning it on or off needs `operate`, anything else `write`.
          */
         patch: operations["patch_project_results_repository_projects__project_id__repositories_results__repository_id__patch"];
+        trace?: never;
+    };
+    "/projects/{project_id}/datasets/{dataset_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Dataset Healthcheck
+         * @description GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's
+         *     check and the project's resource state. 404 if the project has no resource for it.
+         */
+        get: operations["project_dataset_healthcheck_projects__project_id__datasets__dataset_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/secrets/{label}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Secret Healthcheck
+         * @description GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check
+         *     and the project's resource state. 404 if the project has no resource for it.
+         */
+        get: operations["project_secret_healthcheck_projects__project_id__secrets__label__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{project_id}/repositories/results/{repository_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Results Repository Healthcheck
+         * @description GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The
+         *     global repository's check and the project's resource state. 404 if the project has no resource for it.
+         */
+        get: operations["project_results_repository_healthcheck_projects__project_id__repositories_results__repository_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/global/datasets": {
@@ -373,7 +458,7 @@ export interface paths {
          * Delete Dataset
          * @description DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
          *         unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
-         *         other datasets may share it. Admin only.
+         *         other datasets may share it.
          */
         delete: operations["delete_dataset_global_datasets__dataset_id__delete"];
         options?: never;
@@ -386,6 +471,27 @@ export interface paths {
          *     the tasks that use it fail and nothing of theirs is delivered while it is revoked. It does not change `enabled`.
          */
         patch: operations["patch_dataset_global_datasets__dataset_id__patch"];
+        trace?: never;
+    };
+    "/global/datasets/{dataset_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dataset Healthcheck
+         * @description GET /global/datasets/<dataset_id>/healthcheck endpoint. Whether the node can connect to the
+         *     dataset's database with its secret.
+         */
+        get: operations["dataset_healthcheck_global_datasets__dataset_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/projects/{project_id}/tasks": {
@@ -406,7 +512,8 @@ export interface paths {
         put?: never;
         /**
          * Post Tasks
-         * @description POST /projects/<project_id>/tasks endpoint. Creates a new task from API request
+         * @description POST /projects/<project_id>/tasks endpoint. Creates a new task from API request. Needs `execute` on the project
+         *     and on the dataset the task runs on (ADR 0037); a dataset denied, or revoked, rejects the request.
          */
         post: operations["post_tasks_projects__project_id__tasks_post"];
         delete?: never;
@@ -455,7 +562,8 @@ export interface paths {
         put?: never;
         /**
          * Retry Task
-         * @description POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
+         * @description POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt.
+         *     Needs `execute` on the project and, as when the task was created, on the dataset it runs on.
          */
         post: operations["retry_task_projects__project_id__tasks__task_id__retry_post"];
         delete?: never;
@@ -496,7 +604,7 @@ export interface paths {
         /**
          * Post Tasks Validate
          * @description POST /projects/<project_id>/tasks/validate endpoint.
-         *         Allows task definition validation without creating the task
+         *         Allows task definition validation without creating the task. Needs `execute` on the project.
          */
         post: operations["post_tasks_validate_projects__project_id__tasks_validate_post"];
         delete?: never;
@@ -756,28 +864,6 @@ export interface paths {
         patch: operations["patch_result_projects__project_id__results__result_id__patch"];
         trace?: never;
     };
-    "/global/users/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Reset Password
-         * @description PUT /global/users/reset-password endpoint. Interface to keycloak
-         *         API, so we can change the credentials and make sure
-         *         there are no pending action to undertake
-         */
-        put: operations["reset_password_global_users_reset_password_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/global/users": {
         parameters: {
             query?: never;
@@ -918,6 +1004,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/global/repositories/triggers/{repository_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trigger Repository Healthcheck
+         * @description GET /global/repositories/triggers/<repository_id>/healthcheck endpoint. Whether the repository
+         *     can be reached with its own secret.
+         */
+        get: operations["trigger_repository_healthcheck_global_repositories_triggers__repository_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}/repositories/triggers": {
         parameters: {
             query?: never;
@@ -978,7 +1085,7 @@ export interface paths {
          * @description PATCH /projects/<project_id>/repositories/triggers/<repo_id> — changes what the
          *     project watches (watch_dir, base_branch), at any time, or turns the project resource on or off
          *     (enabled), or revokes and re-grants it
-         *     (revoked), which is admin only and takes effect at once.
+         *     (revoked), which takes effect at once. Turning it on or off needs `operate`, anything else `write`.
          */
         patch: operations["patch_project_trigger_repository_projects__project_id__repositories_triggers__repo_id__patch"];
         trace?: never;
@@ -1059,6 +1166,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/{project_id}/repositories/triggers/{repository_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Trigger Repository Healthcheck
+         * @description GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The
+         *     global repository's check, the project's resource state and its pull request count. 404 if the
+         *     project has no resource for it.
+         */
+        get: operations["project_trigger_repository_healthcheck_projects__project_id__repositories_triggers__repository_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/global/secrets": {
         parameters: {
             query?: never;
@@ -1130,6 +1259,27 @@ export interface paths {
         patch: operations["patch_secret_global_secrets__label__patch"];
         trace?: never;
     };
+    "/global/secrets/{label}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Secret Healthcheck
+         * @description GET /global/secrets/<label>/healthcheck endpoint. Whether the secret is in its store with the
+         *     keys its datasets and repositories need. Never the values.
+         */
+        get: operations["secret_healthcheck_global_secrets__label__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/global/providers": {
         parameters: {
             query?: never;
@@ -1186,6 +1336,26 @@ export interface paths {
          *     change `enabled`: see helpers/task_config.revoked_resources.
          */
         patch: operations["patch_provider_global_providers__provider_id__patch"];
+        trace?: never;
+    };
+    "/global/providers/{provider_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Provider Healthcheck
+         * @description GET /global/providers/<provider_id>/healthcheck endpoint. Whether the provider's API answers.
+         */
+        get: operations["provider_healthcheck_global_providers__provider_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/global/repositories/results": {
@@ -1272,6 +1442,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/global/repositories/results/{repository_id}/healthcheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Results Repository Healthcheck
+         * @description GET /global/repositories/results/<repository_id>/healthcheck endpoint. Whether the repository
+         *     can be reached with its own secret.
+         */
+        get: operations["results_repository_healthcheck_global_repositories_results__repository_id__healthcheck_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dagster/sensors": {
         parameters: {
             query?: never;
@@ -1343,110 +1534,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/global/datasets/{dataset_id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Dataset Healthcheck
-         * @description GET /global/datasets/<dataset_id>/healthcheck endpoint. Whether the node can connect to the
-         *     dataset's database with its secret.
-         */
-        get: operations["dataset_healthcheck_global_datasets__dataset_id__healthcheck_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/secrets/{label}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Secret Healthcheck
-         * @description GET /global/secrets/<label>/healthcheck endpoint. Whether the secret is in its store with the
-         *     keys its datasets and repositories need. Never the values.
-         */
-        get: operations["secret_healthcheck_global_secrets__label__healthcheck_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/providers/{provider_id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Provider Healthcheck
-         * @description GET /global/providers/<provider_id>/healthcheck endpoint. Whether the provider's API answers.
-         */
-        get: operations["provider_healthcheck_global_providers__provider_id__healthcheck_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/triggers/{repository_id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Trigger Repository Healthcheck
-         * @description GET /global/repositories/triggers/<repository_id>/healthcheck endpoint. Whether the repository
-         *     can be reached with its own secret.
-         */
-        get: operations["trigger_repository_healthcheck_global_repositories_triggers__repository_id__healthcheck_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/global/repositories/results/{repository_id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Results Repository Healthcheck
-         * @description GET /global/repositories/results/<repository_id>/healthcheck endpoint. Whether the repository
-         *     can be reached with its own secret.
-         */
-        get: operations["results_repository_healthcheck_global_repositories_results__repository_id__healthcheck_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/projects/{project_id}/healthcheck": {
         parameters: {
             query?: never;
@@ -1461,91 +1548,6 @@ export interface paths {
          *     repository. A failed check is reported in the body, still with a 200.
          */
         get: operations["project_healthcheck_projects__project_id__healthcheck_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/datasets/{dataset_id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Project Dataset Healthcheck
-         * @description GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's
-         *     check and the project's resource state. 404 if the project has no resource for it.
-         */
-        get: operations["project_dataset_healthcheck_projects__project_id__datasets__dataset_id__healthcheck_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/secrets/{label}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Project Secret Healthcheck
-         * @description GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check
-         *     and the project's resource state. 404 if the project has no resource for it.
-         */
-        get: operations["project_secret_healthcheck_projects__project_id__secrets__label__healthcheck_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/repositories/triggers/{repository_id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Project Trigger Repository Healthcheck
-         * @description GET /projects/<project_id>/repositories/triggers/<repository_id>/healthcheck endpoint. The
-         *     global repository's check, the project's resource state and its pull request count. 404 if the
-         *     project has no resource for it.
-         */
-        get: operations["project_trigger_repository_healthcheck_projects__project_id__repositories_triggers__repository_id__healthcheck_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/projects/{project_id}/repositories/results/{repository_id}/healthcheck": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Project Results Repository Healthcheck
-         * @description GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The
-         *     global repository's check and the project's resource state. 404 if the project has no resource for it.
-         */
-        get: operations["project_results_repository_healthcheck_projects__project_id__repositories_results__repository_id__healthcheck_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3206,6 +3208,39 @@ export interface operations {
             };
         };
     };
+    reset_password_global_users_reset_password_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_projects_projects_get: {
         parameters: {
             query?: {
@@ -3438,8 +3473,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                project_id: number;
                 dataset_id: number;
+                project_id: number;
             };
             cookie?: never;
         };
@@ -3607,8 +3642,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                project_id: number;
                 label: string;
+                project_id: number;
             };
             cookie?: never;
         };
@@ -3776,8 +3811,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                project_id: number;
                 repository_id: number;
+                project_id: number;
             };
             cookie?: never;
         };
@@ -3860,6 +3895,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectResultsRepositoryDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    project_dataset_healthcheck_projects__project_id__datasets__dataset_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDatasetHealthDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    project_secret_healthcheck_projects__project_id__secrets__label__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectSecretHealthDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    project_results_repository_healthcheck_projects__project_id__repositories_results__repository_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectResultsRepositoryHealthDTO"];
                 };
             };
             /** @description Validation Error */
@@ -4028,6 +4159,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DatasetDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dataset_healthcheck_global_datasets__dataset_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetHealthDTO"];
                 };
             };
             /** @description Validation Error */
@@ -4685,39 +4847,6 @@ export interface operations {
             };
         };
     };
-    reset_password_global_users_reset_password_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_users_list_global_users_get: {
         parameters: {
             query?: never;
@@ -5044,6 +5173,37 @@ export interface operations {
             };
         };
     };
+    trigger_repository_healthcheck_global_repositories_triggers__repository_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryConnectionDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_project_trigger_repositories_projects__project_id__repositories_triggers_get: {
         parameters: {
             query?: {
@@ -5114,8 +5274,8 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                project_id: number;
                 repo_id: number;
+                project_id: number;
             };
             cookie?: never;
         };
@@ -5360,6 +5520,38 @@ export interface operations {
             };
         };
     };
+    project_trigger_repository_healthcheck_projects__project_id__repositories_triggers__repository_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectTriggerRepositoryHealthDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_secrets_global_secrets_get: {
         parameters: {
             query?: never;
@@ -5514,6 +5706,37 @@ export interface operations {
             };
         };
     };
+    secret_healthcheck_global_secrets__label__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                label: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecretHealthDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_providers_global_providers_get: {
         parameters: {
             query?: never;
@@ -5649,6 +5872,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GitProviderDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_healthcheck_global_providers__provider_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitProviderHealthDTO"];
                 };
             };
             /** @description Validation Error */
@@ -5847,6 +6101,37 @@ export interface operations {
             };
         };
     };
+    results_repository_healthcheck_global_repositories_results__repository_id__healthcheck_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repository_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryConnectionDTO"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_sensors_dagster_sensors_get: {
         parameters: {
             query?: never;
@@ -5990,161 +6275,6 @@ export interface operations {
             };
         };
     };
-    dataset_healthcheck_global_datasets__dataset_id__healthcheck_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                dataset_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DatasetHealthDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    secret_healthcheck_global_secrets__label__healthcheck_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                label: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SecretHealthDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    provider_healthcheck_global_providers__provider_id__healthcheck_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                provider_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GitProviderHealthDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    trigger_repository_healthcheck_global_repositories_triggers__repository_id__healthcheck_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RepositoryConnectionDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    results_repository_healthcheck_global_repositories_results__repository_id__healthcheck_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RepositoryConnectionDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     project_healthcheck_projects__project_id__healthcheck_get: {
         parameters: {
             query?: never;
@@ -6163,134 +6293,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectHealthDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    project_dataset_healthcheck_projects__project_id__datasets__dataset_id__healthcheck_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                dataset_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectDatasetHealthDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    project_secret_healthcheck_projects__project_id__secrets__label__healthcheck_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                label: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectSecretHealthDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    project_trigger_repository_healthcheck_projects__project_id__repositories_triggers__repository_id__healthcheck_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectTriggerRepositoryHealthDTO"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    project_results_repository_healthcheck_projects__project_id__repositories_results__repository_id__healthcheck_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-                repository_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ProjectResultsRepositoryHealthDTO"];
                 };
             };
             /** @description Validation Error */

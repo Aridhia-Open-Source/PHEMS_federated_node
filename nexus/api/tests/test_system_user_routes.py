@@ -1,8 +1,6 @@
 """
-Dagster (role Dagster, not an admin) writes the global resources Dagster and fncli manage, and can never
-revoke: `revoked` is admin only. The admin routers let the Dagster role through, so the global write routes
-need no opt in. A caller who is neither admin nor Dagster is refused on all of them. The state-machine writes
-(@system_only) are the System user's alone: an admin is refused too.
+Dagster (role Dagster) writes only its pipeline state (SYSTEM_ONLY routes), which an admin cannot write. It
+creates, changes and revokes no record: Cedar gives it no write (409). Users are refused by the role gate (403).
 """
 import pytest
 
@@ -16,7 +14,7 @@ from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.results_repository import ResultsRepository
 from app.models.trigger_repository import TriggerRepository
 
-from tests.test_global_resources import DS, PROV, RES, SEC, TRIG, ds_body, repo_body, secret_body
+from tests.test_global_resources import DS, PROV, RES, SEC, TRIG, ds_body, secret_body
 
 REPO = {"provider_id": 1, "repo_path": "org/new", "secret_label": "test-creds"}
 PROVIDER = {"name": "gt", "type": "gitea", "uri": "https://gitea.example.com", "api_uri": "https://gitea.example.com/api/v1"}
@@ -60,43 +58,11 @@ def test_an_admin_cannot_write_the_state_machines(client, admin_headers, method,
     assert getattr(client, method)(url, json=body, headers=admin_headers).status_code == 403
 
 
-def test_system_manages_datasets(client, system_headers, global_secret):
-    created = client.post(DS, json=ds_body(), headers=system_headers)
-    assert created.status_code == 201, created.json()
-    deleted = client.delete(f"{DS}/{created.json()['id']}", params={"force": "true"}, headers=system_headers)
-    assert deleted.status_code in (200, 204), deleted.json()
-    assert Dataset.query.count() == 0
-
-
-def test_system_manages_trigger_repositories(client, system_headers, global_secret, git_provider):
-    created = client.post(TRIG, json=repo_body(git_provider), headers=system_headers)
-    assert created.status_code == 201, created.json()
-    deleted = client.delete(f"{TRIG}/{created.json()['id']}", params={"force": "true"}, headers=system_headers)
-    assert deleted.status_code in (200, 204), deleted.json()
-    assert TriggerRepository.query.count() == 0
-
-
-def test_system_manages_results_repositories(client, system_headers, global_secret, git_provider):
-    created = client.post(RES, json=repo_body(git_provider), headers=system_headers)
-    assert created.status_code == 201, created.json()
-    deleted = client.delete(f"{RES}/{created.json()['id']}", params={"force": "true"}, headers=system_headers)
-    assert deleted.status_code in (200, 204), deleted.json()
-    assert ResultsRepository.query.count() == 0
-
-
-def test_system_manages_git_providers(client, system_headers):
-    created = client.post(PROV, json=PROVIDER, headers=system_headers)
-    assert created.status_code == 201, created.json()
-    deleted = client.delete(f"{PROV}/{created.json()['id']}", headers=system_headers)
-    assert deleted.status_code in (200, 204), deleted.json()
-    assert GitProvider.query.count() == 0
-
-
-def test_system_writes_secrets(client, system_headers, k8s_client):
-    created = client.post(SEC, json=secret_body(), headers=system_headers)
-    assert created.status_code == 201, created.json()
-    rotated = client.patch(f"{SEC}/new-creds", json={"values": {"TOKEN": "t2"}}, headers=system_headers)
-    assert rotated.status_code == 200, rotated.json()
+@pytest.mark.parametrize("url,body", [(DS, ds_body()), (PROV, PROVIDER), (SEC, secret_body())], ids=["dataset", "provider", "secret"])
+def test_dagster_cannot_create_global_records(client, system_headers, global_secret, url, body):
+    """Creating needs write on Global, which Cedar gives admins and the operator, not Dagster."""
+    refused = client.post(url, json=body, headers=system_headers)
+    assert refused.status_code == 409, refused.json()
 
 
 @pytest.mark.parametrize("url_of,model,fixture", [
@@ -106,15 +72,16 @@ def test_system_writes_secrets(client, system_headers, k8s_client):
     (lambda r: f"{PROV}/{r.id}", GitProvider, "git_provider"),
     (lambda r: f"/projects/{r.id}", Project, "project"),
 ], ids=["dataset", "trigger repository", "results repository", "git provider", "project"])
-def test_system_cannot_revoke(client, system_headers, request, url_of, model, fixture):
+def test_dagster_cannot_change_or_revoke_a_record(client, system_headers, request, url_of, model, fixture):
     resource = request.getfixturevalue(fixture)
     url = url_of(resource)
     refused = client.patch(url, json={"revoked": True}, headers=system_headers)
-    assert refused.status_code == 403, refused.json()
+    assert refused.status_code == 409, refused.json()
     assert model.query.get(resource.id).revoked is False
+    assert client.delete(url, headers=system_headers).status_code == 409
 
 
-# Every route that accepts `revoked` (ADR 0008: only administrators set it, on every route that has it).
+# Every route that accepts `revoked`: a write on the record (or its project), which the admin that owns them has.
 # kind -> (fixtures it needs, url, model, the filter picking its row)
 def _revoke_target(request, kind):
     get = request.getfixturevalue
@@ -152,10 +119,11 @@ def _revoked(model, where):
 
 
 @pytest.mark.parametrize("kind", REVOKE_KINDS)
-def test_only_an_admin_can_revoke(client, admin_headers, system_headers, post_json_user_header, request, kind):
+def test_only_a_writer_can_revoke(client, admin_headers, system_headers, post_json_user_header, request, kind):
+    """Dagster has no write (409); Users do not pass the role gate yet (403, until reads are checked)."""
     url, model, where = _revoke_target(request, kind)
-    for headers in (system_headers, post_json_user_header):
-        assert client.patch(url, json={"revoked": True}, headers=headers).status_code == 403
+    for headers, code in ((system_headers, 409), (post_json_user_header, 403)):
+        assert client.patch(url, json={"revoked": True}, headers=headers).status_code == code
         assert _revoked(model, where) is False
     revoked = client.patch(url, json={"revoked": True}, headers=admin_headers)
     assert revoked.status_code == 200, revoked.json()
@@ -163,11 +131,11 @@ def test_only_an_admin_can_revoke(client, admin_headers, system_headers, post_js
 
 
 @pytest.mark.parametrize("kind", REVOKE_KINDS)
-def test_only_an_admin_can_unrevoke(client, admin_headers, system_headers, post_json_user_header, request, kind):
+def test_only_a_writer_can_unrevoke(client, admin_headers, system_headers, post_json_user_header, request, kind):
     url, model, where = _revoke_target(request, kind)
     assert client.patch(url, json={"revoked": True}, headers=admin_headers).status_code == 200
-    for headers in (system_headers, post_json_user_header):
-        assert client.patch(url, json={"revoked": False}, headers=headers).status_code == 403
+    for headers, code in ((system_headers, 409), (post_json_user_header, 403)):
+        assert client.patch(url, json={"revoked": False}, headers=headers).status_code == code
         assert _revoked(model, where) is True
     restored = client.patch(url, json={"revoked": False}, headers=admin_headers)
     assert restored.status_code == 200, restored.json()

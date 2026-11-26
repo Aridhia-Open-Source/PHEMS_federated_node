@@ -14,13 +14,18 @@ from app.settings import SettingsDep, settings
 from app.dtos.user import NewUserDTO, NewUserRequest, UserDTO
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.clients.keycloak import Keycloak
-from app.helpers.wrappers import Caller, get_caller
-from app.models.node_role import NodeRole
+from app.rules.authz import Access, Action
+from app.helpers.wrappers import Caller, get_caller, require_role
+from app.models.node_role import ADMIN_ROLES, NodeRole
 
 router = APIRouter(prefix='/global/users', tags=["users"])
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=NewUserDTO)
+# Unchecked: users are Keycloak accounts, not records with grants; the admin roles gate it
+@router.post(
+    '', status_code=HTTPStatus.CREATED, response_model=NewUserDTO,
+    dependencies=[Depends(require_role(*ADMIN_ROLES)), Depends(Access(action=Action.UNCHECKED))],
+)
 def create_user(body: NewUserRequest, settings_dep: SettingsDep, caller: Caller = Depends(get_caller)):
     """
     POST /global/users endpoint. Creates a KC user, and sets a temp

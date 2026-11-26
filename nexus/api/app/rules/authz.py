@@ -1,26 +1,33 @@
 """
 The Cedar access check (ADR 0037). The rules are nexus/api/authz/policies.cedar, checked against
 schema.cedarschema; this module builds each request from the caller, the record and the caller's grants on it,
-and asks Cedar. Nothing calls can() from the routes yet; the Access dependency comes next.
+and asks Cedar. Routes declare an Access dependency, which loads their record, checks it and hands it over; other
+code calls can() or require(). A deny is a 409 naming the record's owned_by user.
 
 cedarpy is only called from this module, so swapping the wrapper stays local.
 """
 import hashlib
+import inspect
 import time
 from datetime import timezone
 from dataclasses import dataclass, field
 from enum import StrEnum
 from functools import cache
+from http import HTTPStatus
 from pathlib import Path
 
 import cedarpy
 import sqlalchemy as sa
+from fastapi import Depends
 from sqlalchemy.dialects.postgresql import insert
 
 from app.database.base_model import db, engine
 from app.dtos.caller import Caller
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.helpers.wrappers import get_caller, system_only
 from app.models.grant import GROUP, USER, Grant
 from app.models.policy_version import PolicyVersion
+from app.models.secret import Secret
 
 AUTHZ_DIR = Path(__file__).resolve().parents[2] / "authz"
 POLICY_FILES = ("policies.cedar", "schema.cedarschema", "cases.yaml")
@@ -188,3 +195,103 @@ def can(caller: Caller, action: Action, record) -> bool:
     """Whether the caller may do the action on the record (a project, a global record or GLOBAL)."""
     principal = Principal(user_id=caller.user_id, role=caller.role, groups=tuple(caller.groups))
     return is_allowed(principal, action, resource_of(record), grants_for(caller, record), int(time.time()))
+
+
+def require(caller: Caller, action: Action, record) -> None:
+    """can(), or a 409 naming the record's owned_by user."""
+    if can(caller, action, record):
+        return
+    if isinstance(record, Global):
+        raise InvalidRequest(
+            f"Only admins and the operator can {action} global records", HTTPStatus.CONFLICT
+        )
+    owner = record.owned_by.username if getattr(record, "owned_by", None) else "nobody"
+    raise InvalidRequest(f"You cannot {action} {record!r}; it is owned by {owner}", HTTPStatus.CONFLICT)
+
+
+# The path parameter each checked model is loaded by, and its type
+PATH_PARAMS = {
+    "Project": ("project_id", int),
+    "Dataset": ("dataset_id", int),
+    "GitProvider": ("provider_id", int),
+    "Secret": ("label", str),
+    "TriggerRepository": ("repo_id", int),
+    "ResultsRepository": ("repo_id", int),
+}
+
+
+def _load(model, key):
+    """The record the path names, 404 if missing. Secrets are addressed by label."""
+    if model is Secret:
+        secret = Secret.query.filter(Secret.label == key).one_or_none()
+        if secret is None:
+            raise DBRecordNotFoundError(f"Secret {key} does not exist")
+        return secret
+    return model.get_by_id(key)
+
+
+class Access:
+    """
+    The record check every route declares (ADR 0037), keyword arguments only:
+    - Access(model=Dataset, action=Action.WRITE): loads the record from the path (404 if missing), checks the
+      caller may do the action on it (409 if not) and returns it, so the handler takes the record from here;
+    - Access(model=Global, action=Action.WRITE): a global create, checked on Global::"0"; returns GLOBAL;
+    - Access(action=Action.UNCHECKED): no check and no token needed; the route says why in a comment.
+    create_app refuses to start if a route has none (see routes_without_access).
+    """
+
+    def __init__(self, *, action: Action, model=None):
+        if action == Action.UNCHECKED and model is not None:
+            raise TypeError("Access(action=UNCHECKED) takes no model")
+        if action != Action.UNCHECKED and model is None:
+            raise TypeError(f"Access(action={action}) needs a model")
+        self.model = model
+        self.action = action
+        params = []
+        if action != Action.UNCHECKED:
+            params.append(inspect.Parameter(
+                "caller", inspect.Parameter.KEYWORD_ONLY, default=Depends(get_caller), annotation=Caller,
+            ))
+            if model is not Global:
+                name, type_ = PATH_PARAMS[model.authz_type]
+                params.insert(0, inspect.Parameter(name, inspect.Parameter.KEYWORD_ONLY, annotation=type_))
+        # FastAPI reads the dependency's parameters from here: the path parameter and the caller
+        self.__signature__ = inspect.Signature(params)
+
+    def __call__(self, caller: Caller | None = None, **path):
+        if self.action == Action.UNCHECKED:
+            return None
+        record = GLOBAL if self.model is Global else _load(self.model, next(iter(path.values())))
+        require(caller, self.action, record)
+        return record
+
+    def __repr__(self):
+        model = f"model={self.model.__name__}, " if self.model else ""
+        return f"Access({model}action={self.action})"
+
+
+# Dagster's pipeline state writes and token mints: Dagster carries out what nexus-api decided (ADR 0021) for every
+# record, holds no grants and gets no write from Cedar, so these are gated by its role, not checked per record
+SYSTEM_ONLY = [Depends(system_only), Depends(Access(action=Action.UNCHECKED))]
+
+
+# The methods create_app checks for an Access dependency; #688 adds GET
+CHECKED_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+def _has_access(dependant) -> bool:
+    return any(isinstance(dep.call, Access) or _has_access(dep) for dep in dependant.dependencies)
+
+
+def api_routes(routers) -> list:
+    """The routes of the routers, with their prefix and router dependencies (the app's own list nests them)."""
+    return [route for router in routers for route in router.routes if hasattr(route, "dependant")]
+
+
+def routes_without_access(routers) -> list[str]:
+    """Every route with a checked method and no Access dependency, as "METHOD path"."""
+    return sorted(
+        f"{method} {route.path}"
+        for route in api_routes(routers) if not _has_access(route.dependant)
+        for method in route.methods & CHECKED_METHODS
+    )

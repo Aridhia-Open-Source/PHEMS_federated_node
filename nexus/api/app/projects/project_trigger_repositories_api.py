@@ -23,12 +23,12 @@ from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
 from app.dtos import trigger_repository
 from app.database.base_model import db
-from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
+from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.rules.ownership import set_owner
 from app.rules.project_state import require_accepts_tasks
 from app.repos.pull_request_fanout import skip_gap
 from app.repos.repository_loop import check_no_loop, normalise_dir
-from app.helpers.wrappers import Caller, get_caller, system_only
+from app.helpers.wrappers import Caller, get_caller
 from app.models.project import Project
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request import PullRequest
@@ -38,6 +38,7 @@ from app.models.trigger_repository import TriggerRepository
 from app.models.trigger_state import TriggerState
 from app.dtos.healthcheck import ProjectTriggerRepositoryHealthDTO
 from app.health.repositories import prepare_trigger_resource_health
+from app.rules.authz import Access, Action, SYSTEM_ONLY, require
 
 router = APIRouter(
     prefix='/projects/{project_id}/repositories/triggers', tags=["project_trigger_repositories"]
@@ -80,8 +81,8 @@ def list_project_trigger_repositories(project_id: int, active: str = ''):
 
 @router.put('/{repo_id}', response_model=trigger_repository.ProjectTriggerRepositoryDTO)
 def put_project_trigger_repository(
-    project_id: int, repo_id: int, response: Response, req: trigger_repository.ProjectTriggerRepositoryRequest,
-    caller: Caller = Depends(get_caller)
+    repo_id: int, response: Response, req: trigger_repository.ProjectTriggerRepositoryRequest, *,
+    project: Project = Depends(Access(model=Project, action=Action.WRITE)), caller: Caller = Depends(get_caller),
 ):
     """
     PUT /projects/<project_id>/repositories/triggers/<repo_id> — assigns a global trigger
@@ -93,8 +94,8 @@ def put_project_trigger_repository(
     Body: {"watch_dir": "triggers", "base_branch": "main", "enabled": true}; watch_dir and
     base_branch are required, enabled is optional and defaults to true.
     """
-    project = Project.get_by_id(project_id)
     repo = TriggerRepository.get_by_id(repo_id)
+    require(caller, Action.ASSIGN, repo)
     watch_dir = normalise_dir(req.watch_dir)
     assignment = ProjectTriggerRepository.query.filter_by(project_id=project.id, trigger_repository_id=repo.id).one_or_none()
 
@@ -141,20 +142,21 @@ def get_project_trigger_repository(project_id: int, repo_id: int):
 
 @router.patch('/{repo_id}', response_model=trigger_repository.ProjectTriggerRepositoryDTO)
 def patch_project_trigger_repository(
-    project_id: int, repo_id: int, req: trigger_repository.ProjectTriggerRepositoryPatchRequest, caller: Caller = Depends(get_caller)
+    project_id: int, repo_id: int, req: trigger_repository.ProjectTriggerRepositoryPatchRequest, *,
+    project: Project = Depends(Access(model=Project, action=Action.OPERATE)), caller: Caller = Depends(get_caller),
 ):
     """
     PATCH /projects/<project_id>/repositories/triggers/<repo_id> — changes what the
     project watches (watch_dir, base_branch), at any time, or turns the project resource on or off
     (enabled), or revokes and re-grants it
-    (revoked), which is admin only and takes effect at once.
+    (revoked), which takes effect at once. Turning it on or off needs `operate`, anything else `write`.
     """
     assignment = _assignment(project_id, repo_id)
     body = req.model_dump(exclude_unset=True)
     if not body:
         raise InvalidRequest(f"Provide any of: {', '.join(sorted(trigger_repository.ProjectTriggerRepositoryPatchRequest.model_fields))}")
-    if "revoked" in body and not caller.is_admin:
-        raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
+    if set(body) - {"enabled"}:
+        require(caller, Action.WRITE, project)
 
     was_active = assignment.active
     if "base_branch" in body:
@@ -180,12 +182,16 @@ def patch_project_trigger_repository(
 
 
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
-def delete_project_trigger_repository(project_id: int, repo_id: int):
+def delete_project_trigger_repository(
+    project_id: int, repo_id: int, *,
+    _project: Project = Depends(Access(model=Project, action=Action.WRITE)), caller: Caller = Depends(get_caller),
+):
     """
     DELETE /projects/<project_id>/repositories/triggers/<repo_id> — unassigns the
     repository, not the repository itself: a soft delete that also revokes the project resource.
     """
     assignment = _assignment(project_id, repo_id)
+    require(caller, Action.ASSIGN, assignment.trigger_repository)
     assignment.soft_delete()
     session.commit()
 
@@ -240,7 +246,7 @@ def get_pull_request(project_id: int, repo_id: int, number: int):
 
 
 @router.patch(
-    '/{repo_id}/pull_requests/{number}', response_model=trigger_repository.PullRequestTriggerDTO, dependencies=[Depends(system_only)]
+    '/{repo_id}/pull_requests/{number}', response_model=trigger_repository.PullRequestTriggerDTO, dependencies=SYSTEM_ONLY
 )
 def patch_pull_request(project_id: int, repo_id: int, number: int, body: dict = Body(default_factory=dict)):
     """
@@ -257,7 +263,7 @@ def patch_pull_request(project_id: int, repo_id: int, number: int, body: dict = 
 
 
 @router.post(
-    '/{repo_id}/pull_requests/{number}/task', response_model=TaskDTO, dependencies=[Depends(system_only)]
+    '/{repo_id}/pull_requests/{number}/task', response_model=TaskDTO, dependencies=SYSTEM_ONLY
 )
 def post_task(
     project_id: int, repo_id: int, number: int, response: Response, body: dict = Body(default_factory=dict)
