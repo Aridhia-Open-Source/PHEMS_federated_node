@@ -77,6 +77,8 @@ def lint_ticket(path: Path) -> tuple[list[str], list[str]]:
             errors.append(why)
     if re.search(r"^\*\*(PRs|Issues):\*\*.*`#\d+", text, re.M):
         errors.append("PR and issue numbers must be plain #123, not in backticks, so GitHub links them")
+    if re.search(r"<[^>]*(made-up|address|e-?mail)[^>]*>", text, re.I):
+        errors.append("placeholder for an email address: write a made-up one at example.org, like qc-admin@example.org")
     for bare in sorted(set(re.findall(r"\b[Aa]s ([A-Z])\b(?! \w+ role)", text))):
         errors.append(f"bare name \"{bare}\": write it with its role, like \"Admin {bare}\" or \"User {bare}\"")
     for placeholder in BAD_PLACEHOLDER.findall(text):
