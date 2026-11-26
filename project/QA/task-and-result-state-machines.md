@@ -60,9 +60,9 @@ fncli stops the reconcile sensor together with the run-status sensors (`--group 
 
 ## The reconcile sensor leaves a disabled project's tasks alone, and repairs them once enabled
 
-1. As above, with the five run-status sensors off. Merge a watched pull request. When the task is `RUNNING`, `fncli project-set --enabled false`.
+1. As above, with the five run-status sensors off. Merge a watched pull request. When the task is `RUNNING`, `project off`.
 2. Wait for the run to finish in the Dagster UI. Wait three intervals. Look at the task.
-3. `fncli project-set --enabled true`. Switch the five sensors back on.
+3. `project on`. Switch the five sensors back on.
 
 - **Expected:** while the project is disabled the task is not patched and stays `RUNNING` although the run finished. After step 3 the reconcile sensor sets it `SUCCESS`.
 - **Rule:** the reconcile sensor looks only at the tasks of enabled projects ([docs/architecture/sensors/task-reconcile.md]).
@@ -83,13 +83,13 @@ fncli stops the reconcile sensor together with the run-status sensors (`--group 
 
 ## A held result is retried at most once per retry interval and delivered when the cause goes
 
-1. Hold a result: merge a watched pull request, `fncli resource-set results --enabled false` while it runs, wait until the result is `UNKNOWN` and `FAILED`.
+1. Hold a result: merge a watched pull request, `results resource off` while it runs, wait until the result is `UNKNOWN` and `FAILED`.
 2. In the Dagster UI watch `results_delivery_retry_sensor` for several intervals with the project resource still off.
-3. `fncli resource-set results --enabled true`.
+3. `results resource on`.
 
 - **Expected:** step 2: the sensor does not launch a delivery (the project resource is not active), so there are no `deliver-retry` runs. Step 3: one delivery run starts (run key `deliver-retry/<result>/<slot>`) and the result goes `OPENED`, `DELIVERED`; the run is not repeated.
 - **Rule:** the retry sensor lists `FAILED` results at a non-final step on an active project resource; the run key carries a slot so a failing delivery is retried at most once per interval ([Run keys, retries and the results pull request sync]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on" (written, never run on a cluster); `dagster/app/tests/test_results_delivery.py` (the retry sensor tests). It does not look at the run keys.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "work in flight: a results resource switched off before delivery is held FAILED, delivered once the resource is on" (written, never run on a cluster); `dagster/app/tests/test_results_delivery.py` (the retry sensor tests). It does not look at the run keys. The suite makes the switch through the Project (`patch_project`).
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -99,7 +99,7 @@ Takes several retry intervals (60 seconds each by default; five attempts by defa
 
 1. Merge a watched pull request. While the task runs: `fncli delete-gitea-token --entity results` (the results token is lost).
 2. Wait for the result. Watch `fncli project-show` results and the Dagster UI for `deliver-retry` runs, for at least six retry intervals. Note `attempts` (`GET /projects/<pid>/results/<id>`).
-3. `fncli apply -f examples/globals-e2e.yaml --rotate results -y` and `fncli verify-git-secret --entity results`. Wait three more intervals.
+3. Rotate the results repository's token (`fncli gitea setup -f config/e2e/fn-dev.yaml --rotate fn-results-repo-creds`, then wait for the NodeSecret, see "Rotate a git token" in [the index](README.md)) and `fncli verify-git-secret --entity results`. Wait three more intervals.
 
 - **Expected:** the result is `FAILED` with an error each attempt, its step unchanged, `attempts` going up by one per try, one try per retry interval at most. After the maximum (five by default) the sensor stops launching. The task stays `SUCCESS`. After step 3 the result is still not delivered on its own: it stays `FAILED` until `attempts` is reset by hand (`PATCH` the result) or the delivery job is run again. Nothing alerts anyone.
 - **Rule:** a delivery with the maximum failed attempts is not retried; it stays `FAILED` until relaunched by hand ([Run keys, retries and the results pull request sync]). The missing alert is an open question in [Enabled, revoked and soft delete].
@@ -109,7 +109,7 @@ Takes several retry intervals (60 seconds each by default; five attempts by defa
 
 ## A delivery recovers if the token is restored within the attempts
 
-1. As in the previous case, but restore the token (`fncli apply -f examples/globals-e2e.yaml --rotate results -y`) after the first or second failed attempt.
+1. As in the previous case, but restore the token (rotate the results repository's token: `fncli gitea setup -f config/e2e/fn-dev.yaml --rotate fn-results-repo-creds`, and wait for the NodeSecret) after the first or second failed attempt.
 
 - **Expected:** the next retry delivers: the branch is pushed, the pull request opened, step `OPENED`, state `DELIVERED`, `error` cleared, `attempts` counted. Exactly one results pull request.
 - **Rule:** the retry resumes from the step reached and clears the error on success ([Results delivered as a pushed branch plus a results pull request]; [Run keys, retries and the results pull request sync]).

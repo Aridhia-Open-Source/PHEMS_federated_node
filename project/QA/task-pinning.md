@@ -4,7 +4,7 @@ When a task is created it stores a snapshot of the configuration it was built ag
 
 Two of the behaviours below (marked in their titles) were removed from the end-to-end suites; all of this section is only unit-tested. That is why it is ranked high in [the index](README.md).
 
-Needs: the dev project with sensors running and no task in flight. Use the two recipes in [the index](README.md): "Make a change while a task is still PENDING" and "Make a change while a task is RUNNING or before delivery". Note the original `target_dir` first (`fncli project-show | jq '.results_resources[0].target_dir'`) and put it back at the end of each case.
+Needs: the dev project with sensors running and no task in flight. The `target directory` and `watch directory` changes are patches of the Project, waiting until it is synced after each ("Change a setting of the Project" in [the index](README.md)); nexus-api refuses them through `fncli` on a project the operator manages. Use the two recipes in [the index](README.md): "Make a change while a task is still PENDING" and "Make a change while a task is RUNNING or before delivery". Note the original `target_dir` first (`fncli project-show | jq '.results_resources[0].target_dir'`) and put it back at the end of each case.
 
 ## The snapshot is recorded at creation and holds no credentials
 
@@ -19,7 +19,7 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 ## A results resource's `target_dir` changed while the task waits fails the task at launch (removed from the end-to-end suites)
 
 1. Recipe: task `PENDING`, launcher stopped.
-2. `fncli resource-set results --target-dir <another directory>` (a directory that no trigger resource watches).
+2. `target directory <another directory>` (patch the Project; a directory that no trigger resource watches).
 3. `GET /projects/<pid>/tasks/<id>/config`. Start the launcher.
 4. Restore the `target_dir`.
 
@@ -55,7 +55,7 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 
 ## A `target_dir` changed after the task succeeded and before delivery leaves the result `STALE` (removed from the end-to-end suites)
 
-1. Merge a watched pull request. While the task is `RUNNING` (preferred), or after `SUCCESS` with the delivery sensors stopped (the recipe and its caution are in [the index](README.md)): `fncli resource-set results --target-dir <another directory>`.
+1. Merge a watched pull request. While the task is `RUNNING` (preferred), or after `SUCCESS` with the delivery sensors stopped (the recipe and its caution are in [the index](README.md)): `target directory <another directory>`.
 2. Wait for the result.
 3. Restore the `target_dir`. Wait ten intervals.
 
@@ -81,8 +81,8 @@ Needs: the dev project with sensors running and no task in flight. Use the two r
 The results resource can be replaced only while the project is disabled.
 
 1. Recipe: task `PENDING`, launcher stopped.
-2. `fncli project-set --enabled false`. Unassign the results resource and assign a different ResultsRepository (a scratch one), then `fncli project-set --enabled true`.
-3. Start the launcher. Put the original project resource back the same way afterwards.
+2. Point the Project at a scratch results repository: apply a scratch Repository and a copy of `config/e2e/fn-dev.yaml` whose results `repository` is its uri (as in the results repository case of [operator and node config](operator-and-node-config.md)). Wait until it is synced: the operator disables the project, swaps the results resource and enables it again.
+3. Start the launcher. Afterwards apply `config/e2e/fn-dev.yaml` to swap back the same way, and delete the scratch Repository.
 
 - **Expected:** the task goes `FAILED` with a cause that names the changed results repository (its id and uri are pinned). Check the text.
 - **Rule:** the results repository's id and uri are in the snapshot; a project resource swap is a material edit ([A task is pinned to its configuration]).
@@ -93,8 +93,8 @@ The results resource can be replaced only while the project is disabled.
 ## Changes that are not pinned do not touch tasks in flight
 
 1. Recipe: task `PENDING`, launcher stopped.
-2. Change things the snapshot does not hold: the trigger resource's `watch_dir` (`PATCH` the project resource), and a Secret's value (`fncli apply -f examples/globals-e2e.yaml --rotate results -y` writes a fresh token). The `enabled` and `revoked` flags are not pinned either, but they have their own rules ([enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md)).
-3. Start the launcher. Put things back.
+2. Change things the snapshot does not hold: the trigger resource's `watch_dir` (`watch directory <another directory>`, a patch of the Project), and a Secret's value (`fncli gitea setup -f config/e2e/fn-dev.yaml --rotate fn-results-repo-creds` writes a fresh token, which the operator sends at its next resync of the NodeSecret). The `enabled` and `revoked` flags are not pinned either, but they have their own rules ([enabled and revoked: launch and delivery](enabled-and-revoked-launch-and-delivery.md)).
+3. Start the launcher. Put things back (patch the `watchDir` back).
 
 - **Expected:** the task launches and runs; `GET .../config` shows `current` true. A credential rotation reaches the running work.
 - **Rule:** credentials, the trigger repository and the flags are outside the snapshot so that rotations reach running work and the flags keep their own rules ([A task is pinned to its configuration]).
@@ -105,7 +105,7 @@ The results resource can be replaced only while the project is disabled.
 ## An edit after the result exists changes nothing
 
 1. Run a task to `OPENED`.
-2. `fncli resource-set results --target-dir <another directory>`. Wait for two sync intervals. Restore.
+2. `target directory <another directory>`. Wait for two sync intervals. Restore.
 
 - **Expected:** the result stays `OPENED`; the results pull request and branch are untouched; the sync sensor goes on recording its state. The result's repository and directory came from the snapshot, not from the project resource.
 - **Rule:** at delivery the results repository id and `target_dir` come from the snapshot, so an edited project resource does not redirect a push ([A task is pinned to its configuration]). An existing non-final result is re-checked only for a revoke (check that an edit does not change it) ([docs/architecture/revoke-and-enabled.md#may-a-finished-tasks-result-be-delivered]).

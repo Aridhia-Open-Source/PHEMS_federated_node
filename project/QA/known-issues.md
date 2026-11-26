@@ -2,15 +2,15 @@
 
 Open items and the known limits in [docs/architecture/revoke-and-enabled.md#known-limits]. They are known: a case here does not fail the beta by itself. Run the case, write down what the node does today, and say whether it still matches the description. Where the description and a unit test disagree, that is a finding.
 
-Needs: the dev project, an administrator login, and the second project (`fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y`) for the destructive cases.
+Needs: the dev project, an administrator login, and the second project (`kubectl apply -f config/e2e/qa-two.yaml`, then wait until it is synced) for the destructive cases.
 
 ## Deleting a trigger resource that has pull requests
 
-1. Run a watched pull request through so the second project has a trigger (`fncli apply -f examples/projects/e2e-second-projects.yaml --project QaTwo -y` before the merge).
-2. `DELETE /projects/<QaTwo pid>/repositories/triggers/<id>`.
-3. `fncli delete -f examples/projects/e2e-second-projects.yaml -y` when finished.
+1. Run a watched pull request through so the second project has a trigger (`kubectl apply -f config/e2e/qa-two.yaml` and wait until it is synced, before the merge).
+2. Unassign the trigger repository through the Project, which is how the operator does it: copy `config/e2e/qa-two.yaml`, set its `triggers` to `[]`, `kubectl apply -f` the copy and wait until `qa-two` is synced. Look at `kubectl get project qa-two -n fn -o yaml` and `fncli project-show --project qa-two`.
+3. `kubectl apply -f config/e2e/qa-two.yaml` (it assigns the trigger resource again), then `kubectl delete -f config/e2e/qa-two.yaml`.
 
-- **Expected today:** 204. The unassign is a soft delete that also revokes the project resource, so the `RESTRICT` keys of the triggers never fire. The project resource is gone from the API (`GET` is 404), and its triggers and pull requests are kept. Record the status; a 400 or 409 is a fail.
+- **Expected today:** the operator's `DELETE` of the trigger resource is a 204 and `qa-two` is `Synced` `true` with no error in `Message`. The unassign is a soft delete that also revokes the project resource, so the `RESTRICT` keys of the triggers never fire. The project resource is gone from the API (`GET` is 404), and its triggers and pull requests are kept. Record the status; a refusal in `Message` is a fail. (A person's `DELETE` of the same route is a 409 on a project the operator manages: see [operator and node config](operator-and-node-config.md).)
 - **Rule:** a project resource is only ever soft deleted ([Enabled, revoked and soft delete]); `RESTRICT` stops a real row delete while triggers exist, and no route makes one ([Pull requests stored once per repository, fanned out to project resources, with cursors]).
 - **Automated by:** `nexus/api/tests/test_trigger_repositories_and_resources.py` (`test_unassigning_a_trigger_resource_with_pull_requests_keeps_its_triggers`). This case can move out of the known issues.
 - [ ] Pass (matches the expected result above)

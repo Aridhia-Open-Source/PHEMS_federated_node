@@ -16,6 +16,8 @@ on:
       - ".github/workflows/docs.yml"
       - "webserver/app/static/openapi.json"
       - "nexus/api/openapi.json"
+      - "scripts/postman_collection.py"
+      - "project/QA/postman/**"
   push:
     branches:
       - "**"
@@ -26,6 +28,8 @@ on:
       - ".github/workflows/docs.yml"
       - "webserver/app/static/openapi.json"
       - "nexus/api/openapi.json"
+      - "scripts/postman_collection.py"
+      - "project/QA/postman/**"
   delete:
   workflow_dispatch:
 

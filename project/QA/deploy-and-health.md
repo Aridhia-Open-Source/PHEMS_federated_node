@@ -2,11 +2,11 @@
 
 Does the node come up, and does it say so truthfully? Do this section first: every other section assumes it passes.
 
-Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, and `fncli` if the node is the dev cluster (see [the index](README.md)).
+Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, and `fncli` if the node is the dev cluster (see [the index](README.md)). On the dev cluster, the dev project is applied and synced first.
 
 ## All pods are running and the Dagster code location loads
 
-1. `kubectl get pods -A`. Look for nexus-api, the Dagster webserver, daemon and code server, Postgres, Keycloak and (on the dev cluster) Gitea.
+1. `kubectl get pods -A`. Look for nexus-api, the nexus operator (`nexus-operator`), the Dagster webserver, daemon and code server, Postgres, Keycloak and (on the dev cluster) Gitea.
 2. Open the Dagster UI, Deployment, and open the code location.
 
 - **Expected:** every pod is `Running` or `Completed`. The code location loads with no error and lists the jobs and the twelve sensors. The only known exception is a crash-looping `keycloak-realm-init` pod ([known issues](known-issues.md)).
@@ -28,10 +28,10 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 ## The images are the ones under test
 
 1. `kubectl get pods -A -o custom-columns=NS:.metadata.namespace,POD:.metadata.name,IMAGE:.spec.containers[*].image`.
-2. Write nexus-api, Dagster and run-image tags in the results header (see [the index](README.md)).
+2. Write nexus-api, Dagster, operator and run-image tags in the results header (see [the index](README.md)).
 
 - **Expected:** the tags match the release being tested, including the run image that task pods and delivery use.
-- **Rule:** the end-to-end README requires images built from the branch under test, `demo-fn` included ([dagster/fncli/tests/e2e/README.md]).
+- **Rule:** the end-to-end README requires images built from the branch under test, `demo-fn` included ([dagster/fncli/tests/e2e/README.md]). On the dev cluster `mise run deploy` builds them with `docker buildx bake`: the node's images, and each experiment's `<name>-fn` target from its own folder ([Images are built with docker buildx bake], [Experiments own their database, seed, image and dataset file]). On a node delivered by Flux, the tags are the ones the HelmRelease pins ([GitOps delivery with Helm and Flux]).
 - **Automated by:** Manual only.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -70,12 +70,24 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 - [ ] Pass
 - [ ] Fail — notes:
 
+## The operator is running and every node config resource is synced
+
+1. `kubectl get deployment nexus-operator -n fn` and its pod's log since start (`kubectl logs deploy/nexus-operator -n fn`).
+2. `kubectl get crd | grep fn.aridhia.com`.
+3. `kubectl get fn -A`.
+
+- **Expected:** one `nexus-operator` pod, running, with no repeated errors in its log (a `waiting for` line for a resource whose dependency is not applied yet is fine). Five CRDs: `gitproviders`, `nodesecrets`, `repositories`, `datasets` and `projects`. Every resource is `Synced` `true` with an empty `Message`. `operator.enabled` is off by default: on a node other than the dev cluster, check the release turns it on, or the node config is never applied.
+- **Rule:** the node config is custom resources that the operator syncs to nexus-api ([Declarative node config through an operator]).
+- **Automated by:** Partly automated: `k8s/federated-node/tests/nexus_operator_test.yaml` renders the Deployment, and the setup step `apply` of every end-to-end suite waits for `status.synced` on the dev cluster. See [operator and node config](operator-and-node-config.md).
+- [ ] Pass
+- [ ] Fail — notes:
+
 ## The project healthcheck and the dataset check pass
 
 1. `fncli project-healthcheck` (exit code 0 and `ok` expected).
 2. `fncli verify-project`.
 
-- **Expected:** both exit 0. On a node that is not set up with fncli, use `GET /projects/<pid>/healthcheck` and the project's resource healthchecks (`/projects/<pid>/repositories/triggers/<id>/healthcheck`, `.../results/<id>/healthcheck`, `/projects/<pid>/datasets/<id>/healthcheck`, `/projects/<pid>/secrets/<label>/healthcheck`).
+- **Expected:** both exit 0. On a node that `fncli` cannot reach, use `GET /projects/<pid>/healthcheck` and the project's resource healthchecks (`/projects/<pid>/repositories/triggers/<id>/healthcheck`, `.../results/<id>/healthcheck`, `/projects/<pid>/datasets/<id>/healthcheck`, `/projects/<pid>/secrets/<label>/healthcheck`).
 - **Rule:** a project reports its project resources' health (`project_healthcheck` in `nexus/api/app/healthcheck_api.py`).
 - **Automated by:** Partly automated: both fncli commands run in the setup steps of every end-to-end suite (dev cluster, Gitea only); `nexus/api/tests/test_healthchecks_all.py` covers the shapes. Neither covers a deployed node with GitHub.
 - [ ] Pass
@@ -87,3 +99,7 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 [Global resources and project resources]: ../decisions/0006-global-resources-and-project-resources.md
 [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]: ../decisions/0014-dagster-pipeline-ops-sensors-and-retries.md
 [dagster/fncli/tests/e2e/README.md]: ../../dagster/fncli/tests/e2e/README.md
+[Declarative node config through an operator]: ../decisions/0032-declarative-node-config-through-an-operator.md
+[GitOps delivery with Helm and Flux]: ../decisions/0031-gitops-delivery-with-helm-and-flux.md
+[Images are built with docker buildx bake]: ../decisions/0029-images-are-built-with-docker-buildx-bake.md
+[Experiments own their database, seed, image and dataset file]: ../decisions/0028-experiments-own-their-database-seed-image-and-dataset-file.md
