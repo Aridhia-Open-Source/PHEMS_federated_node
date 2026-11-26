@@ -18,7 +18,7 @@ class Settings:
   # password and never touches it again, so its password may be changed freely by an operator.
   keycloak_admin:str = ""
   # fn-service is the account the platform authenticates as for every programmatic call. It holds
-  # Super Administrator in the FederatedNode realm and never needs master-realm access.
+  # realm-management's realm-admin in the node's realm and never needs master-realm access.
   keycloak_service_user:str = "fn-service"
   kc_bootstrap_admin_username:str = ""
   keycloak_url:str = ""
@@ -26,6 +26,9 @@ class Settings:
   first_user_email:str = ""
   first_user_first_name:str = ""
   first_user_last_name:str = ""
+  # The break-glass SuperUser account (superuserSecret), see ADR 0036
+  superuser_username:str = ""
+  superuser_pass:str = ""
   dagster_kc_user:str = ""
   dagster_kc_email:str = ""
   manage_realm:bool = True

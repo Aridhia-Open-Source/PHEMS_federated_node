@@ -2,7 +2,6 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { DeleteButton } from "./DeleteButton";
 import { EnabledToggle } from "./EnabledToggle";
 import { RevokeButton } from "./RevokeButton";
-import { ownedBy } from "./owned";
 import { tokenGroups } from "../api/auth";
 import { ResourceTable } from "./ResourceTable";
 import { DtoForm } from "./DtoForm";
@@ -92,13 +91,7 @@ test("tokenGroups reads the realm roles and the Keycloak groups from the token",
   expect(tokenGroups("not-a-jwt")).toEqual(new Set());
 });
 
-test("ownedBy names the owner group only when the viewer is not in it", () => {
-  expect(ownedBy({ owner_group: "svc" }, new Set(["other"]))).toBe("svc");
-  expect(ownedBy({ owner_group: "svc" }, new Set(["svc"]))).toBeNull();
-  expect(ownedBy({ owner_group: null }, new Set())).toBeNull();
-});
-
-test("an owned record's controls are greyed out, with a tooltip naming the owner group", () => {
+test("an owned record's controls are greyed out, with a tooltip naming the owner", () => {
   const onConfirm = vi.fn();
   const onChange = vi.fn();
   render(

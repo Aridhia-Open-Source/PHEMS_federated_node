@@ -25,15 +25,8 @@ def api(session):
 
 
 class TestLogin:
-    def test_refresh_token_is_preferred(self, api, session):
-        session.post.return_value = make_response({"refresh_token": "r", "token": "t"})
-
-        api.login("user", "pass")
-
-        assert session.adapter.access_token == "r"
-
-    def test_falls_back_to_the_access_token(self, api, session):
-        session.post.return_value = make_response({"token": "t"})
+    def test_the_access_token_is_sent_not_the_refresh_token(self, api, session):
+        session.post.return_value = make_response({"token": "t", "refresh_token": "r"})
 
         api.login("user", "pass")
 

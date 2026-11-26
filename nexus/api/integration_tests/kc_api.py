@@ -7,6 +7,7 @@ re-implemented its own token fetch and request wrapper. They are here once inste
 A step reports by calling check() as it goes and report() at the end; report() exits non-zero if any
 check failed, which is how the orchestrator counts a step as failed.
 """
+import base64
 import json
 import os
 import sys
@@ -31,12 +32,12 @@ def report():
     sys.exit(0 if all(ok for ok, _ in _results) else 1)
 
 
-def password_token(username, password, realm=None):
+def password_token(username, password, realm=None, client_id="admin-cli", client_secret=None):
     """A direct-grant token, or None if the credentials are rejected."""
-    data = urllib.parse.urlencode({
-        "client_id": "admin-cli", "grant_type": "password",
-        "username": username, "password": password,
-    }).encode()
+    form = {"client_id": client_id, "grant_type": "password", "username": username, "password": password}
+    if client_secret:
+        form["client_secret"] = client_secret
+    data = urllib.parse.urlencode(form).encode()
     url = f"{BASE}/realms/{realm or REALM}/protocol/openid-connect/token"
     try:
         return json.load(urllib.request.urlopen(url, data))["access_token"]
@@ -76,3 +77,9 @@ def client_credentials_works(secret, client_id="global"):
         return True
     except urllib.error.HTTPError:
         return False
+
+
+def claims(token):
+    """The token's payload, unverified: these steps only read what Keycloak put in it."""
+    payload = token.split(".")[1]
+    return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))

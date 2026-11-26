@@ -58,7 +58,8 @@ export interface paths {
         /**
          * Login
          * @description POST /login endpoint.
-         *         Given a form, logs the user in, returning a refresh_token from Keycloak
+         *         Given a form, logs the user in: {"token": <access token>, "refresh_token": ...}.
+         *         Send the token as the Bearer; when it expires, swap the refresh token at /refresh_token.
          */
         post: operations["login_login_post"];
         delete?: never;
@@ -79,8 +80,7 @@ export interface paths {
         /**
          * Refresh Token
          * @description POST /refresh_token endpoint.
-         *         Given a token, exchanges it for a new one. Returns the same
-         *         response as /login
+         *         Given the refresh token as the Bearer, returns a new pair, the same response as /login
          */
         post: operations["refresh_token_refresh_token_post"];
         delete?: never;
@@ -795,7 +795,7 @@ export interface paths {
         /**
          * Create User
          * @description POST /global/users endpoint. Creates a KC user, and sets a temp
-         *         password for them.
+         *         password for them. The role is Users (default) or Administrator, which only the SuperUser may give.
          */
         post: operations["create_user_global_users_post"];
         delete?: never;
@@ -1622,8 +1622,6 @@ export interface components {
             /** Url */
             url: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * DatasetHealthDTO
@@ -1666,8 +1664,6 @@ export interface components {
             /** Updated At */
             updated_at: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * GitProviderHealthDTO
@@ -1813,6 +1809,26 @@ export interface components {
             info: string;
         };
         /**
+         * NewUserRequest
+         * @description POST /global/users. The username defaults to the email; the role is Users or Administrator.
+         */
+        NewUserRequest: {
+            /** Email */
+            email: string;
+            /** Username */
+            username?: string | null;
+            /** Firstname */
+            firstName?: string | null;
+            /** Lastname */
+            lastName?: string | null;
+            /**
+             * Role
+             * @default Users
+             * @enum {string}
+             */
+            role?: "Users" | "Administrator";
+        };
+        /**
          * NodeHealthDTO
          * @description GET /health_check: whether the node's Keycloak answers. "ok" or "non operational".
          */
@@ -1914,8 +1930,6 @@ export interface components {
             /** Updated At */
             updated_at: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * ProjectDatasetDTO
@@ -1932,8 +1946,6 @@ export interface components {
             /** Active */
             active: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ProjectDatasetHealthDTO */
         ProjectDatasetHealthDTO: {
@@ -1997,8 +2009,6 @@ export interface components {
             /** Active */
             active: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ProjectResultsRepositoryHealthDTO */
         ProjectResultsRepositoryHealthDTO: {
@@ -2069,8 +2079,6 @@ export interface components {
             /** Active */
             active: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ProjectSecretHealthDTO */
         ProjectSecretHealthDTO: {
@@ -2109,8 +2117,6 @@ export interface components {
             /** Active */
             active: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ProjectTriggerRepositoryHealthDTO */
         ProjectTriggerRepositoryHealthDTO: {
@@ -2331,8 +2337,6 @@ export interface components {
             /** Revoked */
             revoked: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ResultsRepositoryHealthDTO */
         ResultsRepositoryHealthDTO: {
@@ -2370,8 +2374,6 @@ export interface components {
             /** Updated At */
             updated_at: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * SecretHealthDTO
@@ -2583,8 +2585,6 @@ export interface components {
             /** Pr Cursor */
             pr_cursor: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * TriggerRepositoryRefDTO
@@ -4295,11 +4295,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["NewUserRequest"];
             };
         };
         responses: {

@@ -55,6 +55,18 @@ spec:
             - name: FIRST_USER_LAST_NAME
               value: {{ .Values.firstUserSecret.lastName }}
             {{- end }}
+            {{- if (.Values.superuserSecret).name }}
+            - name: SUPERUSER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.superuserSecret.name }}
+                  key: {{ .Values.superuserSecret.userKey }}
+            - name: SUPERUSER_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.superuserSecret.name }}
+                  key: {{ .Values.superuserSecret.passKey }}
+            {{- end }}
           envFrom:
           - configMapRef:
               name: keycloak-config
