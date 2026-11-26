@@ -8,7 +8,7 @@ import logging
 from fastapi import Depends, FastAPI
 from fastapi_pagination import add_pagination
 
-from app import auth_api, dagster_api, healthcheck_api
+from app import auth_api, dagster_api, grants_api, healthcheck_api
 from app.globals import (
     datasets_api, git_providers_api, results_repositories_api, secrets_api, trigger_repositories_api, users_api,
 )
@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
         results_api.router, users_api.router, trigger_repositories_api.router,
         project_trigger_repositories_api.router, secrets_api.router, git_providers_api.router,
         results_repositories_api.router, dagster_api.router, healthcheck_api.router, tasks_api.all_router,
+        *grants_api.routers,
     ):
         gate = [Depends(require_role(*ADMIN_ROLES, NodeRole.DAGSTER))] if router not in OPEN_ROUTERS else None
         app.include_router(router, dependencies=gate)

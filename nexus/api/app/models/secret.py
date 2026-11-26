@@ -14,7 +14,7 @@ from app.models.user import OwnedMixin
 KEY_PREFIX = "fn-secret-"
 
 
-class Secret(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
+class Secret(OwnedMixin, SoftDeleteMixin, db.Model, BaseModel):
     """
     A reference to a secret. The value only ever lives in the secret store that provider
     names; this row records which secrets exist, so one that repositories share cannot be
@@ -23,6 +23,7 @@ class Secret(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
     in the store. It is generated at creation and never changes, so a label can be renamed
     without touching the stored secret.
     """
+    authz_type = 'Secret'
     __tablename__ = 'secrets'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)

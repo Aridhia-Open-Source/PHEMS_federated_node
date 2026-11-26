@@ -9,7 +9,8 @@ from app.models.git_repository import GitRepositoryMixin
 from app.models.user import OwnedMixin
 
 
-class ResultsRepository(SoftDeleteMixin, OwnedMixin, GitRepositoryMixin, db.Model, BaseModel):
+class ResultsRepository(OwnedMixin, SoftDeleteMixin, GitRepositoryMixin, db.Model, BaseModel):
+    authz_type = 'ResultsRepository'
     __tablename__ = 'results_repositories'
 
     # What its git tokens may do. The cache of minted tokens is keyed by repository id and permission, so a trigger and

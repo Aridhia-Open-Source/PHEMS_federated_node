@@ -89,12 +89,13 @@ def _message_of(response) -> str:
     return str(message or response.reason)[:MAX_MESSAGE_LENGTH]
 
 
-class GitProvider(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
+class GitProvider(OwnedMixin, SoftDeleteMixin, db.Model, BaseModel):
     """
     A git host, global: the trigger and results repositories on it refer to it. The uri is
     the host's web address (https://github.com) and the api_uri its API base URL, which the
     repositories' tokens are sent to.
     """
+    authz_type = 'GitProvider'
     __tablename__ = 'git_providers'
 
     id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
