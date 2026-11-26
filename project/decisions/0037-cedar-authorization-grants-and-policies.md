@@ -1,4 +1,4 @@
-# 0037. Cedar authorization - grants and policies
+# 0037. Cedar Authz Grants
 
 Status: Proposed, 2026-11-20.
 
