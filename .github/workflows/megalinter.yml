@@ -1,0 +1,57 @@
+name: MegaLinter
+
+# Security and lint scanners in one pinned image, report-only (ADR 0044).
+# Findings go to the Security tab (code scanning) as SARIF; nothing blocks a merge yet.
+
+on:
+  pull_request:
+  push:
+    branches: [main, dagster-develop]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: megalinter-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  megalinter:
+    name: MegaLinter
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: the secret scanners walk it, and the pull request diff needs a base
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The image, not the Action, is pinned by digest: the Action's own action.yml
+      # points at a mutable tag. Renovate bumps the digest. Config: .mega-linter.yml
+      - name: Run MegaLinter (python flavor v10.2.0)
+        uses: docker://ghcr.io/oxsecurity/megalinter-python@sha256:65ccdc8cc09a282112e08a26da1580d33524b8b1c68f1f5eec0f94c0112764d5
+        env:
+          # Read by zizmor's online audits; listed in ACTION_ZIZMOR_UNSECURED_ENV_VARIABLES
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload SARIF to code scanning
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
+        with:
+          sarif_file: megalinter-reports/megalinter-report.sarif
+          category: megalinter
+
+      - name: Upload the MegaLinter reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: megalinter-reports
+          path: |
+            megalinter-reports
+            mega-linter.log
+          retention-days: 14

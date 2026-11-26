@@ -1,0 +1,3 @@
+name: cluster
+runtime: python
+description: Test target for the security scanners (ADR 0044). Replaced by the real cluster provisioning.
