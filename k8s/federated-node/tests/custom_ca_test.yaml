@@ -35,7 +35,7 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].env
           value:
-            - name: NEXUS_DB_PASSWORD
+            - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: nexus-db

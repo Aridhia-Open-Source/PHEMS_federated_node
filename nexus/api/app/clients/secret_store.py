@@ -6,7 +6,7 @@ import logging
 from kubernetes.client.exceptions import ApiException
 
 from app.clients.kubernetes import KubernetesClient
-from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
+from app.settings import settings
 from app.helpers.exceptions import InvalidRequest
 from app.models.secret_provider_type import SecretProviderType
 
@@ -18,8 +18,8 @@ SECRET_LABELS = {"type": "k8s_secret"}
 class K8sSecretProvider:
     """Writes and deletes secrets in Kubernetes."""
 
-    namespace = SECRETS_NAMESPACE
-    quarantine_namespace = QUARANTINE_NAMESPACE
+    namespace = settings.namespaces.secrets
+    quarantine_namespace = settings.namespaces.quarantine
 
     def set(self, key: str, namespace: str, values: dict[str, str]):
         """The caller is the authority on the content, so it overwrites what is there."""

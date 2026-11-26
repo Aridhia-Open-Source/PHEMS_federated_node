@@ -21,10 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from app.dtos.base import page_of
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
-from app.dtos.trigger_repository import (
-    ProjectTriggerRepositoryDTO, ProjectTriggerRepositoryPatchRequest, ProjectTriggerRepositoryRequest,
-    PullRequestTriggerDTO,
-)
+from app.dtos import trigger_repository
 from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.rules.project_state import require_accepts_tasks
@@ -67,7 +64,7 @@ def _check_loop(assignment: ProjectTriggerRepository):
         raise
 
 
-@router.get('', response_model=list[ProjectTriggerRepositoryDTO])
+@router.get('', response_model=list[trigger_repository.ProjectTriggerRepositoryDTO])
 def list_project_trigger_repositories(project_id: int, active: str = ''):
     """
     GET /projects/<project_id>/repositories/triggers — the project's trigger repository
@@ -78,12 +75,12 @@ def list_project_trigger_repositories(project_id: int, active: str = ''):
     assignments = ProjectTriggerRepository.query.filter_by(project_id=project_id).order_by(ProjectTriggerRepository.id)
     if active.lower() == 'true':
         assignments = [a for a in assignments if a.active]
-    return [ProjectTriggerRepositoryDTO.from_model(a) for a in assignments]
+    return [trigger_repository.ProjectTriggerRepositoryDTO.from_model(a) for a in assignments]
 
 
-@router.put('/{repo_id}', response_model=ProjectTriggerRepositoryDTO)
+@router.put('/{repo_id}', response_model=trigger_repository.ProjectTriggerRepositoryDTO)
 def put_project_trigger_repository(
-    project_id: int, repo_id: int, response: Response, req: ProjectTriggerRepositoryRequest,
+    project_id: int, repo_id: int, response: Response, req: trigger_repository.ProjectTriggerRepositoryRequest,
     caller: Caller = Depends(get_caller)
 ):
     """
@@ -115,7 +112,7 @@ def put_project_trigger_repository(
         session.flush()
         _check_loop(assignment)
         session.commit()
-        return ProjectTriggerRepositoryDTO.from_model(assignment)
+        return trigger_repository.ProjectTriggerRepositoryDTO.from_model(assignment)
 
     assignment = ProjectTriggerRepository(
         project.id, repo.id, watch_dir,
@@ -134,20 +131,20 @@ def put_project_trigger_repository(
     _check_loop(assignment)
     session.commit()
     response.status_code = HTTPStatus.CREATED
-    return ProjectTriggerRepositoryDTO.from_model(assignment)
+    return trigger_repository.ProjectTriggerRepositoryDTO.from_model(assignment)
 
 
-@router.get('/{repo_id}', response_model=ProjectTriggerRepositoryDTO)
+@router.get('/{repo_id}', response_model=trigger_repository.ProjectTriggerRepositoryDTO)
 def get_project_trigger_repository(project_id: int, repo_id: int):
     """
     GET /projects/<project_id>/repositories/triggers/<repo_id>
     """
-    return ProjectTriggerRepositoryDTO.from_model(_assignment(project_id, repo_id))
+    return trigger_repository.ProjectTriggerRepositoryDTO.from_model(_assignment(project_id, repo_id))
 
 
-@router.patch('/{repo_id}', response_model=ProjectTriggerRepositoryDTO)
+@router.patch('/{repo_id}', response_model=trigger_repository.ProjectTriggerRepositoryDTO)
 def patch_project_trigger_repository(
-    project_id: int, repo_id: int, req: ProjectTriggerRepositoryPatchRequest, caller: Caller = Depends(get_caller)
+    project_id: int, repo_id: int, req: trigger_repository.ProjectTriggerRepositoryPatchRequest, caller: Caller = Depends(get_caller)
 ):
     """
     PATCH /projects/<project_id>/repositories/triggers/<repo_id> — changes what the
@@ -162,7 +159,7 @@ def patch_project_trigger_repository(
     )
     body = req.model_dump(exclude_unset=True)
     if not body:
-        raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectTriggerRepositoryPatchRequest.model_fields))}")
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(trigger_repository.ProjectTriggerRepositoryPatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
 
@@ -186,7 +183,7 @@ def patch_project_trigger_repository(
     session.flush()
     _check_loop(assignment)
     session.commit()
-    return ProjectTriggerRepositoryDTO.from_model(assignment)
+    return trigger_repository.ProjectTriggerRepositoryDTO.from_model(assignment)
 
 
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
@@ -219,7 +216,7 @@ def _pull_request(project_id: int, repo_id: int, number: int) -> PullRequestTrig
 
 # The pull_requests routes below are called by Dagster only. The writes are system user only; the reads are
 # still open to anyone with the scope, which should be restricted to internal callers too.
-@router.get('/{repo_id}/pull_requests', response_model=Page[PullRequestTriggerDTO])
+@router.get('/{repo_id}/pull_requests', response_model=Page[trigger_repository.PullRequestTriggerDTO])
 def get_pull_requests(project_id: int, repo_id: int, state: str | None = None):
     """
     GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests — list PRs
@@ -242,19 +239,19 @@ def get_pull_requests(project_id: int, repo_id: int, state: str | None = None):
         query = query.filter(PullRequestTrigger.state == state)
 
     query = query.order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())
-    return page_of(query, PullRequestTriggerDTO)
+    return page_of(query, trigger_repository.PullRequestTriggerDTO)
 
 
-@router.get('/{repo_id}/pull_requests/{number}', response_model=PullRequestTriggerDTO)
+@router.get('/{repo_id}/pull_requests/{number}', response_model=trigger_repository.PullRequestTriggerDTO)
 def get_pull_request(project_id: int, repo_id: int, number: int):
     """
     GET /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number> — get a single PR
     """
-    return PullRequestTriggerDTO.from_model(_pull_request(project_id, repo_id, number))
+    return trigger_repository.PullRequestTriggerDTO.from_model(_pull_request(project_id, repo_id, number))
 
 
 @router.patch(
-    '/{repo_id}/pull_requests/{number}', response_model=PullRequestTriggerDTO, dependencies=[Depends(system_only)]
+    '/{repo_id}/pull_requests/{number}', response_model=trigger_repository.PullRequestTriggerDTO, dependencies=[Depends(system_only)]
 )
 def patch_pull_request(project_id: int, repo_id: int, number: int, body: dict = Body(default_factory=dict)):
     """
@@ -267,7 +264,7 @@ def patch_pull_request(project_id: int, repo_id: int, number: int, body: dict = 
         pr.set_state(body.get('state', pr.state), body.get('state_cause'))
 
     session.commit()
-    return PullRequestTriggerDTO.from_model(pr)
+    return trigger_repository.PullRequestTriggerDTO.from_model(pr)
 
 
 @router.post(

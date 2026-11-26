@@ -2,10 +2,7 @@ import dagster as dg
 
 from app.definitions.sensors.base import LaunchingSensor, run_key
 from app.definitions.sensors.git.base import GitSensor
-from app.definitions.sensors.git.evaluate_job import (
-    evaluate_repository_pull_requests_job,
-    load_unknown_pull_requests,
-)
+from app.definitions.sensors.git import evaluate_job
 from fednode.clients.nexus.models import ProjectTriggerRepository, TriggerState
 
 
@@ -19,7 +16,7 @@ class PullRequestEvaluateSensor(LaunchingSensor, GitSensor):
     with a run still queued or started is skipped.
     """
 
-    job = evaluate_repository_pull_requests_job
+    job = evaluate_job.evaluate_repository_pull_requests_job
     failure_label = "Evaluation"
     skip_message = "No repositories with unknown pull requests to evaluate."
 
@@ -51,5 +48,7 @@ class PullRequestEvaluateSensor(LaunchingSensor, GitSensor):
         return dg.RunRequest(
             run_key=run_key("evaluate", f"{item.project_id}/{item.trigger_repository.id}", newest),
             tags=self.tags(item),
-            run_config={"ops": {load_unknown_pull_requests.name: {"config": {"project_id": item.project_id, "repo_id": item.trigger_repository.id}}}},
+            run_config={"ops": {evaluate_job.load_unknown_pull_requests.name: {"config": {
+                "project_id": item.project_id, "repo_id": item.trigger_repository.id
+            }}}},
         )

@@ -6,28 +6,18 @@ export PGDATABASE=test_app
 export PGPORT=5432
 export PGUSER=admin
 export PGPASSWORD=test_app
-# The app builds its URI from NEXUS_DB_*; PG* stay for psql inside the container.
-export NEXUS_DB_USER=$PGUSER
-export NEXUS_DB_PASSWORD=$PGPASSWORD
-export NEXUS_DB_NAME=$PGDATABASE
-export KEYCLOAK_URL=http://keycloak:8080
-export KEYCLOAK_REALM=FederatedNode
-export KEYCLOAK_CLIENT=global
-export KEYCLOAK_ADMIN=admin
-export KEYCLOAK_ADMIN_PASSWORD=password1
-export KEYCLOAK_SERVICE_USER=fn-service
-export KEYCLOAK_SERVICE_PASSWORD=servicepass1
-export KC_BOOTSTRAP_ADMIN_USERNAME=tmpadmin
-export KC_BOOTSTRAP_ADMIN_PASSWORD=password1
-export KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2
+# PG* remain available to PostgreSQL tools inside the container.
+export DATABASE_HOST="$PGHOST" DATABASE_PORT="$PGPORT" DATABASE_NAME="$PGDATABASE"
+export DATABASE_USER="$PGUSER" DATABASE_PASSWORD="$PGPASSWORD"
+export SERVICES_KEYCLOAK_URL=http://keycloak:8080 SERVICES_KEYCLOAK_REALM=FederatedNode
+export SERVICES_KEYCLOAK_CLIENT=global SERVICES_KEYCLOAK_ADMIN=admin
+export SERVICES_KEYCLOAK_SERVICE_USER=fn-service SERVICES_KEYCLOAK_SERVICE_PASSWORD=servicepass1
+export SERVICES_KEYCLOAK_SECRET=qwtirtvJJ4PW4skOlW6Oifk2 SERVICES_DAGSTER_URI=http://dagster:3000
 export PYTHONPATH=/app
-export SECRETS_NAMESPACE=default
-export TASK_NAMESPACE=tasks
-export KEYCLOAK_NAMESPACE=keycloak
-export PUBLIC_URL=localhost:5000
+export NAMESPACES_SECRETS=default NAMESPACES_TASKS=tasks NODE_HOSTNAME=localhost:5000
 # The chart's taskCompute values, what a spec's compute is checked against
-export TASK_COMPUTE_MAX_CPU=4 TASK_COMPUTE_MAX_MEMORY=16Gi
-export TASK_COMPUTE_DEFAULT_LIMIT_CPU=2 TASK_COMPUTE_DEFAULT_LIMIT_MEMORY=4Gi
+export TASKS_LIMITS_MAX_CPU=4 TASKS_LIMITS_MAX_MEMORY=16Gi
+export TASKS_LIMITS_DEFAULT_LIMIT_CPU=2 TASKS_LIMITS_DEFAULT_LIMIT_MEMORY=4Gi
 
 is_ci=$1
 pytest_args="${2:-.}"

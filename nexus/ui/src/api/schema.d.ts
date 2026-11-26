@@ -438,7 +438,7 @@ export interface paths {
          *     A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
          *     status again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.
          *     A task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see
-         *     helpers/task_resources): before the status is saved, so that a failed delete leaves the task as it was and
+         *     tasks/resources): before the status is saved, so that a failed delete leaves the task as it was and
          *     the next PATCH retries it.
          */
         patch: operations["patch_task_projects__project_id__tasks__task_id__patch"];

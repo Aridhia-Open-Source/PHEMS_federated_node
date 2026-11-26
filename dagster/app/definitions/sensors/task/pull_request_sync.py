@@ -14,7 +14,7 @@ from dagster import OpExecutionContext as OpExecCtx, SensorEvaluationContext
 
 from fednode.clients.git.provider import GitProvider
 from fednode.clients.nexus.client import BackendAPI
-from app.config import DEFAULT_SENSOR_STATUS, DELIVERY_MAX_ATTEMPTS, MIN_SENSOR_INTERVAL_SECONDS
+from app.settings import settings
 from app.definitions.sensors.base import LaunchingSensor, run_in_flight, run_key
 from app.definitions.sensors.git.base import GitAPIFactory, GitSensor
 from app.delivery.results import MAX_ERROR_LENGTH, results_title
@@ -33,7 +33,7 @@ def get_synced_results(backend_api: BackendAPI) -> list[PullRequestResult]:
             *backend_api.get_results_by_step(project.id, [PullRequestResultStep.PUSHED.value]),
             *backend_api.get_results_by_step(project.id, [PullRequestResultStep.OPENED.value]),
         )
-        if result.attempts < DELIVERY_MAX_ATTEMPTS
+        if result.attempts < settings.results.max_attempts
     ]
 
 
@@ -257,8 +257,8 @@ class ResultsPullRequestSyncSensor(LaunchingSensor, GitSensor):
 
 
 @dg.sensor(
-    minimum_interval_seconds=MIN_SENSOR_INTERVAL_SECONDS,
-    default_status=DEFAULT_SENSOR_STATUS,
+    minimum_interval_seconds=settings.sensors.min_interval_seconds,
+    default_status=settings.sensors.initial_status,
     required_resource_keys={"backend_api", "git_apis"},
     jobs=[sync_results_pull_requests_job, open_results_pull_request_job],
 )

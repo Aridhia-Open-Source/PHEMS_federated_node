@@ -26,22 +26,19 @@ from fastapi.responses import PlainTextResponse
 
 from app.database.base_model import db
 from app.tasks.limits import TASK_CAUSE_MAX_LENGTH
-from app.helpers.exceptions import (
-    DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
-    UnauthorizedError
-)
+from app.helpers import exceptions
 from app.clients.keycloak import Keycloak  # noqa: F401  patched by tests/conftest.py
 from app.rules.ownership import does_user_own_task
 from app.rules.project_state import require_accepts_tasks
 from app.clients.kubernetes_names import validate_dns_label
 from app.rules.state_rules import transition
 from app.tasks.task_config import decide_launch
-from app.tasks.task_resources import create_run_resources, delete_run_resources
+from app.tasks.resources import create_run_resources, delete_run_resources
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.dtos.dataset import DatasetDTO
 from app.dtos.base import page_of
-from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskResourcesDTO
+from app.dtos import task as task_dtos
 from app.dtos.trigger_repository import TaskTriggerDTO
 from app.dtos.result import PullRequestResultDTO, dump_result
 from app.models.api_request_trigger import ApiRequestTrigger
@@ -56,7 +53,7 @@ all_router = APIRouter(prefix='/tasks', tags=["tasks"])
 
 # What a task request that fails validation raises. Such a request is kept, as REJECTED.
 VALIDATION_ERRORS = (
-    InvalidRequest, InvalidDBEntry, DBRecordNotFoundError, TaskImageException, UnauthorizedError
+    exceptions.InvalidRequest, exceptions.InvalidDBEntry, exceptions.DBRecordNotFoundError, exceptions.TaskImageException, exceptions.UnauthorizedError
 )
 
 
@@ -65,7 +62,7 @@ def get_project_task(project_id: int, task_id: int) -> Task:
     Project.get_by_id(project_id)
     task = Task.get_by_id(task_id)
     if task.project_id != project_id:
-        raise DBRecordNotFoundError(f"Task with id {task_id} does not exist in project {project_id}")
+        raise exceptions.DBRecordNotFoundError(f"Task with id {task_id} does not exist in project {project_id}")
     return task
 
 
@@ -74,7 +71,7 @@ async def raw_body(request: Request) -> str:
     return (await request.body()).decode()
 
 
-@router.get('', response_model=Page[TaskDTO])
+@router.get('', response_model=Page[task_dtos.TaskDTO])
 def get_tasks(project_id: int, status: str | None = None):
     """
     GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id
@@ -87,7 +84,7 @@ def get_tasks(project_id: int, status: str | None = None):
     return task_page(query, parse_statuses(status))
 
 
-@all_router.get('', response_model=Page[TaskDTO])
+@all_router.get('', response_model=Page[task_dtos.TaskDTO])
 def get_all_tasks(status: str | None = None, project_enabled: str | None = None):
     """
     GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
@@ -100,7 +97,7 @@ def get_all_tasks(status: str | None = None, project_enabled: str | None = None)
     query = Task.query
     if project_enabled is not None:
         if project_enabled not in ('true', 'false'):
-            raise InvalidRequest("project_enabled should be true or false")
+            raise exceptions.InvalidRequest("project_enabled should be true or false")
         if project_enabled == 'true':
             query = query.filter(Task.project_id.in_(Project.query.filter(Project.enabled.is_(True)).with_entities(Project.id)))
     return task_page(query, parse_statuses(status))
@@ -114,18 +111,18 @@ def parse_statuses(raw: str | None) -> list[str] | None:
     statuses = [s.strip() for s in raw.split(',')]
     for status in statuses:
         if status not in valid:
-            raise InvalidRequest(f"Invalid status: {status}. Must be one of: {', '.join(valid)}")
+            raise exceptions.InvalidRequest(f"Invalid status: {status}. Must be one of: {', '.join(valid)}")
     return statuses
 
 
-def task_page(query, statuses: list[str] | None) -> Page[TaskDTO]:
+def task_page(query, statuses: list[str] | None) -> Page[task_dtos.TaskDTO]:
     """A page of the query's tasks, filtered by status and ordered by id."""
     if statuses is not None:
         query = query.filter(Task.status.in_(statuses))
-    return page_of(query.order_by(Task.id), TaskDTO)
+    return page_of(query.order_by(Task.id), task_dtos.TaskDTO)
 
 
-@router.get('/{task_id}', response_model=TaskDTO)
+@router.get('/{task_id}', response_model=task_dtos.TaskDTO)
 def get_task_id(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/tasks/id endpoint. Gets a single task with status
@@ -133,15 +130,15 @@ def get_task_id(project_id: int, task_id: int, caller: Caller = Depends(get_call
     Project.get_by_id(project_id)
     task = Task.query.get(task_id)
     if not task or task.project_id != project_id:
-        raise DBRecordNotFoundError("Task not found")
+        raise exceptions.DBRecordNotFoundError("Task not found")
 
     does_user_own_task(task, caller)
 
-    return TaskDTO.from_model(task)
+    return task_dtos.TaskDTO.from_model(task)
 
 
 @router.patch(
-    '/{task_id}', response_model=TaskDTO,
+    '/{task_id}', response_model=task_dtos.TaskDTO,
     dependencies=[Depends(system_only)]
 )
 def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=dict)):
@@ -150,38 +147,38 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
     A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
     status again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.
     A task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see
-    helpers/task_resources): before the status is saved, so that a failed delete leaves the task as it was and
+    tasks/resources): before the status is saved, so that a failed delete leaves the task as it was and
     the next PATCH retries it.
     """
     task = get_project_task(project_id, task_id)
 
     if not body:
-        raise InvalidRequest("No fields provided to update")
+        raise exceptions.InvalidRequest("No fields provided to update")
 
     unknown = set(body) - {"status", "executor_run_id", "exit_code", "state_cause", "started_at", "completed_at"}
     if unknown:
-        raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
+        raise exceptions.InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
 
     if 'status' in body:
         if body['status'] not in [s.value for s in TaskStatus]:
             valid = ', '.join([s.value for s in TaskStatus])
-            raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
+            raise exceptions.InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
         transition(TASK_MOVES, task.status, body['status'])
         task.status = body['status']
 
     if 'executor_run_id' in body:
         if not isinstance(body['executor_run_id'], str):
-            raise InvalidRequest("executor_run_id must be a string")
+            raise exceptions.InvalidRequest("executor_run_id must be a string")
         task.executor_run_id = body['executor_run_id']
 
     if 'state_cause' in body:
         if not isinstance(body['state_cause'], str):
-            raise InvalidRequest("state_cause must be a string")
+            raise exceptions.InvalidRequest("state_cause must be a string")
         task.state_cause = body['state_cause']
 
     if 'exit_code' in body:
         if not isinstance(body['exit_code'], int) or isinstance(body['exit_code'], bool):
-            raise InvalidRequest("exit_code must be an integer")
+            raise exceptions.InvalidRequest("exit_code must be an integer")
         task.exit_code = body['exit_code']
 
     for field in ('started_at', 'completed_at'):
@@ -189,17 +186,17 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
             try:
                 setattr(task, field, dt.fromisoformat(body[field].rstrip('Z')))
             except (ValueError, AttributeError):
-                raise InvalidRequest(f"{field} must be a valid ISO 8601 datetime string")
+                raise exceptions.InvalidRequest(f"{field} must be a valid ISO 8601 datetime string")
 
     # A task that never ran has no run id and nothing to delete
     if 'status' in body and not TASK_MOVES[task.status] and task.executor_run_id:
         delete_run_resources(task.executor_run_id)
 
     db.session.commit()
-    return TaskDTO.from_model(task)
+    return task_dtos.TaskDTO.from_model(task)
 
 
-@router.post('/{task_id}/retry', response_model=TaskDTO)
+@router.post('/{task_id}/retry', response_model=task_dtos.TaskDTO)
 def retry_task(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/retry endpoint. Queues a failed or canceled task for another attempt
@@ -207,7 +204,7 @@ def retry_task(project_id: int, task_id: int):
     task = get_project_task(project_id, task_id)
 
     if task.status not in RETRYABLE:
-        raise InvalidRequest(f"Only a {TaskStatus.FAILED} or {TaskStatus.CANCELED} task can be retried")
+        raise exceptions.InvalidRequest(f"Only a {TaskStatus.FAILED} or {TaskStatus.CANCELED} task can be retried")
 
     task.status = TaskStatus.PENDING.value
     task.attempt += 1
@@ -218,7 +215,7 @@ def retry_task(project_id: int, task_id: int):
     task.state_cause = None
 
     db.session.commit()
-    return TaskDTO.from_model(task)
+    return task_dtos.TaskDTO.from_model(task)
 
 
 @router.post('/{task_id}/cancel')
@@ -226,10 +223,10 @@ def cancel_tasks(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/cancel endpoint. Cancels a task either scheduled or running one
     """
-    raise NotImplementedException()
+    raise exceptions.NotImplementedException()
 
 
-@router.post('', status_code=HTTPStatus.CREATED, response_model=TaskCreatedDTO)
+@router.post('', status_code=HTTPStatus.CREATED, response_model=task_dtos.TaskCreatedDTO)
 def post_tasks(
     project_id: int, raw: str = Depends(raw_body), req_body: dict = Body(default_factory=dict),
     caller: Caller = Depends(get_caller)
@@ -257,7 +254,7 @@ def post_tasks(
         req_body["docker_image"] = spec.image
         validated = Task.validate(req_body, caller.token)
         spec.dataset = validated["dataset"].name if validated["dataset"] else None
-        new_task = NewTaskDTO.from_spec(spec, api_request)
+        new_task = task_dtos.NewTaskDTO.from_spec(spec, api_request)
     except VALIDATION_ERRORS as error:
         api_request.set_state(TriggerState.REJECTED.value, str(error.description)[:1024])
         session.commit()
@@ -300,11 +297,11 @@ def get_task_trigger(project_id: int, task_id: int, caller: Caller = Depends(get
     task = get_project_task(project_id, task_id)
     does_user_own_task(task, caller)
     if not isinstance(task.trigger, PullRequestTrigger):
-        raise DBRecordNotFoundError(f"Task with id {task_id} has no pull request trigger")
+        raise exceptions.DBRecordNotFoundError(f"Task with id {task_id} has no pull request trigger")
     return TaskTriggerDTO.from_model(task.trigger)
 
 
-@router.get('/{task_id}/config', response_model=TaskConfigDTO)
+@router.get('/{task_id}/config', response_model=task_dtos.TaskConfigDTO)
 def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
     GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created
@@ -327,7 +324,7 @@ def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_
 
 
 @router.post(
-    '/{task_id}/launch', response_model=TaskLaunchDTO,
+    '/{task_id}/launch', response_model=task_dtos.TaskLaunchDTO,
     dependencies=[Depends(system_only)]
 )
 def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
@@ -343,7 +340,7 @@ def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_call
     task = get_project_task(project_id, task_id)
     does_user_own_task(task, caller)
     if task.status != TaskStatus.PENDING.value:
-        raise InvalidRequest(f"Task {task_id} is {task.status}, not {TaskStatus.PENDING.value}", HTTPStatus.CONFLICT)
+        raise exceptions.InvalidRequest(f"Task {task_id} is {task.status}, not {TaskStatus.PENDING.value}", HTTPStatus.CONFLICT)
 
     decision = decide_launch(task)
     if decision.outcome == "fail":
@@ -351,17 +348,17 @@ def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_call
         task.status = TaskStatus.FAILED.value
         task.state_cause = (decision.cause or "failed by the backend")[:TASK_CAUSE_MAX_LENGTH]
         db.session.commit()
-        return {"outcome": "fail", "cause": task.state_cause, "task": TaskDTO.from_model(task).dump(), "dataset": None}
+        return {"outcome": "fail", "cause": task.state_cause, "task": task_dtos.TaskDTO.from_model(task).dump(), "dataset": None}
 
     dataset = task.spec.dataset if task.spec.dataset_id else None
     return {
-        "outcome": "launch", "cause": None, "task": TaskDTO.from_model(task).dump(),
+        "outcome": "launch", "cause": None, "task": task_dtos.TaskDTO.from_model(task).dump(),
         "dataset": DatasetDTO.from_model(dataset).dump() if dataset else None,
     }
 
 
 @router.post(
-    '/{task_id}/runs/{run_id}/resources', status_code=HTTPStatus.CREATED, response_model=TaskResourcesDTO,
+    '/{task_id}/runs/{run_id}/resources', status_code=HTTPStatus.CREATED, response_model=task_dtos.TaskResourcesDTO,
     dependencies=[Depends(system_only)]
 )
 def post_run_resources(project_id: int, task_id: int, run_id: str, caller: Caller = Depends(get_caller)):
@@ -396,7 +393,7 @@ def get_tasks_logs(project_id: int, task_id: int):
     """
     From a given task, return its logs
     """
-    raise NotImplementedException()
+    raise exceptions.NotImplementedException()
 
 
 @router.post('/{task_id}/results/approve')
@@ -406,7 +403,7 @@ def approve_results(project_id: int, task_id: int):
         Approves the release (automatic or manual) of
         a task's results
     """
-    raise NotImplementedException()
+    raise exceptions.NotImplementedException()
 
 
 @router.post('/{task_id}/results/block')
@@ -416,4 +413,4 @@ def block_results(project_id: int, task_id: int):
         Blocks the release (automatic or manual) of
         a task's results
     """
-    raise NotImplementedException()
+    raise exceptions.NotImplementedException()

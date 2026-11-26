@@ -5,6 +5,27 @@ from functools import lru_cache
 
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
+from urllib3.exceptions import HTTPError, TimeoutError as Urllib3TimeoutError
+
+from fednode.http import ClientError, ClientTimeout
+
+
+class TimedApiClient(client.ApiClient):
+    """Apply a service's default timeout unless a call overrides it."""
+
+    def __init__(self, timeout: tuple[float, float]):
+        super().__init__()
+        self.timeout = timeout
+
+    def call_api(self, *args, **kwargs):
+        if kwargs.get("_request_timeout") is None:
+            kwargs["_request_timeout"] = self.timeout
+        try:
+            return super().call_api(*args, **kwargs)
+        except Urllib3TimeoutError as exc:
+            raise ClientTimeout("The Kubernetes API did not answer in time") from exc
+        except HTTPError as exc:
+            raise ClientError("The Kubernetes API is unreachable") from exc
 
 
 @lru_cache(maxsize=2)
@@ -24,9 +45,9 @@ def load_kubernetes_config(*, in_cluster: bool) -> None:
 class KubernetesClient(client.CoreV1Api):
     """Core API client configured for either in-cluster or kubeconfig access."""
 
-    def __init__(self, *, in_cluster: bool) -> None:
+    def __init__(self, *, in_cluster: bool, timeout: tuple[float, float] | None = None) -> None:
         load_kubernetes_config(in_cluster=in_cluster)
-        super().__init__()
+        super().__init__(api_client=TimedApiClient(timeout) if timeout is not None else None)
 
     @classmethod
     def encode_secret_value(cls, value: str) -> str:
