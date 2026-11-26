@@ -170,7 +170,7 @@
           "projects"
         ],
         "summary": "List Projects",
-        "description": "GET /projects endpoint.",
+        "description": "GET /projects endpoint. The projects the caller may read.",
         "operationId": "list_projects_projects_get",
         "parameters": [
           {
@@ -1346,7 +1346,7 @@
           "datasets"
         ],
         "summary": "Get Datasets",
-        "description": "GET /global/datasets/ endpoint. Returns a list of all datasets",
+        "description": "GET /global/datasets/ endpoint. Returns a page of the datasets the caller may read",
         "operationId": "get_datasets_global_datasets_get",
         "parameters": [
           {
@@ -1489,7 +1489,7 @@
           "datasets"
         ],
         "summary": "Delete Dataset",
-        "description": "DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,\n    unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and\n    other datasets may share it.",
+        "description": "DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,\n    unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and\n    other datasets may share it. With force the caller needs write on each of those projects.",
         "operationId": "delete_dataset_global_datasets__dataset_id__delete",
         "parameters": [
           {
@@ -2782,7 +2782,7 @@
           "trigger_repositories"
         ],
         "summary": "Get Repositories",
-        "description": "GET /global/repositories/triggers/ \u2014 list the repositories. With ?pollable=true only the enabled and\nnot revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project\nresources say: that is what Dagster polls.",
+        "description": "GET /global/repositories/triggers/ \u2014 list the repositories. With ?pollable=true only the enabled and\nnot revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project\nresources say: that is what Dagster polls. Only the repositories the caller may read.",
         "operationId": "get_repositories_global_repositories_triggers_get",
         "parameters": [
           {
@@ -2912,7 +2912,7 @@
           "trigger_repositories"
         ],
         "summary": "Delete Repository",
-        "description": "DELETE /global/repositories/triggers/<id> \u2014 soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.",
+        "description": "DELETE /global/repositories/triggers/<id> \u2014 soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources: the caller needs write on each of those projects.",
         "operationId": "delete_repository_global_repositories_triggers__repo_id__delete",
         "parameters": [
           {
@@ -3849,7 +3849,7 @@
           "secrets"
         ],
         "summary": "Get Secrets",
-        "description": "GET /global/secrets \u2014 list the secrets. The values are never returned.",
+        "description": "GET /global/secrets \u2014 list the secrets the caller may read. The values are never returned.",
         "operationId": "get_secrets_global_secrets_get",
         "responses": {
           "200": {
@@ -4009,7 +4009,7 @@
           "secrets"
         ],
         "summary": "Delete Secret",
-        "description": "DELETE /global/secrets/<label> \u2014 soft delete the reference and revoke and delete its project\nresources, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused\nwith a 409 naming the enabled datasets and repositories that still use it: they have to be\ndisabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay\npointing at it, and can be repointed with their secret_label.",
+        "description": "DELETE /global/secrets/<label> \u2014 soft delete the reference and revoke and delete its project\nresources, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused\nwith a 409 naming the enabled datasets and repositories that still use it: they have to be\ndisabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay\npointing at it, and can be repointed with their secret_label. The caller needs write on each project the\nsecret is assigned to and, with force, on each dataset and repository it disables.",
         "operationId": "delete_secret_global_secrets__label__delete",
         "parameters": [
           {
@@ -4098,7 +4098,7 @@
           "git_providers"
         ],
         "summary": "Get Providers",
-        "description": "GET /global/providers/ \u2014 list the providers",
+        "description": "GET /global/providers/ \u2014 list the providers the caller may read",
         "operationId": "get_providers_global_providers_get",
         "responses": {
           "200": {
@@ -4335,7 +4335,7 @@
           "results_repositories"
         ],
         "summary": "Get Repositories",
-        "description": "GET /global/repositories/results/ \u2014 list the repositories",
+        "description": "GET /global/repositories/results/ \u2014 list the repositories the caller may read",
         "operationId": "get_repositories_global_repositories_results_get",
         "responses": {
           "200": {
@@ -4442,7 +4442,7 @@
           "results_repositories"
         ],
         "summary": "Delete Repository",
-        "description": "DELETE /global/repositories/%s/<id> \u2014 soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.",
+        "description": "DELETE /global/repositories/%s/<id> \u2014 soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources: the caller needs write on each of those projects.",
         "operationId": "delete_repository_global_repositories_results__repo_id__delete",
         "parameters": [
           {
@@ -4865,7 +4865,7 @@
           "tasks"
         ],
         "summary": "Get All Tasks",
-        "description": "GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of\nGET /projects/<project_id>/tasks. Query params:\n    - page, size: as the project's list\n    - status: one or more task statuses, comma separated (optional)\n    - project_enabled: \"true\" keeps the tasks of enabled projects, as GET /projects?enabled=true\n      lists them. A revoked project is still enabled, so its tasks stay.",
+        "description": "GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of\nGET /projects/<project_id>/tasks. Query params:\n    - page, size: as the project's list\n    - status: one or more task statuses, comma separated (optional)\n    - project_enabled: \"true\" keeps the tasks of enabled projects, as GET /projects?enabled=true\n      lists them. A revoked project is still enabled, so its tasks stay.\nOnly the tasks of the projects the caller may read.",
         "operationId": "get_all_tasks_tasks_get",
         "parameters": [
           {

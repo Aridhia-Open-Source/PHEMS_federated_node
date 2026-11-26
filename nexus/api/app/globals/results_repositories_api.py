@@ -23,7 +23,7 @@ from app.repos.git_tokens import mint_token, require_token_allowed
 from app.rules.ownership import set_owner
 from app.database.soft_delete import delete_global
 from app.tasks.task_config import results_resource
-from app.rules.authz import Access, Action, Global, SYSTEM_ONLY
+from app.rules.authz import Access, Action, Global, Listing, Readable, SYSTEM_ONLY, require_each
 from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
@@ -38,19 +38,19 @@ session = db.session
 
 
 @router.get('', response_model=list[ResultsRepositoryDTO])
-def get_repositories():
+def get_repositories(*, listing: Listing = Depends(Readable(ResultsRepository))):
     """
-    GET /global/repositories/results/ — list the repositories
+    GET /global/repositories/results/ — list the repositories the caller may read
     """
-    return [ResultsRepositoryDTO.from_model(r) for r in ResultsRepository.query.order_by(ResultsRepository.id)]
+    query = ResultsRepository.query.order_by(ResultsRepository.id)
+    return [ResultsRepositoryDTO.from_model(r) for r in listing.rows(query)]
 
 
 @router.get('/{repo_id}', response_model=ResultsRepositoryDTO)
-def get_repository(repo_id: int):
+def get_repository(*, repo: ResultsRepository = Depends(Access(model=ResultsRepository, action=Action.READ))):
     """
     GET /global/repositories/results/<id> — get a single repository
     """
-    repo = ResultsRepository.get_by_id(repo_id)
     return ResultsRepositoryDTO.from_model(repo)
 
 
@@ -75,10 +75,13 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_repository(
     force: bool = False, *, repo: ResultsRepository = Depends(Access(model=ResultsRepository, action=Action.WRITE)),
+    caller: Caller = Depends(get_caller),
 ):
     """
-    DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
+    DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources: the caller needs write on each of those projects.
     """
+    if force:
+        require_each(caller, Action.WRITE, [assignment.project for assignment in repo.project_assignments])
     delete_global(repo, repo.project_assignments, force)
 
 
@@ -159,9 +162,12 @@ def patch_repository(
 
 
 @router.get('/{repository_id}/healthcheck', response_model=RepositoryConnectionDTO)
-def results_repository_healthcheck(repository_id: int):
+def results_repository_healthcheck(
+    *,
+    repository: ResultsRepository = Depends(Access(model=ResultsRepository, action=Action.READ, param="repository_id")),
+):
     """
     GET /global/repositories/results/<repository_id>/healthcheck endpoint. Whether the repository
     can be reached with its own secret.
     """
-    return prepare_repository_health(ResultsRepository.get_by_id(repository_id))()
+    return prepare_repository_health(repository)()

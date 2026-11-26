@@ -13,12 +13,13 @@ The roll-ups, built from the same per-resource checks:
 
 from http import HTTPStatus
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 from fednode.clients.keycloak.login import KeycloakLogin
 from fednode.http import ClientError
 
 from app.settings import settings
+from app.rules.authz import ADMIN_UNCHECKED, Access, Action
 from app.dtos import healthcheck
 from app.dtos import project as project_dtos
 from app.health.datasets import prepare_dataset_health
@@ -33,7 +34,8 @@ from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.models.trigger_repository import TriggerRepository
 
-probes_router = APIRouter(tags=["healthcheck"])
+# Unchecked: the probes need no token and no record
+probes_router = APIRouter(tags=["healthcheck"], dependencies=[Depends(Access(action=Action.UNCHECKED))])
 router = APIRouter(tags=["healthcheck"])
 
 
@@ -82,7 +84,8 @@ def health_check():
     return JSONResponse({"status": status_text, "keycloak": kc_status}, status_code=code)
 
 
-@router.get('/global/healthcheck', response_model=healthcheck.GlobalHealthDTO)
+# Unchecked: every global record at once, for the node's admins; the admin roles gate it
+@router.get('/global/healthcheck', response_model=healthcheck.GlobalHealthDTO, dependencies=ADMIN_UNCHECKED)
 def global_healthcheck():
     """
     GET /global/healthcheck endpoint. Checks every global dataset, secret, trigger repository
@@ -109,14 +112,12 @@ def global_healthcheck():
 
 
 @router.get('/projects/{project_id}/healthcheck', response_model=project_dtos.ProjectHealthDTO)
-def project_healthcheck(project_id: int):
+def project_healthcheck(*, project: Project = Depends(Access(model=Project, action=Action.READ))):
     """
     GET /projects/<project_id>/healthcheck endpoint. Checks each trigger repository resource can be
     reached with its token, and reports its pull request count and the project's results
     repository. A failed check is reported in the body, still with a 200.
     """
-    project = Project.get_by_id(project_id)
-
     trigger_resources = list(project.trigger_repository_assignments)
     results_resource = project.get_results_repository()
     prepared = [prepare_trigger_resource_health(resource) for resource in trigger_resources]

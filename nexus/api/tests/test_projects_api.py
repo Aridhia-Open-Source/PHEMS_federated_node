@@ -5,6 +5,7 @@ import pytest
 from fastapi.routing import APIRoute, RouteContext, iter_route_contexts
 
 from app.database.base_model import db
+from app.models.node_role import NodeRole
 from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.project_results_repository import ProjectResultsRepository
@@ -87,7 +88,7 @@ def test_patch_revoked_is_admin_only_shows_in_the_dto_and_leaves_enabled_alone(
         client, admin_headers, post_json_user_header, project):
     url = f"/projects/{project.id}"
     refused = client.patch(url, json={"revoked": True}, headers=post_json_user_header)
-    assert refused.status_code == 403
+    assert refused.status_code == 409
     assert refresh(project).revoked is False
 
     revoked = patch(client, admin_headers, project.id, revoked=True)
@@ -104,7 +105,8 @@ def test_patch_revoked_is_admin_only_shows_in_the_dto_and_leaves_enabled_alone(
     assert refresh(project).revoked is False
 
 
-# Deny by default: every route needs an admin role, except these (app.OPEN_ROUTERS). FastAPI's docs and
+# Deny by default: every route needs a node role, except these (app.OPEN_ROUTERS); Cedar checks the record, and an
+# unchecked route has a role gate of its own (test_unchecked_routes.py). FastAPI's docs and
 # openapi routes are plain Starlette routes, not APIRoutes, so the walk skips them. An included router is one
 # entry in app.routes; iter_route_contexts gives each of its routes with the include-time dependencies added.
 OPEN_ROUTES = {
@@ -113,19 +115,19 @@ OPEN_ROUTES = {
 }
 
 
-def needs_admin(route: RouteContext) -> bool:
+def needs_a_node_role(route: RouteContext) -> bool:
     return any(
         getattr(dep.dependency, "__name__", "") == "_require_role"
-        and "Users" not in inspect.getclosurevars(dep.dependency).nonlocals["roles"]
+        and set(inspect.getclosurevars(dep.dependency).nonlocals["roles"]) == set(NodeRole)
         for dep in route.dependencies
     )
 
 
-def test_every_route_outside_the_open_list_needs_an_admin_role(client, post_json_user_header):
+def test_every_route_outside_the_open_list_needs_a_node_role(client, post_json_user_header):
     routes = {(method, route.path): route for route in iter_route_contexts(client.app.routes)
               if isinstance(route.original_route, APIRoute) for method in route.methods}
     assert OPEN_ROUTES <= set(routes)
-    assert [key for key, route in routes.items() if needs_admin(route) == (key in OPEN_ROUTES)] == []
+    assert [key for key, route in routes.items() if needs_a_node_role(route) == (key in OPEN_ROUTES)] == []
 
     # the temp-password flow stays reachable without admin
     response = client.put("/global/users/reset-password", json={}, headers=post_json_user_header)

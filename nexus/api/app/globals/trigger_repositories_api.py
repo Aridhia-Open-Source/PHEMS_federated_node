@@ -27,7 +27,7 @@ from app.repos.git_tokens import mint_token, require_token_allowed
 from app.rules.ownership import set_owner
 from app.repos.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.database.soft_delete import delete_global
-from app.rules.authz import Access, Action, Global, SYSTEM_ONLY
+from app.rules.authz import Access, Action, Global, Listing, Readable, SYSTEM_ONLY, require_each
 from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
 from app.models.project_trigger_repository import ProjectTriggerRepository
@@ -44,11 +44,11 @@ session = db.session
 
 
 @router.get('', response_model=list[trigger_repository.TriggerRepositoryDTO])
-def get_repositories(pollable: str = ''):
+def get_repositories(pollable: str = '', *, listing: Listing = Depends(Readable(TriggerRepository))):
     """
     GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled and
     not revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project
-    resources say: that is what Dagster polls.
+    resources say: that is what Dagster polls. Only the repositories the caller may read.
     """
     query = TriggerRepository.query
     if pollable.lower() == 'true':
@@ -58,27 +58,25 @@ def get_repositories(pollable: str = ''):
             TriggerRepository.provider.has(GitProvider.enabled.is_(True) & GitProvider.revoked.is_(False)),
             TriggerRepository.secret.has(Secret.enabled.is_(True)),
         )
-    return [trigger_repository.TriggerRepositoryDTO.from_model(r) for r in query.order_by(TriggerRepository.id)]
+    return [trigger_repository.TriggerRepositoryDTO.from_model(r) for r in listing.rows(query.order_by(TriggerRepository.id))]
 
 
 @router.get('/{repo_id}', response_model=trigger_repository.TriggerRepositoryDTO)
-def get_repository(repo_id: int):
+def get_repository(*, repo: TriggerRepository = Depends(Access(model=TriggerRepository, action=Action.READ))):
     """
     GET /global/repositories/triggers/<id> — get a single repository
     """
-    repo = TriggerRepository.get_by_id(repo_id)
     return trigger_repository.TriggerRepositoryDTO.from_model(repo)
 
 
 @router.get('/{repo_id}/pull_requests', response_model=Page[trigger_repository.PullRequestDTO])
-def get_pull_requests(repo_id: int):
+def get_pull_requests(*, repo: TriggerRepository = Depends(Access(model=TriggerRepository, action=Action.READ))):
     """
     GET /global/repositories/triggers/<id>/pull_requests — the provider's facts of the pull requests
     stored for the repository, most recent merge first.
     Query params: page and size, see fastapi-pagination. Responds with items, total, page, size and pages.
     """
-    TriggerRepository.get_by_id(repo_id)
-    query = PullRequest.query.filter_by(trigger_repository_id=repo_id)\
+    query = PullRequest.query.filter_by(trigger_repository_id=repo.id)\
         .order_by(PullRequest.merged_at.desc(), PullRequest.number.desc())
     return page_of(query, trigger_repository.PullRequestDTO)
 
@@ -137,10 +135,13 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
 @router.delete('/{repo_id}', status_code=HTTPStatus.NO_CONTENT)
 def delete_repository(
     force: bool = False, *, repo: TriggerRepository = Depends(Access(model=TriggerRepository, action=Action.WRITE)),
+    caller: Caller = Depends(get_caller),
 ):
     """
-    DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
+    DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources: the caller needs write on each of those projects.
     """
+    if force:
+        require_each(caller, Action.WRITE, [assignment.project for assignment in repo.project_assignments])
     delete_global(repo, repo.project_assignments, force)
 
 
@@ -235,9 +236,12 @@ def patch_repository(
 
 
 @router.get('/{repository_id}/healthcheck', response_model=RepositoryConnectionDTO)
-def trigger_repository_healthcheck(repository_id: int):
+def trigger_repository_healthcheck(
+    *,
+    repository: TriggerRepository = Depends(Access(model=TriggerRepository, action=Action.READ, param="repository_id")),
+):
     """
     GET /global/repositories/triggers/<repository_id>/healthcheck endpoint. Whether the repository
     can be reached with its own secret.
     """
-    return prepare_repository_health(TriggerRepository.get_by_id(repository_id))()
+    return prepare_repository_health(repository)()
