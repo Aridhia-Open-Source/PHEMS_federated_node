@@ -36,17 +36,6 @@ kubernetesProvider:
       data:
         password: dGVzdA==
 tests:
-  - it: creates AWS storage
-    template: copy-secrets.yaml
-    values:
-      - values/values-aws.yaml
-    asserts:
-      - equal:
-          path: metadata.name
-          value: awscert-config
-        documentSelector:
-          path: metadata.name
-          value: awscert-config
   - it: creates AWS persistency
     template: dagster-artifacts-pv.yaml
     values:

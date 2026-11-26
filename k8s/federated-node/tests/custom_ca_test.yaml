@@ -57,6 +57,16 @@ tests:
       - hasDocuments:
           count: 0
 
+  # A named Secret is supplied in each namespace that mounts it; the chart copies nothing.
+  - it: renders no Secret for a named one
+    template: templates/custom-ca-secret.yaml
+    set:
+      customCA:
+        secretName: my-ca
+    asserts:
+      - hasDocuments:
+          count: 0
+
   - it: does not set DAGSTER_CONTAINER_CONTEXT by default
     template: templates/dagster-code-server.yaml
     documentIndex: 3

@@ -49,7 +49,7 @@ set -euo pipefail
 # running containers), the Docker client proxy in ~/.docker/config.json (image builds and
 # containers you start), and two files this script owns and rewrites whole, both gitignored:
 # .generated.env (CUSTOM_CA_FILE, the proxy and the CA-bundle variables) and
-# k8s/federated-node/generated.values.yaml (the chart's proxy and customCA values). A run
+# k8s/federated-node/generated.values.yaml (the chart's proxy values). A run
 # that changes only one of the proxy and the CA keeps the other as .generated.env has it;
 # with neither left, both files are removed. Your own .dev.env and dev.values.yaml are never
 # edited by these runs, and win over them when loaded.
@@ -84,9 +84,6 @@ LOCAL_NO_PROXY="localhost,127.0.0.1,kind-registry,proxy-docker-hub-registry,prox
 CA_VARS=(CUSTOM_CA_FILE SSL_CERT_FILE REQUESTS_CA_BUNDLE CURL_CA_BUNDLE GIT_SSL_CAINFO PIP_CERT)
 PROXY_VARS=(HTTPS_PROXY https_proxy HTTP_PROXY http_proxy NO_PROXY no_proxy)
 GENERATED_VARS=("${CA_VARS[@]}" "${PROXY_VARS[@]}")
-
-# The secret name that scripts/deploy.sh creates from CUSTOM_CA_FILE
-source scripts/custom_ca.sh
 
 ok()   { printf '  [%s]   %s\n' "$([ "$DRY" = 1 ] && echo dry || echo ok)" "$*"; }
 skip() { printf '  [skip] %s\n' "$*"; }
@@ -284,10 +281,7 @@ values_content() {
     echo "  httpProxy: \"$PROXY\""
     echo "  httpsProxy: \"$PROXY\""
   fi
-  [ -n "$GEN_CA" ] || return 0
-  echo "customCA:"
-  echo "  secretName: $CUSTOM_CA_SECRET"
-  echo "  key: ca.crt"
+  # The CA reaches the chart from CUSTOM_CA_FILE: deploy.sh passes it as customCA.pem
 }
 
 # Writes a file this script owns, whole: $1 the path, $2 the content.

@@ -23,6 +23,7 @@ OPENBAO_VERSION=0.30.7
 ESO_NS=external-secrets
 BAO_NS=openbao
 VAULT_DIR=site-example/secrets/vault
+KEYCLOAK_NAMESPACE="${KEYCLOAK_NAMESPACE:-keycloak}"
 # The ServiceAccount in serviceaccount.yaml, and the OpenBao role in store-openbao.yaml
 ESO_SA=fn-external-secrets
 
@@ -30,9 +31,9 @@ bao() {
   kubectl exec -i -n "$BAO_NS" openbao-0 -- env BAO_TOKEN=root bao "$@"
 }
 
-# The vault files with the OpenBao store in place of Azure's, in the release namespace
+# The vault files with the OpenBao store in place of Azure's, in the dev namespaces
 vault_files() {
-  sed "s/namespace: fn$/namespace: $NAMESPACE/" \
+  sed -e "s/namespace: fn$/namespace: $NAMESPACE/" -e "s/namespace: keycloak$/namespace: $KEYCLOAK_NAMESPACE/" \
     "$VAULT_DIR/serviceaccount.yaml" <(echo ---) \
     "$VAULT_DIR/store-openbao.yaml" <(echo ---) \
     "$VAULT_DIR/first-user-from-vault.yaml"
@@ -71,7 +72,9 @@ case "$COMMAND" in
 
     echo "=== $VAULT_DIR with the OpenBao store ======================================"
     vault_files | kubectl apply -f -
-    kubectl wait externalsecret/keycloak-first-user -n "$NAMESPACE" --for=condition=Ready --timeout=60s
+    for ns in "$NAMESPACE" "$KEYCLOAK_NAMESPACE"; do
+      kubectl wait externalsecret/keycloak-first-user -n "$ns" --for=condition=Ready --timeout=60s
+    done
     ;;
   status)
     bao kv list secret/
