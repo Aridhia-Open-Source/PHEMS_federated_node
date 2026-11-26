@@ -9,7 +9,6 @@ data:
   DATABASE_PORT: {{ .Values.db.port | quote }}
   DATABASE_NAME: {{ .Values.nexus.api.db.name | quote }}
   DATABASE_USER: {{ .Values.nexus.api.db.user | quote }}
-  OWNER_GROUPS: {{ .Values.nexus.api.ownerGroups | join "," | quote }}
   SERVICES_KEYCLOAK_URL: "http://keycloak.{{ include "kc_namespace" . }}.svc.cluster.local"
   SERVICES_KEYCLOAK_ADMIN: admin
   SERVICES_KEYCLOAK_SERVICE_USER: fn-service

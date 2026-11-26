@@ -11,7 +11,7 @@ type Props = {
   busy?: boolean;
   // In a column headed "Enabled": the label is still read out, not shown
   hideLabel?: boolean;
-  // The owner group, when the viewer is not in it: greyed out
+  // Who owns the record, when the viewer may not change it: greyed out
   ownedBy?: string | null;
 };
 

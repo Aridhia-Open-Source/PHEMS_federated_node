@@ -1622,8 +1622,6 @@ export interface components {
             /** Url */
             url: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * DatasetHealthDTO
@@ -1666,8 +1664,6 @@ export interface components {
             /** Updated At */
             updated_at: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * GitProviderHealthDTO
@@ -1914,8 +1910,6 @@ export interface components {
             /** Updated At */
             updated_at: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * ProjectDatasetDTO
@@ -1932,8 +1926,6 @@ export interface components {
             /** Active */
             active: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ProjectDatasetHealthDTO */
         ProjectDatasetHealthDTO: {
@@ -1997,8 +1989,6 @@ export interface components {
             /** Active */
             active: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ProjectResultsRepositoryHealthDTO */
         ProjectResultsRepositoryHealthDTO: {
@@ -2069,8 +2059,6 @@ export interface components {
             /** Active */
             active: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ProjectSecretHealthDTO */
         ProjectSecretHealthDTO: {
@@ -2109,8 +2097,6 @@ export interface components {
             /** Active */
             active: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ProjectTriggerRepositoryHealthDTO */
         ProjectTriggerRepositoryHealthDTO: {
@@ -2331,8 +2317,6 @@ export interface components {
             /** Revoked */
             revoked: boolean;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /** ResultsRepositoryHealthDTO */
         ResultsRepositoryHealthDTO: {
@@ -2370,8 +2354,6 @@ export interface components {
             /** Updated At */
             updated_at: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * SecretHealthDTO
@@ -2583,8 +2565,6 @@ export interface components {
             /** Pr Cursor */
             pr_cursor: string;
             owner: components["schemas"]["UserRefDTO"] | null;
-            /** Owner Group */
-            owner_group: string | null;
         };
         /**
          * TriggerRepositoryRefDTO
