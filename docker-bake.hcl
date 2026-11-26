@@ -28,6 +28,7 @@ group "default" {
     "nexus-api-fn",
     "nexus-ui-fn",
     "nexus-ui-dev-fn",
+    "nexus-operator-fn",
   ]
 }
 
@@ -38,6 +39,7 @@ group "release" {
     "release-alpine",
     "release-kc-init",
     "release-dagster",
+    "release-nexus-operator",
   ]
 }
 
@@ -45,6 +47,13 @@ target "dagster-fn" {
   context  = "dagster"
   contexts = { fednode = "nexus/fednode" }
   tags     = tags("dagster-fn")
+}
+
+# The Kopf operator (nexus/operator), with the shared fednode package like Dagster
+target "nexus-operator-fn" {
+  context  = "nexus/operator"
+  contexts = { fednode = "nexus/fednode" }
+  tags     = tags("nexus-operator-fn")
 }
 
 target "alpine-fn" {
@@ -100,4 +109,9 @@ target "release-kc-init" {
 target "release-dagster" {
   inherits = ["dagster-fn"]
   tags     = ["ghcr.io/aridhia-open-source/dagster_fn:${TAG}"]
+}
+
+target "release-nexus-operator" {
+  inherits = ["nexus-operator-fn"]
+  tags     = ["ghcr.io/aridhia-open-source/nexus_operator:${TAG}"]
 }

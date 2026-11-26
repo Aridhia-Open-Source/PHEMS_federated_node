@@ -1,0 +1,119 @@
+# A project and what it is assigned. metadata.name is its nexus-api name. Datasets by name (the first is the
+# default), repositories by uri. One results repository. The operator refuses a '..' in a directory and a watchDir
+# that overlaps the targetDir.
+# Static YAML: Helm installs crds/ before the templates (ADR 0032) but never upgrades them, so on upgrade the
+# chart's pre-upgrade hook (templates/crds-upgrade-hook.yaml), Flux (crds: CreateReplace) or scripts/deploy.sh apply them.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: projects.fn.aridhia.com
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  group: fn.aridhia.com
+  scope: Namespaced
+  names:
+    kind: Project
+    listKind: ProjectList
+    plural: projects
+    singular: project
+    categories:
+      - fn
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Synced
+          type: boolean
+          jsonPath: .status.synced
+        - name: Message
+          type: string
+          jsonPath: .status.message
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required: [repositories]
+              properties:
+                enabled:
+                  type: boolean
+                  default: true
+                backfill:
+                  type: boolean
+                  description: >-
+                    When the operator enables the project, create the triggers of the pull requests stored while it was
+                    off instead of skipping them. Applies each time enabled goes from false to true.
+                datasets:
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                repositories:
+                  type: object
+                  required: [results]
+                  properties:
+                    triggers:
+                      type: array
+                      items:
+                        type: object
+                        required: [repository, watchDir, baseBranch]
+                        properties:
+                          repository:
+                            type: string
+                            pattern: '^(https?://)?[^/@\s]+(/[^/\s]+){2,}/?$'
+                          watchDir:
+                            type: string
+                            description: Must name a directory, not the whole repository
+                            pattern: '[^/.]'
+                          baseBranch:
+                            type: string
+                            minLength: 1
+                          enabled:
+                            type: boolean
+                            default: true
+                    results:
+                      type: object
+                      required: [repository, targetDir, baseBranch]
+                      properties:
+                        repository:
+                          type: string
+                          pattern: '^(https?://)?[^/@\s]+(/[^/\s]+){2,}/?$'
+                        targetDir:
+                          type: string
+                          minLength: 1
+                        baseBranch:
+                          type: string
+                          minLength: 1
+                        enabled:
+                          type: boolean
+                          default: true
+            status:
+              type: object
+              properties:
+                synced:
+                  type: boolean
+                nexusId:
+                  type: integer
+                message:
+                  type: string
+                observedGeneration:
+                  type: integer
+                  format: int64
+                enabled:
+                  type: boolean
+                  description: Whether the project was enabled at the last sync, so a retry of a half-done results repository swap never backfills
+                sourceVersions:
+                  type: object
+                  description: NodeSecret only, source Secret name -> its resourceVersion last sent
+                  additionalProperties:
+                    type: string

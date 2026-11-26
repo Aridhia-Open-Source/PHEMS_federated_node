@@ -31,7 +31,6 @@ packages = [
     "fednode",
     "fednode.cli",
     "fednode.cli.cmds",
-    "fednode.cli.nodefile",
     "fednode.clients",
     "fednode.clients.dagster",
     "fednode.clients.git",

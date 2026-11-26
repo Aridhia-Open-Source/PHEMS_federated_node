@@ -1,0 +1,49 @@
+## The upgrade that turns the operator off strips the finalizers first, or the nodeConfig resources it
+## removes with the operator would wait on them for good.
+suite: nexus operator turned off
+release:
+  namespace: federatednode
+  name: federatednode
+  upgrade: true
+values:
+  - values/values-local.yaml
+set:
+  operator:
+    enabled: false
+kubernetesProvider:
+  scheme:
+    apps/v1/Deployment:
+      gvr:
+        group: apps
+        version: v1
+        resource: deployments
+      namespaced: true
+  objects:
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: nexus-operator
+        namespace: fn-operator
+templates:
+  - templates/nexus-operator-uninstall-hook.yaml
+tests:
+  - it: strips the finalizers before the upgrade that removes a running operator
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: pre-upgrade
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'finalizers":null'
+
+  - it: tolerates a missing CRD
+    documentSelector:
+      path: kind
+      value: Job
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: '-o name 2>/dev/null \|\| true'

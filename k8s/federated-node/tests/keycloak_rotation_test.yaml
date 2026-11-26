@@ -169,6 +169,37 @@ tests:
           value: ["kc-secrets"]
         documentIndex: 1
 
+  - it: patches the operator login only in the operator and keycloak namespaces, never the release namespace
+    template: templates/keycloak-rotation-rbac.yaml
+    set:
+      keycloak:
+        credentialRotation:
+          enabled: true
+      dagster:
+        enabled: false
+      operator:
+        enabled: true
+    asserts:
+      ## SA, then a Role and RoleBinding per namespace: federatednode, fn-operator, keycloak
+      - hasDocuments:
+          count: 7
+      - equal:
+          path: rules[0].resourceNames
+          value: ["kc-secrets"]
+        documentIndex: 1
+      - equal:
+          path: metadata.namespace
+          value: fn-operator
+        documentIndex: 3
+      - equal:
+          path: rules[0].resourceNames
+          value: ["operator-keycloak-creds"]
+        documentIndex: 3
+      - equal:
+          path: rules[0].resourceNames
+          value: ["kc-secrets", "operator-keycloak-creds"]
+        documentIndex: 5
+
   ## === CronJob ===
   - it: is not created unless rotation is explicitly enabled
     template: templates/keycloak-rotation-cronjob.yaml
@@ -211,6 +242,21 @@ tests:
           content:
             name: KC_SECRET_NAMESPACES
             value: "federatednode,keycloak"
+
+  - it: rotates the operator login in the keycloak and operator namespaces
+    template: templates/keycloak-rotation-cronjob.yaml
+    set:
+      keycloak:
+        credentialRotation:
+          enabled: true
+      operator:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: OPERATOR_SECRET_NAMESPACES
+            value: "keycloak,fn-operator"
 
   - it: allows rotating only the client secret, which is the one with a grace period
     template: templates/keycloak-rotation-cronjob.yaml

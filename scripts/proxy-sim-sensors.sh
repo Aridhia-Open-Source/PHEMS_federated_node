@@ -25,7 +25,7 @@ set -euo pipefail
 #   ./scripts/proxy-sim-sensors.sh probe                # curl through the proxy: fails without the CA, works with it
 #   ./scripts/proxy-sim-sensors.sh deploy <none|wrong|right>
 #                                                       # scripts/deploy.sh with the proxy and that CA
-#   ./scripts/proxy-sim-sensors.sh setup                # the proxysim project, its Gitea repos and secrets (fncli apply)
+#   ./scripts/proxy-sim-sensors.sh setup                # the proxysim project, its Gitea repos and secrets (kubectl apply)
 #   ./scripts/proxy-sim-sensors.sh pr                   # start the sensors, open and merge one watched PR (fncli open-pr)
 #   ./scripts/proxy-sim-sensors.sh status               # the project, TLS errors in the logs, what crossed the proxy
 #   ./scripts/proxy-sim-sensors.sh down                 # remove the project, proxysim and the CA secret, and put back
@@ -36,7 +36,7 @@ set -euo pipefail
 # (mise run setup), or FNCLI_PYTHON set to a python that runs fncli. fncli calls Gitea under its outside
 # name, so setup, pr and status reach it as the node does: through proxysim (port-forwarded to the
 # host for the call), trusting its CA. Setup also has the node call Gitea, so run it after `deploy right`.
-# The node files are bootstrap/examples/globals-proxysim.yaml and projects/proxysim.yaml. Generated, and gitignored with the rest of bootstrap/: the
+# The node config is config/proxysim/proxysim.yaml (ADR 0032). Generated, and gitignored with the rest of bootstrap/: the
 # context bootstrap/proxysim-context.yaml (a copy of the example one) and, in bootstrap/proxysim/, mitmproxy's
 # CA, the wrong one, and your own .generated.env and generated.values.yaml while `deploy` has set them aside.
 # After `down`, `mise run deploy` puts the release back without the proxy.
@@ -61,9 +61,9 @@ PROXY_URL="http://proxysim.${NS_PROXY}.svc:8080"
 HOST="gitea.proxysim.test"
 GITEA_SVC="http://gitea.${NAMESPACE}.svc:4000"
 FNCLI_PYTHON="${FNCLI_PYTHON:-$ROOT/dagster/.venv/bin/python}"
-# The node files are committed (their host is HOST); the context is the example one, copied like any fncli context.
-GLOBALS_FILE="${ROOT}/bootstrap/examples/globals-proxysim.yaml"
-PROJECT_FILE="${ROOT}/bootstrap/examples/projects/proxysim.yaml"
+# The node config is committed (its host is HOST); the context is the example one, copied like any fncli context.
+CONFIG_FILE="${ROOT}/config/proxysim/proxysim.yaml"
+OPERATOR_NAMESPACE="${OPERATOR_NAMESPACE:-fn-operator}"
 CONTEXT_FILE="${ROOT}/bootstrap/proxysim-context.yaml"
 PROJECT=proxysim
 PROXY_LOCAL_PORT="${PROXYSIM_LOCAL_PORT:-18080}"
@@ -236,8 +236,9 @@ deploy() {
 # The project, its repositories and secrets, and the Gitea repos and OAuth apps behind them. The demo's
 # dataset (fncli experiment setup demo) is already on the node.
 setup() {
-  fncli apply -f "$GLOBALS_FILE" -y
-  fncli apply -f "$PROJECT_FILE" -y
+  fncli gitea setup -f "$CONFIG_FILE"
+  kubectl apply -f "$CONFIG_FILE"
+  kubectl wait --for=jsonpath='{.status.synced}'=true --timeout=180s -f "$CONFIG_FILE"
   fncli start-sensor --group all
 }
 
@@ -270,8 +271,8 @@ status() {
 }
 
 down() {
-  fncli delete -f "$PROJECT_FILE" -y || true
-  fncli delete -f "$GLOBALS_FILE" --all -y || true
+  kubectl delete -f "$CONFIG_FILE" --ignore-not-found --timeout=180s || true
+  kubectl delete secret proxysim-trigger-creds proxysim-results-creds -n "$OPERATOR_NAMESPACE" --ignore-not-found
   kubectl delete pod proxysim-probe -n "$NAMESPACE" --ignore-not-found
   kubectl delete secret "$CUSTOM_CA_SECRET" -n "$NAMESPACE" --ignore-not-found
   kubectl delete namespace "$NS_PROXY" --ignore-not-found

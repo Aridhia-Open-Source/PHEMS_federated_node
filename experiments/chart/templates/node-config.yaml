@@ -1,0 +1,30 @@
+{{/*
+Each database as node config (ADR 0032): a Dataset named as the database, and the NodeSecret with its login, read from
+the Secret secrets.yaml makes. The nexus operator watches this namespace besides its own (dev values operator.watchNamespaces) and
+makes them in nexus-api; a project is assigned the dataset by name (config/).
+*/}}
+{{- range $key, $db := .Values.dbs }}
+apiVersion: fn.aridhia.com/v1alpha1
+kind: NodeSecret
+metadata:
+  name: {{ $db.name }}-dataset-creds
+  namespace: {{ $.Release.Namespace }}
+spec:
+  values:
+    USERNAME: {secretKeyRef: {name: {{ $db.secret.name }}, key: username}}
+    PASSWORD: {secretKeyRef: {name: {{ $db.secret.name }}, key: {{ $db.secret.key }}}}
+---
+apiVersion: fn.aridhia.com/v1alpha1
+kind: Dataset
+metadata:
+  name: {{ $db.name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  type: postgres
+  host: db-datasets.{{ $.Release.Namespace }}.svc
+  port: {{ $.Values.postgres.port }}
+  readSchema: {{ $db.readSchema }}
+  writeSchema: {{ $db.writeSchema }}
+  secret: {{ $db.name }}-dataset-creds
+---
+{{- end }}

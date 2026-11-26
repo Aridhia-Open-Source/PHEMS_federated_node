@@ -26,7 +26,7 @@ pushd "$DIR" > /dev/null
 # Consumers of the shared fednode package compile its dependencies into their own hashed file (ADR 0039)
 SOURCES=(pyproject.toml)
 case "$(realpath --relative-to="$ROOT" .)" in
-    dagster | nexus/api | build/kc-init | build/alpine)
+    dagster | nexus/api | nexus/operator | build/kc-init | build/alpine)
         SOURCES+=("$(realpath --relative-to=. "$ROOT/nexus/fednode/pyproject.toml")") ;;
 esac
 

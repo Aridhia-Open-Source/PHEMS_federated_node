@@ -24,7 +24,7 @@ from fednode.cli.cmds.common import (
     build_researcher_git_api,
     find_under,
 )
-from fednode.cli.cmds.nodefile import context_option, step_project_option
+from fednode.cli.cmds.target import context_option, step_project_option
 from fednode.cli.cmds.project import find_project
 from fednode.cli.cmds.repository import step_repo_config
 from fednode.cli.cmds.sensor import SENSORS

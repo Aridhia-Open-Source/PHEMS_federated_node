@@ -7,3 +7,5 @@ dbs:
     secret:
       name: db-datasets-attacker
       key: password
+    readSchema: cdm             # the dataset's schemas: what tasks read, and write to
+    writeSchema: results
