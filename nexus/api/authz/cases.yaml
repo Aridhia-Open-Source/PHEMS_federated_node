@@ -3,6 +3,8 @@
 #   role: the caller's node role (Keycloak realm role); groups: its Keycloak groups, role groups included
 #   resource: a record type, or a list of them (each is checked); Global is Global::"0"
 #   revoked: the dataset's revoked flag (Dataset only)
+#   by: action -> the @ids of the rules that decide it (allow or deny), sorted; a denied action with nothing allowing
+#     it has none
 #   grants: the caller's grants on the record, relation -> never (no expiry), future (expires in an hour) or
 #     expired (expired an hour ago)
 cases:
@@ -12,12 +14,14 @@ cases:
     resource: [Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
     grants: {manage: never}
     allow: [read, write, execute, assign, operate, manage]
+    by: {write: ["*.all.owner"]}
   - name: write allows read and operate, not grant changes
     role: Administrator
     resource: Project
     grants: {write: never}
     allow: [read, write, operate]
     deny: [execute, assign, manage]
+    by: {read: ["*.read.granted"], operate: ["*.operate.granted"], execute: []}
   - name: operate allows read and operate only
     role: Users
     resource: Project
@@ -36,6 +40,7 @@ cases:
     grants: {assign: never}
     allow: [read, assign]
     deny: [write, execute, operate, manage]
+    by: {assign: ["*.assign.granted"]}
   - name: read allows read only
     role: Users
     resource: Project
@@ -49,6 +54,7 @@ cases:
     grants: {manage: never, write: never}
     allow: [read, execute, assign, operate]
     deny: [write, manage]
+    by: {write: ["*.write.users"], manage: ["*.manage.users"]}
   - name: an expired grant allows nothing
     role: Users
     resource: Project
@@ -59,6 +65,7 @@ cases:
     groups: [/roles/users]
     resource: [Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
     deny: [read, write, execute, assign, operate, manage]
+    by: {read: []}
 
   # Global: creating global records
   - name: admins may create global records
@@ -67,17 +74,20 @@ cases:
     resource: Global
     allow: [write]
     deny: [manage]
+    by: {write: ["global.write.all"]}
   - name: the operator may create global records
     role: Service
     groups: [/roles/service]
     resource: Global
     allow: [write]
     deny: [manage]
+    by: {write: ["global.write.all"]}
   - name: users may not create global records
     role: Users
     groups: [/roles/users]
     resource: Global
     deny: [write, manage]
+    by: {write: ["*.write.users"]}
 
   # Admins on global records
   - name: admins read and assign any global record with no grant, but cannot change it
@@ -86,6 +96,7 @@ cases:
     resource: [Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
     allow: [read, assign]
     deny: [write, execute, operate, manage]
+    by: {read: ["global.read.all"], assign: ["global.assign.all"], write: []}
   - name: admins get nothing on a project without a grant
     role: Administrator
     groups: [/roles/admins]
@@ -107,6 +118,7 @@ cases:
     role: SuperUser
     resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
     allow: [read, write, execute, assign, operate, manage]
+    by: {read: ["*.all.superuser"]}
 
   # Revoked datasets
   - name: nobody runs tasks on a revoked dataset, not even SuperUser
@@ -115,6 +127,7 @@ cases:
     revoked: true
     allow: [read, write, assign, manage]
     deny: [execute]
+    by: {execute: ["dataset.execute.revoked"], write: ["*.all.superuser"]}
   - name: a manage holder cannot run tasks on a revoked dataset
     role: Administrator
     resource: Dataset
@@ -130,3 +143,4 @@ cases:
     resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository]
     allow: [read]
     deny: [write, execute, assign, operate, manage]
+    by: {read: ["*.read.all"], write: []}

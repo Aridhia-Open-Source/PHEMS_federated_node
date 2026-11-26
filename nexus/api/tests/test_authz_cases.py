@@ -1,14 +1,15 @@
 """
-The Cedar policies (ADR 0037): every case in nexus/api/authz/cases.yaml, then can() on real grants (a group's
-grant, expired grants, the latest expiry per relation).
+The Cedar policies (ADR 0037): every case in nexus/api/authz/cases.yaml and the rules that decide it, the decision
+log, then can() on real grants (a group's grant, expired grants, the latest expiry per relation).
 """
+import logging
 import time
 from datetime import datetime as dt, timedelta, timezone
 
 import pytest
 import yaml
 
-from app.rules.authz import AUTHZ_DIR, GLOBAL, NEVER, Action, Principal, Resource, can, grants_for, is_allowed
+from app.rules.authz import AUTHZ_DIR, GLOBAL, NEVER, Action, Principal, Resource, can, decide, grants_for, is_allowed
 from app.dtos.caller import Caller
 from app.models.grant import Grant
 from app.models.user import User
@@ -26,18 +27,49 @@ def _expand(cases: list[dict]):
                 yield pytest.param(case, type_, action, False, id=f"{case['name']} / {type_} / {action} denied")
 
 
-CASES = list(_expand(yaml.safe_load((AUTHZ_DIR / "cases.yaml").read_text())["cases"]))
+CASES_FILE = yaml.safe_load((AUTHZ_DIR / "cases.yaml").read_text())["cases"]
+CASES = list(_expand(CASES_FILE))
 
 
-@pytest.mark.parametrize("case, type_, action, allowed", CASES)
-def test_case(case, type_, action, allowed):
+def _request(case: dict, type_: str):
+    """The principal, resource, grants and time a case describes."""
     now = int(time.time())
     expiries = {"never": NEVER, "future": now + HOUR, "expired": now - HOUR}
     principal = Principal(user_id="id-caller", role=case["role"], groups=tuple(case.get("groups", [])))
     attrs = {"revoked": case.get("revoked", False)} if type_ == "Dataset" else {}
     resource = Resource(type=type_, id="0" if type_ == "Global" else "7", attrs=attrs)
     grants = {relation: expiries[when] for relation, when in case.get("grants", {}).items()}
+    return principal, resource, grants, now
+
+
+@pytest.mark.parametrize("case, type_, action, allowed", CASES)
+def test_case(case, type_, action, allowed):
+    principal, resource, grants, now = _request(case, type_)
     assert is_allowed(principal, Action(action), resource, grants, now) is allowed
+
+
+RULE_CASES = [
+    pytest.param(case, type_, action, rules, id=f"{case['name']} / {type_} / {action}")
+    for case in CASES_FILE if "by" in case
+    for type_ in (case["resource"] if isinstance(case["resource"], list) else [case["resource"]])
+    for action, rules in case["by"].items()
+]
+
+
+@pytest.mark.parametrize("case, type_, action, rules", RULE_CASES)
+def test_decision_names_its_rules(case, type_, action, rules):
+    """The @ids of the rules that decide a request (the forbids if one refused it)."""
+    principal, resource, grants, now = _request(case, type_)
+    assert list(decide(principal, Action(action), resource, grants, now).rules) == rules
+
+
+def test_decision_is_logged(caplog):
+    caplog.set_level(logging.INFO, logger="authz")
+    principal, resource, grants, now = _request(CASES_FILE[0], "Dataset")
+    is_allowed(principal, Action.WRITE, resource, grants, now)
+    is_allowed(Principal(user_id="id-other", role="Users"), Action.EXECUTE, resource, {}, now)
+    assert "allowed dataset.write Dataset 7 user id-caller by *.all.owner" in caplog.messages
+    assert "refused dataset.execute Dataset 7 user id-other by none" in caplog.messages
 
 
 def test_every_action_is_covered():
