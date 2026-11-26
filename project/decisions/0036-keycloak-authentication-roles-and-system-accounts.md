@@ -1,4 +1,4 @@
-# 0036. Keycloak authentication - roles and system accounts
+# 0036. Roles and Accounts
 
 Status: Proposed, 2026-11-20.
 
