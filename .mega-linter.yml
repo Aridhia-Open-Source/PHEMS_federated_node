@@ -22,6 +22,9 @@ ENABLE_LINTERS:
 # Not in MegaLinter v10.2.0: Gitleaks (replaced by Betterleaks), KICS, pip-audit, npm audit.
 # KICS and a Gitleaks history scan get their own jobs in the next PR.
 
+# Config files sit at the repo root (and .github/ for the workflow linters), not in .github/linters/
+LINTER_RULES_PATH: .
+
 # Scope: generated files and vendored trees
 EXCLUDED_DIRECTORIES:
   - node_modules
@@ -31,8 +34,20 @@ EXCLUDED_DIRECTORIES:
 FILTER_REGEX_EXCLUDE: '(node_modules/|(^|/)charts/|\.venv/|nexus/ui/src/api/schema\.d\.ts|nexus/api/openapi\.json)'
 
 # Tool settings
-REPOSITORY_TRUFFLEHOG_ARGUMENTS: ["--no-verification"]  # never send a found key out to check it
+REPOSITORY_TRUFFLEHOG_ARGUMENTS: ["--no-verification", "--exclude-paths=.trufflehog-exclude.txt"]  # never send a found key out to check it
+# Explicit rulesets, no `--config auto` (it needs metrics on). The custom Pulumi rules live in
+# .semgrep/pulumi.yml, not .semgrep.yml: MegaLinter's Semgrep wrapper crashes when it finds .semgrep.yml
+# and also has rulesets to substitute.
+REPOSITORY_SEMGREP_RULESETS:
+  - p/python
+  - p/security-audit
+  - p/github-actions
+  - p/dockerfile
+  - .semgrep/pulumi.yml
 REPOSITORY_SEMGREP_ARGUMENTS: ["--metrics=off"]
+# Stage 2 (gate): REPOSITORY_SEMGREP_DISABLE_ERRORS: false and --severity ERROR
+ACTION_ZIZMOR_CONFIG_FILE: .github/zizmor.yml
+ACTION_ACTIONLINT_CONFIG_FILE: .github/actionlint.yaml
 ACTION_ZIZMOR_UNSECURED_ENV_VARIABLES:
   - GITHUB_TOKEN
 
