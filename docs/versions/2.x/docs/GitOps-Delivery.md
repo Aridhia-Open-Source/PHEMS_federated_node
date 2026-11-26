@@ -16,6 +16,23 @@ How a node is upgraded, reverted and configured from a git repository with Flux 
 5. Config: edit `values.yaml` and merge. The values ConfigMap name carries a hash of its content, so every values change upgrades the release.
 6. An upgrade that breaks Gitea also stops Flux from pulling the fix, since the site repository lives there. Recover by hand: `flux suspend helmrelease federated-node -n fn`, `helm rollback <release> <last good revision> -n fn`, push the fix to the site repository, `flux resume helmrelease federated-node -n fn`.
 
+### Site repository hosted elsewhere
+
+When the site repository lives outside the cluster (GitHub, the site's own git), Gitea keeps a pull mirror of it and Flux pulls from the mirror. Commits land in the site repository; Gitea picks them up within 10 minutes.
+
+```bash
+SITE_REPO_TOKEN=<read token> mise run mirror-to-gitea https://github.com/<org>/<site-repo>.git
+mise run mirror-to-gitea      # sync now instead of waiting
+```
+
+- The script reads `NAMESPACE` (the node's namespace) from `.dev.env`, and uses the current `kubectl` context.
+- The token is only needed for a private repository.
+- Point Flux at the mirror as in step 3, with `--url=http://gitea.<namespace>.svc:4000/gitea_admin/fn-site.git --branch=main`: the site repository's default branch must be `main`.
+- The Gitea pod must reach the site repository's host: Gitea does not use the chart's `proxy` or `customCA` yet.
+- Charts and images still come from `ghcr.io`.
+
+On the dev cluster, run `mise run mirror-to-gitea URL` before `mise run flux up`: `up` finds the fn-site mirror and points Flux at it.
+
 ## On the dev cluster
 
 Needs a dev node from `mise run deploy` (it includes Gitea) owned by your worktree, and `mise run setup` for the pinned `flux` CLI. Don't run `tilt up` while Flux owns the release: it redeploys the dev images over it.

@@ -12,6 +12,7 @@
   - Records the operator creates are managed by `/roles/service`; a UI or API edit of one is a 409, so config changes go through git.
   - Every node config entry (and CRD) takes `access: [{group: /full/keycloak/path, relation: read}]`; the operator reconciles it into group grants and removes only the ones it added.
   - `nexus/client` gets `get_grants`, `add_grant` and `delete_grant`.
+- `mise run mirror-to-gitea URL` keeps a pull mirror of a site repository in the cluster's Gitea, for Flux to pull from ([#702](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/702), ADR 0031)
 - Run behind a TLS-intercepting proxy, or with a private CA ([#652](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/652), ADR 0033, `PROXY_CA_SETUP.md`):
   - `mise run configure` replaces `mise run init-conf`. Every run creates `.dev.env` and `dev.values.yaml` from the examples if they are missing; it no longer asks for the first Keycloak user, which `.dev.env.example` now sets to `admin@fn.local` / `admin`. `--proxy[=URL]` (no value: `HTTPS_PROXY`) and `--ca-cert[=FILE]` (no value: the system CA bundle; alone: a private CA, no proxy) check the proxy and CA, then set up Docker and the tooling; `--no-proxy` and `--no-ca` remove them, and a run that changes one keeps the other. `--devcontainer` is what the dev container runs before its image build. It replaces `scripts/setup-proxy-ca.sh`.
   - The checks run before anything is written: the CA bundle is PEM, and with a proxy, `registry-1.docker.io`, `pypi.org` and `github.com` verify through it.
