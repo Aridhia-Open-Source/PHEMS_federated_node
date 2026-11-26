@@ -12,6 +12,8 @@ A dependency that is not in nexus-api yet raises kopf.TemporaryError naming it, 
 Spec fields are the CRDs' (camelCase); the API's are snake_case.
 """
 
+import base64
+import binascii
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from urllib.parse import urlparse
@@ -107,6 +109,24 @@ def secret_sources(spec: Mapping) -> dict[str, tuple[str, str]]:
     return {}
 
 
+def decode_secret(name: str, data: Mapping[str, str] | None) -> dict[str, str]:
+    """A Secret's base64 data as text. An error names the Secret and key, never the bytes (no chained cause)."""
+    decoded = {}
+    for key, value in (data or {}).items():
+        try:
+            decoded[key] = base64.b64decode(value).decode()
+        except (binascii.Error, UnicodeDecodeError):
+            raise kopf.TemporaryError(f"key {key} of Secret {name} is not UTF-8 text") from None
+    return decoded
+
+
+def source_value(read: Mapping[str, tuple[dict[str, str], str]], name: str, key: str) -> str:
+    """One key of a source Secret; External Secrets or a SOPS edit may not have written it yet"""
+    if key not in read[name][0]:
+        raise kopf.TemporaryError(f"waiting for key {key} in Secret {name}")
+    return read[name][0][key]
+
+
 def has_secret(api: BackendAPI, label: str) -> bool:
     return any(secret["label"] == label for secret in api.get_secrets())
 
@@ -122,6 +142,8 @@ def sync_secret(
     """
     if "fromSecret" in spec:
         data, version = read_secret(namespace, spec["fromSecret"]["name"])
+        if not data:
+            raise kopf.TemporaryError(f"waiting for keys in Secret {spec['fromSecret']['name']}")
         versions = {spec["fromSecret"]["name"]: version}
         values = dict(data)
     else:
@@ -129,7 +151,7 @@ def sync_secret(
         for name in {name for name, _ in secret_sources(spec).values()}:
             read[name] = read_secret(namespace, name)
         versions = {name: version for name, (_, version) in read.items()}
-        values = {key: read[name][0][source_key] for key, (name, source_key) in secret_sources(spec).items()}
+        values = {key: source_value(read, name, source_key) for key, (name, source_key) in secret_sources(spec).items()}
 
     status = {"sourceVersions": versions}
     # Only the current sources: a status merge-patch never drops the key of a source no longer named
