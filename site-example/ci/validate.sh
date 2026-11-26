@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Validates a site repository (ADR 0031) before its pull request merges. Run from the repository root.
-#   1. kustomize build: what Flux applies builds.
+#   1. kustomize build: what Flux applies builds, and so does each secrets/ option (sops, vault), listed or not.
 #   2. helm template: the pinned chart renders with the site's values, which also checks them against the
 #      chart's values schema. The chart comes from the HelmRepository url and the HelmRelease version.
 #   3. SOPS: every file .sops.yaml says to encrypt is encrypted, and its data/stringData values are too; and so
@@ -21,6 +21,10 @@ trap 'rm -rf "$TMP"' EXIT
 echo "== kustomize build"
 kustomize build . > "$TMP/built.yaml"
 echo "ok: $(yq ea '[.kind] | length' "$TMP/built.yaml") objects"
+for dir in secrets/*/; do
+  kustomize build "$dir" > /dev/null
+  echo "ok: $dir"
+done
 
 echo "== helm template"
 if [ -n "${CHART_PATH:-}" ]; then

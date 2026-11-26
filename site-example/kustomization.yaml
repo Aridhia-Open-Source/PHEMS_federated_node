@@ -6,7 +6,8 @@ kind: Kustomization
 resources:
   - helmrepository.yaml
   - helmrelease.yaml
-  - first-user-secret.yaml
+  # The site's Secrets: secrets/sops (SOPS-encrypted in this repository) or secrets/vault (External Secrets)
+  - secrets/sops
 # values.yaml as a ConfigMap. Its name carries a hash of the content, and kustomizeconfig.yaml rewrites the
 # HelmRelease's valuesFrom to match, so a values commit changes the HelmRelease and Flux upgrades at once.
 configMapGenerator:
