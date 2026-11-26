@@ -1,0 +1,11 @@
+# Regexes for paths TruffleHog skips (one per line). Each group says why.
+# Generated and vendored files
+^node_modules/
+^charts/
+^\.venv/
+^nexus/ui/package-lock\.json$
+^nexus/ui/src/api/schema\.d\.ts$
+^nexus/api/openapi\.json$
+# Fake credentials in test fixtures
+(^|/)tests?/
+(^|/)integration_tests/

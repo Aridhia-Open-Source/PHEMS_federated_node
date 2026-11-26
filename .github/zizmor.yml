@@ -1,0 +1,6 @@
+# zizmor config (ADR 0044). Every Action must be pinned to a full commit SHA.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "*": hash-pin

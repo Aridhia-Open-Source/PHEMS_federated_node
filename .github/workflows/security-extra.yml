@@ -1,0 +1,74 @@
+name: Security extra
+
+# Scanners MegaLinter does not run (ADR 0044): the Gitleaks history scan and KICS. Report-only.
+
+on:
+  pull_request:
+  push:
+    branches: [main, dagster-develop]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: security-extra-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gitleaks-history:
+    name: Gitleaks (full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      # From gitleaks_8.30.1_checksums.txt; Renovate bumps both
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The binary, not gitleaks-action: the Action needs a licence key for organisation repositories
+      - name: Install Gitleaks
+        run: |
+          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+      # Stage 1: report only (exit code 0). Stage 2: drop --exit-code 0
+      - name: Scan the git history
+        run: ./gitleaks git --config .gitleaks.toml --redact --log-opts="--all" --report-format sarif --report-path gitleaks.sarif --exit-code 0 .
+      - name: Upload the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gitleaks-history
+          path: gitleaks.sarif
+          retention-days: 14
+
+  kics:
+    name: KICS (infrastructure as code)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Image pinned by digest (checkmarx/kics v2.2.1); Renovate bumps it
+      - name: Run KICS
+        run: |
+          docker run --rm -v "$PWD:/src" \
+            checkmarx/kics@sha256:49ccc54b6ae7f5d5fc95e96f8f95c18c57f3bba047ab611a03d80792bdff6757 \
+            scan --config /src/kics.config -p /src -o /src/kics-results --report-formats sarif,json --ignore-on-exit all
+      - name: Upload the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kics
+          path: kics-results
+          retention-days: 14

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "ADR 0044: every version locked to a hash, one bot proposes the bumps",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigestsToSemver", "docker:pinDigests"],
+  "enabledManagers": [
+    "github-actions",
+    "mise",
+    "dockerfile",
+    "docker-compose",
+    "helm-values",
+    "helmv3",
+    "pip-compile",
+    "pep621",
+    "npm"
+  ],
+  "timezone": "Europe/London",
+  "schedule": ["before 8am on monday"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 8,
+  "pip-compile": {
+    "managerFilePatterns": ["/(^|/)requirements[^/]*\\.txt$/"]
+  },
+  "packageRules": [
+    {
+      "description": "One pull request for all Action pins and bumps",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "One pull request for the mise tools; mise.lock is updated with them",
+      "matchManagers": ["mise"],
+      "groupName": "mise tools"
+    },
+    {
+      "description": "The MegaLinter image digest in the workflow",
+      "matchPackageNames": ["ghcr.io/oxsecurity/megalinter-python"],
+      "groupName": "megalinter"
+    },
+    {
+      "description": "Python dependencies of nexus/api, dagster and nexus/operator, one pull request per component",
+      "matchManagers": ["pip-compile", "pep621"],
+      "groupName": "python dependencies ({{packageFileDir}})"
+    },
+    {
+      "description": "UI npm dependencies",
+      "matchManagers": ["npm"],
+      "groupName": "ui npm dependencies"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": ["at any time"]
+  }
+}
