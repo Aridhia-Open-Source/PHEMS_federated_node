@@ -218,6 +218,20 @@ jobs:
       DOCKER_ACR: ${{ vars.DOCKER_CR }}
     secrets:
       DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-nexus-ui-image:
+    needs:
+      - init
+      - tests
+    if: needs.init.outputs.is_tag == 'false'
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
+    with:
+      TAG: ${{ needs.init.outputs.tag }}
+      IMAGE: federated_node_nexus_ui
+      BUILD_PATH: nexus/ui
+      HASH_SUFFIX: false
+      DOCKER_ACR: ${{ vars.DOCKER_CR }}
+    secrets:
+      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build-keycloak-image:
     needs:
       - init
@@ -291,7 +305,7 @@ jobs:
           RC_TAG: ${{ needs.init.outputs.rc_tag }}
           TAG: ${{ needs.init.outputs.tag }}
         run: |
-          for image in nexus_api federated_keycloak alpine keycloak_initializer dagster_fn; do
+          for image in nexus_api federated_node_nexus_ui federated_keycloak alpine keycloak_initializer dagster_fn; do
             repo="${REGISTRY}/${OWNER,,}/${image}"
             docker buildx imagetools create -t "${repo}:${TAG}" "${repo}:${RC_TAG}"
           done
@@ -301,6 +315,7 @@ jobs:
       - init
       - promote
       - build-nexus-api-image
+      - build-nexus-ui-image
       - build-keycloak-image
       - build-alpine-image
       - build-kc-init-image
