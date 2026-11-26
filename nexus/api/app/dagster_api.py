@@ -9,16 +9,21 @@ dagster endpoints:
 
 from functools import lru_cache
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 from fednode.clients.dagster.client import DagsterClient
 
 from app.dtos.sensor import SensorDTO
 from app.settings import settings
+from app.rules.authz import Access, Action
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.helpers.wrappers import require_role
+from app.models.node_role import ADMIN_ROLES
 
 router = APIRouter(prefix='/dagster', tags=["dagster"])
 
 STATUSES = ("RUNNING", "STOPPED")
+# Unchecked: sensors are Dagster's, not records with grants; the admin roles gate starting and stopping them
+ADMIN_UNCHECKED = [Depends(require_role(*ADMIN_ROLES)), Depends(Access(action=Action.UNCHECKED))]
 
 
 @lru_cache
@@ -71,7 +76,7 @@ def get_one_sensor(name: str):
     return dto_of([get_sensor(name)])[0]
 
 
-@router.patch('/sensors', response_model=list[SensorDTO])
+@router.patch('/sensors', response_model=list[SensorDTO], dependencies=ADMIN_UNCHECKED)
 def patch_sensors(body: dict = Body(default_factory=dict)):
     """
     PATCH /dagster/sensors — start or stop every sensor, or only those in `names`.
@@ -91,7 +96,7 @@ def patch_sensors(body: dict = Body(default_factory=dict)):
     return dto_of(dagster().list_sensors())
 
 
-@router.patch('/sensors/{name}', response_model=SensorDTO)
+@router.patch('/sensors/{name}', response_model=SensorDTO, dependencies=ADMIN_UNCHECKED)
 def patch_sensor(name: str, body: dict = Body(default_factory=dict)):
     """
     PATCH /dagster/sensors/<name> — start or stop a single sensor

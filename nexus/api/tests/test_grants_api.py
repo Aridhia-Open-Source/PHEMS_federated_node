@@ -12,12 +12,12 @@ from app.models.grant import Grant
 from app.models.project import Project
 from tests.conftest import claims_for
 
-# token -> the Keycloak user it verifies to, its node role and groups
+# token -> the Keycloak user it verifies to, its node role and groups (None: the role's group only)
 USERS = {
-    "owner_token": ("id-owner", "owner", "Administrator", []),
-    "other_token": ("id-other", "other", "Administrator", []),
-    "member_token": ("id-member", "member", "Administrator", ["/studies/uc1"]),
-    "super_token": ("id-super", "super", "SuperUser", []),
+    "owner_token": ("id-owner", "owner", "Administrator", None),
+    "other_token": ("id-other", "other", "Administrator", None),
+    "member_token": ("id-member", "member", "Administrator", ["/roles/admins", "/studies/uc1"]),
+    "super_token": ("id-super", "super", "SuperUser", None),
 }
 
 
@@ -219,7 +219,7 @@ def test_re_assigning_to_an_unknown_user_is_a_404(client, project_path):
 def test_every_global_record_has_grant_routes(
     client, callers, global_secret, global_dataset, global_trigger_repo, global_results_repo,
 ):
-    """Fixture records are inserted straight through the models, so they have no grants; SuperUser adds one."""
+    """Fixture records are owned by the admin (owned_by_admin), who manages them; SuperUser adds a grant too."""
     paths = [
         f"/global/secrets/{global_secret.label}", f"/global/datasets/{global_dataset.id}",
         f"/global/providers/{global_trigger_repo.provider_id}",
@@ -228,7 +228,7 @@ def test_every_global_record_has_grant_routes(
     ]
     for path in paths:
         assert add(client, path, "super_token", grant()).status_code == 201, path
-        assert listed(client, path) == {("read", "user", "id-other")}, path
+        assert ("read", "user", "id-other") in listed(client, path), path
 
 
 def test_a_missing_record_is_a_404(client, callers):

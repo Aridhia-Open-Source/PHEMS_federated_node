@@ -6,12 +6,14 @@ Getting and keeping a token. These need no token, so they are in OPEN_ROUTERS:
 """
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body, Form, Request
+from fastapi import APIRouter, Body, Depends, Form, Request
 
 from app.helpers.exceptions import AuthenticationError, InvalidRequest
 from app.clients.keycloak import Keycloak, user_tokens
+from app.rules.authz import Access, Action
 
-router = APIRouter(tags=["auth"])
+# Unchecked: getting a token, or a new user swapping their temporary password, before there is a caller
+router = APIRouter(tags=["auth"], dependencies=[Depends(Access(action=Action.UNCHECKED))])
 
 
 @router.post("/login")
