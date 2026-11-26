@@ -1,0 +1,43 @@
+// Entity types, attributes and actions for nexus-api's access checks (ADR 0037).
+// app/rules/authz.py builds every request against this schema.
+
+// A caller: its node role (Keycloak realm role) and its Keycloak groups are its parents.
+entity Role;
+entity Group;
+entity User in [Role, Group];
+
+// The container of global records; Global::"0" is the only one. Not a table.
+entity Global;
+
+// Projects are created under Global but are not its children.
+entity Project;
+entity Dataset in [Global] {
+  revoked: Bool,
+};
+entity GitProvider in [Global];
+entity Secret in [Global];
+entity TriggerRepository in [Global];
+entity ResultsRepository in [Global];
+
+// The caller's unexpired grants on the record, as the latest expiry per relation in epoch seconds.
+// A grant with no expiry is a far-future value. A relation the caller does not hold is left out.
+type Grants = {
+  read?: Long,
+  assign?: Long,
+  execute?: Long,
+  operate?: Long,
+  write?: Long,
+  manage?: Long,
+};
+
+type Context = {
+  // The time of the check, epoch seconds
+  now: Long,
+  grants: Grants,
+};
+
+action read, write, execute, assign, operate, manage appliesTo {
+  principal: [User],
+  resource: [Global, Project, Dataset, GitProvider, Secret, TriggerRepository, ResultsRepository],
+  context: Context,
+};

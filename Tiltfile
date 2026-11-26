@@ -66,6 +66,7 @@ custom_build_with_restart(
     'nexus/api/requirements.txt',
     'nexus/api/alembic.ini',
     'nexus/api/migrations',
+    'nexus/api/authz',
     'nexus/api/Dockerfile',
     'nexus/api/.dockerignore',
     'nexus/fednode',
@@ -88,6 +89,8 @@ custom_build_with_restart(
       'nexus/api/requirements.txt',
       'nexus/api/alembic.ini',
       'nexus/api/migrations',
+      # Cedar policies are read once at startup
+      'nexus/api/authz',
       'nexus/fednode/pyproject.toml',
     ]),
     # Python code changes => sync into the running container
