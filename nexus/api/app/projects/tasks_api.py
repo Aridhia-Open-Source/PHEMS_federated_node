@@ -27,7 +27,6 @@ from fastapi.responses import PlainTextResponse
 from app.database.base_model import db
 from app.tasks.limits import TASK_CAUSE_MAX_LENGTH
 from app.helpers import exceptions
-from app.clients.keycloak import Keycloak  # noqa: F401  patched by tests/conftest.py
 from app.rules.ownership import does_user_own_task
 from app.rules.project_state import require_accepts_tasks
 from app.clients.kubernetes_names import validate_dns_label
@@ -252,7 +251,7 @@ def post_tasks(
         # against, if any, is the one the task runs on.
         spec = TaskSpecRequest.from_api_body(req_body)
         req_body["docker_image"] = spec.image
-        validated = Task.validate(req_body, caller.token)
+        validated = Task.validate(req_body, caller.user_id)
         spec.dataset = validated["dataset"].name if validated["dataset"] else None
         new_task = task_dtos.NewTaskDTO.from_spec(spec, api_request)
     except VALIDATION_ERRORS as error:
@@ -284,7 +283,7 @@ def post_tasks_validate(project_id: int, req_body: dict = Body(default_factory=d
     req_body["project_id"] = project_id
     spec = TaskSpecRequest.from_api_body(req_body)
     req_body["docker_image"] = spec.image
-    Task.validate(req_body, caller.token)
+    Task.validate(req_body, caller.user_id)
     return "Ok"
 
 

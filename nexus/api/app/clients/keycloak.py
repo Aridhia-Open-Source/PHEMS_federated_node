@@ -9,7 +9,7 @@ from fednode.clients.keycloak.admin import KeycloakAdmin
 from fednode.clients.keycloak.login import KeycloakLogin
 
 from app.settings import settings
-from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
+from app.helpers.exceptions import AuthenticationError, KeycloakError
 
 logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)
@@ -19,17 +19,12 @@ PASS_GENERATOR_SET = string.ascii_letters + string.digits + "!$@#.-_"
 KEYCLOAK_URL = settings.services.keycloak.url
 REALM = settings.services.keycloak.realm
 KEYCLOAK_CLIENT = settings.services.keycloak.client
-KEYCLOAK_ALLOWED_CLIENTS = frozenset(
-    client.strip()
-    for client in (settings.services.keycloak.allowed_clients or KEYCLOAK_CLIENT or "").split(",")
-    if client.strip()
-)
 # `admin` is the operator's Keycloak console account. It is kept here only so the user list can
 # filter it out -- nothing authenticates as it. Its password is operator-owned and may change at
 # any time, so relying on it would make the backend break whenever an operator rotated it.
 KEYCLOAK_ADMIN = settings.services.keycloak.admin
-# The platform's service account. Holds Super Administrator in the FederatedNode realm, which is
-# exactly what the `admin` realm user used to hold, so the permissions are unchanged.
+# The platform's service account. Holds realm-management's realm-admin in the node's realm and no
+# node role (ADR 0036): it manages Keycloak users and groups and never calls nexus-api.
 KEYCLOAK_SERVICE_USER = settings.services.keycloak.service_user
 
 
@@ -106,9 +101,26 @@ def _store_token(cache_key: tuple, token: str):
         }
 
 
+def user_tokens(**grant) -> dict:
+    """
+    A password or refresh_token grant for the global client, without the admin calls Keycloak() makes:
+    {"token": <access token>, "refresh_token": ...}. Clients send the access token (ADR 0035).
+    """
+    response = KeycloakLogin(KEYCLOAK_URL, REALM).token(
+        {"client_id": KEYCLOAK_CLIENT, "client_secret": keycloak_secret(), **grant}
+    )
+    if not response.ok:
+        logger.info(response.text)
+        if re.match("Account is not fully set up", response.json().get("error_description", "")):
+            raise AuthenticationError("Temporary password must be changed before logging in")
+        raise AuthenticationError("Failed to login")
+    body = response.json()
+    return {"token": body["access_token"], "refresh_token": body["refresh_token"]}
+
+
 class Keycloak:
     """
-    The platform's Keycloak rules: users, roles, projects' clients, permissions and what a refused answer means. The
+    The platform's Keycloak rules: users and roles, and what a refused answer means. The
     calls are fednode's (`KeycloakLogin` for tokens, `KeycloakAdmin` for the admin API, ADR 0039); an answer that is
     not ok is turned into this API's errors here.
     """
@@ -119,49 +131,6 @@ class Keycloak:
         self.admin = KeycloakAdmin(KEYCLOAK_URL, REALM, self.admin_token)
         self.client_id = self.get_client_id()
         self.client_secret = self._get_client_secret()
-
-    @classmethod
-    def get_token_from_headers(cls, headers) -> str:
-        """
-        Public method for generalize the token fetching from an HTTP header
-        """
-        return headers['Authorization'].replace('Bearer ', '')
-
-    def exchange_global_token(self, token:str, type:str="access_token") -> str:
-        """
-        Token exchange across clients. From global to the instanced one
-        """
-        ac_resp = self.login.refresh_grant(KEYCLOAK_CLIENT, keycloak_secret(), token)
-        if not ac_resp.ok:
-            logger.error(ac_resp.text)
-            raise KeycloakError("Cannot get an access token")
-        access_token = ac_resp.json()["access_token"]
-
-        exchange_resp = self.login.exchange_grant(
-            KEYCLOAK_CLIENT, keycloak_secret(), access_token, self.client_name, "access_token"
-        )
-        if not exchange_resp.ok:
-            logger.error(exchange_resp.text)
-            raise KeycloakError("Cannot exchange token")
-        return exchange_resp.json()[type]
-
-    def get_impersonation_token(self, user_id:str) -> str:
-        """
-        Method to request a token on behalf of another user
-        : user_id : The keycloak user's id to impersonate
-        """
-        exchange_resp = self.login.exchange_grant(
-            KEYCLOAK_CLIENT,  # Target client
-            keycloak_secret(),  # Target client
-            self.get_admin_token_global(),
-            KEYCLOAK_CLIENT,
-            "refresh_token",
-            requested_subject=user_id
-        )
-        if not exchange_resp.ok:
-            logger.info(exchange_resp.content.decode())
-            raise KeycloakError("Cannot exchange impersonation token")
-        return exchange_resp.json()["refresh_token"]
 
     def check_if_keycloak_resp_executable(self, response) -> bool:
         """
@@ -216,16 +185,6 @@ class Keycloak:
             raise AuthenticationError("Failed to login")
         return response_auth.json()[token_type]
 
-    def is_user_admin(self, token:str) -> bool:
-        """
-        Given a token checks if the owner is an Admin or SuperAdmin
-        """
-        response_auth = self.login.introspect(self.client_name, self.client_secret, token)
-        if not response_auth.ok:
-            logger.info(response_auth.content.decode())
-            raise AuthenticationError("Failed to login")
-        return "Administrator" in response_auth.json()["realm_access"]["roles"]
-
     def _service_login(self, cache_name: str, client_id: str, client_secret=None) -> str:
         """
         Authenticate as the service account, tolerating a credential rotation in progress.
@@ -267,54 +226,11 @@ class Keycloak:
                     time.sleep(SERVICE_LOGIN_BACKOFF)
         raise last_error
 
-    def get_admin_token_global(self) -> str:
-        """
-        Get administrative level token
-        """
-        logger.info("get_admin_token_global")
-        return self._service_login("global", KEYCLOAK_CLIENT, keycloak_secret)
-
     def get_admin_token(self) -> str:
         """
         Get administrative level token
         """
         return self._service_login("admin-cli", 'admin-cli')
-
-    def is_token_valid(self, token:str, scope:str, resource:str, tok_type='refresh_token', with_permissions:bool=True) -> bool:
-        """
-        Ping KC to check if the token is valid or not
-        """
-        is_access_token = tok_type == 'access_token'
-        if is_access_token:
-            response_auth = self.login.introspect(self.client_name, self.client_secret, token)
-            if not response_auth.ok:
-                return False
-            token_info = response_auth.json()
-            if not token_info.get("active") or token_info.get("azp") not in KEYCLOAK_ALLOWED_CLIENTS:
-                return False
-        else:
-            response_auth = self.login.refresh_grant(self.client_name, self.client_secret, token)
-
-        # FIXME: Temporary workaround for system users
-        if with_permissions and not self.is_system_user(token):
-            return response_auth.ok and self.check_permissions(token, scope, resource, is_access_token)
-
-        return response_auth.ok
-
-    def is_system_user(self, token: str) -> bool:
-        token_dict = self.decode_token(token)
-        roles = token_dict.get("realm_access", {}).get("roles", [])
-        return 'system' in [r.lower() for r in roles]
-
-    def decode_token(self, token: str) -> dict:
-        """
-        Simple token decode, mostly to fetch user general info or exp date
-        """
-        token = self._access_from_refresh(token)
-        response_validate = self.login.introspect(self.client_name, self.client_secret, token)
-        if response_validate.json().get('active'):
-            return response_validate.json()
-        raise AuthenticationError("Token expired. Validation failed")
 
     def get_client_id(self, client_name=None) -> str:
         """
@@ -332,27 +248,6 @@ class Keycloak:
             raise KeycloakError("Could not find project", 400)
 
         return client_id_resp.json()[0]["id"]
-
-    def _access_from_refresh(self, token:str) -> str:
-        """
-        Simply exchanges the refresh token for an access token
-        """
-        logger.info("%s) get_token", self.client_name)
-        return self._token_from(
-            self.login.refresh_grant(self.client_name, self.client_secret, token), 'access_token'
-        )
-
-    def check_permissions(self, token:str, scope:str, resource:str, is_access_token=False) -> bool:
-        if not is_access_token:
-            token = self._access_from_refresh(token)
-
-        request_perm = self.login.permission_decision(
-            token, self.client_name, f"{self.get_resource(resource)["_id"]}#{scope}"
-        )
-        if not request_perm.ok:
-            logger.info(request_perm.content.decode())
-            raise UnauthorizedError("User is not authorized")
-        return True
 
     def get_role(self, role_name:str) -> dict[str, str]:
         """
@@ -372,177 +267,6 @@ class Keycloak:
             case _:
                 logger.info(realm_resp.content.decode())
                 raise KeycloakError("Failed to fetch roles")
-
-    def get_resource(self, resource_name:str) -> dict:
-        response_res = self.admin.resources(self.client_id, name=resource_name)
-        if not response_res.ok:
-            logger.info(response_res.content.decode())
-            raise KeycloakError("Failed to fetch the resource")
-        if len(response_res.json()) > 0:
-            return response_res.json()[0]
-
-        raise KeycloakError("Failed to fetch the resource")
-
-    def patch_resource(self, resource_name:str, **kwargs) -> dict:
-        """
-        Given a resource name submits a PUT request by using the
-        current resource body merged with what's been passed trough
-        kwargs.
-        Most likely we're interested in:
-            - name
-            - displayName
-        as values to be merged and patched into the current resource
-        """
-        resource = self.get_resource(resource_name)
-        resource.update(kwargs)
-
-        response_res = self.admin.update_resource(self.client_id, resource["_id"], resource)
-        if not response_res.ok:
-            logger.info(response_res.content.decode())
-            raise KeycloakError("Failed to patch the resource")
-
-    def get_policy(self, name:str) -> dict:
-        """
-        Given a name and (optional) reosource (global or dataset specific)
-        return a policy dict
-        """
-        policy_response = self.admin.policies(self.client_id, name=name, permission=False)
-        if not policy_response.ok:
-            logger.info(policy_response.content.decode())
-            raise KeycloakError("Error when fetching the policies from Keycloak")
-
-        return policy_response.json()[0]
-
-    def get_scope(self, name:str) -> dict:
-        """
-        Given a name and (optional) reosource (global or dataset specific)
-        return a policy dict
-        """
-        scope_response = self.admin.scopes(self.client_id, permission=False, name=name)
-        if not scope_response.ok:
-            logger.info(scope_response.content.decode())
-            raise KeycloakError("Error when fetching the scopes from Keycloak")
-
-        return scope_response.json()[0]
-
-    def delete_resource(self, resource_name:str):
-        """
-        Given a resource name, delete the resource from Keycloak
-        """
-        # TODO: not implemented yet
-        raise NotImplementedError("TODO: delete a Keycloak resource")
-
-    def delete_permission(self, permission_name:str):
-        """
-        Given a permission name, delete the permission from Keycloak
-        """
-        # TODO: not implemented yet
-        raise NotImplementedError("TODO: delete a Keycloak permission")
-
-    def delete_policy(self, name:str):
-        """
-        Given a policy name, delete the policy from Keycloak
-        """
-        # TODO: not implemented yet
-        raise NotImplementedError("TODO: delete a Keycloak policy")
-
-    def create_client(self, client_name:str, token_lifetime:int) -> dict:
-        """
-        Create a new client for a given project. If it exist already,
-            return that one
-        : token_lifetime : time in seconds for the
-        """
-        client_post_rest = self.admin.create_client({
-            "clientId": client_name,
-            "authorizationServicesEnabled": True,
-            "directAccessGrantsEnabled": True,
-            "serviceAccountsEnabled": True,
-            "publicClient": False,
-            "redirectUris": ["/"],
-            "attributes": {
-                "client.offline.session.max.lifespan": token_lifetime
-            }
-        })
-
-        # Client exists. Return that one
-        if not client_post_rest.ok and client_post_rest.status_code != 409:
-            logger.info(client_post_rest.content.decode())
-            raise KeycloakError("Failed to create a project")
-
-        update_req = self.admin.update_resource_server(
-            self.get_client_id(client_name), {"decisionStrategy": "AFFIRMATIVE"}
-        )
-        if not update_req.ok:
-            logger.info(update_req.content.decode())
-            raise KeycloakError("Failed to create a project")
-
-        return self.get_client_id(client_name)
-
-    def create_scope(self, scope_name) -> dict:
-        """
-        Create a custom scope for the instanced client
-        """
-        scope_post_rest = self.admin.create_scope(self.client_id, {"name": scope_name})
-        if scope_post_rest.status_code == 409:
-            return self.get_scope(scope_name)
-        elif not scope_post_rest.ok:
-            logger.info(scope_post_rest.content.decode())
-            raise KeycloakError("Failed to create a project's scope")
-
-        return scope_post_rest.json()
-
-    def create_policy(self, payload:dict, policy_type:str) -> dict:
-        """
-        Creates a custom policy for a resource
-        """
-        policy_response = self.admin.create_policy(self.client_id, policy_type, payload)
-        # If it exists already
-        if policy_response.status_code == 409:
-            return self.get_policy(payload["name"])
-        elif not policy_response.ok:
-            logger.info(policy_response.content.decode())
-            raise KeycloakError("Failed to create a project's policy")
-
-        return policy_response.json()
-
-    def create_or_update_time_policy(self, payload:dict, policy_type:str) -> dict:
-        """
-        Time policies need a separate treatement. This is the only policy that we will
-        allow to be updated, in cases of token renewals via DAR
-        """
-        current_policy = self.create_policy(payload, policy_type)
-        # Only update the time policy. If it's a brand new, it will return
-        # the payload as response, otherwise the "config" field will be there
-        if current_policy.get("config"):
-            current_policy["config"]["noa"] = payload['notOnOrAfter']
-            current_policy["config"]["nbf"] = payload['notBefore']
-            policy_response = self.admin.update_policy(self.client_id, current_policy["id"], current_policy)
-            if not policy_response.ok:
-                logger.info(policy_response.content.decode())
-                raise KeycloakError("Failed to create a project's policy")
-
-        return current_policy
-
-    def create_resource(self, payload:dict, client_name='global') -> dict:
-        payload["owner"] = {
-            "id": self.client_id, "name": client_name
-        }
-        resource_response = self.admin.create_resource(self.client_id, payload)
-        if resource_response.status_code == 409:
-            return self.get_resource(payload["name"])
-        elif not resource_response.ok:
-            logger.info(resource_response.content.decode())
-            raise KeycloakError("Failed to create a project's resource")
-
-        return resource_response.json()
-
-    def create_permission(self, payload:dict) -> dict:
-        permission_response = self.admin.create_permission(self.client_id, payload)
-        if not self.check_if_keycloak_resp_executable(permission_response):
-            logger.info(permission_response.content.decode())
-            raise KeycloakError("Failed to create a project's permission")
-
-        return permission_response.json()
 
     ### USERS' section
     def create_user(self, set_temp_pass=False, **kwargs) -> dict:
@@ -676,54 +400,3 @@ class Keycloak:
             logging.error(res_pass_resp.json())
             raise KeycloakError("Could not update the password.")
 
-    def enable_token_exchange(self):
-        """
-        Method to automate the setup for this client to
-        allow token exchange on behalf of a user for admin-level
-        """
-        client_permission_resp = self.admin.set_client_permissions(self.client_id, {"enabled": True})
-        if not client_permission_resp.ok:
-            raise KeycloakError("Failed to set exchange permissions")
-
-        rm_client_id = self.get_client_id('realm-management')
-        global_client_id = self.get_client_id('global')
-
-        # Fetching the token exchange scope
-        client_te_scope_resp = self.admin.scopes(rm_client_id, permission=False, name="token-exchange")
-        if not client_te_scope_resp.ok:
-            raise KeycloakError("Error on keycloak")
-
-        token_exch_scope = client_te_scope_resp.json()[0]["id"]
-        resource_scope_resp = self.admin.resources(rm_client_id, name=f"client.resource.{self.client_id}")
-        resource_id = resource_scope_resp.json()[0]["_id"]
-
-        # Create a custom client exchange policy
-        global_client_policy_resp = self.admin.create_policy(rm_client_id, "/client", {
-            "name": f"token-exchange-{self.client_name}",
-            "logic": "POSITIVE",
-            "clients": [global_client_id, self.client_id]
-        })
-        if global_client_policy_resp.status_code == 409:
-            global_policy_id = self.admin.policies(
-                rm_client_id, "/client", name=f"token-exchange-{self.client_name}"
-            ).json()[0]["id"]
-        elif not global_client_policy_resp.ok:
-            logger.error(global_client_policy_resp.json())
-            raise KeycloakError("Something went wrong in creating the set of permissions on Keycloak")
-        else:
-            global_policy_id = global_client_policy_resp.json()["id"]
-
-        token_exch_name = f"token-exchange.permission.client.{self.client_id}"
-        token_exch_permission_resp = self.admin.permissions(rm_client_id, name=token_exch_name)
-        token_exch_permission_id = token_exch_permission_resp.json()[0]["id"]
-        # Updating the permission
-        client_permission_resp = self.admin.update_permission(rm_client_id, token_exch_permission_id, {
-            "name": token_exch_name,
-            "logic": "POSITIVE",
-            "decisionStrategy": "UNANIMOUS",
-            "resources": [resource_id],
-            "policies": [global_policy_id],
-            "scopes": [token_exch_scope]
-        })
-        if not client_permission_resp.ok:
-            raise KeycloakError("Failed to update the exchange permission")

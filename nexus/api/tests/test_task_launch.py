@@ -169,13 +169,11 @@ def test_the_system_user_may_launch_and_fail(client, system_headers, admin_heade
     assert stored(full_task.id)[0] == "FAILED"
 
 
-def test_a_caller_without_the_scope_is_refused_and_nothing_changes(
-        client, mock_kc_client, post_json_user_header, admin_headers, system_headers, project, full_task, resources):
-    """The router scope is can_do_admin; Keycloak refuses a caller whose roles lack it."""
+def test_a_caller_without_the_role_is_refused_and_nothing_changes(
+        client, post_json_user_header, admin_headers, system_headers, project, full_task, resources):
+    """The admin routers refuse the Users role."""
     patch(client, admin_headers, resources["dataset"][0], revoked=True)
     before = stored(full_task.id)
-    keycloak = mock_kc_client["wrappers_kc"].return_value
-    keycloak.is_token_valid.side_effect = lambda token, scope, *a, **k: token in ("admin_token", "system_token")
 
     assert launch(client, post_json_user_header, project, full_task).status_code == 403
     assert stored(full_task.id) == before

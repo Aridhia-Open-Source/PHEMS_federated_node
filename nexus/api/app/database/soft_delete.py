@@ -16,8 +16,6 @@ from sqlalchemy.orm import Session, with_loader_criteria
 
 from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest
-from app.rules.ownership import require_members
-from app.helpers.wrappers import Caller
 
 
 class SoftDeleteMixin:
@@ -30,29 +28,22 @@ class SoftDeleteMixin:
             self.revoked = True
 
 
-def delete_global(resource, project_resources: list, force: bool, caller: Caller) -> None:
+def delete_global(resource, project_resources: list, force: bool) -> None:
     """
     Soft deletes a global resource (a dataset or a repository). While projects have it assigned that is a
     409 naming them, unless the request has ?force=true, which soft deletes every project's resource for it too.
-    A project resource owned by a group the caller is not in is a 409 naming its project, and nothing is deleted.
     """
     if project_resources and not force:
         error = InvalidRequest(
             f"{resource!r} is assigned to {len(project_resources)} project(s): delete with ?force=true to unassign them",
             HTTPStatus.CONFLICT,
         )
-        error.extra_fields = [describe_project(project_resource) for project_resource in project_resources]
+        error.extra_fields = [{"id": project_resource.project.id, "name": project_resource.project.name} for project_resource in project_resources]
         raise error
-    require_members(project_resources, caller, describe_project)
     for project_resource in project_resources:
         project_resource.soft_delete()
     resource.soft_delete()
     db.session.commit()
-
-
-def describe_project(project_resource) -> dict:
-    """A project resource in an error, by its project."""
-    return {"id": project_resource.project.id, "name": project_resource.project.name}
 
 
 @event.listens_for(Session, "do_orm_execute")
