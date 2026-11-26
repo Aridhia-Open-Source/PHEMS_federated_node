@@ -1,0 +1,14 @@
+# Grype config (ADR 0044). Report only in stage 1: MegaLinter's DISABLE_ERRORS keeps the job green.
+only-fixed: false
+# Stage 2 (gate): only-fixed: true and fail-on-severity: high
+fail-on-severity: high
+exclude:
+  - "**/node_modules/**"
+  - "./charts/**"
+  - "**/.venv/**"
+  - "./megalinter-reports/**"
+# Accepted findings. Grype has no expiry field: put the review date in the reason.
+ignore: []
+#  - vulnerability: CVE-0000-00000   # example only
+#    package: {name: example, type: python}
+#    reason: "Not reachable. Review by 2027-02-26."

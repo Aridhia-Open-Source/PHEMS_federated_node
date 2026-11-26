@@ -1,0 +1,5 @@
+# Bandit config (ADR 0044), ini form read with --ini. Report only in stage 1.
+[bandit]
+exclude = ./node_modules,./.venv,./charts,./nexus/ui
+# Skips need a reason each, e.g. "B101: assert in tests". None yet.
+skips =

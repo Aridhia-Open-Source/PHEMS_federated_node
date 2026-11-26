@@ -1,0 +1,8 @@
+# Accepted Trivy findings. Every entry needs a statement (why) and expired_at (when to look again);
+# after that date the finding is reported again. The entry below is an example, not a real finding.
+vulnerabilities:
+  - id: CVE-0000-00000
+    paths:
+      - nexus/api/requirements.txt
+    statement: "Example only. Real entries say why the code path is not reachable and who checked."
+    expired_at: 2027-02-26

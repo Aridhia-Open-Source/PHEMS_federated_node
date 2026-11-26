@@ -18,6 +18,13 @@ sops = "3.13.3"
 age = "1.3.2"
 # scripts/devcontainer_check.sh: builds and starts the dev container without VS Code
 "npm:@devcontainers/cli" = "0.90.0"
+# Security and pinning tools (ADR 0044); versions locked with checksums in mise.lock
+pinact = "5.0.2"
+zizmor = "1.33.1"
+actionlint = "1.7.12"
+gitleaks = "8.30.1"
+trivy = "0.76.2"
+osv-scanner = "2.7.1"
 
 [env]
 # .generated.env (scripts/configure.sh --proxy / --ca-cert) first, so .dev.env wins

@@ -1,0 +1,12 @@
+# Trivy config (ADR 0044). MegaLinter's REPOSITORY_TRIVY reads it from the repo root.
+scan:
+  scanners: [vuln, misconfig, secret]
+  skip-dirs: [node_modules, charts, .venv, megalinter-reports]
+  skip-files: [nexus/api/openapi.json, nexus/ui/src/api/schema.d.ts]
+# Stage 1 (report only): everything, nothing fails.
+# Stage 2 (gate): severity [HIGH, CRITICAL], vulnerability.ignore-unfixed: true, exit-code: 1.
+severity: [UNKNOWN, LOW, MEDIUM, HIGH, CRITICAL]
+vulnerability:
+  ignore-unfixed: false
+exit-code: 0
+ignorefile: .trivyignore.yaml

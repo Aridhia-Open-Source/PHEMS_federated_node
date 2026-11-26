@@ -1,0 +1,20 @@
+# Gitleaks / Betterleaks config (ADR 0044). Both read this file.
+title = "PHEMS federated node"
+
+[extend]
+useDefault = true
+
+# Each allowlist says why. Findings in these paths are fake values used by tests.
+[[allowlists]]
+description = "Fake credentials in unit-test fixtures"
+paths = [
+  '''(^|/)tests?/''',
+  '''(^|/)integration_tests/''',
+]
+
+[[allowlists]]
+description = "Dev-only example values; real values are Kubernetes Secrets (AGENTS.md)"
+paths = [
+  '''\.dev\.env\.example$''',
+  '''dev\.example\.values\.ya?ml$''',
+]
