@@ -364,7 +364,7 @@
           "projects"
         ],
         "summary": "Delete Project",
-        "description": "DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes\nevery project resource under it: datasets, secrets, results repository and trigger repositories. A 409 names\nthe project resources owned by a group the caller is not in, and nothing is deleted. Its tasks\nand triggers stay. Secrets, datasets and results repositories belong to no project: they, and\ntheir stored values, are left alone.",
+        "description": "DELETE /projects/<project_id> endpoint. Soft deletes the project and revokes and deletes\nevery project resource under it: datasets, secrets, results repository and trigger repositories. Its tasks\nand triggers stay. Secrets, datasets and results repositories belong to no project: they, and\ntheir stored values, are left alone.",
         "operationId": "delete_project_projects__project_id__delete",
         "parameters": [
           {
@@ -3078,7 +3078,7 @@
           "trigger_repositories"
         ],
         "summary": "Post Pull Requests Batch",
-        "description": "POST /global/repositories/triggers/<id>/pull_requests \u2014 store up to 100 pull requests of the\nrepository and create their triggers for every active assignment. Idempotent: a number\nalready stored is left as it is. Refused for a disabled or revoked repository (or one on such a provider), which stores nothing.\nResponds with the numbers stored and those already there.\nBody: {\"pull_requests\": [pull requests, see PullRequestRequest]}",
+        "description": "POST /global/repositories/triggers/<id>/pull_requests \u2014 store up to 100 pull requests of the\nrepository and create their triggers for every active assignment. Idempotent: a number\nalready stored is left as it is. Refused for a disabled or revoked repository (or one on such a provider), which stores nothing.\nResponds with the numbers stored and those already there.\nBody: {\"pull_requests\": [pull requests, see trigger_repository.PullRequestRequest]}",
         "operationId": "post_pull_requests_batch_global_repositories_triggers__repo_id__pull_requests_post",
         "parameters": [
           {
