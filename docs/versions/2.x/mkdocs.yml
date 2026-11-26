@@ -55,6 +55,7 @@ validation:
 
 hooks:
   - ../../hooks/wiki_links.py
+  - ../../hooks/postman.py
 
 nav:
   - Home: Home.md

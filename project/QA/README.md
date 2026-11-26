@@ -98,7 +98,18 @@ Rules for the notes you keep:
 
 ## Making HTTP calls
 
-Postman, logged in as the administrator, with every nexus-api route ready to send:
+Postman, logged in as the administrator, with every nexus-api route ready to send.
+
+On a deployed node such as QC, import the published collection. Each branch's docs carry the collection for that branch's API, for example on `dagster-develop`:
+
+1. In Postman, Import > Link, and import both:
+   - `https://aridhia-open-source.github.io/PHEMS_federated_node/docs/beta/develop/2.x/api/fn.postman_collection.json`
+   - `https://aridhia-open-source.github.io/PHEMS_federated_node/docs/beta/develop/2.x/api/fn.postman_environment.json`
+2. Select the environment **Federated Node** and fill in `baseUrl` (nexus-api's URL), `username` and `password`.
+
+For another branch, swap `beta/develop` for the branch name with `/` written as `-` (`beta/main` for `dagster-main`). The API reference page of the docs links the same files.
+
+On the dev cluster, `mise run postman` fills the environment for you:
 
 1. On the dev cluster, skip this step: the administrator login comes from the first Keycloak user's Secret, and nexus-api from the port-forward on `localhost:5000`. On any other node, write `.postman.env` in the repo root (gitignored) with `baseUrl=` (nexus-api's URL), `username=` and `password=`.
 2. `mise run postman`. It writes `project/QA/postman/fn.local.postman_environment.json` and `fn.local.postman_collection.json` (both gitignored; the environment holds the password).
