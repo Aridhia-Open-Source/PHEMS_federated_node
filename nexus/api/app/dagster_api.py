@@ -13,7 +13,7 @@ from fastapi import APIRouter, Body
 from fednode.clients.dagster.client import DagsterClient
 
 from app.dtos.sensor import SensorDTO
-from app.helpers.dagster import list_sensors, set_sensor_status
+from app.settings import settings
 from app.rules.authz import ADMIN_UNCHECKED, DAGSTER_READ_UNCHECKED
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 
