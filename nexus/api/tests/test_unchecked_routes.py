@@ -3,12 +3,15 @@ Deny by default (ADR 0037): every route declares an Access check, and create_app
 with an unchecked route that has no role gate of its own. The routes that skip the record check are listed here, so
 a new one shows up in review.
 """
+import inspect
+
 import pytest
 from fastapi import APIRouter, Depends
 
 import app as app_module
 from app import create_app, routers
 from app.rules.authz import ADMIN_UNCHECKED, Access, Action, Global, api_routes, routes_without_access
+from app.models.node_role import ADMIN_ROLES, NodeRole
 from app.models.dataset import Dataset
 
 # Routes with Access(action=UNCHECKED), and why
@@ -19,7 +22,7 @@ UNCHECKED_ROUTES = {
     "PUT /global/users/reset-password",
     # Keycloak accounts, not records; admin roles only
     "GET /global/users", "POST /global/users",
-    # Dagster's sensors, not records; admin roles only
+    # Dagster's sensors, not records; reads allow Dagster and admin roles, writes allow admin roles only
     "GET /dagster/sensors", "GET /dagster/sensors/{name}", "PATCH /dagster/sensors", "PATCH /dagster/sensors/{name}",
     # every global record's health at once; admin roles only
     "GET /global/healthcheck",
@@ -51,6 +54,18 @@ def test_the_unchecked_routes_are_the_known_ones():
         for method in route.methods if method in ("GET", "POST", "PUT", "PATCH", "DELETE")
     }
     assert routes == UNCHECKED_ROUTES
+
+
+def test_dagster_sensor_reads_allow_the_dagster_role():
+    from app.rules.authz import DAGSTER_READ_UNCHECKED
+
+    role_gate = next(
+        dependency.dependency for dependency in DAGSTER_READ_UNCHECKED
+        if getattr(dependency.dependency, "__name__", "") == "_require_role"
+    )
+    roles = set(inspect.getclosurevars(role_gate).nonlocals["roles"])
+
+    assert roles == set(ADMIN_ROLES) | {NodeRole.DAGSTER}
 
 
 def test_a_write_route_without_access_stops_the_app(mocker):

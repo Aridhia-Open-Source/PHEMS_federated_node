@@ -215,6 +215,7 @@
       ],
       "defaultClientScopes": [
         "web-origins",
+        "basic",
         "acr",
         "roles",
         "profile",

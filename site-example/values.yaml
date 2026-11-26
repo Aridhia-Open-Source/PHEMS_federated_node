@@ -84,12 +84,27 @@ dagster:
   postgresql:
     postgresqlHost: *dbHost
 
-# Hosts the site repository Flux pulls from
+# Gitea is bootstrapped independently for the local demo. Production sites normally use an external provider.
 gitea:
-  enabled: true
+  enabled: false
   admin:
     user: gitea_admin
     email: admin@example.com
     secret:
       name: gitea-admin
       key: password
+
+# The break-glass superuser (ADR 0036): its Secret, keycloak-superuser in the keycloak namespace, is in
+# secrets/sops like the first user's.
+superuserSecret:
+  name: keycloak-superuser
+  userKey: USERNAME
+  passKey: PASSWORD
+
+# The nexus operator (ADR 0032), in fn-operator (namespaces.yaml), also watching experiments, where
+# `fncli experiment` puts its dataset resources.
+operator:
+  enabled: true
+  image: localhost:5001/nexus-operator-fn
+  tag: *devTag
+  watchNamespaces: [experiments]
