@@ -5075,17 +5075,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5105,8 +5094,7 @@
           "updated_at",
           "slug",
           "url",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "DatasetDTO"
       },
@@ -5204,17 +5192,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5228,8 +5205,7 @@
           "revoked",
           "created_at",
           "updated_at",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "GitProviderDTO"
       },
@@ -5908,17 +5884,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5931,8 +5896,7 @@
           "default_dataset_id",
           "created_at",
           "updated_at",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "ProjectDTO"
       },
@@ -5966,17 +5930,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -5986,8 +5939,7 @@
           "enabled",
           "revoked",
           "active",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "ProjectDatasetDTO",
         "description": "A project's resource for a global dataset, the dataset nested. Addressed by the dataset's id."
@@ -6146,17 +6098,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6169,8 +6110,7 @@
           "enabled",
           "revoked",
           "active",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "ProjectResultsRepositoryDTO",
         "description": "A project's resource for a global results repository, the repository nested. Addressed by the repository's id."
@@ -6348,17 +6288,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6368,8 +6297,7 @@
           "enabled",
           "revoked",
           "active",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "ProjectSecretDTO",
         "description": "A project's resource for a global secret, the reference nested. Addressed by the secret's label. Never carries values."
@@ -6463,17 +6391,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -6488,8 +6405,7 @@
           "enabled",
           "revoked",
           "active",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "ProjectTriggerRepositoryDTO",
         "description": "A project's resource for a global trigger repository, the repository nested. Addressed by the repository's id."
@@ -7119,17 +7035,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7141,8 +7046,7 @@
           "secret",
           "enabled",
           "revoked",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "ResultsRepositoryDTO"
       },
@@ -7248,17 +7152,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7272,8 +7165,7 @@
           "enabled",
           "created_at",
           "updated_at",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "SecretDTO"
       },
@@ -7913,17 +7805,6 @@
                 "type": "null"
               }
             ]
-          },
-          "owner_group": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner Group"
           }
         },
         "type": "object",
@@ -7936,8 +7817,7 @@
           "enabled",
           "revoked",
           "pr_cursor",
-          "owner",
-          "owner_group"
+          "owner"
         ],
         "title": "TriggerRepositoryDTO"
       },

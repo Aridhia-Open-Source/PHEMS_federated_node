@@ -106,15 +106,6 @@
                         },
                         "tag": {
                             "$ref": "#/definitions/tag"
-                        },
-                        "ownerGroups": {
-                            "type": "array",
-                            "items": {
-                                "type": "string",
-                                "minLength": 1,
-                                "pattern": "^[^,]+$"
-                            },
-                            "default": ["service-account"]
                         }
                     }
                 },
