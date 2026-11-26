@@ -1,0 +1,14 @@
+# Where Flux gets the chart. Dev: the kind registry, where `mise run flux publish` pushes it. Flux's
+# source-controller is a pod, so it reaches that registry as kind-registry:5000 (localhost:5001 is the
+# host's name for it), over plain HTTP.
+# A site: url: oci://ghcr.io/aridhia-open-source/charts (the chart a v* tag publishes), no insecure.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: fn-charts
+  namespace: fn
+spec:
+  type: oci
+  url: oci://kind-registry:5000/charts
+  insecure: true
+  interval: 1m

@@ -9,6 +9,10 @@ metadata:
     release: {{ .Release.Name }}
 spec:
   replicas: {{ .Values.gitea.replicaCount | default 1 }}
+  # One pod at a time: Gitea locks its queues on the data volume, so a new pod started
+  # beside the old one crash-loops until the old one goes
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: gitea

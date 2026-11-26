@@ -1,0 +1,20 @@
+suite: gitea deployment
+templates:
+  - templates/gitea-deployment.yaml
+values:
+  - values/values-local.yaml
+set:
+  gitea:
+    enabled: true
+    admin:
+      user: gitea_admin
+      email: admin@example.com
+      secret:
+        name: gitea-admin
+        key: password
+tests:
+  - it: replaces the pod on upgrade, so two pods never share the data volume's locks
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
