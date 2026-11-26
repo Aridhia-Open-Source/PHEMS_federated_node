@@ -17,7 +17,7 @@ from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest
 from app.rules.ownership import set_owner
 from app.repos.pull_request_fanout import skip_gap
-from app.rules.authz import Access, Action, Global
+from app.rules.authz import Access, Action, Global, Listing, Readable
 from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
 from app.dtos.healthcheck import GitProviderHealthDTO
@@ -42,19 +42,19 @@ def _check_unique(provider: GitProvider, current_id: int | None = None):
 
 
 @router.get('', response_model=list[GitProviderDTO])
-def get_providers():
+def get_providers(*, listing: Listing = Depends(Readable(GitProvider))):
     """
-    GET /global/providers/ — list the providers
+    GET /global/providers/ — list the providers the caller may read
     """
-    return [GitProviderDTO.from_model(p) for p in GitProvider.query.order_by(GitProvider.id)]
+    return [GitProviderDTO.from_model(p) for p in listing.rows(GitProvider.query.order_by(GitProvider.id))]
 
 
 @router.get('/{provider_id}', response_model=GitProviderDTO)
-def get_provider(provider_id: int):
+def get_provider(*, provider: GitProvider = Depends(Access(model=GitProvider, action=Action.READ))):
     """
     GET /global/providers/<id> — get a single provider
     """
-    return GitProviderDTO.from_model(GitProvider.get_by_id(provider_id))
+    return GitProviderDTO.from_model(provider)
 
 
 @router.post(
@@ -132,8 +132,8 @@ def delete_provider(*, provider: GitProvider = Depends(Access(model=GitProvider,
 
 
 @router.get('/{provider_id}/healthcheck', response_model=GitProviderHealthDTO)
-def provider_healthcheck(provider_id: int):
+def provider_healthcheck(*, provider: GitProvider = Depends(Access(model=GitProvider, action=Action.READ))):
     """
     GET /global/providers/<provider_id>/healthcheck endpoint. Whether the provider's API answers.
     """
-    return prepare_provider_health(GitProvider.get_by_id(provider_id))()
+    return prepare_provider_health(provider)()

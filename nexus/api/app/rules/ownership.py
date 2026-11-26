@@ -6,10 +6,8 @@ client manages it too.
 """
 from app.database.base_model import db
 from app.dtos.caller import Caller
-from app.helpers.exceptions import UnauthorizedError
 from app.models.grant import GROUP, MANAGE, USER, Grant
 from app.models.node_role import NodeRole
-from app.models.task import Task
 from app.models.user import CreatedByMixin, OwnedMixin
 
 SERVICE_GROUP = "/roles/service"
@@ -47,15 +45,3 @@ def add_manage(record: OwnedMixin, subject_type: str, subject_id: str, caller: C
             subject_type=subject_type, subject_id=subject_id, created_by_id=caller.user.id,
         ))
 
-
-def does_user_own_task(task: Task, caller: Caller):
-    """
-    Simple wrapper to check if the user is the one who
-    triggered the task, or is admin, or is the system user (Dagster, which reads tasks it
-    did not request).
-
-    If they don't, an exception is raised with 403 status code
-    """
-    # Stopgap owner/role check: Cedar read enforcement (auth/8 #688, T-076) replaces it.
-    if task.requested_by != caller.user_id and not caller.is_admin and caller.role != NodeRole.DAGSTER:
-        raise UnauthorizedError("User does not have enough permissions")

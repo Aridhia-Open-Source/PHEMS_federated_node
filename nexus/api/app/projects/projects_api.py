@@ -31,7 +31,7 @@ from fastapi import APIRouter, Body, Depends, Response
 from fastapi_pagination import Page
 
 from app.database.base_model import db
-from app.rules.authz import Access, Action, Global, require
+from app.rules.authz import Access, Action, Global, Listing, Readable, require
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.dtos.base import page_of
 from app.dtos.dataset import ProjectDatasetDTO
@@ -58,24 +58,23 @@ from app.health.secrets import prepare_secret_resource_health
 
 
 router = APIRouter(prefix='/projects', tags=["projects"])
+# A project resource's read checks the project
+READ_PROJECT = Depends(Access(model=Project, action=Action.READ))
 
 
 @router.get('', response_model=Page[ProjectDTO])
-def list_projects(filters: QueryFilters = Depends()):
+def list_projects(filters: QueryFilters = Depends(), *, listing: Listing = Depends(Readable(Project))):
     """
-    GET /projects endpoint.
+    GET /projects endpoint. The projects the caller may read.
     """
-    return page_of(parse_query_params(Project, filters.copy()), ProjectDTO)
+    return page_of(listing.filter(parse_query_params(Project, filters.copy())), ProjectDTO, keep=listing.allowed)
 
 
 @router.get('/{project_id}', response_model=ProjectDTO)
-def project_by_id(project_id: int):
+def project_by_id(*, project: Project = Depends(Access(model=Project, action=Action.READ))):
     """
     GET /projects/<project_id> endpoint.
     """
-    project = Project.query.filter_by(id=project_id).one_or_none()
-    if project is None:
-        raise DBRecordNotFoundError("Project not found")
     return ProjectDTO.from_model(project)
 
 
@@ -178,18 +177,17 @@ def _dataset_resource(project_id: int, dataset_id: int) -> ProjectDataset:
     return _resource(ProjectDataset, project_id, dataset_id, f"Dataset {dataset_id}")
 
 
-@router.get('/{project_id}/datasets', response_model=list[ProjectDatasetDTO])
+@router.get('/{project_id}/datasets', response_model=list[ProjectDatasetDTO], dependencies=[READ_PROJECT])
 def list_project_datasets(project_id: int):
     """
     GET /projects/<project_id>/datasets endpoint. The project's dataset resources, inactive
     ones included with their flags.
     """
-    Project.get_by_id(project_id)
     resources = ProjectDataset.query.filter_by(project_id=project_id).order_by(ProjectDataset.id)
     return [ProjectDatasetDTO.from_model(a) for a in resources]
 
 
-@router.get('/{project_id}/datasets/{dataset_id}', response_model=ProjectDatasetDTO)
+@router.get('/{project_id}/datasets/{dataset_id}', response_model=ProjectDatasetDTO, dependencies=[READ_PROJECT])
 def get_project_dataset(project_id: int, dataset_id: int):
     """
     GET /projects/<project_id>/datasets/<dataset_id> endpoint. The dataset is the global one's id.
@@ -274,18 +272,17 @@ def _secret_resource(project_id: int, label: str) -> ProjectSecret:
     return _resource(ProjectSecret, project_id, secret.id, f"Secret {label}")
 
 
-@router.get('/{project_id}/secrets', response_model=list[ProjectSecretDTO])
+@router.get('/{project_id}/secrets', response_model=list[ProjectSecretDTO], dependencies=[READ_PROJECT])
 def list_project_secrets(project_id: int):
     """
     GET /projects/<project_id>/secrets endpoint. The project's secret resources, inactive ones
     included with their flags. References only, never the values.
     """
-    Project.get_by_id(project_id)
     resources = ProjectSecret.query.filter_by(project_id=project_id).order_by(ProjectSecret.id)
     return [ProjectSecretDTO.from_model(a) for a in resources]
 
 
-@router.get('/{project_id}/secrets/{label}', response_model=ProjectSecretDTO)
+@router.get('/{project_id}/secrets/{label}', response_model=ProjectSecretDTO, dependencies=[READ_PROJECT])
 def get_project_secret(project_id: int, label: str):
     """
     GET /projects/<project_id>/secrets/{label} endpoint.
@@ -375,18 +372,23 @@ def _check_results_loop(assignment: ProjectResultsRepository):
         raise
 
 
-@router.get('/{project_id}/repositories/results', response_model=list[results_repository.ProjectResultsRepositoryDTO])
+@router.get(
+    '/{project_id}/repositories/results', response_model=list[results_repository.ProjectResultsRepositoryDTO],
+    dependencies=[READ_PROJECT],
+)
 def list_project_results_repositories(project_id: int):
     """
     GET /projects/<project_id>/repositories/results endpoint. The project's results repository
     resource, an inactive one included with its flags, so a project always lists exactly one.
     """
-    Project.get_by_id(project_id)
     resources = ProjectResultsRepository.query.filter_by(project_id=project_id).order_by(ProjectResultsRepository.id)
     return [results_repository.ProjectResultsRepositoryDTO.from_model(a) for a in resources]
 
 
-@router.get('/{project_id}/repositories/results/{repository_id}', response_model=results_repository.ProjectResultsRepositoryDTO)
+@router.get(
+    '/{project_id}/repositories/results/{repository_id}', response_model=results_repository.ProjectResultsRepositoryDTO,
+    dependencies=[READ_PROJECT],
+)
 def get_project_results_repository(project_id: int, repository_id: int):
     """
     GET /projects/<project_id>/repositories/results/<repository_id> endpoint. The repository is the global one's id.
@@ -484,7 +486,10 @@ def delete_project_results_repository(
     db.session.commit()
 
 
-@router.get('/{project_id}/datasets/{dataset_id}/healthcheck', response_model=ProjectDatasetHealthDTO)
+@router.get(
+    '/{project_id}/datasets/{dataset_id}/healthcheck', response_model=ProjectDatasetHealthDTO,
+    dependencies=[READ_PROJECT],
+)
 def project_dataset_healthcheck(project_id: int, dataset_id: int):
     """
     GET /projects/<project_id>/datasets/<dataset_id>/healthcheck endpoint. The global dataset's
@@ -493,7 +498,9 @@ def project_dataset_healthcheck(project_id: int, dataset_id: int):
     return prepare_dataset_resource_health(_dataset_resource(project_id, dataset_id))()
 
 
-@router.get('/{project_id}/secrets/{label}/healthcheck', response_model=ProjectSecretHealthDTO)
+@router.get(
+    '/{project_id}/secrets/{label}/healthcheck', response_model=ProjectSecretHealthDTO, dependencies=[READ_PROJECT]
+)
 def project_secret_healthcheck(project_id: int, label: str):
     """
     GET /projects/<project_id>/secrets/<label>/healthcheck endpoint. The global secret's check
@@ -502,7 +509,10 @@ def project_secret_healthcheck(project_id: int, label: str):
     return prepare_secret_resource_health(_secret_resource(project_id, label))()
 
 
-@router.get('/{project_id}/repositories/results/{repository_id}/healthcheck', response_model=ProjectResultsRepositoryHealthDTO)
+@router.get(
+    '/{project_id}/repositories/results/{repository_id}/healthcheck', response_model=ProjectResultsRepositoryHealthDTO,
+    dependencies=[READ_PROJECT],
+)
 def project_results_repository_healthcheck(project_id: int, repository_id: int):
     """
     GET /projects/<project_id>/repositories/results/<repository_id>/healthcheck endpoint. The

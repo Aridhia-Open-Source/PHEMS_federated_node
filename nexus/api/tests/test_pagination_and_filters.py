@@ -3,6 +3,7 @@ import pytest
 
 from app.database.base_model import db
 from app.models.project import Project
+from tests.conftest import owned_by_admin
 
 TASK_STATUSES = ["PENDING", "QUEUED", "RUNNING", "SUCCESS", "FAILED", "CANCELED"]
 
@@ -13,7 +14,7 @@ def make_projects(count, prefix="P", **fields):
         project = Project(name=f"{prefix}{i:02d}")
         for key, value in fields.items():
             setattr(project, key, value)
-        project.add()
+        owned_by_admin(project).add()
         projects.append(project)
     return projects
 

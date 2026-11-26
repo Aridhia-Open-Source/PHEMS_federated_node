@@ -27,14 +27,13 @@ from fastapi.responses import PlainTextResponse
 from app.database.base_model import db
 from app.tasks.limits import TASK_CAUSE_MAX_LENGTH
 from app.helpers import exceptions
-from app.rules.ownership import does_user_own_task
 from app.rules.project_state import require_accepts_tasks
 from app.clients.kubernetes_names import validate_dns_label
 from app.rules.state_rules import transition
 from app.tasks.task_config import decide_launch
 from app.tasks.resources import create_run_resources, delete_run_resources
 from app.dtos.task_spec import TaskSpecRequest
-from app.rules.authz import Access, Action, SYSTEM_ONLY, require
+from app.rules.authz import Access, Action, Listing, Readable, SYSTEM_ONLY, require
 from app.helpers.wrappers import Caller, get_caller
 from app.dtos.dataset import DatasetDTO
 from app.dtos.base import page_of
@@ -50,6 +49,8 @@ from app.models.trigger_state import TriggerState
 
 router = APIRouter(prefix='/projects/{project_id}/tasks', tags=["tasks"])
 all_router = APIRouter(prefix='/tasks', tags=["tasks"])
+# A task's read checks its project
+READ_PROJECT = Depends(Access(model=Project, action=Action.READ))
 
 # What a task request that fails validation raises. Such a request is kept, as REJECTED.
 VALIDATION_ERRORS = (
@@ -71,7 +72,7 @@ async def raw_body(request: Request) -> str:
     return (await request.body()).decode()
 
 
-@router.get('', response_model=Page[task_dtos.TaskDTO])
+@router.get('', response_model=Page[task_dtos.TaskDTO], dependencies=[READ_PROJECT])
 def get_tasks(project_id: int, status: str | None = None):
     """
     GET /projects/<project_id>/tasks endpoint. Gets the project's tasks with pagination, ordered by id
@@ -85,7 +86,10 @@ def get_tasks(project_id: int, status: str | None = None):
 
 
 @all_router.get('', response_model=Page[task_dtos.TaskDTO])
-def get_all_tasks(status: str | None = None, project_enabled: str | None = None):
+def get_all_tasks(
+    status: str | None = None, project_enabled: str | None = None, *,
+    listing: Listing = Depends(Readable(Project)),
+):
     """
     GET /tasks endpoint. Gets the tasks of all projects with pagination, ordered by id, in the shape of
     GET /projects/<project_id>/tasks. Query params:
@@ -93,8 +97,9 @@ def get_all_tasks(status: str | None = None, project_enabled: str | None = None)
         - status: one or more task statuses, comma separated (optional)
         - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
           lists them. A revoked project is still enabled, so its tasks stay.
+    Only the tasks of the projects the caller may read.
     """
-    query = Task.query
+    query = Task.query.filter(Task.project_id.in_(listing.filter(Project.query).with_entities(Project.id)))
     if project_enabled is not None:
         if project_enabled not in ('true', 'false'):
             raise exceptions.InvalidRequest("project_enabled should be true or false")
@@ -122,8 +127,8 @@ def task_page(query, statuses: list[str] | None) -> Page[task_dtos.TaskDTO]:
     return page_of(query.order_by(Task.id), task_dtos.TaskDTO)
 
 
-@router.get('/{task_id}', response_model=task_dtos.TaskDTO)
-def get_task_id(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
+@router.get('/{task_id}', response_model=task_dtos.TaskDTO, dependencies=[READ_PROJECT])
+def get_task_id(project_id: int, task_id: int):
     """
     GET /projects/<project_id>/tasks/id endpoint. Gets a single task with status
     """
@@ -132,7 +137,6 @@ def get_task_id(project_id: int, task_id: int, caller: Caller = Depends(get_call
     if not task or task.project_id != project_id:
         raise exceptions.DBRecordNotFoundError("Task not found")
 
-    does_user_own_task(task, caller)
 
     return task_dtos.TaskDTO.from_model(task)
 
@@ -297,21 +301,20 @@ def post_tasks_validate(project_id: int, req_body: dict = Body(default_factory=d
     return "Ok"
 
 
-@router.get('/{task_id}/trigger', response_model=TaskTriggerDTO)
-def get_task_trigger(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
+@router.get('/{task_id}/trigger', response_model=TaskTriggerDTO, dependencies=[READ_PROJECT])
+def get_task_trigger(project_id: int, task_id: int):
     """
     GET /projects/<project_id>/tasks/id/trigger endpoint. The pull request that yielded the task,
     with its trigger repository. A task created by hand has none: 404
     """
     task = get_project_task(project_id, task_id)
-    does_user_own_task(task, caller)
     if not isinstance(task.trigger, PullRequestTrigger):
         raise exceptions.DBRecordNotFoundError(f"Task with id {task_id} has no pull request trigger")
     return TaskTriggerDTO.from_model(task.trigger)
 
 
-@router.get('/{task_id}/config', response_model=task_dtos.TaskConfigDTO)
-def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
+@router.get('/{task_id}/config', response_model=task_dtos.TaskConfigDTO, dependencies=[READ_PROJECT])
+def get_task_config(project_id: int, task_id: int):
     """
     GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created
     under (its results repository and target_dir, its dataset) is still the current one. If not, the task
@@ -323,7 +326,6 @@ def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_
     helpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.
     """
     task = get_project_task(project_id, task_id)
-    does_user_own_task(task, caller)
     decision = decide_launch(task)
     return {
         "outcome": decision.outcome, "cause": decision.cause,
@@ -336,7 +338,7 @@ def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_
     '/{task_id}/launch', response_model=task_dtos.TaskLaunchDTO,
     dependencies=SYSTEM_ONLY
 )
-def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
+def launch_task(project_id: int, task_id: int):
     """
     POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides
     with helpers/task_config.decide_launch, the same rules GET .../config reports, and answers:
@@ -347,7 +349,6 @@ def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_call
     A task that is no longer PENDING is a 409 and nothing changes, so a repeated call is safe.
     """
     task = get_project_task(project_id, task_id)
-    does_user_own_task(task, caller)
     if task.status != TaskStatus.PENDING.value:
         raise exceptions.InvalidRequest(f"Task {task_id} is {task.status}, not {TaskStatus.PENDING.value}", HTTPStatus.CONFLICT)
 
@@ -370,7 +371,7 @@ def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_call
     '/{task_id}/runs/{run_id}/resources', status_code=HTTPStatus.CREATED, response_model=task_dtos.TaskResourcesDTO,
     dependencies=SYSTEM_ONLY
 )
-def post_run_resources(project_id: int, task_id: int, run_id: str, caller: Caller = Depends(get_caller)):
+def post_run_resources(project_id: int, task_id: int, run_id: str):
     """
     POST /projects/<project_id>/tasks/id/runs/<run_id>/resources endpoint. Called by the run before it starts the
     task pod. Creates, in the tasks namespace, the Secret of the task's dataset credentials (if it has a dataset)
@@ -380,24 +381,22 @@ def post_run_resources(project_id: int, task_id: int, run_id: str, caller: Calle
     that is taken is a 409. The credentials are read here and go to the Secret, not to the caller.
     """
     task = get_project_task(project_id, task_id)
-    does_user_own_task(task, caller)
     # It becomes part of the objects' names and label values
     validate_dns_label(run_id, "run_id")
     return create_run_resources(task, run_id)
 
 
-@router.get('/{task_id}/results', response_model=list[PullRequestResultDTO])
-def get_task_results(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
+@router.get('/{task_id}/results', response_model=list[PullRequestResultDTO], dependencies=[READ_PROJECT])
+def get_task_results(project_id: int, task_id: int):
     """
     GET /projects/<project_id>/tasks/id/results endpoint. Lists the delivery of the task's results
     to each of its destinations
     """
     task = get_project_task(project_id, task_id)
-    does_user_own_task(task, caller)
     return [dump_result(r) for r in task.results]
 
 
-@router.get('/{task_id}/logs')
+@router.get('/{task_id}/logs', dependencies=[READ_PROJECT])
 def get_tasks_logs(project_id: int, task_id: int):
     """
     From a given task, return its logs

@@ -9,21 +9,18 @@ dagster endpoints:
 
 from functools import lru_cache
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body
 from fednode.clients.dagster.client import DagsterClient
 
 from app.dtos.sensor import SensorDTO
 from app.settings import settings
-from app.rules.authz import Access, Action
+from app.rules.authz import ADMIN_UNCHECKED
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.helpers.wrappers import require_role
-from app.models.node_role import ADMIN_ROLES
 
 router = APIRouter(prefix='/dagster', tags=["dagster"])
 
 STATUSES = ("RUNNING", "STOPPED")
-# Unchecked: sensors are Dagster's, not records with grants; the admin roles gate starting and stopping them
-ADMIN_UNCHECKED = [Depends(require_role(*ADMIN_ROLES)), Depends(Access(action=Action.UNCHECKED))]
+# Unchecked: sensors are Dagster's, not records with grants; the admin roles gate them (ADMIN_UNCHECKED)
 
 
 @lru_cache
@@ -60,7 +57,7 @@ def apply_status(sensors: list[dict], status: str):
             dagster().set_sensor_status(sensor, status)
 
 
-@router.get('/sensors', response_model=list[SensorDTO])
+@router.get('/sensors', response_model=list[SensorDTO], dependencies=ADMIN_UNCHECKED)
 def get_sensors():
     """
     GET /dagster/sensors — every sensor with its status and latest tick
@@ -68,7 +65,7 @@ def get_sensors():
     return dto_of(dagster().list_sensors())
 
 
-@router.get('/sensors/{name}', response_model=SensorDTO)
+@router.get('/sensors/{name}', response_model=SensorDTO, dependencies=ADMIN_UNCHECKED)
 def get_one_sensor(name: str):
     """
     GET /dagster/sensors/<name> — a single sensor

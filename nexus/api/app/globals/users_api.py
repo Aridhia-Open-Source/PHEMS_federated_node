@@ -14,9 +14,9 @@ from app.settings import SettingsDep, settings
 from app.dtos.user import NewUserDTO, NewUserRequest, UserDTO
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.clients.keycloak import Keycloak
-from app.rules.authz import Access, Action
-from app.helpers.wrappers import Caller, get_caller, require_role
-from app.models.node_role import ADMIN_ROLES, NodeRole
+from app.rules.authz import ADMIN_UNCHECKED
+from app.helpers.wrappers import Caller, get_caller
+from app.models.node_role import NodeRole
 
 router = APIRouter(prefix='/global/users', tags=["users"])
 
@@ -24,7 +24,7 @@ router = APIRouter(prefix='/global/users', tags=["users"])
 # Unchecked: users are Keycloak accounts, not records with grants; the admin roles gate it
 @router.post(
     '', status_code=HTTPStatus.CREATED, response_model=NewUserDTO,
-    dependencies=[Depends(require_role(*ADMIN_ROLES)), Depends(Access(action=Action.UNCHECKED))],
+    dependencies=ADMIN_UNCHECKED,
 )
 def create_user(body: NewUserRequest, settings_dep: SettingsDep, caller: Caller = Depends(get_caller)):
     """
@@ -49,7 +49,8 @@ def create_user(body: NewUserRequest, settings_dep: SettingsDep, caller: Caller 
     }
 
 
-@router.get('', response_model=list[UserDTO])
+# Unchecked: Keycloak accounts, not records with grants; the admin roles gate it
+@router.get('', response_model=list[UserDTO], dependencies=ADMIN_UNCHECKED)
 def get_users_list():
     """
     GET /global/users/ endpoint. This is a simplified version

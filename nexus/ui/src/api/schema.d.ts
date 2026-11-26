@@ -120,7 +120,7 @@ export interface paths {
         };
         /**
          * List Projects
-         * @description GET /projects endpoint.
+         * @description GET /projects endpoint. The projects the caller may read.
          */
         get: operations["list_projects_projects_get"];
         put?: never;
@@ -424,7 +424,7 @@ export interface paths {
         };
         /**
          * Get Datasets
-         * @description GET /global/datasets/ endpoint. Returns a list of all datasets
+         * @description GET /global/datasets/ endpoint. Returns a page of the datasets the caller may read
          */
         get: operations["get_datasets_global_datasets_get"];
         put?: never;
@@ -458,7 +458,7 @@ export interface paths {
          * Delete Dataset
          * @description DELETE /global/datasets/id endpoint. Soft deletes the dataset. A 409 names the projects it is assigned to,
          *         unless ?force=true, which also revokes and deletes their project resources. Its k8s secret is left alone: it has its own lifecycle (/global/secrets) and
-         *         other datasets may share it.
+         *         other datasets may share it. With force the caller needs write on each of those projects.
          */
         delete: operations["delete_dataset_global_datasets__dataset_id__delete"];
         options?: never;
@@ -901,7 +901,7 @@ export interface paths {
          * Get Repositories
          * @description GET /global/repositories/triggers/ — list the repositories. With ?pollable=true only the enabled and
          *     not revoked repositories on an enabled, not revoked provider with an enabled secret, whatever their project
-         *     resources say: that is what Dagster polls.
+         *     resources say: that is what Dagster polls. Only the repositories the caller may read.
          */
         get: operations["get_repositories_global_repositories_triggers_get"];
         put?: never;
@@ -932,7 +932,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Repository
-         * @description DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
+         * @description DELETE /global/repositories/triggers/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources: the caller needs write on each of those projects.
          */
         delete: operations["delete_repository_global_repositories_triggers__repo_id__delete"];
         options?: never;
@@ -1197,7 +1197,7 @@ export interface paths {
         };
         /**
          * Get Secrets
-         * @description GET /global/secrets — list the secrets. The values are never returned.
+         * @description GET /global/secrets — list the secrets the caller may read. The values are never returned.
          */
         get: operations["get_secrets_global_secrets_get"];
         put?: never;
@@ -1236,7 +1236,8 @@ export interface paths {
          *     resources, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused
          *     with a 409 naming the enabled datasets and repositories that still use it: they have to be
          *     disabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay
-         *     pointing at it, and can be repointed with their secret_label.
+         *     pointing at it, and can be repointed with their secret_label. The caller needs write on each project the
+         *     secret is assigned to and, with force, on each dataset and repository it disables.
          */
         delete: operations["delete_secret_global_secrets__label__delete"];
         options?: never;
@@ -1289,7 +1290,7 @@ export interface paths {
         };
         /**
          * Get Providers
-         * @description GET /global/providers/ — list the providers
+         * @description GET /global/providers/ — list the providers the caller may read
          */
         get: operations["get_providers_global_providers_get"];
         put?: never;
@@ -1367,7 +1368,7 @@ export interface paths {
         };
         /**
          * Get Repositories
-         * @description GET /global/repositories/results/ — list the repositories
+         * @description GET /global/repositories/results/ — list the repositories the caller may read
          */
         get: operations["get_repositories_global_repositories_results_get"];
         put?: never;
@@ -1400,7 +1401,7 @@ export interface paths {
         post?: never;
         /**
          * Delete Repository
-         * @description DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources.
+         * @description DELETE /global/repositories/%s/<id> — soft delete the repository. A 409 names the projects it is assigned to, unless ?force=true, which also revokes and deletes their project resources: the caller needs write on each of those projects.
          */
         delete: operations["delete_repository_global_repositories_results__repo_id__delete"];
         options?: never;
@@ -1571,6 +1572,7 @@ export interface paths {
          *         - status: one or more task statuses, comma separated (optional)
          *         - project_enabled: "true" keeps the tasks of enabled projects, as GET /projects?enabled=true
          *           lists them. A revoked project is still enabled, so its tasks stay.
+         *     Only the tasks of the projects the caller may read.
          */
         get: operations["get_all_tasks_tasks_get"];
         put?: never;

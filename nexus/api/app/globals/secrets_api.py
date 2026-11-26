@@ -23,12 +23,12 @@ from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.clients.kubernetes_names import validate_secret_key
 from app.clients.secret_store import SecretProvider
 from app.rules.ownership import set_owner
+from app.rules.authz import Access, Action, Global, Listing, Readable, require_each
 from app.helpers.wrappers import Caller, get_caller
 from app.models.secret import Secret
 from app.models.secret_provider_type import SecretProviderType
 from app.dtos.healthcheck import SecretHealthDTO
 from app.health.secrets import prepare_secret_health
-from app.rules.authz import Access, Action, Global
 
 router = APIRouter(prefix='/global/secrets', tags=["secrets"])
 session = db.session
@@ -53,19 +53,19 @@ def _get_secret(label: str) -> Secret:
 
 
 @router.get('', response_model=list[SecretDTO])
-def get_secrets():
+def get_secrets(*, listing: Listing = Depends(Readable(Secret))):
     """
-    GET /global/secrets — list the secrets. The values are never returned.
+    GET /global/secrets — list the secrets the caller may read. The values are never returned.
     """
-    return [SecretDTO.from_model(s) for s in Secret.query.order_by(Secret.id)]
+    return [SecretDTO.from_model(s) for s in listing.rows(Secret.query.order_by(Secret.id))]
 
 
 @router.get('/{label}', response_model=SecretDTO)
-def get_secret(label: str):
+def get_secret(*, secret: Secret = Depends(Access(model=Secret, action=Action.READ))):
     """
     GET /global/secrets/<label> — get a single secret. The values are never returned.
     """
-    return SecretDTO.from_model(_get_secret(label))
+    return SecretDTO.from_model(secret)
 
 
 @router.post(
@@ -171,13 +171,17 @@ def patch_secret(
 
 
 @router.delete('/{label}', status_code=HTTPStatus.NO_CONTENT)
-def delete_secret(force: bool = False, *, secret: Secret = Depends(Access(model=Secret, action=Action.WRITE))):
+def delete_secret(
+    force: bool = False, *, secret: Secret = Depends(Access(model=Secret, action=Action.WRITE)),
+    caller: Caller = Depends(get_caller),
+):
     """
     DELETE /global/secrets/<label> — soft delete the reference and revoke and delete its project
     resources, and delete the stored secret, from its namespace and from quarantine. Admin only. Refused
     with a 409 naming the enabled datasets and repositories that still use it: they have to be
     disabled first, unless ?force=true, which disables them and goes on. Disabled ones may stay
-    pointing at it, and can be repointed with their secret_label.
+    pointing at it, and can be repointed with their secret_label. The caller needs write on each project the
+    secret is assigned to and, with force, on each dataset and repository it disables.
     """
     enabled = [(dataset.name, dataset) for dataset in secret.datasets if dataset.enabled] + [
         (repository.uri, repository)
@@ -190,6 +194,9 @@ def delete_secret(force: bool = False, *, secret: Secret = Depends(Access(model=
             code=HTTPStatus.CONFLICT
         )
 
+    require_each(caller, Action.WRITE, [
+        *(assignment.project for assignment in secret.project_assignments), *(resource for _, resource in enabled),
+    ])
     # Staged, not committed: if the store delete fails the row has to come back, and a
     # rollback after a commit is a no-op.
     for _, resource in enabled:
@@ -212,9 +219,9 @@ def delete_secret(force: bool = False, *, secret: Secret = Depends(Access(model=
 
 
 @router.get('/{label}/healthcheck', response_model=SecretHealthDTO)
-def secret_healthcheck(label: str):
+def secret_healthcheck(*, secret: Secret = Depends(Access(model=Secret, action=Action.READ))):
     """
     GET /global/secrets/<label>/healthcheck endpoint. Whether the secret is in its store with the
     keys its datasets and repositories need. Never the values.
     """
-    return prepare_secret_health(_get_secret(label))()
+    return prepare_secret_health(secret)()

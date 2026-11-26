@@ -224,3 +224,67 @@ def test_a_write_without_a_grant_is_a_409_and_changes_nothing(client, callers, e
     assert "owned by admin" in response.json()["error"]
     db.session.expire_all()
     assert client.get(url, headers=as_("admin_token")).json() == before
+
+
+# Every read route on a record, walked from the OpenAPI document
+
+# Reads of one record, or of something under a project or a record: read on that record or project
+RECORD_READ_ROUTES = {
+    "/global/datasets/{dataset_id}", "/global/datasets/{dataset_id}/grants",
+    "/global/datasets/{dataset_id}/healthcheck",
+    "/global/providers/{provider_id}", "/global/providers/{provider_id}/grants",
+    "/global/providers/{provider_id}/healthcheck",
+    "/global/repositories/results/{repo_id}", "/global/repositories/results/{repo_id}/grants",
+    "/global/repositories/results/{repository_id}/healthcheck",
+    "/global/repositories/triggers/{repo_id}", "/global/repositories/triggers/{repo_id}/grants",
+    "/global/repositories/triggers/{repo_id}/pull_requests",
+    "/global/repositories/triggers/{repository_id}/healthcheck",
+    "/global/secrets/{label}", "/global/secrets/{label}/grants", "/global/secrets/{label}/healthcheck",
+    "/projects/{project_id}", "/projects/{project_id}/grants", "/projects/{project_id}/healthcheck",
+    "/projects/{project_id}/datasets", "/projects/{project_id}/datasets/{dataset_id}",
+    "/projects/{project_id}/datasets/{dataset_id}/healthcheck",
+    "/projects/{project_id}/secrets", "/projects/{project_id}/secrets/{label}",
+    "/projects/{project_id}/secrets/{label}/healthcheck",
+    "/projects/{project_id}/repositories/results", "/projects/{project_id}/repositories/results/{repository_id}",
+    "/projects/{project_id}/repositories/results/{repository_id}/healthcheck",
+    "/projects/{project_id}/repositories/triggers", "/projects/{project_id}/repositories/triggers/{repo_id}",
+    "/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests",
+    "/projects/{project_id}/repositories/triggers/{repo_id}/pull_requests/{number}",
+    "/projects/{project_id}/repositories/triggers/{repository_id}/healthcheck",
+    "/projects/{project_id}/results", "/projects/{project_id}/results/{result_id}",
+    "/projects/{project_id}/tasks", "/projects/{project_id}/tasks/{task_id}",
+    "/projects/{project_id}/tasks/{task_id}/config", "/projects/{project_id}/tasks/{task_id}/logs",
+    "/projects/{project_id}/tasks/{task_id}/results", "/projects/{project_id}/tasks/{task_id}/trigger",
+}
+# Lists, narrowed to what the caller may read (tests/test_list_filtering.py)
+LIST_ROUTES = {
+    "/global/datasets", "/global/providers", "/global/repositories/results", "/global/repositories/triggers",
+    "/global/secrets", "/projects", "/tasks",
+}
+# No record: probes, and the admin-only routes (tests/test_unchecked_routes.py)
+UNCHECKED_READ_ROUTES = {
+    "/ready_check", "/health_check", "/global/users", "/global/healthcheck", "/dagster/sensors",
+    "/dagster/sensors/{name}",
+}
+
+
+def test_every_read_route_is_classed():
+    """A new GET route has to be added to one of the lists, and tested."""
+    routes = {path for path, operations in create_app().openapi()["paths"].items() if "get" in operations}
+    assert routes == RECORD_READ_ROUTES | LIST_ROUTES | UNCHECKED_READ_ROUTES
+
+
+@pytest.mark.parametrize("path", sorted(RECORD_READ_ROUTES))
+def test_a_read_without_a_grant_is_a_409(client, token_claims, every_owned_record, path):
+    """The records are admin's; reader is a plain user with no grant on any of them."""
+    token_claims["reader_token"] = claims_for("id-reader", "reader", "Users")
+    params = {**every_owned_record, "task_id": 1, "result_id": 1, "number": 1}
+    if path.startswith("/global/repositories/results/"):
+        params["repo_id"] = params["repository_id"] = params["results_repo_id"]
+    elif path.startswith("/global/repositories/triggers/"):
+        params["repository_id"] = params["repo_id"]
+
+    response = client.get(path.format(**params), headers=as_("reader_token"))
+
+    assert response.status_code == 409, response.json()
+    assert "You cannot read" in response.json()["error"]

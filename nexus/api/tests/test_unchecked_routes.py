@@ -1,25 +1,28 @@
 """
-Deny by default (ADR 0037): every write route declares an Access check, and create_app refuses to start without
-one. The routes that skip the record check are listed here, so a new one shows up in review.
+Deny by default (ADR 0037): every route declares an Access check, and create_app refuses to start without one, or
+with an unchecked route that has no role gate of its own. The routes that skip the record check are listed here, so
+a new one shows up in review.
 """
 import pytest
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 import app as app_module
 from app import create_app, routers
-from app.rules.authz import Access, Action, Global, api_routes, routes_without_access
+from app.rules.authz import ADMIN_UNCHECKED, Access, Action, Global, api_routes, routes_without_access
 from app.models.dataset import Dataset
 
-# Write routes with Access(action=UNCHECKED), and why
-UNCHECKED_WRITE_ROUTES = {
+# Routes with Access(action=UNCHECKED), and why
+UNCHECKED_ROUTES = {
     # probes and getting a token
-    "POST /login", "POST /refresh_token",
+    "GET /", "GET /ready_check", "GET /health_check", "POST /login", "POST /refresh_token",
     # a new user swaps their temporary password, with no token
     "PUT /global/users/reset-password",
     # Keycloak accounts, not records; admin roles only
-    "POST /global/users",
+    "GET /global/users", "POST /global/users",
     # Dagster's sensors, not records; admin roles only
-    "PATCH /dagster/sensors", "PATCH /dagster/sensors/{name}",
+    "GET /dagster/sensors", "GET /dagster/sensors/{name}", "PATCH /dagster/sensors", "PATCH /dagster/sensors/{name}",
+    # every global record's health at once; admin roles only
+    "GET /global/healthcheck",
     # Dagster's pipeline state writes and token mints (SYSTEM_ONLY)
     "POST /global/repositories/triggers/{repo_id}/pull_requests",
     "POST /global/repositories/triggers/{repo_id}/token",
@@ -41,13 +44,13 @@ def _unchecked(dependant) -> bool:
     )
 
 
-def test_the_unchecked_write_routes_are_the_known_ones():
+def test_the_unchecked_routes_are_the_known_ones():
     routes = {
         f"{method} {route.path}"
         for route in api_routes(routers()) if _unchecked(route.dependant)
-        for method in route.methods if method in ("POST", "PUT", "PATCH", "DELETE")
+        for method in route.methods if method in ("GET", "POST", "PUT", "PATCH", "DELETE")
     }
-    assert routes == UNCHECKED_WRITE_ROUTES
+    assert routes == UNCHECKED_ROUTES
 
 
 def test_a_write_route_without_access_stops_the_app(mocker):
@@ -62,9 +65,37 @@ def test_a_write_route_without_access_stops_the_app(mocker):
         create_app()
 
 
-def test_a_read_route_without_access_is_not_refused_yet():
-    """#688 adds GET to CHECKED_METHODS."""
-    assert all(not entry.startswith("GET ") for entry in routes_without_access(routers()))
+def test_a_read_route_without_access_stops_the_app(mocker):
+    router = APIRouter()
+
+    @router.get("/forgotten")
+    def forgotten():
+        """A read route nobody checked."""
+
+    mocker.patch.object(app_module, "routers", lambda: (router,))
+    with pytest.raises(RuntimeError, match="GET /forgotten"):
+        create_app()
+
+
+def test_an_unchecked_route_without_a_role_gate_stops_the_app(mocker):
+    """Every node role passes the routers, so an unchecked route would be open to Users."""
+    router = APIRouter()
+
+    @router.get("/open", dependencies=[Depends(Access(action=Action.UNCHECKED))])
+    def open_route():
+        """Unchecked, and nothing gates it."""
+
+    @router.get("/gated", dependencies=ADMIN_UNCHECKED)
+    def gated_route():
+        """Unchecked, gated by the admin roles."""
+
+    mocker.patch.object(app_module, "routers", lambda: (router,))
+    with pytest.raises(RuntimeError, match="role gate: GET /open$"):
+        create_app()
+
+
+def test_every_route_is_checked():
+    assert not routes_without_access(routers())
 
 
 @pytest.mark.parametrize("kwargs", [
