@@ -28,7 +28,7 @@ type Props = {
   submitLabel?: string;
   onSubmit: (body: Record<string, unknown>) => void;
   busy?: boolean;
-  // The owner group, when the viewer is not in it: the submit button is greyed out
+  // Who owns the record, when the viewer may not change it: the submit button is greyed out
   ownedBy?: string | null;
 };
 
