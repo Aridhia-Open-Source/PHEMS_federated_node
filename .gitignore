@@ -31,6 +31,9 @@ debug.yaml
 
 # AI
 .claude/**
+# ... except shared skills
+!.claude/skills/
+!.claude/skills/**
 
 # Ignore local model files
 .models/
