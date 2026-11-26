@@ -14,7 +14,7 @@ Core components bundled in the chart:
 
 - **nexus-api** - the FN API (FastAPI). It keeps the record of everything and decides what is allowed
 - **Dagster** - polls the git repositories, starts task pods, and delivers results
-- **Keycloak** - logins and the admin role
+- **Keycloak** - accounts, logins and the five roles
 - **Traefik** - reverse proxy and ingress (recommended for production)
 - **PostgreSQL** - FN metadata (projects, tasks, results) - you provide this externally in production
 
@@ -47,6 +47,8 @@ You also need a git host for the trigger and results repositories: GitHub (with 
 **Building an analytics container:** [Analytics container development](./Analytics-Container-Development) covers the environment variables, where to write results, and what the pod is and is not allowed to do.
 
 **Registering the databases tasks read from:** [Datasets](./Datasets).
+
+**Who can sign in and who can do what:** [Sign-in and roles](./Sign-In-And-Roles) covers Keycloak and the five roles, [Granting access](./Granting-Access) the per-project grants, and [Auth setup](./Auth-Setup) the first admin and the superuser.
 
 **Developing against the node:** [Using fncli](./Using-fncli) and [Experiments](./Experiments).
 
