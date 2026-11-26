@@ -66,6 +66,8 @@ jobs:
           app-id: ${{ secrets.PULUMI_GITHUB_APP_ID }}
           private-key: ${{ secrets.PULUMI_GITHUB_APP_PRIVATE_KEY }}
           owner: Aridhia-Open-Source
+          permission-administration: write
+          permission-contents: write
       - name: Configure ephemeral Pulumi passphrase
         run: |
           set -euo pipefail
@@ -119,6 +121,8 @@ jobs:
           app-id: ${{ secrets.PULUMI_GITHUB_APP_ID }}
           private-key: ${{ secrets.PULUMI_GITHUB_APP_PRIVATE_KEY }}
           owner: Aridhia-Open-Source
+          permission-administration: write
+          permission-contents: write
       - name: Configure ephemeral Pulumi passphrase
         run: |
           set -euo pipefail
