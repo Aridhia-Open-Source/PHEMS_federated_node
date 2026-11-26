@@ -1,0 +1,3206 @@
+{
+  "info": {
+    "name": "Federated Node",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Collection-level pre-request script, injected by scripts/postman_collection.py.",
+          "// nexus-api takes the token POST /login returns (a Keycloak refresh token) as the bearer, so the",
+          "// script logs in with {{username}} and {{password}} when {{token}} is empty or about to expire.",
+          "const path = pm.request.url.getPath();",
+          "const token = pm.environment.get('token');",
+          "",
+          "function expiresAt(jwt) {",
+          "  const part = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+          "  return JSON.parse(atob(part + '='.repeat((4 - part.length % 4) % 4))).exp;",
+          "}",
+          "",
+          "if (path !== '/login' && (!token || expiresAt(token) - 30 < Date.now() / 1000)) {",
+          "  pm.sendRequest({",
+          "    url: pm.variables.get('baseUrl') + '/login',",
+          "    method: 'POST',",
+          "    body: {",
+          "      mode: 'urlencoded',",
+          "      urlencoded: [",
+          "        { key: 'username', value: pm.variables.get('username') },",
+          "        { key: 'password', value: pm.variables.get('password') },",
+          "      ],",
+          "    },",
+          "  }, (err, res) => {",
+          "    if (err || res.code !== 200) {",
+          "      throw new Error(`login to ${pm.variables.get('baseUrl')} failed: ${err || `${res.code} ${res.text()}`}`);",
+          "    }",
+          "    pm.environment.set('token', res.json().token);",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "dagster",
+      "item": [
+        {
+          "name": "Get Sensors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dagster/sensors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dagster",
+                "sensors"
+              ],
+              "variable": [],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Sensors",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dagster/sensors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dagster",
+                "sensors"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get One Sensor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dagster/sensors/:name",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dagster",
+                "sensors",
+                ":name"
+              ],
+              "variable": [
+                {
+                  "key": "name",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Sensor",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dagster/sensors/:name",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dagster",
+                "sensors",
+                ":name"
+              ],
+              "variable": [
+                {
+                  "key": "name",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "datasets",
+      "item": [
+        {
+          "name": "Get Datasets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/datasets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "datasets"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Post Datasets",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/datasets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "datasets"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Dataset",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/datasets/:dataset_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "datasets",
+                ":dataset_id"
+              ],
+              "variable": [
+                {
+                  "key": "dataset_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Dataset",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/datasets/:dataset_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "datasets",
+                ":dataset_id"
+              ],
+              "variable": [
+                {
+                  "key": "dataset_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Dataset",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/datasets/:dataset_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "datasets",
+                ":dataset_id"
+              ],
+              "variable": [
+                {
+                  "key": "dataset_id",
+                  "value": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "force",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "git_providers",
+      "item": [
+        {
+          "name": "Get Providers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/providers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "providers"
+              ],
+              "variable": [],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Post Provider",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/providers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "providers"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"type\": \"\",\n  \"uri\": \"\",\n  \"api_uri\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Provider",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/providers/:provider_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "providers",
+                ":provider_id"
+              ],
+              "variable": [
+                {
+                  "key": "provider_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Provider",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/providers/:provider_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "providers",
+                ":provider_id"
+              ],
+              "variable": [
+                {
+                  "key": "provider_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\",\n  \"type\": \"\",\n  \"uri\": \"\",\n  \"api_uri\": \"\",\n  \"enabled\": false,\n  \"revoked\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Provider",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/providers/:provider_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "providers",
+                ":provider_id"
+              ],
+              "variable": [
+                {
+                  "key": "provider_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "healthcheck",
+      "item": [
+        {
+          "name": "Global Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "healthcheck"
+              ],
+              "variable": [],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Dataset Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/datasets/:dataset_id/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "datasets",
+                ":dataset_id",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "dataset_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Secret Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/secrets/:label/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "secrets",
+                ":label",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "label",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Provider Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/providers/:provider_id/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "providers",
+                ":provider_id",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "provider_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Trigger Repository Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/triggers/:repository_id/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "triggers",
+                ":repository_id",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "repository_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Results Repository Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/results/:repository_id/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "results",
+                ":repository_id",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "repository_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Project Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Project Dataset Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/datasets/:dataset_id/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "datasets",
+                ":dataset_id",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "dataset_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Project Secret Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/secrets/:label/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "secrets",
+                ":label",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "label",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Project Trigger Repository Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers/:repository_id/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers",
+                ":repository_id",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repository_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Project Results Repository Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/results/:repository_id/healthcheck",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "results",
+                ":repository_id",
+                "healthcheck"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repository_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "main",
+      "item": [
+        {
+          "name": "Ready Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ready_check",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ready_check"
+              ],
+              "variable": [],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health_check",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health_check"
+              ],
+              "variable": [],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "login"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": ""
+                },
+                {
+                  "key": "password",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/refresh_token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "refresh_token"
+              ],
+              "variable": [],
+              "query": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "project_trigger_repositories",
+      "item": [
+        {
+          "name": "List Project Trigger Repositories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "active",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Project Trigger Repository",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Put Project Trigger Repository",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"watch_dir\": \"\",\n  \"base_branch\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Patch Project Trigger Repository",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"watch_dir\": \"\",\n  \"base_branch\": \"\",\n  \"enabled\": false,\n  \"revoked\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Project Trigger Repository",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Get Pull Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers/:repo_id/pull_requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers",
+                ":repo_id",
+                "pull_requests"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "state",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Pull Request",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers/:repo_id/pull_requests/:number",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers",
+                ":repo_id",
+                "pull_requests",
+                ":number"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repo_id",
+                  "value": ""
+                },
+                {
+                  "key": "number",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Pull Request",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers/:repo_id/pull_requests/:number",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers",
+                ":repo_id",
+                "pull_requests",
+                ":number"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repo_id",
+                  "value": ""
+                },
+                {
+                  "key": "number",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Post Task",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/triggers/:repo_id/pull_requests/:number/task",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "triggers",
+                ":repo_id",
+                "pull_requests",
+                ":number",
+                "task"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repo_id",
+                  "value": ""
+                },
+                {
+                  "key": "number",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "projects",
+      "item": [
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Project By Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Project",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Project",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "List Project Datasets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/datasets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "datasets"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Get Project Dataset",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/datasets/:dataset_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "datasets",
+                ":dataset_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "dataset_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Put Project Dataset",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/datasets/:dataset_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "datasets",
+                ":dataset_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "dataset_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Patch Project Dataset",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/datasets/:dataset_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "datasets",
+                ":dataset_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "dataset_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Project Dataset",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/datasets/:dataset_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "datasets",
+                ":dataset_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "dataset_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "List Project Secrets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/secrets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "secrets"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Get Project Secret",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/secrets/:label",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "secrets",
+                ":label"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "label",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Put Project Secret",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/secrets/:label",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "secrets",
+                ":label"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "label",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Patch Project Secret",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/secrets/:label",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "secrets",
+                ":label"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "label",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Project Secret",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/secrets/:label",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "secrets",
+                ":label"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "label",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "List Project Results Repositories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "results"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Get Project Results Repository",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/results/:repository_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "results",
+                ":repository_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repository_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Put Project Results Repository",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/results/:repository_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "results",
+                ":repository_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repository_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_dir\": \"\",\n  \"base_branch\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Patch Project Results Repository",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/results/:repository_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "results",
+                ":repository_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repository_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_dir\": \"\",\n  \"base_branch\": \"\",\n  \"owned_by_federated_node\": false,\n  \"enabled\": false,\n  \"revoked\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Project Results Repository",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/repositories/results/:repository_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "repositories",
+                "results",
+                ":repository_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "repository_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "results",
+      "item": [
+        {
+          "name": "Get Results",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "results"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "step",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "state",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "active_resource",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Post Result",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "results"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Result",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/results/:result_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "results",
+                ":result_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "result_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Result",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/results/:result_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "results",
+                ":result_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "result_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "results_repositories",
+      "item": [
+        {
+          "name": "Get Repositories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "results"
+              ],
+              "variable": [],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Post Repository",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "results"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider_id\": 0,\n  \"repo_path\": \"\",\n  \"secret_label\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Repository",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/results/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "results",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Repository",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/results/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "results",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"provider_id\": 0,\n  \"secret_label\": \"\",\n  \"enabled\": false,\n  \"revoked\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Repository",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/results/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "results",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "force",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Post Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/results/:repo_id/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "results",
+                ":repo_id",
+                "token"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "secrets",
+      "item": [
+        {
+          "name": "Get Secrets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/secrets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "secrets"
+              ],
+              "variable": [],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Post Secret",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/secrets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "secrets"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Secret",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/secrets/:label",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "secrets",
+                ":label"
+              ],
+              "variable": [
+                {
+                  "key": "label",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Secret",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/secrets/:label",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "secrets",
+                ":label"
+              ],
+              "variable": [
+                {
+                  "key": "label",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Secret",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/secrets/:label",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "secrets",
+                ":label"
+              ],
+              "variable": [
+                {
+                  "key": "label",
+                  "value": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "force",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "tasks",
+      "item": [
+        {
+          "name": "Get Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Post Tasks",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Task Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Task",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Retry Task",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/retry",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "retry"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Cancel Tasks",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/cancel",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Post Tasks Validate",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/validate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                "validate"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Task Trigger",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/trigger",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "trigger"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Get Task Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/config",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "config"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Launch Task",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/launch",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "launch"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Post Run Resources",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/runs/:run_id/resources",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "runs",
+                ":run_id",
+                "resources"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                },
+                {
+                  "key": "run_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Get Task Results",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/results",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "results"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Get Tasks Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "logs"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Approve Results",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/results/approve",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "results",
+                "approve"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Block Results",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:project_id/tasks/:task_id/results/block",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                ":project_id",
+                "tasks",
+                ":task_id",
+                "results",
+                "block"
+              ],
+              "variable": [
+                {
+                  "key": "project_id",
+                  "value": ""
+                },
+                {
+                  "key": "task_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Get All Tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "project_enabled",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "trigger_repositories",
+      "item": [
+        {
+          "name": "Get Repositories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/triggers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "triggers"
+              ],
+              "variable": [],
+              "query": [
+                {
+                  "key": "pollable",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Post Repository",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/triggers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "triggers"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Repository",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/triggers/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "triggers",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Patch Repository",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/triggers/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "triggers",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete Repository",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/triggers/:repo_id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "triggers",
+                ":repo_id"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "force",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Pull Requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/triggers/:repo_id/pull_requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "triggers",
+                ":repo_id",
+                "pull_requests"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Post Pull Requests Batch",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/triggers/:repo_id/pull_requests",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "triggers",
+                ":repo_id",
+                "pull_requests"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Post Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/repositories/triggers/:repo_id/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "repositories",
+                "triggers",
+                ":repo_id",
+                "token"
+              ],
+              "variable": [
+                {
+                  "key": "repo_id",
+                  "value": ""
+                }
+              ],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "item": [
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/users/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "users",
+                "reset-password"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get Users List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "users"
+              ],
+              "variable": [],
+              "query": []
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/global/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "global",
+                "users"
+              ],
+              "variable": [],
+              "query": []
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
