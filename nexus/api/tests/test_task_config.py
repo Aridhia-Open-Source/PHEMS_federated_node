@@ -1,11 +1,10 @@
 """
-A task is pinned to the configuration it was created under (helpers/task_config): the snapshot and its
+A task is pinned to the configuration it was created under (Task in app/models/task.py): the snapshot and its
 diff, where it is set, the check endpoint, and the publish gate (STALE result).
 """
 import pytest
 
 from app.database.base_model import db
-from app.tasks.task_config import build_snapshot, config_changes, diff, snapshot_hash
 from app.models.task import Task
 
 RESULTS = {"repository": "https://github.com/org/results-global", "api_uri": "https://api.github.com",
@@ -23,52 +22,52 @@ def snapshot(**fields) -> dict:
 def test_hash_is_stable_and_follows_content():
     a, b = snapshot(), snapshot()
     b_reordered = dict(reversed(list(b.items())))
-    assert snapshot_hash(a) == snapshot_hash(b_reordered) and len(snapshot_hash(a)) == 64
+    assert Task.snapshot_hash(a) == Task.snapshot_hash(b_reordered) and len(Task.snapshot_hash(a)) == 64
     changed = snapshot(results={**RESULTS, "target_dir": "out/"})
-    assert snapshot_hash(changed) != snapshot_hash(a)
+    assert Task.snapshot_hash(changed) != Task.snapshot_hash(a)
 
 
 def test_diff_lists_changed_fields_readably():
     current = snapshot(results={**RESULTS, "target_dir": "out/"}, dataset={**DATASET, "port": 1})
-    assert diff(snapshot(), current) == ["results.target_dir: 'results/' -> 'out/'", "dataset.port: 5432 -> 1"]
-    assert diff(snapshot(), snapshot()) == []
+    assert Task.diff(snapshot(), current) == ["results.target_dir: 'results/' -> 'out/'", "dataset.port: 5432 -> 1"]
+    assert Task.diff(snapshot(), snapshot()) == []
 
 
 def test_diff_names_a_changed_base_branch():
     current = snapshot(results={**RESULTS, "base_branch": "release"})
-    assert diff(snapshot(), current) == ["results.base_branch: 'main' -> 'release'"]
-    assert snapshot_hash(current) != snapshot_hash(snapshot())
+    assert Task.diff(snapshot(), current) == ["results.base_branch: 'main' -> 'release'"]
+    assert Task.snapshot_hash(current) != Task.snapshot_hash(snapshot())
 
 
 def test_diff_results_or_dataset_added_or_removed():
-    assert diff(snapshot(results=None), snapshot()) == [f"results: None -> {RESULTS!r}"]
-    assert diff(snapshot(), snapshot(dataset=None)) == [f"dataset: {DATASET!r} -> None"]
+    assert Task.diff(snapshot(results=None), snapshot()) == [f"results: None -> {RESULTS!r}"]
+    assert Task.diff(snapshot(), snapshot(dataset=None)) == [f"dataset: {DATASET!r} -> None"]
 
 
 def test_diff_ignores_version_and_fields_the_stored_snapshot_lacks():
-    assert diff(snapshot(version=1), snapshot(version=2)) == []
+    assert Task.diff(snapshot(version=1), snapshot(version=2)) == []
     stored = snapshot()
     del stored["dataset"]
     # a field added in a later version is unchanged
-    assert diff(stored, snapshot(dataset={**DATASET, "name": "other"})) == []
+    assert Task.diff(stored, snapshot(dataset={**DATASET, "name": "other"})) == []
     stored["results"].pop("api_uri")
-    assert diff(stored, snapshot()) == []
+    assert Task.diff(stored, snapshot()) == []
 
 
 def test_task_without_a_snapshot_has_no_changes(project, make_task):
     task = make_task()
-    assert task.config_snapshot is None and config_changes(task) == []
+    assert task.config_snapshot is None and task.config_changes() == []
 
 
 # --------------------------------------------------------------------------- the snapshot
 
 
 def test_build_snapshot_of_a_project_with_nothing(project):
-    assert build_snapshot(project, None) == {"version": 1, "results": None, "dataset": None}
+    assert Task.snapshot(project, None) == {"version": 1, "results": None, "dataset": None}
 
 
 def test_build_snapshot_holds_identity_fields_only(project, global_results_repo, assigned_results_repo, global_dataset):
-    snap = build_snapshot(project, global_dataset)
+    snap = Task.snapshot(project, global_dataset)
     assert snap["results"] == {
         "repository_id": global_results_repo.id, "repository": global_results_repo.uri, "api_uri": global_results_repo.provider.api_uri,
         "target_dir": "results", "base_branch": "main",
@@ -96,7 +95,7 @@ def test_pr_task_is_pinned_at_creation_and_retry_does_not_repin(
     task = reload_task(created.json()["id"])
     assert task.config_snapshot["results"]["target_dir"] == "results"
     assert task.config_snapshot["results"]["base_branch"] == "main"
-    assert task.config_hash == snapshot_hash(task.config_snapshot)
+    assert task.config_hash == Task.snapshot_hash(task.config_snapshot)
     assert created.json()["config_hash"] == task.config_hash and "config_snapshot" not in created.json()
 
     url = f"/projects/{project.id}/repositories/results/{global_results_repo.id}"
@@ -117,9 +116,9 @@ def test_pr_task_is_pinned_at_creation_and_retry_does_not_repin(
 
 
 def pinned_task(project, make_task, dataset=None):
-    snap = build_snapshot(project, dataset)
+    snap = Task.snapshot(project, dataset)
     fields = {"dataset_id": dataset.id} if dataset else {}
-    return make_task(config_snapshot=snap, config_hash=snapshot_hash(snap), **fields)
+    return make_task(config_snapshot=snap, config_hash=Task.snapshot_hash(snap), **fields)
 
 
 def config_url(project, task):

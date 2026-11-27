@@ -5,7 +5,6 @@ One test per rule; fixtures come from conftest.
 import pytest
 
 from app.database.base_model import db
-from app.tasks.task_config import build_snapshot, snapshot_hash
 from app.models.project import Project
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.result import Result
@@ -900,8 +899,8 @@ def test_post_result_revoked_beats_switched_off(
 def test_post_result_stale_beats_switched_off_and_is_final(
     client, admin_headers, system_headers, project, global_results_repo, assigned_results_repo, make_task, how
 ):
-    snapshot = build_snapshot(project, None)
-    task = make_task(status="SUCCESS", config_snapshot=snapshot, config_hash=snapshot_hash(snapshot))
+    snapshot = Task.snapshot(project, None)
+    task = make_task(status="SUCCESS", config_snapshot=snapshot, config_hash=Task.snapshot_hash(snapshot))
     assert client.patch(resource_url(project, global_results_repo), json={"target_dir": "out"}, headers=admin_headers).status_code == 200
     switch_off(client, admin_headers, project, global_results_repo, how)
 

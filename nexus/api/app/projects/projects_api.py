@@ -101,7 +101,7 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
     disabled project (`"enabled": true`), otherwise a 400, and is not stored.
     `revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:
     while it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger
-    (see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.
+    (see Task.revoked_resources). Restoring it skips the gap like enabling does.
     """
     project = get_for_write(db.session, Project, project_id, caller)
 

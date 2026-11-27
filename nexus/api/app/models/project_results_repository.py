@@ -59,6 +59,18 @@ class ProjectResultsRepository(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel)
         self.enabled = enabled
         self.revoked = revoked
 
+    @classmethod
+    def latest(cls, project_id: int, results_repository_id: int | None = None) -> "ProjectResultsRepository | None":
+        """
+        The project's resource for the results repository, a deleted one too (it is revoked, so its delivery gets
+        the final REVOKED result), the newest if there are several. Without a repository id, the project's
+        newest resource for any.
+        """
+        query = cls.query.filter_by(project_id=project_id)
+        if results_repository_id is not None:
+            query = query.filter_by(results_repository_id=results_repository_id)
+        return query.execution_options(include_deleted=True).order_by(cls.id.desc()).first()
+
     @property
     def active(self) -> bool:
         return self.results_repository.active and self.enabled and not self.revoked

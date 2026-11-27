@@ -24,5 +24,5 @@ def task_body(dataset, image_name, project):
             "dataset_id": dataset.id,
             "test_tag": "some content"
         },
-        "resources": {}
+        "compute": {}
     })

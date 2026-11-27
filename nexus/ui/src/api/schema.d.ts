@@ -145,7 +145,7 @@ export interface paths {
          *     disabled project (`"enabled": true`), otherwise a 400, and is not stored.
          *     `revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:
          *     while it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger
-         *     (see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.
+         *     (see Task.revoked_resources). Restoring it skips the gap like enabling does.
          */
         patch: operations["patch_project_projects__project_id__patch"];
         trace?: never;
@@ -438,7 +438,7 @@ export interface paths {
          *     A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
          *     status again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.
          *     A task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see
-         *     helpers/task_resources): before the status is saved, so that a failed delete leaves the task as it was and
+         *     RunResources.delete): before the status is saved, so that a failed delete leaves the task as it was and
          *     the next PATCH retries it.
          */
         patch: operations["patch_task_projects__project_id__tasks__task_id__patch"];
@@ -542,7 +542,7 @@ export interface paths {
          *     revoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a
          *     task must not launch either, and its results are never delivered.
          *     outcome is the decision for a PENDING task, "launch" or "fail", and cause says why when it fails: see
-         *     helpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.
+         *     Task.decide_launch for the rules and their order. Read-only, safe to call every tick.
          */
         get: operations["get_task_config_projects__project_id__tasks__task_id__config_get"];
         put?: never;
@@ -565,7 +565,7 @@ export interface paths {
         /**
          * Launch Task
          * @description POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides
-         *     with helpers/task_config.decide_launch, the same rules GET .../config reports, and answers:
+         *     with Task.decide_launch, the same rules GET .../config reports, and answers:
          *     - "fail": the task is moved to FAILED here, its state_cause the cause cut to TASK_CAUSE_MAX_LENGTH. Returns
          *       outcome, cause (as stored) and the failed task.
          *     - "launch": nothing is written. Returns outcome, the task (spec included) and its dataset, with the secret
@@ -716,11 +716,11 @@ export interface paths {
          *     after the revoked check below if it is not final yet (step UNKNOWN or PUSHED): when something the task uses is
          *     revoked by now, it is moved to step REVOKED and state FAILED, with the same error.
          *     Otherwise 409 unless the task is SUCCESS. When anything the task uses is revoked or deleted (its project, trigger, dataset
-         *     or results repository, see helpers/task_config.revoked_resources) the result is created as final,
+         *     or results repository, see Task.revoked_resources) the result is created as final,
          *     step REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the project resource is inactive for another
          *     reason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and
          *     state FAILED, with the error "results resource switched off": the delivery retry sensor delivers it once the project resource
-         *     is active. A task whose configuration changed since it was created (see helpers/task_config) is not delivered:
+         *     is active. A task whose configuration changed since it was created (see Task.config_changes) is not delivered:
          *     its result is created as final, step STALE and state FAILED, with the changes as its error. The checks run in
          *     that order: revoked, STALE, switched off.
          */
@@ -857,7 +857,7 @@ export interface paths {
          *     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
          *     named (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,
          *     if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
-         *     project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
+         *     project at once, or restores it, and does not change `enabled`: see Task.revoked_resources.
          */
         patch: operations["patch_repository_global_repositories_triggers__repo_id__patch"];
         trace?: never;
@@ -1183,7 +1183,7 @@ export interface paths {
          * @description PATCH /global/providers/<id> — update a provider. The tasks created before
          *     are pinned to the old setup and fail instead of running against the new one. `revoked` (a boolean) withdraws
          *     the provider, and so every repository on it, from every project at once, or restores it, and does not
-         *     change `enabled`: see helpers/task_config.revoked_resources.
+         *     change `enabled`: see Task.revoked_resources.
          */
         patch: operations["patch_provider_global_providers__provider_id__patch"];
         trace?: never;
@@ -1241,7 +1241,7 @@ export interface paths {
          *     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
          *     named (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,
          *     if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
-         *     project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
+         *     project at once, or restores it, and does not change `enabled`: see Task.revoked_resources.
          */
         patch: operations["patch_repository_global_repositories_results__repo_id__patch"];
         trace?: never;
@@ -2414,7 +2414,7 @@ export interface components {
         };
         /**
          * TaskConfigDTO
-         * @description Whether the configuration a task was created under still holds, see helpers/task_config.decide_launch.
+         * @description Whether the configuration a task was created under still holds, see Task.decide_launch.
          */
         TaskConfigDTO: {
             /** Outcome */
@@ -2502,7 +2502,7 @@ export interface components {
         /**
          * TaskResourcesDTO
          * @description The names of the Secret and the ConfigMap made for a run, null for the one it does not need: the Secret
-         *     only for a task with a dataset, the ConfigMap only for a task with a config. See tasks_api.create_run_resources.
+         *     only for a task with a dataset, the ConfigMap only for a task with a config. See RunResources.create.
          */
         TaskResourcesDTO: {
             /** Secret */

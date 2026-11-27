@@ -42,6 +42,14 @@ def test_build_run_config():
     assert build_run_config(spec, DATASET) == expected(env={"K": "v"}, compute={}, docker_image="a/b:1")
 
 
+def test_the_specs_compute_is_in_the_run_config_as_what_it_asks_for():
+    spec = TaskSpec(image="a/b:1", dataset_id=1, env={}, compute={"limits": {"cpu": "1"}, "requests": {"memory": "1Gi"}})
+
+    assert build_run_config(spec, DATASET)["ops"]["k8s_pipes_op"]["config"]["compute"] == {
+        "limits": {"cpu": "1"}, "requests": {"memory": "1Gi"},
+    }
+
+
 def test_the_specs_config_is_in_the_run_config():
     config = {"threshold": 0.5, "labels": ["a", None, True], "nested": {"deep": {"k": []}}}
     spec = TaskSpec(image="a/b:1", dataset_id=1, env={}, config=config)

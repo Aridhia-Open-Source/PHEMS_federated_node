@@ -183,7 +183,7 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
     named (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,
     if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
-    project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
+    project at once, or restores it, and does not change `enabled`: see Task.revoked_resources.
     """
     repo = get_for_write(session, TriggerRepository, repo_id, caller)
 

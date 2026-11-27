@@ -15,6 +15,7 @@ from fednode.clients.nexus.models.results_repository import ProjectResultsReposi
 from fednode.clients.nexus.models.secret import Secret
 from fednode.clients.nexus.models.secret_provider_type import SecretProviderType
 from fednode.clients.nexus.models.task import Task
+from fednode.clients.nexus.models.task_compute import ComputeQuantities, TaskCompute
 from fednode.clients.nexus.models.task_config import TaskConfig
 from fednode.clients.nexus.models.task_resources import TaskResources
 from fednode.clients.nexus.models.task_spec import TaskSpec
@@ -25,6 +26,7 @@ from fednode.clients.nexus.models.trigger_repository import ProjectTriggerReposi
 __all__ = [
     "Catalogue",
     "ChangedFile",
+    "ComputeQuantities",
     "Dataset",
     "Dictionary",
     "GitProvider",
@@ -44,6 +46,7 @@ __all__ = [
     "Secret",
     "SecretProviderType",
     "Task",
+    "TaskCompute",
     "TaskConfig",
     "TaskResources",
     "TaskSpec",

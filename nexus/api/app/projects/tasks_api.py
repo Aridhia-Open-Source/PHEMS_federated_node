@@ -25,7 +25,7 @@ from fastapi_pagination import Page
 from fastapi.responses import PlainTextResponse
 
 from app.database.base_model import db
-from app.tasks.limits import TASK_CAUSE_MAX_LENGTH
+from app.helpers.const import TASK_CAUSE_MAX_LENGTH
 from app.helpers.exceptions import (
     DBRecordNotFoundError, InvalidDBEntry, InvalidRequest, NotImplementedException, TaskImageException,
     UnauthorizedError
@@ -35,8 +35,7 @@ from app.rules.ownership import does_user_own_task
 from app.rules.project_state import require_accepts_tasks
 from app.clients.kubernetes_names import validate_dns_label
 from app.rules.state_rules import transition
-from app.tasks.task_config import decide_launch
-from app.tasks.task_resources import create_run_resources, delete_run_resources
+from app.clients.run_resources import RunResources
 from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.dtos.dataset import DatasetDTO
@@ -150,7 +149,7 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
     A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
     status again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.
     A task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see
-    helpers/task_resources): before the status is saved, so that a failed delete leaves the task as it was and
+    RunResources.delete): before the status is saved, so that a failed delete leaves the task as it was and
     the next PATCH retries it.
     """
     task = get_project_task(project_id, task_id)
@@ -193,7 +192,7 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
 
     # A task that never ran has no run id and nothing to delete
     if 'status' in body and not TASK_MOVES[task.status] and task.executor_run_id:
-        delete_run_resources(task.executor_run_id)
+        RunResources.delete(task.executor_run_id)
 
     db.session.commit()
     return TaskDTO.from_model(task)
@@ -314,11 +313,11 @@ def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_
     revoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a
     task must not launch either, and its results are never delivered.
     outcome is the decision for a PENDING task, "launch" or "fail", and cause says why when it fails: see
-    helpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.
+    Task.decide_launch for the rules and their order. Read-only, safe to call every tick.
     """
     task = get_project_task(project_id, task_id)
     does_user_own_task(task, caller)
-    decision = decide_launch(task)
+    decision = task.decide_launch()
     return {
         "outcome": decision.outcome, "cause": decision.cause,
         "current": not decision.changes, "changes": decision.changes, "config_hash": task.config_hash,
@@ -333,7 +332,7 @@ def get_task_config(project_id: int, task_id: int, caller: Caller = Depends(get_
 def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_caller)):
     """
     POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides
-    with helpers/task_config.decide_launch, the same rules GET .../config reports, and answers:
+    with Task.decide_launch, the same rules GET .../config reports, and answers:
     - "fail": the task is moved to FAILED here, its state_cause the cause cut to TASK_CAUSE_MAX_LENGTH. Returns
       outcome, cause (as stored) and the failed task.
     - "launch": nothing is written. Returns outcome, the task (spec included) and its dataset, with the secret
@@ -345,7 +344,7 @@ def launch_task(project_id: int, task_id: int, caller: Caller = Depends(get_call
     if task.status != TaskStatus.PENDING.value:
         raise InvalidRequest(f"Task {task_id} is {task.status}, not {TaskStatus.PENDING.value}", HTTPStatus.CONFLICT)
 
-    decision = decide_launch(task)
+    decision = task.decide_launch()
     if decision.outcome == "fail":
         transition(TASK_MOVES, task.status, TaskStatus.FAILED.value)
         task.status = TaskStatus.FAILED.value
@@ -377,7 +376,7 @@ def post_run_resources(project_id: int, task_id: int, run_id: str, caller: Calle
     does_user_own_task(task, caller)
     # It becomes part of the objects' names and label values
     validate_dns_label(run_id, "run_id")
-    return create_run_resources(task, run_id)
+    return RunResources(task, run_id).create()
 
 
 @router.get('/{task_id}/results', response_model=list[PullRequestResultDTO])

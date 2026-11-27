@@ -5,7 +5,7 @@ from pydantic import AliasChoices, Field
 from app.dtos.base import DTO, WireDatetime
 from app.dtos.dataset import DatasetDTO
 from app.dtos.task_spec import TaskSpecRequest
-from app.tasks.task_config import build_snapshot, snapshot_hash
+from app.models.task import Task
 from app.models.trigger import Trigger
 
 
@@ -43,14 +43,14 @@ class TaskDTO(DTO):
 
 
 class TaskConfigDTO(DTO):
-    """Whether the configuration a task was created under still holds, see helpers/task_config.decide_launch."""
+    """Whether the configuration a task was created under still holds, see Task.decide_launch."""
     # "launch" or "fail"
     outcome: str
     cause: str | None
     current: bool
     changes: list[str]
     config_hash: str | None
-    # The pinned configuration itself, see helpers/task_config.build_snapshot. Null for a task without one
+    # The pinned configuration itself, see Task.snapshot. Null for a task without one
     config_snapshot: dict | None
     revoked: list[str]
 
@@ -78,7 +78,7 @@ class TaskLaunchDTO(DTO):
 class TaskResourcesDTO(DTO):
     """
     The names of the Secret and the ConfigMap made for a run, null for the one it does not need: the Secret
-    only for a task with a dataset, the ConfigMap only for a task with a config. See tasks_api.create_run_resources.
+    only for a task with a dataset, the ConfigMap only for a task with a config. See RunResources.create.
     """
     secret: str | None
     config_map: str | None
@@ -105,7 +105,7 @@ class NewTaskDTO(DTO):
         The one place a Task's columns are derived from a validated spec and its trigger.
         """
         dataset = trigger.project.resolve_dataset(spec.dataset)
-        snapshot = build_snapshot(trigger.project, dataset)
+        snapshot = Task.snapshot(trigger.project, dataset)
         return cls(
             # A pull request spec has no name of its own
             name=spec.name or f"{trigger.project.name}:PR#{trigger.number}",
@@ -114,7 +114,7 @@ class NewTaskDTO(DTO):
             trigger_id=trigger.id,
             params=spec.params,
             config_snapshot=snapshot,
-            config_hash=snapshot_hash(snapshot),
+            config_hash=Task.snapshot_hash(snapshot),
             spec={
                 "image": spec.image,
                 "dataset_id": dataset.id if dataset else None,

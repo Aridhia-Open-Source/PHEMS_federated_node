@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from fednode.clients.nexus.models.task_compute import TaskCompute
 
 
 class TaskSpec(BaseModel):
@@ -8,6 +10,6 @@ class TaskSpec(BaseModel):
     image: str
     dataset_id: int | None = None
     env: dict
-    compute: dict = {}
+    compute: TaskCompute = Field(default_factory=TaskCompute)
     tags: dict = {}
     config: dict | None = None

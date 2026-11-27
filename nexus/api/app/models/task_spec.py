@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 
 from app.database.base_model import BaseModel, db
-from app.tasks.limits import TASK_IMAGE_MAX_LENGTH
+from app.helpers.const import TASK_IMAGE_MAX_LENGTH
 
 
 class TaskSpec(db.Model, BaseModel):
