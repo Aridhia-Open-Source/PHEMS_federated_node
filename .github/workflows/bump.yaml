@@ -40,8 +40,10 @@ jobs:
         with:
           app-id: ${{ vars.BUMP_APP_ID }}
           private-key: ${{ secrets.BUMP_APP_SECRET }}
+          # pushes the version bump commit
+          permission-contents: write
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 # zizmor: ignore[artipacked] (the commit step pushes with these credentials)
         with:
           ref: ${{ github.ref }}
           token: ${{ steps.generate-token.outputs.token }}

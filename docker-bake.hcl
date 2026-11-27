@@ -12,6 +12,32 @@ variable "TAG" {
   default = "latest"
 }
 
+# Where the release images go; CI passes ghcr.io/<owner>
+variable "RELEASE_REGISTRY" {
+  default = "ghcr.io/aridhia-open-source"
+}
+
+# Build cache for the release targets: CI sets "gha" on non-release builds; empty (the default) means no cache
+variable "CACHE" {
+  default = ""
+}
+
+function "cache_from" {
+  params = [name]
+  result = CACHE == "" ? [] : ["type=${CACHE},scope=${name}"]
+}
+
+function "cache_to" {
+  params = [name]
+  result = CACHE == "" ? [] : ["type=${CACHE},mode=max,scope=${name}"]
+}
+
+# One release image: RELEASE_REGISTRY/<name>:TAG
+function "release_tags" {
+  params = [name]
+  result = ["${RELEASE_REGISTRY}/${name}:${TAG}"]
+}
+
 # <registry>/<name>:latest and :TAG, once if TAG is latest
 function "tags" {
   params = [name]
@@ -32,9 +58,10 @@ group "default" {
   ]
 }
 
-# What the release publishes to ghcr.io, built without REGISTRY
+# What CI and the release publish (RELEASE_REGISTRY), built without REGISTRY
 group "release" {
   targets = [
+    "release-nexus-api",
     "release-keycloak",
     "release-alpine",
     "release-kc-init",
@@ -91,27 +118,44 @@ target "nexus-ui-dev-fn" {
   tags    = tags("nexus-ui-dev-fn")
 }
 
+target "release-nexus-api" {
+  inherits   = ["nexus-api-fn"]
+  tags       = release_tags("nexus_api")
+  cache-from = cache_from("nexus_api")
+  cache-to   = cache_to("nexus_api")
+}
+
 target "release-keycloak" {
-  inherits = ["keycloak-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/federated_keycloak:${TAG}"]
+  inherits   = ["keycloak-fn"]
+  tags       = release_tags("federated_keycloak")
+  cache-from = cache_from("federated_keycloak")
+  cache-to   = cache_to("federated_keycloak")
 }
 
 target "release-alpine" {
-  inherits = ["alpine-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/alpine:${TAG}"]
+  inherits   = ["alpine-fn"]
+  tags       = release_tags("alpine")
+  cache-from = cache_from("alpine")
+  cache-to   = cache_to("alpine")
 }
 
 target "release-kc-init" {
-  inherits = ["kc-init-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/keycloak_initializer:${TAG}"]
+  inherits   = ["kc-init-fn"]
+  tags       = release_tags("keycloak_initializer")
+  cache-from = cache_from("keycloak_initializer")
+  cache-to   = cache_to("keycloak_initializer")
 }
 
 target "release-dagster" {
-  inherits = ["dagster-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/dagster_fn:${TAG}"]
+  inherits   = ["dagster-fn"]
+  tags       = release_tags("dagster_fn")
+  cache-from = cache_from("dagster_fn")
+  cache-to   = cache_to("dagster_fn")
 }
 
 target "release-nexus-operator" {
-  inherits = ["nexus-operator-fn"]
-  tags     = ["ghcr.io/aridhia-open-source/nexus_operator:${TAG}"]
+  inherits   = ["nexus-operator-fn"]
+  tags       = release_tags("nexus_operator")
+  cache-from = cache_from("nexus_operator")
+  cache-to   = cache_to("nexus_operator")
 }

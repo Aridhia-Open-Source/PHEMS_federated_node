@@ -23,7 +23,13 @@ DOCKER_REGISTRY = 'localhost:5001'
 
 # CUSTOM_CA_FILE (optional): given to image builds as the BuildKit secret proxy_ca.
 CA_FILE = os.getenv('CUSTOM_CA_FILE', '')
-BUILD_SECRET = ['--secret', 'id=proxy_ca,src=' + os.path.abspath(CA_FILE)] if CA_FILE else []
+
+# Images build from their docker-bake.hcl target (contexts there); Tilt sets only the tag and the CA secret.
+def bake_build_cmd(target, ref):
+  args = ['docker buildx bake -f docker-bake.hcl', target, '--load', '--set {}.tags={}'.format(target, ref)]
+  if CA_FILE:
+    args.append('--set {}.secrets=id=proxy_ca,src={}'.format(target, os.path.abspath(CA_FILE)))
+  return ' '.join(args)
 NAMESPACE = os.getenv('NAMESPACE', 'fn')
 # The nexus operator runs in its own namespace (chart global.namespaces.operator)
 OPERATOR_NAMESPACE = os.getenv('OPERATOR_NAMESPACE', 'fn-operator')
@@ -60,11 +66,9 @@ k8s_yaml(local(
 # deployment, matching by the tag-stripped name. uvicorn --reload picks up synced code itself.
 # The image also takes the shared fednode package (nexus/fednode) from the fednode named build context,
 # which docker_build has none of, so it is a custom build, like Dagster's.
-NEXUS_API_BUILD_CMD = ' '.join(
-  ['docker buildx build --load --build-context fednode=nexus/fednode'] + BUILD_SECRET + ['-t {ref} nexus/api'])
 custom_build_with_restart(
   '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
-  NEXUS_API_BUILD_CMD.format(ref='$EXPECTED_REF'),
+  bake_build_cmd('nexus-api-fn', '$EXPECTED_REF'),
   deps=[
     'nexus/api/app',
     'nexus/api/requirements.txt',
@@ -132,9 +136,7 @@ DAGSTER_BUILD_IGNORE = [
   '**/*.pyc',
   '**/*.egg-info',
 ]
-# docker_build has no named build context, so the Dagster image is a custom build
-DAGSTER_BUILD_CMD = ' '.join(
-  ['docker buildx build --load --build-context fednode=nexus/fednode'] + BUILD_SECRET + ['-t {ref} dagster'])
+# docker_build has no named build context, so the Dagster image is a custom build (bake)
 
 # The image has no ENTRYPOINT or CMD: the chart passes the whole gRPC command as the
 # container args (templates/dagster-code-server.yaml). With an empty entrypoint Tilt's
@@ -143,7 +145,7 @@ DAGSTER_BUILD_CMD = ' '.join(
 # args: either one doubles the command or leaves the wrapper with nothing to run.
 custom_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
-  DAGSTER_BUILD_CMD.format(ref='$EXPECTED_REF'),
+  bake_build_cmd('dagster-fn', '$EXPECTED_REF'),
   deps=DAGSTER_BUILD_DEPS,
   entrypoint=[],
   ignore=DAGSTER_BUILD_IGNORE,
@@ -167,7 +169,7 @@ custom_build_with_restart(
 local_resource(
   'dagster-run-image',
   cmd='{build} && docker push {img}'.format(
-    build=DAGSTER_BUILD_CMD.format(ref='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY)),
+    build=bake_build_cmd('dagster-fn', '{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY)),
     img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
   ),
   # Only what the code server and run pods use. The docs, fncli, CI and lint files next to it don't.
@@ -186,7 +188,7 @@ local_resource(
 if str(local('kubectl get deployment nexus-operator -n {} --ignore-not-found -o name'.format(OPERATOR_NAMESPACE), quiet=True)).strip():
   custom_build_with_restart(
     '{}/nexus-operator-fn'.format(DOCKER_REGISTRY),
-    'docker buildx build --load --build-context fednode=nexus/fednode -t $EXPECTED_REF nexus/operator',
+    bake_build_cmd('nexus-operator-fn', '$EXPECTED_REF'),
     deps=['nexus/operator', 'nexus/fednode'],
     entrypoint=[
       'kopf', 'run', '-m', 'nexus_operator.main', '--standalone', '--liveness=http://0.0.0.0:8080/healthz',

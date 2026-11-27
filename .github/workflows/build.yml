@@ -43,9 +43,9 @@ env:
   MISE_TASK_RUN_AUTO_INSTALL: 'false'
   IS_TAG: ${{ github.ref_type == 'tag' }}
 
+# jobs that publish ask for write themselves
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   stack-gate:
@@ -101,6 +101,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
         with:
+          persist-credentials: false
           fetch-depth: 0
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
@@ -152,9 +153,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          persist-credentials: false
           fetch-depth: 0  # the version suffix counts merges
       - name: Setting global values
         id: vars
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           echo "IS_TAG=${{ env.IS_TAG }}" >> ${GITHUB_OUTPUT}
 
@@ -181,7 +185,7 @@ jobs:
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             suffix="-pr.${{ github.event.pull_request.number }}.${sha}"
           else
-            case "${{ github.ref_name }}" in
+            case "${REF_NAME}" in
               main) suffix="-rc.${n}" ;;
               develop) suffix="-beta.${n}" ;;
               # The dagster prefix stays until the dagster line merges into develop and main
@@ -211,10 +215,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # The lint tasks run in docker, so no tool needs installing
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
         with:
+          # no tool cache: this workflow also runs on release pushes (zizmor cache-poisoning)
+          cache: false
           install: false
 
       # Both linters write their reports here.
@@ -268,10 +276,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # Only helm is needed here, the pinned one from mise.toml
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
         with:
+          # no tool cache: this workflow also runs on release pushes (zizmor cache-poisoning)
+          cache: false
           install_args: helm
 
       # `helm template` renders client-side, so every lookup returns nil. The chart
@@ -298,6 +310,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # run_tests.sh copies coverage.xml out of the container into here.
       - name: Create artifacts directory
@@ -340,10 +354,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # The mise binary runs the task; the tests themselves run in docker
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
         with:
+          # no tool cache: this workflow also runs on release pushes (zizmor cache-poisoning)
+          cache: false
           install: false
 
       - name: Run Dagster Tests
@@ -363,185 +381,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # The mise binary runs the task; the tests themselves run in docker
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
         with:
+          # no tool cache: this workflow also runs on release pushes (zizmor cache-poisoning)
+          cache: false
           install: false
 
       - name: Run Operator Tests
         run: |
           mise run tests-operator
 
-  build-nexus-api-image:
+  # Every image is a docker-bake.hcl target (the release group), with its build contexts there.
+  # The GitHub Actions cache is used only off the release branches; main and dagster-main build without it.
+  build-images:
     needs:
       - init
-      - chart-tests
-      - api-tests
-      - dagster-tests
-    if: >-
-      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ vars.DOCKER_CR }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set lower case owner name
-        run: |
-          echo "OWNER_LC=${OWNER,,}" >> "${GITHUB_ENV}"
-        env:
-          OWNER: '${{ github.repository_owner }}'
-      - name: Build and push nexus_api image
-        uses: docker/build-push-action@v5
-        with:
-          context: nexus/api
-          file: nexus/api/Dockerfile
-          build-contexts: fednode=nexus/fednode
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/nexus_api:${{ needs.init.outputs.tag }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-  build-keycloak-image:
-    needs:
-      - init
-      - chart-tests
-      - api-tests
-      - dagster-tests
-    if: >-
-      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
-    uses: Aridhia-Open-Source/pipelines/.github/workflows/build-docker.yml@main
-    with:
-      TAG: ${{ needs.init.outputs.tag }}
-      IMAGE: federated_keycloak
-      BUILD_PATH: build/keycloak/
-      HASH_SUFFIX: false
-      DOCKER_ACR: ${{ vars.DOCKER_CR }}
-    secrets:
-      DOCKER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  build-alpine-image:
-    needs:
-      - init
-      - chart-tests
-      - api-tests
-      - dagster-tests
-    if: >-
-      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ vars.DOCKER_CR }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set lower case owner name
-        run: |
-          echo "OWNER_LC=${OWNER,,}" >> "${GITHUB_ENV}"
-        env:
-          OWNER: '${{ github.repository_owner }}'
-      - name: Build and push alpine image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/alpine
-          file: build/alpine/Dockerfile
-          build-contexts: fednode=nexus/fednode
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/alpine:${{ needs.init.outputs.tag }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-  # The steps of Aridhia-Open-Source/pipelines build-docker.yml (HASH_SUFFIX false), inline because the
-  # image needs the fednode named build context (nexus/fednode), which that workflow cannot pass.
-  build-kc-init-image:
-    needs:
-      - init
-      - chart-tests
-      - api-tests
-      - dagster-tests
-    if: >-
-      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ vars.DOCKER_CR }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set lower case owner name
-        run: |
-          echo "OWNER_LC=${OWNER,,}" >> "${GITHUB_ENV}"
-        env:
-          OWNER: '${{ github.repository_owner }}'
-      - name: Build and push keycloak_initializer image
-        uses: docker/build-push-action@v5
-        with:
-          context: build/kc-init
-          file: build/kc-init/Dockerfile
-          build-contexts: fednode=nexus/fednode
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/keycloak_initializer:${{ needs.init.outputs.tag }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-  # The steps of Aridhia-Open-Source/pipelines build-docker.yml (HASH_SUFFIX false), inline because the
-  # image needs the fednode named build context (nexus/fednode), which that workflow cannot pass.
-  build-dagster-image:
-    needs:
-      - init
-      - chart-tests
-      - api-tests
-      - dagster-tests
-    if: >-
-      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        with:
-          registry: ${{ vars.DOCKER_CR }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set lower case owner name
-        run: |
-          echo "OWNER_LC=${OWNER,,}" >> "${GITHUB_ENV}"
-        env:
-          OWNER: '${{ github.repository_owner }}'
-      - name: Build and push dagster_fn image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
-        with:
-          context: dagster
-          file: dagster/Dockerfile
-          build-contexts: fednode=nexus/fednode
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/dagster_fn:${{ needs.init.outputs.tag }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-  # Inline like the Dagster image, for the same fednode build context
-  build-nexus-operator-image:
-    needs:
-      - init
+      - changes
       - chart-tests
       - api-tests
       - dagster-tests
       - operator-tests
+    # Pushes build and push every image (changes are all true there); PRs build only the images whose paths changed, without pushing
     if: >-
-      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' && needs.init.outputs.publish == 'true'
+      !failure() && !cancelled() && needs.init.outputs.is_tag == 'false' &&
+      (needs.init.outputs.publish == 'true' || needs.changes.outputs.api == 'true' || needs.changes.outputs.dagster == 'true' ||
+      needs.changes.outputs.operator == 'true' || needs.changes.outputs.build == 'true')
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        if: needs.init.outputs.publish == 'true'
         with:
           registry: ${{ vars.DOCKER_CR }}
           username: ${{ github.actor }}
@@ -551,19 +430,37 @@ jobs:
           echo "OWNER_LC=${OWNER,,}" >> "${GITHUB_ENV}"
         env:
           OWNER: '${{ github.repository_owner }}'
-      - name: Build and push nexus_operator image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+      - name: Pick the bake targets
+        id: targets
+        env:
+          API: ${{ needs.changes.outputs.api }}
+          DAGSTER: ${{ needs.changes.outputs.dagster }}
+          OPERATOR: ${{ needs.changes.outputs.operator }}
+          BUILD: ${{ needs.changes.outputs.build }}
+        run: |
+          targets=()
+          [[ "${API}" == "true" ]] && targets+=(release-nexus-api)
+          [[ "${DAGSTER}" == "true" ]] && targets+=(release-dagster)
+          [[ "${OPERATOR}" == "true" ]] && targets+=(release-nexus-operator)
+          [[ "${BUILD}" == "true" ]] && targets+=(release-keycloak release-alpine release-kc-init)
+          echo "list=$(IFS=,; echo "${targets[*]}")" >> "${GITHUB_OUTPUT}"
+      - name: Build the images (and push them from trunk pushes)
+        uses: docker/bake-action@59cb1203cd42bcefd40a1b6d73b589e48c86040e # v7.5.0
         with:
-          context: nexus/operator
-          file: nexus/operator/Dockerfile
-          build-contexts: fednode=nexus/fednode
-          tags: ${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}/nexus_operator:${{ needs.init.outputs.tag }}
-          push: true
-          cache-from: type=gha,scope=nexus-operator
-          cache-to: type=gha,mode=max,scope=nexus-operator
+          source: .
+          files: docker-bake.hcl
+          targets: ${{ steps.targets.outputs.list }}
+          push: ${{ needs.init.outputs.publish == 'true' }}
+          vars: |
+            TAG=${{ needs.init.outputs.tag }}
+            RELEASE_REGISTRY=${{ vars.DOCKER_CR }}/${{ env.OWNER_LC }}
+            CACHE=${{ (github.ref_name != 'main' && github.ref_name != 'dagster-main') && 'gha' || '' }}
   promote:
     needs: init
     if: needs.init.outputs.is_tag == 'true'
+    permissions:
+      contents: read
+      packages: write
     runs-on: ubuntu-latest
     steps:
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
@@ -587,18 +484,15 @@ jobs:
     needs:
       - init
       - promote
-      - build-nexus-api-image
-      - build-keycloak-image
-      - build-alpine-image
-      - build-kc-init-image
-      - build-dagster-image
-      - build-nexus-operator-image
+      - build-images
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Build chart dependencies
         working-directory: k8s/federated-node
         run: |
@@ -612,9 +506,12 @@ jobs:
           APP_VERSION: ${{ needs.init.outputs.tag }}
       - name: Push chart to GHCR
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ${{ vars.DOCKER_CR }} -u ${{ github.actor }} --password-stdin
-          helm push artifacts/federated-node-${CHART_VERSION}.tgz oci://${{ vars.DOCKER_CR }}/${OWNER,,}/charts
+          echo "${REGISTRY_TOKEN}" | helm registry login "${REGISTRY}" -u "${ACTOR}" --password-stdin
+          helm push "artifacts/federated-node-${CHART_VERSION}.tgz" "oci://${REGISTRY}/${OWNER,,}/charts"
         env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY: ${{ vars.DOCKER_CR }}
+          ACTOR: ${{ github.actor }}
           OWNER: ${{ github.repository_owner }}
           CHART_VERSION: ${{ needs.init.outputs.chart_version }}
   release-gh-pages:
@@ -625,7 +522,11 @@ jobs:
     concurrency:
       group: gh-pages
       cancel-in-progress: false
-    uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main
+    # the shared workflow publishes the chart to gh-pages
+    permissions:
+      contents: write
+    # our own org's shared workflow, tracked on main on purpose
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/helm-build.yml@main # zizmor: ignore[unpinned-uses]
     with:
       VERSION: ${{ needs.init.outputs.chart_version }}
       APP_VERSION: ${{ needs.init.outputs.tag }}
@@ -660,12 +561,7 @@ jobs:
       - api-tests
       - dagster-tests
       - operator-tests
-      - build-nexus-api-image
-      - build-keycloak-image
-      - build-alpine-image
-      - build-kc-init-image
-      - build-dagster-image
-      - build-nexus-operator-image
+      - build-images
       - promote
       - release
       - release-gh-pages
