@@ -14,7 +14,7 @@ An OpenID Connect (OIDC) provider authenticates: it holds the accounts, gives ea
   - **The client chose the access request** through a `project-name` header.
   - **Rules were split and hidden** between role names in the decorator and provider config that `realms.json` did not fully apply.
   - **Two stores, no transaction:** a failure part way left the provider and the database apart; deletes and renames left the provider behind.
-  - **Only datasets had per-record rules,** and **revoking lagged** until issued tokens expired.
+  - **Only datasets had per-record rules.**
 
 ### Why before the operator and Flux
 
