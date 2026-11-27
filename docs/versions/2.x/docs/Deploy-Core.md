@@ -37,8 +37,12 @@ If you use the chart's Traefik, install the Gateway API and Traefik CRDs once pe
 
 ## 3. Create the namespace and the secrets you must provide
 
+The chart copies no Secret between namespaces, so the Keycloak and tasks namespaces are yours to create, before the Secrets that go in them. Set `global.createNamespaces: false` in your values so the chart does not create them too.
+
 ```sh
 kubectl create namespace federated-node
+kubectl create namespace keycloak
+kubectl create namespace tasks
 ```
 
 The chart creates every database password, the Keycloak credentials and the Dagster login for you, and puts them in the namespaces that need them. These are the ones it cannot invent:
@@ -46,15 +50,15 @@ The chart creates every database password, the Keycloak credentials and the Dags
 | Secret | Key | When | What it is |
 |---|---|---|---|
 | `postgres-superuser` | `password` | Postgres is external and `db.manageRolesAndDatabases` is true (the default) | Password of `db.superuser` on your server |
-| the secret named by `firstUserSecret.name` | the key in `firstUserSecret.passKey` | Always | Password of the first admin user. The chart copies it to the Keycloak namespace |
+| the secret named by `firstUserSecret.name` | the key in `firstUserSecret.passKey` | Always | Password of the first admin user. Goes in the Keycloak namespace, where it is read |
 | `tls` (or the name in `tls.secretName`) | `tls.crt`, `tls.key` | No cert-manager | The certificate for `host`, full chain |
-| the Azure storage secret | `azurestorageaccountname`, `azurestorageaccountkey` | `storage.azure` | The chart copies it to the tasks namespace |
+| the Azure storage secret | `azurestorageaccountname`, `azurestorageaccountkey` | `storage.azure` | In the release namespace |
 
 ```sh
 kubectl create secret generic postgres-superuser -n federated-node \
   --from-literal=password='<postgres admin password>'
 
-kubectl create secret generic fn-first-user -n federated-node \
+kubectl create secret generic fn-first-user -n keycloak \
   --from-literal=password='<admin password you will log in with>'
 
 kubectl create secret tls tls -n federated-node \

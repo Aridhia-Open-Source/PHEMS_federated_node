@@ -95,7 +95,7 @@ kubectl create secret generic aws-ssl-secret -n federated-node \
   --from-literal=ROLE_NAME='fn-cert-manager-route53'
 ```
 
-`ROLE_NAME` is an IAM role with permission on your hosted zone (`route53:GetChange`, `route53:ChangeResourceRecordSets`, `route53:ListResourceRecordSets` and `route53:ListHostedZonesByName`). Its trust policy must let the service account `cert-manager-acme-dns01-route53` assume it, through your cluster's OIDC provider. The install fails at the start, naming the secret if it is missing. The chart copies it into the cert-manager namespace.
+`ROLE_NAME` is an IAM role with permission on your hosted zone (`route53:GetChange`, `route53:ChangeResourceRecordSets`, `route53:ListResourceRecordSets` and `route53:ListHostedZonesByName`). Its trust policy must let the service account `cert-manager-acme-dns01-route53` assume it, through your cluster's OIDC provider. The install fails at the start, naming the secret if it is missing.
 
 The known issues below affect this path.
 

@@ -1,6 +1,6 @@
 # A test site repository (ADR 0031): what a site owns, for the dev cluster. `mise run flux up` pushes this
 # folder to the dev Gitea as gitea_admin/fn-site, and Flux applies it. Edit that repository, not this
-# folder, to run the loop in docs/versions/2.x/docs/GitOps-Delivery.md.
+# folder, to run the loop in docs/versions/2.x/docs/Flux-Dev-Loop.md.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:

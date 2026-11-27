@@ -14,7 +14,7 @@ set -euo pipefail
 #   ./scripts/flux.sh down     # remove Flux and the fn-site repository; Docker Gitea is managed separately
 #   ./scripts/flux.sh check    # fail if Flux manages the release (deploy.sh and teardown.sh call it)
 #
-# The loop (bump, revert, config edit) is in docs/versions/2.x/docs/GitOps-Delivery.md.
+# The loop (bump, revert, config edit) is in docs/versions/2.x/docs/Flux-Dev-Loop.md.
 ###############################################################################
 
 COMMAND="${1:-}"
@@ -195,7 +195,7 @@ PY
     echo "=== Flux Ready ==========================================================="
     echo "Flux is watching main. Merge the demo-install PR to install $RELEASE_NAME."
     echo "Site repository: $GITEA_URL/$GITEA_ADMIN_USER/$SITE_REPO"
-    echo "The loop: docs/versions/2.x/docs/GitOps-Delivery.md"
+    echo "The loop: docs/versions/2.x/docs/Flux-Dev-Loop.md"
     ;;
 
   ###############################################################################
