@@ -28,7 +28,7 @@ Most of it lands in **#806** (fednode stack, between #696 and #766), because tho
 - Dead router copies: **#682** and **#686** (their "restore" commits re-add them).
 
 ## Steps (one subagent each, in order, all on #806 unless stated)
-Every step: worktree on the PR branch, one new commit on top, tests only for files changed, plain push (no force), progress lines `[cleanup-N]` in `.claude/plans/2026-11-26-stack-fix.progress.txt`. Read only lines around grep hits.
+Every step is reviewed as its own PR: steps 1–3 each branch off #806's branch (`refactor/api-onto-fednode`) and PR into it; steps 4–5 branch off #742 / #682 / #686 after the rebuild and PR into those branches. Draft PR, xo card in Review, codepint reviews and merges (squash). One commit per step PR, tests only for files changed, progress lines `[cleanup-N]` in `.claude/plans/2026-11-26-stack-fix.progress.txt`. Read only lines around grep hits.
 
 ### Step 1 (#806): dissolve `tasks/`
 1. `task_config` -> methods on `models/task.py` (`snapshot()`, `snapshot_hash()`, `config_changes()`); repoint callers (`git grep -n 'task_config'`).
@@ -63,11 +63,12 @@ Every step: worktree on the PR branch, one new commit on top, tests only for fil
 1. **Make every PR one commit first.** Squash each open stack PR to parent + one commit (`git commit-tree <tip>^{tree} -p <parent>`, PR title as message, never an old message: they can carry `[skip ci]`). #686, #714, #696 currently have extra commits on top.
 2. **Finish all #806 work before moving anything.** Steps 1–3 land on #806; nothing above moves until they're done, so the chain is rebuilt once.
 3. **Write a codemod.** One script (`tmp/codemod.py`) with every rename and moved call from steps 1–3 (imports, `TaskResources`->`TaskCompute`, `ingest_pull_requests(id, x)`->`TriggerRepository...ingest(x)`, `spec_files(pr, d)`->`assignment.spec_files(pr)`, `resources`->`compute`, exception names, deleted modules). Most conflicts above are import and call-site lines, not logic.
-4. **Rebuild bottom-up in one pass** (worktree `tmp/rebuild`, `rb/<branch>` refs, as the last rebuild):
+4. **Rebuild bottom-up in one pass** (after step PRs 1–3 are merged into #806) (worktree `tmp/rebuild`, `rb/<branch>` refs, as the last rebuild):
    - For each PR from #766 upward: `cherry-pick -X theirs` its single commit onto the rebuilt parent, then run the codemod, then resolve what's left by hand with these rules: moved code wins in its new place; re-apply the PR's intent there; deleted files stay deleted unless the PR is the one that should delete them (steps 4–5 happen here).
    - `git rerere` on, so a retried resolution is replayed.
    - Expected hand-work only at: #742, #682, #683, #684, #686, #685, #688, #779 (#779 deletes the `helpers/` copies #806 already deleted: take the delete).
    - Import check after each PR (`pylint --disable=all --enable=E0401,E0611,E0602` on nexus/api and nexus/fednode), no tests.
-5. **Test once per stack top** (fednode, auth, authz, operator, flux): only the test files the cleanup touched.
-6. **One atomic push** of all branches with `--force-with-lease`, each commit with a new line in `.github/ci-retrigger/pr-N.md`; CI runs once per PR.
-7. Leaves (#776, #803) and stacks branching off below #806 are untouched.
+5. **Review report before pushing:** `git range-diff old-parent..old-tip new-parent..new-tip` per PR, filtered to hunks the codemod didn't explain, written to `project/plans/api-cleanup-rebuild-report.md` for codepint; push only after an OK. Then raise step 4–5 PRs.
+6. **Test once per stack top** (fednode, auth, authz, operator, flux): only the test files the cleanup touched.
+7. **One atomic push** of all branches with `--force-with-lease`, each commit with a new line in `.github/ci-retrigger/pr-N.md`; CI runs once per PR.
+8. Leaves (#776, #803) and stacks branching off below #806 are untouched.
