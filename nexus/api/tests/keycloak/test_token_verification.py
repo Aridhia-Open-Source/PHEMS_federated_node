@@ -1,6 +1,7 @@
 """
-nexus-api verifies Keycloak access tokens itself (ADR 0035): tokens signed with a test RSA key, the JWKS lookup
-stubbed. The rest of the suite stubs access_tokens.claims (tests/conftest.py token_claims).
+nexus-api verifies Keycloak access tokens itself (ADR 0035), end to end: tokens signed with a test RSA key, the JWKS
+lookup stubbed. The verifier's own checks are in nexus/fednode/tests/test_access_token.py; the rest of the suite
+stubs access_tokens.claims (tests/conftest.py token_claims).
 """
 import time
 from types import SimpleNamespace
@@ -9,8 +10,9 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from app.helpers.exceptions import AuthenticationError
-from app.clients.access_token import AccessTokenVerifier, access_tokens
+from fednode.clients.keycloak.keys import AccessTokenVerifier
+
+from app.helpers.wrappers import access_tokens
 from app.settings import settings
 from tests.conftest import claims_for
 
@@ -41,35 +43,6 @@ def jwks(mocker):
     return mocker.patch.object(
         jwt.PyJWKClient, "get_signing_key_from_jwt", return_value=SimpleNamespace(key=KEY.public_key())
     )
-
-
-def test_a_valid_token_gives_its_claims():
-    claims = verifier.claims(access_token())
-    assert (claims["sub"], claims["preferred_username"]) == ("user-1", "someone")
-
-
-def test_a_token_of_any_allowed_client_is_accepted():
-    several = AccessTokenVerifier(verifier.issuer, "global, dagster", JWKS_URI)
-    assert several.claims(access_token(azp="dagster"))["azp"] == "dagster"
-    assert several.claims(access_token(azp="global"))["azp"] == "global"
-    with pytest.raises(AuthenticationError):
-        several.claims(access_token(azp="another-client"))
-
-
-@pytest.mark.parametrize("token", [
-    pytest.param(access_token(exp=int(time.time()) - 10), id="expired"),
-    pytest.param(access_token(iss="https://elsewhere/realms/FederatedNode"), id="wrong issuer"),
-    pytest.param(access_token(key=OTHER_KEY), id="wrong key"),
-    pytest.param(access_token(key="a-shared-secret-of-thirty-two-bytes", algorithm="HS256"), id="HS256"),
-    pytest.param(access_token(typ="Refresh"), id="refresh token"),
-    pytest.param(access_token(typ="ID"), id="ID token"),
-    pytest.param(access_token(azp="another-client"), id="another client"),
-    pytest.param(access_token(sub=None), id="no sub"),
-    pytest.param("not-a-jwt", id="garbage"),
-])
-def test_a_bad_token_is_refused(token):
-    with pytest.raises(AuthenticationError):
-        verifier.claims(token)
 
 
 @pytest.fixture

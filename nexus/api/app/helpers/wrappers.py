@@ -6,11 +6,18 @@ A handler that needs who is calling takes `caller: Caller = Depends(get_caller)`
 per request. Routers depend on require_role(...); the routes only Dagster may call add system_only.
 """
 from fastapi import Depends, Request
+from fednode.clients.keycloak.keys import AccessTokenVerifier, InvalidToken, KeycloakKeys
 
 from app.dtos.caller import Caller
-from app.clients.access_token import access_tokens
 from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 from app.models.node_role import NodeRole
+from app.settings import settings
+
+keycloak = settings.services.keycloak
+# The keys are fetched in-cluster; the issuer is on the node's host
+access_tokens = AccessTokenVerifier(
+    keycloak.issuer, keycloak.allowed_clients, KeycloakKeys(keycloak.url, keycloak.realm).jwks_uri
+)
 
 
 def get_caller(request: Request) -> Caller:
@@ -19,7 +26,11 @@ def get_caller(request: Request) -> Caller:
     if not token:
         raise AuthenticationError("Token not provided")
 
-    return Caller.from_claims(access_tokens.claims(token))
+    try:
+        claims = access_tokens.claims(token)
+    except InvalidToken as exc:
+        raise AuthenticationError("Token is not valid") from exc
+    return Caller.from_claims(claims)
 
 
 def require_role(*roles: NodeRole):
