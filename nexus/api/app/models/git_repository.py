@@ -8,7 +8,7 @@ from sqlalchemy.orm import validates
 
 from app.helpers.exceptions import GitProviderError, InvalidRequest
 from app.repos.git_tokens import mint_token
-from app.repos.git_uri import normalise_repo_path
+from fednode.clients.git.uri import normalise_repo_path
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, request_check
 from app.models.git_provider_type import GitProviderType
 
