@@ -31,7 +31,7 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 2. Write nexus-api, Dagster and run-image tags in the results header (see [the index](README.md)).
 
 - **Expected:** the tags match the release being tested, including the run image that task pods and delivery use.
-- **Rule:** the end-to-end README requires images built from the branch under test, `demo-fn` included ([dagster/fncli/tests/e2e/README.md]).
+- **Rule:** the end-to-end README requires images built from the branch under test, `demo-fn` included ([nexus/fednode/tests/e2e/README.md]).
 - **Automated by:** Manual only.
 - [ ] Pass
 - [ ] Fail — notes:
@@ -44,7 +44,7 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 
 - **Expected:** step 1 shows twelve sensors, all `STOPPED` on a fresh install. After step 3 all twelve are running and their last ticks are skipped (with a reason) or successful. No `FAILURE` tick.
 - **Rule:** sensors default to `STOPPED` and can be started in any order ([The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_definitions.py`, `dagster/app/tests/test_config.py` (stopped by default) and `dagster/fncli/tests/test_sensor.py` (`all` covers twelve); they miss the deployed chart value and real ticks. The end-to-end suites need the sensors running first.
+- **Automated by:** Partly automated: `dagster/app/tests/test_definitions.py`, `dagster/app/tests/test_config.py` (stopped by default) and `nexus/fednode/tests/cli/test_sensor.py` (`all` covers twelve); they miss the deployed chart value and real ticks. The end-to-end suites need the sensors running first.
 - [ ] Pass
 - [ ] Fail — notes:
 
@@ -86,4 +86,4 @@ Needs: `kubectl` access to the node's cluster, the Dagster UI, an admin login, a
 <!-- link definitions -->
 [Global resources and project resources]: ../decisions/0006-global-resources-and-project-resources.md
 [The Dagster pipeline: ingest as an op, twelve sensors, one interval, retries]: ../decisions/0014-dagster-pipeline-ops-sensors-and-retries.md
-[dagster/fncli/tests/e2e/README.md]: ../../dagster/fncli/tests/e2e/README.md
+[nexus/fednode/tests/e2e/README.md]: ../../nexus/fednode/tests/e2e/README.md

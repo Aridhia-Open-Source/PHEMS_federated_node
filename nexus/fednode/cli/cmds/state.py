@@ -1,0 +1,334 @@
+"""
+Commands for the end-to-end suites (tests/e2e/README.md): look at a project's state, and change the
+state nexus-api's rules act on (project enabled and revoked, a project resource's enabled and revoked, a global resource's enabled and revoked).
+Every write prints the HTTP status and body; `--expect STATUS` asserts
+the status, which is how the suites check the 409 rules. Without it a status of 400 or more is a failure.
+"""
+
+import json
+import logging
+
+import click
+
+from fednode.cli.cmds.common import BackendConfig, build_admin_backend_api
+from fednode.cli.cmds.nodefile import context_option, step_project_option, step_target
+from fednode.cli.cmds.repository import get_backend_repo_record
+from fednode.cli.backend import FncliBackendAPI
+
+logger = logging.getLogger("state")
+
+KINDS = ("trigger", "results", "dataset", "secret")
+SECRET_ENTITIES = ("trigger", "results", "dataset")
+BOOL = click.Choice(["true", "false"])
+
+
+def call(api: FncliBackendAPI, method: str, path: str, **kwargs):
+    return api.session.request(method, path, raise_for_status=False, **kwargs)
+
+
+def body_of(response):
+    try:
+        return response.json() if response.content else None
+    except ValueError:
+        return response.text
+
+
+def get(api: FncliBackendAPI, path: str, **params):
+    response = call(api, "GET", path, params=params or None)
+    if response.status_code >= 400:
+        raise click.ClickException(f"GET {path} -> {response.status_code}: {response.text[:300]}")
+    return body_of(response)
+
+
+def find_project(api: FncliBackendAPI, name: str):
+    project = api.find_project(name)
+    if project is None:
+        raise click.ClickException(f"Project {name} not found, run fncli apply first")
+    return project
+
+
+def project_resources(api: FncliBackendAPI, project_id: int) -> dict:
+    return {
+        "trigger": get(api, f"/projects/{project_id}/repositories/triggers"),
+        "results": get(api, f"/projects/{project_id}/repositories/results"),
+        "dataset": get(api, f"/projects/{project_id}/datasets"),
+        "secret": get(api, f"/projects/{project_id}/secrets"),
+    }
+
+
+def resource_key(kind: str, resource: dict):
+    """What the routes address a project resource by: the global resource's id, a secret's label."""
+    return {
+        "trigger": lambda: resource["trigger_repository"]["id"],
+        "results": lambda: resource["results_repository"]["id"],
+        "dataset": lambda: resource["dataset"]["id"],
+        "secret": lambda: resource["secret"]["label"],
+    }[kind]()
+
+
+def resource_path(kind: str, project_id: int, key) -> str:
+    return {
+        "trigger": f"/projects/{project_id}/repositories/triggers/{key}",
+        "results": f"/projects/{project_id}/repositories/results/{key}",
+        "dataset": f"/projects/{project_id}/datasets/{key}",
+        "secret": f"/projects/{project_id}/secrets/{key}",
+    }[kind]
+
+
+def global_path(kind: str, key) -> str:
+    return {
+        "trigger": f"/global/repositories/triggers/{key}",
+        "results": f"/global/repositories/results/{key}",
+        "dataset": f"/global/datasets/{key}",
+        "secret": f"/global/secrets/{key}",
+    }[kind]
+
+
+def first_resource(api: FncliBackendAPI, project_id: int, kind: str) -> dict:
+    found = project_resources(api, project_id)[kind]
+    if not found:
+        raise click.ClickException(f"The project has no {kind} resource")
+    return found[0]
+
+
+def report(response, expect: int | None) -> int:
+    """Print a write's outcome. 0 when it is what was wanted: the `expect` status, or any success without one."""
+    click.echo(f"HTTP {response.status_code}")
+    click.echo(json.dumps(body_of(response), indent=2))
+    if expect is None:
+        return 0 if response.status_code < 400 else 1
+    ok = response.status_code == expect
+    click.echo(f"OK (expected {expect})" if ok else f"FAIL: expected {expect}, got {response.status_code}")
+    return 0 if ok else 1
+
+
+def snapshot(api: FncliBackendAPI, name: str) -> dict:
+    """Everything about the project the QA plan asserts on: its resources, their pull requests, tasks and results."""
+    project = find_project(api, name)
+    pid = project.id
+    found = project_resources(api, pid)
+    trigger_resources = []
+    for resource in found["trigger"]:
+        repo_id = resource["trigger_repository"]["id"]
+        prs = get(api, f"/projects/{pid}/repositories/triggers/{repo_id}/pull_requests", size=100)
+        # Stored once per repository, so also for a resource that gets no trigger (project revoked or disabled)
+        stored = get(api, f"/global/repositories/triggers/{repo_id}/pull_requests", size=1)
+        trigger_resources.append(
+            {
+                "repository": resource["trigger_repository"].get("uri"),
+                "repository_id": repo_id,
+                "enabled": resource["enabled"], "revoked": resource["revoked"], "active": resource["active"],
+                "global_enabled": resource["trigger_repository"].get("enabled"),
+                "pr_count": resource.get("pr_count"),
+                "stored_pr_count": stored["total"],
+                "pull_requests": [
+                    {k: pr.get(k) for k in ("number", "state", "state_cause", "task_id")} for pr in prs["items"]
+                ],
+            }
+        )
+    return {
+        "project": get(api, f"/projects/{pid}"),
+        "trigger_resources": trigger_resources,
+        "results_resources": [
+            {"repository": resource["results_repository"].get("uri"), "target_dir": resource["target_dir"],
+             "enabled": resource["enabled"], "revoked": resource["revoked"], "active": resource["active"],
+             "global_enabled": resource["results_repository"].get("enabled")}
+            for resource in found["results"]
+        ],
+        "dataset_resources": [
+            {"dataset": resource["dataset"].get("name"), "enabled": resource["enabled"], "revoked": resource["revoked"],
+             "active": resource["active"]}
+            for resource in found["dataset"]
+        ],
+        "secret_resources": [
+            {"secret": resource["secret"].get("label"), "enabled": resource["enabled"], "revoked": resource["revoked"],
+             "active": resource["active"]}
+            for resource in found["secret"]
+        ],
+        "tasks": [
+            {k: t.get(k) for k in ("id", "status", "name", "state_cause")}
+            for t in get(api, f"/projects/{pid}/tasks", size=100)["items"]
+        ],
+        "results": [
+            {k: r.get(k) for k in ("id", "task_id", "step", "state", "number", "url")}
+            for r in get(api, f"/projects/{pid}/results")
+        ],
+    }
+
+
+def set_project(
+    api: FncliBackendAPI, name: str, enabled: str | None, backfill: bool, expect: int | None,
+    revoked: str | None = None, admin_api: FncliBackendAPI | None = None,
+) -> int:
+    data = {}
+    if enabled is not None:
+        data["enabled"] = enabled == "true"
+    if backfill:
+        data["backfill"] = True
+    if revoked is not None:
+        data["revoked"] = revoked == "true"
+    if not data:
+        raise click.UsageError("Give --enabled, --revoked and/or --backfill")
+    project = find_project(api, name)
+    # Revoking is admin only, as for a project resource
+    writer = admin_api if "revoked" in data else api
+    return report(call(writer, "PATCH", f"/projects/{project.id}", json=data), expect)
+
+
+def set_resource(
+    api: FncliBackendAPI, name: str, kind: str, enabled: str | None, revoked: str | None, expect: int | None,
+    target_dir: str | None = None, base_branch: str | None = None, admin_api: FncliBackendAPI | None = None,
+) -> int:
+    data = {}
+    if enabled is not None:
+        data["enabled"] = enabled == "true"
+    if revoked is not None:
+        data["revoked"] = revoked == "true"
+    if target_dir is not None:
+        if kind != "results":
+            raise click.UsageError("--target-dir is only for the results resource")
+        data["target_dir"] = target_dir
+    if base_branch is not None:
+        if kind not in ("trigger", "results"):
+            raise click.UsageError("--base-branch is only for the trigger and results resources")
+        data["base_branch"] = base_branch
+    if not data:
+        raise click.UsageError("Give --enabled, --revoked, --target-dir and/or --base-branch")
+    project = find_project(api, name)
+    key = resource_key(kind, first_resource(api, project.id, kind))
+    # Revoking is admin only: the system user the rest of fncli logs in as is refused with a 403
+    writer = admin_api if "revoked" in data else api
+    return report(call(writer, "PATCH", resource_path(kind, project.id, key), json=data), expect)
+
+
+def set_global(
+    api: FncliBackendAPI, name: str, kind: str, enabled: str | None, expect: int | None,
+    revoked: str | None = None, admin_api: FncliBackendAPI | None = None,
+) -> int:
+    """Turn the global resource behind the project's resource on or off, or revoke it from every project."""
+    data = {}
+    if enabled is not None:
+        data["enabled"] = enabled == "true"
+    if revoked is not None:
+        if kind not in ("trigger", "results"):
+            raise click.UsageError("--revoked is only for the trigger and results repositories")
+        data["revoked"] = revoked == "true"
+    if not data:
+        raise click.UsageError("Give --enabled and/or --revoked")
+    project = find_project(api, name)
+    key = resource_key(kind, first_resource(api, project.id, kind))
+    writer = admin_api if "revoked" in data else api
+    return report(call(writer, "PATCH", global_path(kind, key), json=data), expect)
+
+
+def set_secret(api: FncliBackendAPI, label: str, enabled: str, expect: int | None) -> int:
+    """Turn a secret on or off. Off also disables every repository and dataset that uses it; on changes only the secret."""
+    return report(call(api, "PATCH", f"/global/secrets/{label}", json={"enabled": enabled == "true"}), expect)
+
+
+def finish(code: int):
+    if code:
+        raise click.exceptions.Exit(code)
+
+
+def expect_option(command):
+    return click.option("--expect", type=int, default=None, help="Assert this HTTP status (exit 1 if it differs).")(command)
+
+
+@click.command("project-show")
+@context_option
+@step_project_option
+def project_show_command(context, project):
+    """Print the project's resources, pull requests, tasks and results as JSON. Read-only."""
+    logging.disable(logging.INFO)  # fncli logs to stdout: keep it clean so the output pipes into jq
+    name, backend_api = step_target(context, project, err=True)
+    click.echo(json.dumps(snapshot(backend_api, name), indent=2))
+
+
+@click.command("project-set")
+@click.option("--enabled", type=BOOL, default=None)
+@click.option("--revoked", type=BOOL, default=None, help="Admin only (logs in as the first Keycloak user). Takes effect immediately.")
+@click.option(
+    "--backfill", is_flag=True, default=False,
+    help="With --enabled true on a disabled project: create the triggers of the pull requests stored while it was off, instead of skipping them.",
+)
+@context_option
+@step_project_option
+@expect_option
+def project_set_command(enabled, revoked, backfill, context, project, expect):
+    """Enable or disable the project, or revoke or restore it. Enabling skips what was merged while it was off, unless --backfill."""
+    name, backend_api = step_target(context, project)
+    admin_api = build_admin_backend_api(BackendConfig(node=context.node)) if revoked is not None else None
+    finish(set_project(backend_api, name, enabled, backfill, expect, revoked, admin_api))
+
+
+@click.command("resource-set")
+@click.argument("kind", type=click.Choice(KINDS))
+@click.option("--enabled", type=BOOL, default=None)
+@click.option("--revoked", type=BOOL, default=None, help="Admin only (logs in as the first Keycloak user). Takes effect immediately.")
+@click.option("--target-dir", default=None, help="The results resource's target directory. Tasks created before the change then fail.")
+@click.option("--base-branch", default=None, help="The trigger or results resource's branch: the one the project watches, or the one its results pull requests go into.")
+@context_option
+@step_project_option
+@expect_option
+def resource_set_command(kind, enabled, revoked, target_dir, base_branch, context, project, expect):
+    """Set the enabled and/or revoked flag, the target directory of a results resource or the base branch of a trigger or results resource, of the project's resource of that KIND."""
+    name, backend_api = step_target(context, project)
+    admin_api = build_admin_backend_api(BackendConfig(node=context.node)) if revoked is not None else None
+    finish(set_resource(backend_api, name, kind, enabled, revoked, expect, target_dir, base_branch, admin_api))
+
+
+@click.command("global-set")
+@click.argument("kind", type=click.Choice(KINDS))
+@click.option("--enabled", type=BOOL, default=None)
+@click.option(
+    "--revoked", type=BOOL, default=None,
+    help="Trigger and results only, from every project at once. Admin only (logs in as the first Keycloak user).",
+)
+@context_option
+@step_project_option
+@expect_option
+def global_set_command(kind, enabled, revoked, context, project, expect):
+    """Turn the global resource behind the project's resource of that KIND on or off, or revoke or restore it."""
+    name, backend_api = step_target(context, project)
+    admin_api = build_admin_backend_api(BackendConfig(node=context.node)) if revoked is not None else None
+    finish(set_global(backend_api, name, kind, enabled, expect, revoked, admin_api))
+
+
+def secret_label_of(api: FncliBackendAPI, project_name: str, entity: str) -> str:
+    """The label of the secret of the project's trigger or results repository, or of its first dataset"""
+    project = find_project(api, project_name)
+    if entity == "dataset":
+        assignments = api.get_project_datasets(project.id)
+        if not assignments:
+            raise click.ClickException(f"Project {project_name} has no dataset")
+        return assignments[0].dataset.secret.label
+    record = get_backend_repo_record(entity, api, project)
+    return (record.trigger_repository if entity == "trigger" else record.results_repository).secret.label
+
+
+@click.command("secret-set")
+@click.option(
+    "--entity",
+    type=click.Choice(SECRET_ENTITIES),
+    default="trigger",
+    show_default=True,
+    help="Whose secret: the project's trigger or results repository's, or its first dataset's.",
+)
+@click.option("--enabled", type=BOOL, required=True)
+@context_option
+@step_project_option
+@expect_option
+def secret_set_command(entity, enabled, context, project, expect):
+    """Turn a secret on or off. Off also disables the repositories and datasets that use it, and they stay off when it is turned on."""
+    name, backend_api = step_target(context, project)
+    finish(set_secret(backend_api, secret_label_of(backend_api, name, entity), enabled, expect))
+
+
+COMMANDS = [
+    project_show_command,
+    project_set_command,
+    resource_set_command,
+    global_set_command,
+    secret_set_command,
+]

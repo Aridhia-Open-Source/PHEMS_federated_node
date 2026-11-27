@@ -69,7 +69,7 @@ Datasets, secrets, trigger repositories and results repositories are all resourc
 - **Admin role.** Creating global resources and writing their flags requires the admin role.
 - **`whitelisted_images`** are not part of this pattern; they stay per project ([0017](0017-authorization-detached-from-dar-and-keycloak.md)).
 - **One baseline migration.** The schema is the single Alembic revision `001_baseline` (`nexus/api/migrations/versions/001_baseline.py`); a schema change is made in it and environments are recreated. The Dagster database has its own, unrelated schema.
-- **Dagster and fncli models.** Dagster's `Secret` needs only `key`, `namespace` and `provider`; its repository and dataset models are split into a global model and a project resource model, with `extra="allow"` so a new backend field does not break an older client. `dagster/fncli` imports them from `dagster/app`.
+- **Dagster and fncli models.** Dagster's `Secret` needs only `key`, `namespace` and `provider`; its repository and dataset models are split into a global model and a project resource model, with `extra="allow"` so a new backend field does not break an older client. `nexus/fednode/cli` imports them from `dagster/app`.
 
 ## Consequences
 

@@ -12,7 +12,7 @@ Needs: the dev project with all sensors running, and a finished happy path ([run
 
 - **Expected:** the pull request goes `UNKNOWN` then `REJECTED` with a `state_cause` that says what is wrong; its `task_id` is empty; the task count does not change. The pull request count goes up by one. The next watched pull request still gets its task.
 - **Rule:** a bad spec rejects the trigger and keeps the raw spec; no task; `REJECTED` is final ([TaskSpec, and a Task derived from spec and trigger]; [State transition tables for triggers, tasks and result steps; 409 on a refused move]).
-- **Automated by:** Partly automated: the end-to-end failure suite, group "an invalid spec is rejected, no task" (`dagster/fncli/tests/e2e/test_failure_paths.py`, written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_bad_spec_rejects_the_pr`). The suite does not try to move the trigger on afterwards.
+- **Automated by:** Partly automated: the end-to-end failure suite, group "an invalid spec is rejected, no task" (`nexus/fednode/tests/e2e/test_failure_paths.py`, written, never run on a cluster); `nexus/api/tests/test_pull_requests_and_tasks.py` (`test_bad_spec_rejects_the_pr`). The suite does not try to move the trigger on afterwards.
 - [ ] Pass
 - [ ] Fail — notes:
 

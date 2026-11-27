@@ -2,7 +2,7 @@
 
 This guide takes a Linux or WSL2 machine with nothing installed, and a fresh clone, to a working `fncli demo` against both Gitea and GitHub. You use your own GitHub repo, your own GitHub App and your own names.
 
-The source of truth is the repo: [DEPLOYMENT.md](DEPLOYMENT.md), [MANAGEMENT.md](MANAGEMENT.md), [SETUP_GIT_APPS.md](SETUP_GIT_APPS.md), [dagster/fncli/README.md](dagster/fncli/README.md) and [experiments/README.md](experiments/README.md). Where this guide could not be confirmed from the code, it says `TODO(verify)`.
+The source of truth is the repo: [DEPLOYMENT.md](DEPLOYMENT.md), [MANAGEMENT.md](MANAGEMENT.md), [SETUP_GIT_APPS.md](SETUP_GIT_APPS.md), [nexus/fednode/cli/README.md](nexus/fednode/cli/README.md) and [experiments/README.md](experiments/README.md). Where this guide could not be confirmed from the code, it says `TODO(verify)`.
 
 - [1. What you end up with](#1-what-you-end-up-with)
 - [2. Install the tools](#2-install-the-tools)

@@ -8,7 +8,7 @@ the commit that finishes the work.
 - **Secrets** stay in `.dev.env` (gitignored): `KEYCLOAK_FIRST_USER_EMAIL`, `KEYCLOAK_FIRST_USER_PASSWORD`,
   `RESEARCHER_GIT_TOKEN`.
 - **Per-person / per-node settings** go in `bootstrap/context.yaml` (gitignored; committed example in
-  `bootstrap/examples/context.yaml`, schema in `dagster/fncli/nodefile/schema.py`).
+  `bootstrap/examples/context.yaml`, schema in `nexus/fednode/cli/nodefile/schema.py`).
 
 ## What moves
 
@@ -29,10 +29,10 @@ the commit that finishes the work.
    `reload_app.sh`. Also `Tiltfile:17` (`dotenv('.dev.env')`;
    add `local('fncli context env')` parsing or read the yaml with Tilt's `read_yaml`).
    `scripts/cluster.sh` currently parses `kube_context` with sed: switch it to the same helper.
-3. fncli itself reads the new fields from the context directly: `dagster/fncli/cmds/common.py` lines ~59, 83, 161,
+3. fncli itself reads the new fields from the context directly: `nexus/fednode/cli/cmds/common.py` lines ~59, 83, 161,
    172 (namespace, dagster_url, token names) and wherever `GH_APP_ID`/`GH_INSTALLATION_ID` are read
    (`git grep -n GH_APP_ID`). `bootstrap/examples/globals-github.yaml` header mentions them.
-4. Drop `node.env_file` loading only if nothing still needs it (`dagster/fncli/cmds/nodefile.py:136`,
+4. Drop `node.env_file` loading only if nothing still needs it (`nexus/fednode/cli/cmds/nodefile.py:136`,
    `nodefile/loader.py:107`); fncli's `cli.py:28` keeps loading `.dev.env` for the secrets.
 5. Update `.dev.env.example` (secrets only), `k8s/federated-node/dev.example.values.yml` lines 3, 52, 89,
    `experiments/*/project.env` headers, `tilt/scripts/dagster_reload.sh`, and docs that name the moved vars
@@ -51,8 +51,8 @@ the commit that finishes the work.
 ## Where usages are (grep, 2026-11-09)
 
 `.kind/kind-config.yaml`, `Tiltfile`, `bootstrap/examples/{context,globals-github}.yaml`,
-`build/alpine/scripts/cleanup.sh` (check: may be an unrelated NAMESPACE), `dagster/fncli/cmds/{common,experiment,secret}.py`,
-`dagster/fncli/tests/{conftest,test_config,test_experiment,test_secret}.py`, e2e `test_failure_paths*.py`,
+`build/alpine/scripts/cleanup.sh` (check: may be an unrelated NAMESPACE), `nexus/fednode/cli/cmds/{common,experiment,secret}.py`,
+`nexus/fednode/tests/cli/{conftest,test_config,test_experiment,test_secret}.py`, e2e `test_failure_paths*.py`,
 `docker-bake.hcl`, `experiments/chart/values.yaml`, `k8s/federated-node/dev.example.values.yml`,
 `nexus/ui/scripts/screenshots.mjs` (reads the Keycloak user from `.dev.env`: unchanged),
 `scripts/{cluster,deploy,reload_app,teardown,upgrade}.sh`, `tilt/scripts/dagster_reload.sh`.

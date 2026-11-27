@@ -30,7 +30,7 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
   - `definitions/` - `jobs.py`, `ops.py`, `pipes.py`, `resources.py`, `run_config.py`.
   - `delivery/` - results packaging and git push. The git provider clients are in `nexus/fednode/clients/git/`.
   - `backend.py` - the nexus-api client; `models/` - Dagster-side models of API responses.
-- `dagster/fncli/` - `fncli`, the dev/ops CLI (ADR 0018); commands in `cmds/`, e2e suites in `tests/e2e/`.
+- `nexus/fednode/cli/` - `fncli`, the dev/ops CLI (ADR 0018); commands in `cmds/`, tests in `nexus/fednode/tests/cli/` and `nexus/fednode/tests/e2e/`.
 - `k8s/federated-node/` - the Helm chart: `templates/`, `values.yaml`, `values.schema.json`, `dev.example.values.yml`, helm-unittest suites in `tests/`.
 - `build/` - images for Keycloak, `kc-init`, an Alpine helper, and the helm-unittest runner.
 - `experiments/` - real experiment projects and their chart, driven by `fncli experiment` (see `experiments/README.md`); `demo` is the small task image (`demo-fn`) fncli and the e2e suites use.
@@ -83,11 +83,11 @@ Dependencies (Python):
 Tests and lint:
 
 - nexus-api: `cd nexus/api && ./run_tests.sh local tests/test_projects_api.py` (docker compose with Postgres; second argument is the pytest path). Faster venv runs: `nexus/api/run_local_tests.sh` (setup in its header).
-- Dagster app and fncli: `cd dagster && ./run_tests.sh local fncli/tests/test_cli.py` (docker compose; pytest `testpaths` are `app/tests` and `fncli/tests`). `mise run tests-dagster` runs all in CI mode.
+- Dagster app and fncli: `cd dagster && ./run_tests.sh local ../nexus/fednode/tests/cli/test_cli.py` (docker compose; pytest `testpaths` are `app/tests` and `../nexus/fednode/tests`). `mise run tests-dagster` runs all in CI mode.
 - UI: `cd nexus/ui && npm ci && npm test` (vitest); `npm run typecheck` for types.
 - Chart: `mise run helm lint`, `mise run helm template` (no cluster needed), `mise run helm tests` (helm-unittest).
 - Lint: `mise run pylint` (nexus-api), `mise run pylint dagster`, `mise run hadolint` (Dockerfiles).
-- End-to-end: `pytest dagster --e2e [success|failure|failure_long] -v` from the repo root. Needs a running dev cluster deployed from the branch under test, and `.dev.env`; see `dagster/fncli/tests/e2e/README.md`. Without `--e2e` these tests are skipped.
+- End-to-end: `pytest nexus/fednode --e2e [success|failure|failure_long] -v` from the repo root. Needs a running dev cluster deployed from the branch under test, and `.dev.env`; see `nexus/fednode/tests/e2e/README.md`. Without `--e2e` these tests are skipped.
 
 ## Conventions
 
@@ -122,4 +122,4 @@ Tests and lint:
 - `docs/README.md` - reviewer's guide: every ADR, the docs by topic, a reading order.
 - `docs/architecture/entities.md`, `flows.md`, `revoke-and-enabled.md`, `sensors/` - schema, states, flows, one doc per sensor.
 - `project/decisions/README.md` - ADR index; `project/TESTING.md` - testing notes.
-- `dagster/fncli/README.md`, `k8s/federated-node/README.md`, `.tilt/TILT_QUICKSTART.md`, `SETUP_GIT_APPS.md`.
+- `nexus/fednode/cli/README.md`, `k8s/federated-node/README.md`, `.tilt/TILT_QUICKSTART.md`, `SETUP_GIT_APPS.md`.

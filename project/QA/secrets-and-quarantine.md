@@ -12,7 +12,7 @@ Needs: an administrator token and `kubectl`. To see where a value is, list names
 
 - **Expected:** the value is now in the quarantine namespace, not the original one. The Secret's row keeps the original namespace, so reads of it fail while it is moved. The Secret is `enabled: false`, and so is every GlobalResource that uses it (here the trigger repository; the project resource is inactive). The change is one commit: if the move fails the request fails and nothing changes.
 - **Rule:** disabling a Secret also disables what uses it and quarantines its value ([docs/architecture/revoke-and-enabled.md#secrets]; [Generic Secret model and SecretProvider; per-repository tokens]).
-- **Automated by:** Partly automated: `nexus/api/tests/test_secrets_quarantine.py` (in-memory store); the end-to-end failure suite, group "a PR merged while the trigger repository's Secret is switched off gets no task" (`dagster/fncli/tests/e2e/test_failure_paths.py`, written, never run on a cluster). Both miss the real Kubernetes move and the quarantine namespace.
+- **Automated by:** Partly automated: `nexus/api/tests/test_secrets_quarantine.py` (in-memory store); the end-to-end failure suite, group "a PR merged while the trigger repository's Secret is switched off gets no task" (`nexus/fednode/tests/e2e/test_failure_paths.py`, written, never run on a cluster). Both miss the real Kubernetes move and the quarantine namespace.
 - [ ] Pass
 - [ ] Fail — notes:
 
