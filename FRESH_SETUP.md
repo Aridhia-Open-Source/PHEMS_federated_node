@@ -191,7 +191,7 @@ The example matches this guide: `url: http://localhost:5000`, `kube_context: kin
    mise run deploy
    ```
 
-   It claims the dev cluster, renders the chart as a check, builds and pushes every image to `localhost:5001` (including `demo-fn`, the demo's task image, so there is no separate build step; they are `docker buildx bake` targets in `docker-bake.hcl`), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). The first run is slow because Docker has no cache yet. At the end it prints the database passwords the chart generated.
+   It claims the dev cluster, renders the chart as a check, builds and pushes every image to `localhost:5001` (including `demo-fn`, the demo's task image, so there is no separate build step; they are `docker buildx bake` targets in `docker-bake.hcl`), creates the release, Keycloak and tasks namespaces and the `keycloak-first-user` secret in the Keycloak one, then runs `helm install` (up to 10 minutes). The first run is slow because Docker has no cache yet. At the end it prints the database passwords the chart generated.
 
    `mise run deploy` runs `helm upgrade --install`, so it is safe to rerun for chart changes; use `mise run teardown` first (step 11) to start from empty data. It also stops a running Tilt, so deploy first and start Tilt after.
 
