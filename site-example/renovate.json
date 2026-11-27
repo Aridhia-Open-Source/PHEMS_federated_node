@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "enabledManagers": ["flux"],
+  "flux": {
+    "managerFilePatterns": ["/\\.ya?ml$/"]
+  },
+  "packageRules": [
+    {
+      "description": "The node chart: one pull request per version, never automerged. The client merging it is their sign-off (ADR 0031).",
+      "matchPackageNames": ["federated-node"],
+      "automerge": false
+    }
+  ]
+}

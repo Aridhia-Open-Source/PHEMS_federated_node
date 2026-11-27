@@ -25,6 +25,18 @@ Secrets go in the site repository encrypted with [SOPS](https://getsops.io) and 
 3. Point the Kustomization at the key: add `--decryption-provider=sops --decryption-secret=sops-age` to `flux create kustomization`.
 4. Write a Secret like `first-user-secret.yaml`, encrypt it in place (`sops encrypt -i my-secret.yaml`, file names matching `*secret*.yaml`), list it in `kustomization.yaml`, commit. Edit it later with `sops my-secret.yaml`.
 
+### Pull request checks
+
+`site-example/` carries one check for the site repository's pull requests, with a pipeline for each CI system: `.github/workflows/validate.yml` (GitHub Actions), `azure-pipelines.yml` (Azure DevOps) and `.gitea/workflows/validate.yml` (Gitea Actions). Keep the one for the site's CI system and delete the others. All three run `ci/install-tools.sh` (pinned helm, kustomize and yq, fetched with curl) and then `ci/validate.sh`, which fails the pull request when:
+
+- `kustomize build` fails;
+- the chart version the `HelmRelease` pins does not render with the site's values (`helm template`, which also checks them against the chart's values schema);
+- a file `.sops.yaml` says to encrypt is in plain text.
+
+It needs no cluster, keys or cloud credentials. On Azure DevOps with an Azure Repos repository, add the pipeline as a build validation branch policy on `main`.
+
+`renovate.json` makes Renovate open a pull request for each new chart version. Run Renovate as the site's CI system allows (the GitHub app, or self-hosted on Azure DevOps or Gitea); the client merging the pull request is their sign-off.
+
 ### Site repository hosted elsewhere
 
 When the site repository lives outside the cluster (GitHub, the site's own git), Gitea keeps a pull mirror of it and Flux pulls from the mirror. Commits land in the site repository; Gitea picks them up within 10 minutes.
