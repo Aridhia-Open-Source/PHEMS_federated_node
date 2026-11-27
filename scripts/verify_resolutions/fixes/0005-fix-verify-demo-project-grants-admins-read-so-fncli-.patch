@@ -1,0 +1,26 @@
+From 59783bdc769e55747f509bbda5c1d8658022c7b3 Mon Sep 17 00:00:00 2001
+From: codepint <george.eddie@aridhia.com>
+Date: Tue, 24 Nov 2026 02:46:41 +0000
+Subject: [PATCH 5/5] fix(verify): demo project grants admins read, so fncli
+ finds the operator's project [skip ci]
+
+---
+ config/demo.yaml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/config/demo.yaml b/config/demo.yaml
+index 63cc35eb4..d06f5073a 100644
+--- a/config/demo.yaml
++++ b/config/demo.yaml
+@@ -51,6 +51,8 @@ metadata:
+   namespace: fn-operator
+ spec:
+   datasets: [demo-db]                              # the experiments chart's, in namespace experiments
++  access:                                          # the operator manages it; admins (fncli, the UI) read it
++    - {group: /roles/admins, relation: read}
+   repositories:
+     triggers:
+       - repository: http://gitea.fn.svc:4000/gitea_admin/demo-trigger-repo
+-- 
+2.43.0
+

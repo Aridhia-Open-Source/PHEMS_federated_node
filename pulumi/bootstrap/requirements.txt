@@ -1,0 +1,2 @@
+pulumi>=3.200,<4
+pulumi-github>=6.15,<7

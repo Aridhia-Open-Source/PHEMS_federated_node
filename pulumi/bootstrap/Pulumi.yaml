@@ -1,0 +1,28 @@
+name: phems-deployment-bootstrap
+runtime:
+  name: python
+  options:
+    virtualenv: .venv
+description: Create a GitHub deployment repository consumed by Flux
+config:
+  phems-deployment-bootstrap:repository:
+    description: Name of the deployment repository
+    default: phems-deployment
+  phems-deployment-bootstrap:environments:
+    description: Comma-separated deployment environments
+    default: develop
+  phems-deployment-bootstrap:namespace:
+    description: Kubernetes namespace for the Federated Node
+    default: fn
+  phems-deployment-bootstrap:chart-version:
+    description: Federated Node chart version pinned by Flux
+    default: 2.0.0
+  phems-deployment-bootstrap:release-name:
+    description: Helm release name used by Flux
+    default: federated-node
+  phems-deployment-bootstrap:commit-author:
+    description: Author name recorded on bootstrap commits
+    default: Pulumi
+  phems-deployment-bootstrap:commit-email:
+    description: Author email recorded on bootstrap commits
+    default: pulumi@aridhia.com

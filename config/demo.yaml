@@ -51,6 +51,8 @@ metadata:
   namespace: fn-operator
 spec:
   datasets: [demo-db]                              # the experiments chart's, in namespace experiments
+  access:                                          # the operator manages it; admins (fncli, the UI) read it
+    - {group: /roles/admins, relation: read}
   repositories:
     triggers:
       - repository: http://gitea.fn.svc:4000/gitea_admin/demo-trigger-repo
