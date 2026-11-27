@@ -1,0 +1,6 @@
+# Checkov config (ADR 0044). Report only: soft-fail keeps the exit code 0.
+framework: [helm, kubernetes, dockerfile, github_actions]  # no secrets: MegaLinter passes --skip-framework secrets
+skip-path: [node_modules, charts, .venv, megalinter-reports]
+soft-fail: true  # stage 2 (gate): remove, and add `check`/`skip-check` lists with a reason each
+compact: true
+quiet: true

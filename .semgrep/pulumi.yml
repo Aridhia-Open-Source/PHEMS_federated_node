@@ -1,0 +1,36 @@
+# Custom Semgrep rules (ADR 0044): Trivy and Checkov do not read Pulumi programs.
+# Registry rulesets are passed on the command line (REPOSITORY_SEMGREP_ARGUMENTS in .mega-linter.yml).
+rules:
+  - id: pulumi-azure-storage-public-blob-access
+    languages: [python]
+    severity: ERROR
+    message: Storage account allows public blob access. Set allow_blob_public_access=False.
+    paths:
+      include: ["pulumi/"]
+    pattern: azure.storage.StorageAccount(..., allow_blob_public_access=True, ...)
+    metadata:
+      category: security
+
+  - id: pulumi-azure-aks-no-network-policy
+    languages: [python]
+    severity: ERROR
+    message: AKS cluster has no network policy. Set network_profile.network_policy ("azure" or "calico").
+    paths:
+      include: ["pulumi/"]
+    patterns:
+      - pattern: azure.containerservice.ManagedCluster(...)
+      - pattern-not: |
+          azure.containerservice.ManagedCluster(...,
+            network_profile=azure.containerservice.ContainerServiceNetworkProfileArgs(..., network_policy=$P, ...), ...)
+    metadata:
+      category: security
+
+  - id: pulumi-azure-aks-rbac-disabled
+    languages: [python]
+    severity: ERROR
+    message: AKS cluster has Kubernetes RBAC disabled. Remove enable_rbac=False.
+    paths:
+      include: ["pulumi/"]
+    pattern: azure.containerservice.ManagedCluster(..., enable_rbac=False, ...)
+    metadata:
+      category: security

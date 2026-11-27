@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Mirror docs/versions/2.x/docs to the wiki
         env:
           # GITHUB_TOKEN can push to the wiki once the wiki is enabled and has a first

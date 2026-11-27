@@ -1,0 +1,10 @@
+# pinact config (ADR 0044). `pinact run` pins Actions to full commit SHAs with a version comment;
+# `pinact run --check` (the pinact workflow) fails on an unpinned one.
+version: 3
+# Our own organisation's reusable workflows follow main on purpose
+ignore_actions:
+  - name: Aridhia-Open-Source/pipelines/.*
+    ref: main
+# Already pinned by digest (the MegaLinter image); the Action is not a ref pinact can rewrite
+  - name: docker://.*
+    ref: .*

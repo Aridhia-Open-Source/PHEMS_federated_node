@@ -1,0 +1,3 @@
+# actionlint config (ADR 0044). Add custom runner labels or config variables here when needed.
+self-hosted-runner:
+  labels: []

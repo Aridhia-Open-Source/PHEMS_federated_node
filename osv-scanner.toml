@@ -1,0 +1,6 @@
+# OSV-Scanner config (ADR 0044). Lockfiles and requirements.txt are scanned where they are.
+# Accepted findings: ignoreUntil is the expiry, reason is mandatory. Example only:
+# [[IgnoredVulns]]
+# id = "GHSA-0000-0000-0000"
+# ignoreUntil = 2027-02-26
+# reason = "Not reachable: the vulnerable parser is never called."
