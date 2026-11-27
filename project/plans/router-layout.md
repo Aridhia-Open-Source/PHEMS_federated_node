@@ -1,6 +1,6 @@
 # Plan: router layout (refactor/5, #763)
 
-Status: not started. Design agreed with codepint 2026-11-24. URLs do not change.
+Status: complete. URLs do not change.
 
 | Today | Change |
 |---|---|
