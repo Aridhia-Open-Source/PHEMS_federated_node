@@ -8,6 +8,7 @@ dependencies = [
     "pydantic~=2.0",
     "pydantic-settings~=2.0",
     "kubernetes>=33.1,<36",
+    "pyjwt[crypto]~=2.10",
 ]
 
 [build-system]

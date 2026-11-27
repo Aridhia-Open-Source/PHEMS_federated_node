@@ -55,6 +55,3 @@ class KubernetesException(LogAndException):
         except json.decoder.JSONDecodeError:
             self.description = body
         super().__init__()
-
-class GitProviderError(LogAndException):
-    code = 502
