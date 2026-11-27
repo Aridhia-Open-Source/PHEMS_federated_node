@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.helpers.exceptions import InvalidRequest
-from fednode.clients.git.uri import normalise_repo_uri
+from fednode.clients.git.uri import normalise_repo_path, normalise_repo_uri
 
 
 class RepositoryUriRequest(BaseModel):
@@ -33,6 +33,11 @@ class RepositoryRequest(BaseModel):
     repo_path: str = Field(min_length=1, max_length=512)
     secret_label: str = Field(min_length=1)
     enabled: bool = True
+
+    @field_validator("repo_path")
+    @classmethod
+    def normalise(cls, repo_path: str) -> str:
+        return normalise_repo_path(repo_path)
 
 
 class RepositoryPatchRequest(BaseModel):

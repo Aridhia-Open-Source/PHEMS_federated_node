@@ -89,3 +89,41 @@ class ProjectRequest(BaseModel):
             return cls.model_validate(body)
         except ValidationError as ve:
             raise InvalidRequest(f"Invalid project: {ve}") from ve
+
+
+class ProjectPatchRequest(BaseModel):
+    """The fields of a project that can be updated, all optional but never null. backfill is not stored."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    enabled: bool | None = None
+    backfill: bool | None = None
+    revoked: bool | None = None
+
+    @model_validator(mode="after")
+    def not_null(self):
+        nulls = sorted(f for f in self.model_fields_set if getattr(self, f) is None)
+        if nulls:
+            raise ValueError(f"{', '.join(nulls)} cannot be null")
+        return self
+
+
+class ProjectResourceRequest(BaseModel):
+    """A project's resource for a global dataset or secret as assigned: whether it is on."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    enabled: bool = True
+
+
+class ProjectResourcePatchRequest(BaseModel):
+    """The fields of a project's dataset or secret resource that can be updated, all optional but never null."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    enabled: bool | None = None
+    revoked: bool | None = None
+
+    @model_validator(mode="after")
+    def not_null(self):
+        nulls = sorted(f for f in self.model_fields_set if getattr(self, f) is None)
+        if nulls:
+            raise ValueError(f"{', '.join(nulls)} cannot be null")
+        return self

@@ -90,15 +90,12 @@ def post_repository(req: RepositoryRequest, caller: Caller = Depends(get_caller)
     provider = GitProvider.get_by_request_id(req.provider_id)
     secret = Secret.get_enabled_by_label(req.secret_label)
 
-    try:
-        repo = ResultsRepository(
-            provider_id=provider.id,
-            repo_path=req.repo_path,
-            secret_id=secret.id,
-            enabled=req.enabled,
-        )
-    except ValueError as e:
-        raise InvalidRequest(str(e))
+    repo = ResultsRepository(
+        provider_id=provider.id,
+        repo_path=req.repo_path,
+        secret_id=secret.id,
+        enabled=req.enabled,
+    )
     if ResultsRepository.query.filter_by(provider_id=provider.id, repo_path=repo.repo_path).first():
         raise InvalidRequest(
             f"Results repository {provider.uri}/{repo.repo_path} already exists", code=HTTPStatus.CONFLICT

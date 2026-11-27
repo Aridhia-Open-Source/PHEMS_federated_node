@@ -10,7 +10,6 @@ from datetime import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy import orm
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.orm import validates
 
 from app.database.base_model import BaseModel, db
 
@@ -50,16 +49,6 @@ class PullRequest(db.Model, BaseModel):
     files = orm.relationship(
         "PullRequestFile", back_populates="pull_request", cascade="all, delete-orphan", passive_deletes=True
     )
-
-    @validates('merged_at')
-    def validate_merged_at(self, key, value):
-        """Convert ISO 8601 string to datetime if needed."""
-        if isinstance(value, str):
-            try:
-                return dt.fromisoformat(value.rstrip('Z'))
-            except (ValueError, TypeError):
-                raise ValueError("merged_at must be a valid ISO 8601 datetime string")
-        return value
 
     @classmethod
     def store(

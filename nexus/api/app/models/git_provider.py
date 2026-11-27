@@ -127,15 +127,6 @@ class GitProvider(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
             raise InvalidRequest(f"Git provider {provider_id} does not exist")
         return provider
 
-    @validates('type')
-    def validate_type(self, key, value):
-        """Only types the Dagster side has an API client for."""
-        try:
-            return GitProviderType(value).value
-        except ValueError:
-            valid = ', '.join(t.value for t in GitProviderType)
-            raise ValueError(f"type must be one of: {valid}")
-
     @validates('uri')
     def validate_uri(self, key, value):
         """Keep the uri in its normalised form (see normalise_provider_uri)."""

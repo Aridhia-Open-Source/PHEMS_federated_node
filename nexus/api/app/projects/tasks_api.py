@@ -17,7 +17,6 @@ tasks-related endpoints, under the project that owns the tasks. A task of anothe
 - POST /projects/<project_id>/tasks/<task_id>/launch (the launcher's one call: decides, fails the task or returns the run inputs; a task not PENDING: 409)
 - POST /projects/<project_id>/tasks/<task_id>/runs/<run_id>/resources (the run's Secret and ConfigMap in the tasks namespace, returns their names; they already exist: 409)
 """
-from datetime import datetime as dt
 from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends, Request
@@ -40,7 +39,9 @@ from app.dtos.task_spec import TaskSpecRequest
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.dtos.dataset import DatasetDTO
 from app.dtos.base import page_of
-from app.dtos.task import NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskResourcesDTO
+from app.dtos.task import (
+    NewTaskDTO, TaskConfigDTO, TaskCreatedDTO, TaskDTO, TaskLaunchDTO, TaskPatchRequest, TaskResourcesDTO
+)
 from app.dtos.trigger_repository import TaskTriggerDTO
 from app.dtos.result import PullRequestResultDTO, dump_result
 from app.models.api_request_trigger import ApiRequestTrigger
@@ -143,7 +144,7 @@ def get_task_id(project_id: int, task_id: int, caller: Caller = Depends(get_call
     '/{task_id}', response_model=TaskDTO,
     dependencies=[Depends(system_only)]
 )
-def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=dict)):
+def patch_task(project_id: int, task_id: int, req: TaskPatchRequest):
     """
     PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.
     A move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same
@@ -154,44 +155,18 @@ def patch_task(project_id: int, task_id: int, body: dict = Body(default_factory=
     """
     task = get_project_task(project_id, task_id)
 
+    body = req.model_dump(exclude_unset=True)
     if not body:
         raise InvalidRequest("No fields provided to update")
 
-    unknown = set(body) - {"status", "executor_run_id", "exit_code", "state_cause", "started_at", "completed_at"}
-    if unknown:
-        raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
-
-    if 'status' in body:
-        if body['status'] not in [s.value for s in TaskStatus]:
-            valid = ', '.join([s.value for s in TaskStatus])
-            raise InvalidRequest(f"Invalid status: {body['status']}. Must be one of: {valid}")
-        transition(TASK_MOVES, task.status, body['status'])
-        task.status = body['status']
-
-    if 'executor_run_id' in body:
-        if not isinstance(body['executor_run_id'], str):
-            raise InvalidRequest("executor_run_id must be a string")
-        task.executor_run_id = body['executor_run_id']
-
-    if 'state_cause' in body:
-        if not isinstance(body['state_cause'], str):
-            raise InvalidRequest("state_cause must be a string")
-        task.state_cause = body['state_cause']
-
-    if 'exit_code' in body:
-        if not isinstance(body['exit_code'], int) or isinstance(body['exit_code'], bool):
-            raise InvalidRequest("exit_code must be an integer")
-        task.exit_code = body['exit_code']
-
-    for field in ('started_at', 'completed_at'):
-        if field in body:
-            try:
-                setattr(task, field, dt.fromisoformat(body[field].rstrip('Z')))
-            except (ValueError, AttributeError):
-                raise InvalidRequest(f"{field} must be a valid ISO 8601 datetime string")
+    if req.status is not None:
+        transition(TASK_MOVES, task.status, req.status.value)
+        task.status = req.status.value
+    for field in body.keys() - {'status'}:
+        setattr(task, field, body[field])
 
     # A task that never ran has no run id and nothing to delete
-    if 'status' in body and not TASK_MOVES[task.status] and task.executor_run_id:
+    if req.status is not None and not TASK_MOVES[task.status] and task.executor_run_id:
         RunResources.delete(task.executor_run_id)
 
     db.session.commit()

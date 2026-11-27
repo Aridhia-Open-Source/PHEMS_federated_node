@@ -325,12 +325,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ProjectPatchRequest"
               }
             }
           }
@@ -522,9 +521,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ProjectResourceRequest"
               }
             }
           }
@@ -580,12 +577,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ProjectResourcePatchRequest"
               }
             }
           }
@@ -786,9 +782,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ProjectResourceRequest"
               }
             }
           }
@@ -844,12 +838,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ProjectResourcePatchRequest"
               }
             }
           }
@@ -1838,12 +1831,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/TaskPatchRequest"
               }
             }
           }
@@ -2560,12 +2552,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ResultRequest"
               }
             }
           }
@@ -2673,12 +2664,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/ResultPatchRequest"
               }
             }
           }
@@ -5531,14 +5521,12 @@
           "type": {
             "anyOf": [
               {
-                "type": "string",
-                "minLength": 1
+                "$ref": "#/components/schemas/GitProviderType"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Type"
+            ]
           },
           "uri": {
             "anyOf": [
@@ -5646,9 +5634,7 @@
             "title": "Name"
           },
           "type": {
-            "type": "string",
-            "minLength": 1,
-            "title": "Type"
+            "$ref": "#/components/schemas/GitProviderType"
           },
           "uri": {
             "type": "string",
@@ -6331,6 +6317,47 @@
         ],
         "title": "ProjectHealthDTO"
       },
+      "ProjectPatchRequest": {
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "backfill": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backfill"
+          },
+          "revoked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProjectPatchRequest",
+        "description": "The fields of a project that can be updated, all optional but never null. backfill is not stored."
+      },
       "ProjectRequest": {
         "properties": {
           "name": {
@@ -6363,6 +6390,49 @@
         ],
         "title": "ProjectRequest",
         "description": "A project as created. Fields it does not name are ignored."
+      },
+      "ProjectResourcePatchRequest": {
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "revoked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProjectResourcePatchRequest",
+        "description": "The fields of a project's dataset or secret resource that can be updated, all optional but never null."
+      },
+      "ProjectResourceRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ProjectResourceRequest",
+        "description": "A project's resource for a global dataset or secret as assigned: whether it is on."
       },
       "ProjectResultsRepositoryDTO": {
         "properties": {
@@ -7173,6 +7243,20 @@
         ],
         "title": "PullRequestResultDTO"
       },
+      "PullRequestResultStep": {
+        "type": "string",
+        "enum": [
+          "UNKNOWN",
+          "PUSHED",
+          "OPENED",
+          "MERGED",
+          "CLOSED",
+          "REVOKED",
+          "STALE"
+        ],
+        "title": "PullRequestResultStep",
+        "description": "The furthest step the delivery of a task's results by pull request has reached. It only\nmoves forward: UNKNOWN < PUSHED < OPENED < MERGED, CLOSED, REVOKED or STALE, the last four\nterminal and of equal rank.\n\n- UNKNOWN: the result is recorded, nothing is delivered yet.\n- PUSHED: the results are pushed to their branch on the results repository.\n- OPENED: the pull request from that branch is opened.\n- MERGED: the pull request is merged, as the sync sensor finds on the provider.\n- CLOSED: the pull request is closed without merging, as the sync sensor finds on the provider.\n- REVOKED: the project's resource for the results repository was revoked, so the results are never delivered. Final:\n  un-revoking the project resource does not deliver them.\n- STALE: the task's configuration changed after it was created, so nothing is delivered. Final."
+      },
       "PullRequestTaskRequest": {
         "properties": {
           "spec_raw": {
@@ -7465,6 +7549,160 @@
         ],
         "title": "RepositoryRequest",
         "description": "A trigger or results repository in a create request."
+      },
+      "ResultPatchRequest": {
+        "properties": {
+          "attempts": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempts"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1024
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PullRequestResultStep"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResultState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch"
+          },
+          "commit_sha": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit Sha"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "merged_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged At"
+          },
+          "merge_commit_sha": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merge Commit Sha"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ResultPatchRequest",
+        "description": "The progress of a result's delivery. The fields of a pull request result, from step on, are refused\nfor any other type of result. Null clears a field that can be empty, the others cannot be null."
+      },
+      "ResultRequest": {
+        "properties": {
+          "task_id": {
+            "type": "integer",
+            "title": "Task Id"
+          },
+          "results_repository_id": {
+            "type": "integer",
+            "title": "Results Repository Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "task_id",
+          "results_repository_id"
+        ],
+        "title": "ResultRequest",
+        "description": "A result in a create request: the delivery of a task's results to a results repository, the global one's id."
+      },
+      "ResultState": {
+        "type": "string",
+        "enum": [
+          "IN_PROGRESS",
+          "DELIVERED",
+          "FAILED"
+        ],
+        "title": "ResultState",
+        "description": "How the delivery of a task's results is going, apart from the step it has reached.\n\n- IN_PROGRESS: the delivery is under way, or not started. A new result, and a failed one\n  that is re-launched, are IN_PROGRESS.\n- DELIVERED: the branch is pushed. The results pull request, opened and then merged or closed,\n  is tracked in the step.\n- FAILED: the delivery failed, and nothing retries it."
       },
       "ResultsRepositoryDTO": {
         "properties": {
@@ -8198,6 +8436,81 @@
         "title": "TaskLaunchDTO",
         "description": "What the launcher is told for a PENDING task: outcome \"launch\" with the task and its dataset (null for a\ntask without one), or \"fail\" with the cause, the failed task and no dataset. See tasks_api.launch_task."
       },
+      "TaskPatchRequest": {
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "executor_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Executor Run Id"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "state_cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Cause"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TaskPatchRequest",
+        "description": "The progress of a task's run, all fields optional but never null."
+      },
       "TaskResourcesDTO": {
         "properties": {
           "secret": {
@@ -8290,6 +8603,19 @@
           "metadata"
         ],
         "title": "TaskSpecDTO"
+      },
+      "TaskStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "QUEUED",
+          "RUNNING",
+          "SUCCESS",
+          "FAILED",
+          "CANCELED"
+        ],
+        "title": "TaskStatus",
+        "description": "The canonical status of a task run and of a delivery attempt. Dagster's own vocabulary\nis mapped into this and never stored."
       },
       "TaskTriggerDTO": {
         "properties": {

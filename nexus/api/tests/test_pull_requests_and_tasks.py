@@ -599,7 +599,7 @@ def test_unusable_dataset_rejects_the_pr(client, admin_headers, system_headers, 
 ])
 def test_bad_spec_rejects_the_pr(client, admin_headers, system_headers, pr_trigger, raw):
     r = post_task(client, system_headers, pr_trigger, raw)
-    assert r.status_code in (400, 413) and "error" in r.json()
+    assert r.status_code in (400, 413, 422) and "error" in r.json()  # 400 over the size limit, 422 for a bad spec
     row = pr_state(client, admin_headers, pr_trigger)
     assert row["state"] == "REJECTED" and row["task_id"] is None and row["state_cause"]
 
@@ -693,10 +693,9 @@ def test_finished_tasks_cannot_change_status(client, admin_headers, system_heade
     {"status": "RUNNING", "bogus": 1},                 # unknown field applies nothing
     {"name": "x"},                                     # immutable
     {"executor_run_id": 42},                            # wrong type
-    {},
 ])
-def test_bad_task_patches_are_400_and_change_nothing(client, admin_headers, system_headers, project, tid, body):
-    assert patch_task(client, system_headers, project, tid, body).status_code == 400
+def test_bad_task_patches_are_422_and_change_nothing(client, admin_headers, system_headers, project, tid, body):
+    assert patch_task(client, system_headers, project, tid, body).status_code == 422
     assert client.get(f"/projects/{project.id}/tasks/{tid}", headers=admin_headers).json()["status"] == "PENDING"
 
 

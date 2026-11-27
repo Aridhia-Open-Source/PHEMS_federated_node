@@ -44,8 +44,12 @@ class TestPatchTask:
         assert response.json()["state_cause"] == "why"
         assert Task.query.get(task.id).state_cause == "why"
 
+    def test_empty_body_fails(self, client, system_headers, task, project):
+        response = self.patch(client, system_headers, project, task.id, {})
+        assert response.status_code == 400
+        assert Task.query.get(task.id).status == "PENDING"
+
     @pytest.mark.parametrize("body", [
-        {},
         {"state_cause": 1},
         {"status": "scheduled"},
         {"status": "running"},
@@ -58,7 +62,7 @@ class TestPatchTask:
     ])
     def test_invalid_body_fails(self, client, system_headers, task, body, project):
         response = self.patch(client, system_headers, project, task.id, body)
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert Task.query.get(task.id).status == "PENDING"
 
     def test_not_found(self, client, system_headers, project):

@@ -66,20 +66,26 @@ def test_unknown_project_and_non_integer_id_are_404(client, admin_headers, globa
 
 # ---------------------------------------------------------------- patch
 
+def test_patch_empty_is_400_and_changes_nothing(client, admin_headers, project):
+    response = client.patch(f"/projects/{project.id}", json={}, headers=admin_headers)
+    assert response.status_code == 400 and "error" in response.json()
+    assert refresh(project).enabled is True
+
+
 @pytest.mark.parametrize("body", [
-    {}, {"bogus": True}, {"name": "renamed"}, {"enabled": False, "name": "x"},  # empty/unknown fields refused
+    {"bogus": True}, {"name": "renamed"}, {"enabled": False, "name": "x"},  # unknown fields refused
     {"enabled": "true"}, {"enabled": 1}, {"enabled": None}, {"enabled": True, "backfill": 1},
 ])
-def test_patch_invalid_is_400_and_changes_nothing(client, admin_headers, project, body):
+def test_patch_invalid_is_422_and_changes_nothing(client, admin_headers, project, body):
     response = client.patch(f"/projects/{project.id}", json=body, headers=admin_headers)
-    assert response.status_code == 400 and "error" in response.json()
+    assert response.status_code == 422 and "error" in response.json()
     assert refresh(project).enabled is True
 
 
 @pytest.mark.parametrize("body", [{"revoked": "true"}, {"revoked": 1}, {"revoked": None}])
 def test_patch_revoked_must_be_a_boolean(client, admin_headers, project, body):
     response = client.patch(f"/projects/{project.id}", json=body, headers=admin_headers)
-    assert response.status_code == 400 and "boolean" in response.json()["error"]
+    assert response.status_code == 422 and "revoked" in response.json()["error"]
     assert refresh(project).revoked is False
 
 
@@ -223,7 +229,7 @@ def test_dataset_resource_get_list_and_errors(client, admin_headers, project, ot
     assert client.put(f"/projects/{project.id}/datasets/999", json={}, headers=admin_headers).status_code == 404
     assert client.put(url + "x", json={}, headers=admin_headers).status_code == 404
     assert client.put(f"/projects/{other_project.id}/datasets/{global_dataset.id}", json={"bogus": 1},
-                      headers=admin_headers).status_code == 400
+                      headers=admin_headers).status_code == 422
     assert client.get(f"/projects/{other_project.id}/datasets/{global_dataset.id}",
                       headers=admin_headers).status_code == 404
 

@@ -327,7 +327,7 @@ def test_resource_settings_patch_with_a_task_in_flight(kind, body, field, value,
 def test_dataset_resource_has_no_settings(client, admin_headers, project, global_dataset):
     c = Ctx("dataset", global_dataset)
     assign_to_project(client, admin_headers, c, project)
-    assert patch(client, admin_headers, c.resource(project.id), {"host": "x"}).status_code == 400
+    assert patch(client, admin_headers, c.resource(project.id), {"host": "x"}).status_code == 422
     assert patch(client, admin_headers, c.resource(project.id), {}).status_code == 400
 
 

@@ -1767,8 +1767,7 @@ export interface components {
         GitProviderPatchRequest: {
             /** Name */
             name?: string | null;
-            /** Type */
-            type?: string | null;
+            type?: components["schemas"]["GitProviderType"] | null;
             /** Uri */
             uri?: string | null;
             /** Api Uri */
@@ -1804,8 +1803,7 @@ export interface components {
         GitProviderRequest: {
             /** Name */
             name: string;
-            /** Type */
-            type: string;
+            type: components["schemas"]["GitProviderType"];
             /** Uri */
             uri: string;
             /** Api Uri */
@@ -2044,6 +2042,18 @@ export interface components {
             trigger_repositories: components["schemas"]["RepositoryHealthDTO"][];
         };
         /**
+         * ProjectPatchRequest
+         * @description The fields of a project that can be updated, all optional but never null. backfill is not stored.
+         */
+        ProjectPatchRequest: {
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Backfill */
+            backfill?: boolean | null;
+            /** Revoked */
+            revoked?: boolean | null;
+        };
+        /**
          * ProjectRequest
          * @description A project as created. Fields it does not name are ignored.
          */
@@ -2055,6 +2065,27 @@ export interface components {
             /**
              * Enabled
              * @default false
+             */
+            enabled?: boolean;
+        };
+        /**
+         * ProjectResourcePatchRequest
+         * @description The fields of a project's dataset or secret resource that can be updated, all optional but never null.
+         */
+        ProjectResourcePatchRequest: {
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Revoked */
+            revoked?: boolean | null;
+        };
+        /**
+         * ProjectResourceRequest
+         * @description A project's resource for a global dataset or secret as assigned: whether it is on.
+         */
+        ProjectResourceRequest: {
+            /**
+             * Enabled
+             * @default true
              */
             enabled?: boolean;
         };
@@ -2345,6 +2376,23 @@ export interface components {
             merge_commit_sha: string | null;
         };
         /**
+         * PullRequestResultStep
+         * @description The furthest step the delivery of a task's results by pull request has reached. It only
+         *     moves forward: UNKNOWN < PUSHED < OPENED < MERGED, CLOSED, REVOKED or STALE, the last four
+         *     terminal and of equal rank.
+         *
+         *     - UNKNOWN: the result is recorded, nothing is delivered yet.
+         *     - PUSHED: the results are pushed to their branch on the results repository.
+         *     - OPENED: the pull request from that branch is opened.
+         *     - MERGED: the pull request is merged, as the sync sensor finds on the provider.
+         *     - CLOSED: the pull request is closed without merging, as the sync sensor finds on the provider.
+         *     - REVOKED: the project's resource for the results repository was revoked, so the results are never delivered. Final:
+         *       un-revoking the project resource does not deliver them.
+         *     - STALE: the task's configuration changed after it was created, so nothing is delivered. Final.
+         * @enum {string}
+         */
+        PullRequestResultStep: "UNKNOWN" | "PUSHED" | "OPENED" | "MERGED" | "CLOSED" | "REVOKED" | "STALE";
+        /**
          * PullRequestTaskRequest
          * @description The spec file of a pull request, as read, for the backend to validate and make the task from.
          */
@@ -2448,6 +2496,53 @@ export interface components {
              */
             enabled?: boolean;
         };
+        /**
+         * ResultPatchRequest
+         * @description The progress of a result's delivery. The fields of a pull request result, from step on, are refused
+         *     for any other type of result. Null clears a field that can be empty, the others cannot be null.
+         */
+        ResultPatchRequest: {
+            /** Attempts */
+            attempts?: number | null;
+            /** Error */
+            error?: string | null;
+            step?: components["schemas"]["PullRequestResultStep"] | null;
+            state?: components["schemas"]["ResultState"] | null;
+            /** Branch */
+            branch?: string | null;
+            /** Commit Sha */
+            commit_sha?: string | null;
+            /** Number */
+            number?: number | null;
+            /** Url */
+            url?: string | null;
+            /** Merged At */
+            merged_at?: string | null;
+            /** Merge Commit Sha */
+            merge_commit_sha?: string | null;
+        };
+        /**
+         * ResultRequest
+         * @description A result in a create request: the delivery of a task's results to a results repository, the global one's id.
+         */
+        ResultRequest: {
+            /** Task Id */
+            task_id: number;
+            /** Results Repository Id */
+            results_repository_id: number;
+        };
+        /**
+         * ResultState
+         * @description How the delivery of a task's results is going, apart from the step it has reached.
+         *
+         *     - IN_PROGRESS: the delivery is under way, or not started. A new result, and a failed one
+         *       that is re-launched, are IN_PROGRESS.
+         *     - DELIVERED: the branch is pushed. The results pull request, opened and then merged or closed,
+         *       is tracked in the step.
+         *     - FAILED: the delivery failed, and nothing retries it.
+         * @enum {string}
+         */
+        ResultState: "IN_PROGRESS" | "DELIVERED" | "FAILED";
         /** ResultsRepositoryDTO */
         ResultsRepositoryDTO: {
             /** Id */
@@ -2688,6 +2783,23 @@ export interface components {
             dataset: components["schemas"]["DatasetDTO"] | null;
         };
         /**
+         * TaskPatchRequest
+         * @description The progress of a task's run, all fields optional but never null.
+         */
+        TaskPatchRequest: {
+            status?: components["schemas"]["TaskStatus"] | null;
+            /** Executor Run Id */
+            executor_run_id?: string | null;
+            /** Exit Code */
+            exit_code?: number | null;
+            /** State Cause */
+            state_cause?: string | null;
+            /** Started At */
+            started_at?: string | null;
+            /** Completed At */
+            completed_at?: string | null;
+        };
+        /**
          * TaskResourcesDTO
          * @description The names of the Secret and the ConfigMap made for a run, null for the one it does not need: the Secret
          *     only for a task with a dataset, the ConfigMap only for a task with a config. See RunResources.create.
@@ -2723,6 +2835,13 @@ export interface components {
             /** Metadata */
             metadata: unknown;
         };
+        /**
+         * TaskStatus
+         * @description The canonical status of a task run and of a delivery attempt. Dagster's own vocabulary
+         *     is mapped into this and never stored.
+         * @enum {string}
+         */
+        TaskStatus: "PENDING" | "QUEUED" | "RUNNING" | "SUCCESS" | "FAILED" | "CANCELED";
         /**
          * TaskTriggerDTO
          * @description The pull request that yielded a task, with the repository it was merged in nested and its spec file as stored.
@@ -3157,11 +3276,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProjectPatchRequest"];
             };
         };
         responses: {
@@ -3260,9 +3377,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProjectResourceRequest"];
             };
         };
         responses: {
@@ -3326,11 +3441,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProjectResourcePatchRequest"];
             };
         };
         responses: {
@@ -3429,9 +3542,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProjectResourceRequest"];
             };
         };
         responses: {
@@ -3495,11 +3606,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ProjectResourcePatchRequest"];
             };
         };
         responses: {
@@ -4095,11 +4204,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["TaskPatchRequest"];
             };
         };
         responses: {
@@ -4525,11 +4632,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ResultRequest"];
             };
         };
         responses: {
@@ -4595,11 +4700,9 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["ResultPatchRequest"];
             };
         };
         responses: {

@@ -66,16 +66,13 @@ def post_secret(req: SecretRequest, caller: Caller = Depends(get_caller)):
     if Secret.query.filter(Secret.label == req.label).one_or_none():
         raise InvalidRequest(f"Secret {req.label} already exists", code=HTTPStatus.CONFLICT)
 
-    try:
-        secret = Secret(
-            label=req.label,
-            provider=req.provider,
-            description=req.description,
-            namespace=SecretProvider(req.provider).namespace,
-            enabled=req.enabled,
-        )
-    except ValueError as e:
-        raise InvalidRequest(str(e))
+    secret = Secret(
+        label=req.label,
+        provider=req.provider,
+        description=req.description,
+        namespace=SecretProvider(req.provider).namespace,
+        enabled=req.enabled,
+    )
 
     # The store first, so a failure there leaves no row pointing at nothing. If the row
     # then fails, the stored secret is left for a retry to adopt: writing it overwrites.

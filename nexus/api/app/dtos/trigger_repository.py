@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.dtos.base import DTO
+from app.dtos.base import DTO, NaiveUtcDatetime
 from app.dtos.git_provider import GitProviderRefDTO
 from app.dtos.repository_uri import RepositoryRequest
 from app.dtos.secret import SecretDTO
@@ -173,19 +173,11 @@ class PullRequestRequest(BaseModel):
     number: int = Field(ge=1)
     title: str = Field(max_length=256)
     raised_by: str = Field(max_length=256)
-    merged_at: datetime
+    merged_at: NaiveUtcDatetime
     merge_commit_sha: str = Field(min_length=1, max_length=40)
     base_branch: str = Field(min_length=1, max_length=256)
     files_truncated: bool
     changed_files: list[ChangedFileRequest]
-
-    @field_validator("merged_at", mode="before")
-    @classmethod
-    def naive_utc(cls, value):
-        """Stored without a time zone, as UTC, like every other timestamp."""
-        if isinstance(value, str):
-            return datetime.fromisoformat(value.rstrip('Z'))
-        raise ValueError("merged_at must be an ISO 8601 datetime string")
 
 
 class PullRequestBatchRequest(BaseModel):
