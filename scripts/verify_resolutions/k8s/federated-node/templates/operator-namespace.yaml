@@ -1,0 +1,11 @@
+{{- if and (.Values.operator).enabled (.Values.global).createNamespaces }}
+{{- /* The nexus operator's own namespace (ADR 0032): its Deployment, the node config custom resources
+       (node-config.yaml), their NodeSecret source Secrets and its Keycloak login (operator-keycloak-creds).
+       The operator watches this namespace and operator.watchNamespaces, and has no access to the release
+       namespace, so a NodeSecret cannot name kc-secrets or a database password there.
+       Off with global.createNamespaces: then it comes from outside, with the Secrets NodeSecrets read. */}}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "operator_namespace" . }}
+{{- end }}

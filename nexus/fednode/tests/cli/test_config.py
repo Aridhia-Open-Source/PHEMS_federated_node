@@ -29,6 +29,14 @@ def test_gitea_config_reaches_an_in_cluster_url_through_localhost():
     assert GiteaConfig(node=NODE, gitea_url="http://gitea.fn.svc:4000").gitea_host_api_uri == "http://localhost:4000/api/v1"
 
 
+def test_gitea_config_reaches_external_docker_gitea_through_its_published_url(monkeypatch):
+    monkeypatch.setenv("GITEA_LOCAL_URL", "http://localhost:4000")
+
+    assert GiteaConfig(
+        node=NODE, gitea_url="http://gitea-bootstrap:3000"
+    ).gitea_host_api_uri == "http://localhost:4000/api/v1"
+
+
 def test_gitea_config_takes_the_admin_user_from_the_node():
     node = NODE.model_copy(update={"gitea_admin_user": "boss"})
 

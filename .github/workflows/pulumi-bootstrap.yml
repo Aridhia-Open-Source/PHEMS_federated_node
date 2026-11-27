@@ -1,0 +1,157 @@
+name: Pulumi deployment bootstrap
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/pulumi-bootstrap.yml"
+      - "pulumi/bootstrap/**"
+      - "pulumi/README.md"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/pulumi-bootstrap.yml"
+      - "pulumi/bootstrap/**"
+      - "pulumi/README.md"
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: GitHub repository to manage
+        required: true
+        default: phems-deployment
+        type: string
+      environments:
+        description: Comma-separated deployment environments
+        required: true
+        default: develop
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pulumi-bootstrap-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || inputs.repository || vars.PULUMI_REPOSITORY || 'phems-deployment' }}
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment:
+      name: pulumi-bootstrap
+    env:
+      STACK: pr-${{ github.event.pull_request.number }}
+      REPOSITORY: phems-pr-${{ github.event.pull_request.number }}-deployment
+      ENVIRONMENTS: develop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Pulumi dependencies
+        working-directory: pulumi/bootstrap
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+      - name: Set up Pulumi CLI
+        uses: pulumi/actions@v6
+        with:
+          pulumi-version: "^3"
+      - name: Create GitHub App token
+        id: github-app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PULUMI_GITHUB_APP_ID }}
+          private-key: ${{ secrets.PULUMI_GITHUB_APP_PRIVATE_KEY }}
+          owner: Aridhia-Open-Source
+      - name: Configure ephemeral Pulumi passphrase
+        run: |
+          set -euo pipefail
+          printf 'PULUMI_CONFIG_PASSPHRASE=%s\n' "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Configure preview stack
+        working-directory: pulumi/bootstrap
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          pulumi login --local
+          pulumi stack select "$STACK" || pulumi stack init "$STACK"
+          pulumi config set github:owner Aridhia-Open-Source
+          pulumi config set repository "$REPOSITORY"
+          pulumi config set environments "$ENVIRONMENTS"
+      - uses: pulumi/actions@v6
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
+        with:
+          command: preview
+          stack-name: ${{ env.STACK }}
+          work-dir: pulumi/bootstrap
+
+  apply:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: pulumi-bootstrap
+    env:
+      REPOSITORY: ${{ inputs.repository || vars.PULUMI_REPOSITORY || 'phems-deployment' }}
+      STACK: ${{ inputs.repository || vars.PULUMI_REPOSITORY || 'phems-deployment' }}
+      ENVIRONMENTS: ${{ inputs.environments || vars.PULUMI_ENVIRONMENTS || 'develop' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Pulumi dependencies
+        working-directory: pulumi/bootstrap
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -r requirements.txt
+      - name: Set up Pulumi CLI
+        uses: pulumi/actions@v6
+        with:
+          pulumi-version: "^3"
+      - name: Create GitHub App token
+        id: github-app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PULUMI_GITHUB_APP_ID }}
+          private-key: ${{ secrets.PULUMI_GITHUB_APP_PRIVATE_KEY }}
+          owner: Aridhia-Open-Source
+      - name: Configure ephemeral Pulumi passphrase
+        run: |
+          set -euo pipefail
+          printf 'PULUMI_CONFIG_PASSPHRASE=%s\n' "$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Validate deployment inputs
+        run: |
+          set -euo pipefail
+          [[ "$STACK" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]
+          [[ "$REPOSITORY" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$ ]]
+          IFS=',' read -ra RAW_ENVIRONMENTS <<< "$ENVIRONMENTS"
+          [[ "${#RAW_ENVIRONMENTS[@]}" -gt 0 ]]
+          declare -A SEEN=()
+          for raw_environment in "${RAW_ENVIRONMENTS[@]}"; do
+            environment="$(printf '%s' "$raw_environment" | xargs)"
+            [[ "$environment" =~ ^[a-z][a-z0-9-]{0,62}$ ]]
+            [[ -z "${SEEN[$environment]+x}" ]]
+            SEEN["$environment"]=1
+          done
+      - name: Configure apply stack
+        working-directory: pulumi/bootstrap
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          pulumi login --local
+          pulumi stack select "$STACK" || pulumi stack init "$STACK"
+          pulumi config set github:owner Aridhia-Open-Source
+          pulumi config set repository "$REPOSITORY"
+          pulumi config set environments "$ENVIRONMENTS"
+      - uses: pulumi/actions@v6
+        env:
+          GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
+        with:
+          command: up
+          stack-name: ${{ env.STACK }}
+          work-dir: pulumi/bootstrap

@@ -1,0 +1,37 @@
+From f336d7d73d0d3ddd411bb6588d97afd419dd0c2a Mon Sep 17 00:00:00 2001
+From: codepint <george.eddie@aridhia.com>
+Date: Tue, 24 Nov 2026 02:32:06 +0000
+Subject: [PATCH 2/5] fix(verify): kc-init puts the operator user in
+ /roles/service (create_user group=) [skip ci]
+
+---
+ build/kc-init/setup_realm.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/build/kc-init/setup_realm.py b/build/kc-init/setup_realm.py
+index b47e8f6f1..49fcb32c6 100644
+--- a/build/kc-init/setup_realm.py
++++ b/build/kc-init/setup_realm.py
+@@ -152,8 +152,8 @@ def ensure_realm_accounts(admin_token:str):
+             admin_token=admin_token
+         )
+ 
+-    # The nexus operator's user (ADR 0032): Administrator, not System, so it may change node config
+-    # but not call the system-only routes. Its password follows operator-keycloak-creds, like Dagster's.
++    # The nexus operator's user (ADR 0032): in /roles/service, the group that manages the records it
++    # creates (ADR 0037). Its password follows operator-keycloak-creds, like Dagster's.
+     if settings.operator_kc_user and settings.operator_kc_password and settings.operator_kc_email:
+         logger.info("Creating the nexus operator user")
+         create_user(
+@@ -162,7 +162,7 @@ def ensure_realm_accounts(admin_token:str):
+             email=settings.operator_kc_email,
+             first_name="Nexus",
+             last_name="Operator",
+-            role_name="Administrator",
++            group="/roles/service",
+             admin_token=admin_token,
+             reset_password_if_exists=True
+         )
+-- 
+2.43.0
+
