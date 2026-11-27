@@ -16,7 +16,7 @@ the repository gets a trigger for each one it should evaluate (ADR 0011).
 Triggers are created through `create_triggers`, so a pair (assignment, pull request) gets one
 trigger; the unique constraint settles a race.
 
-Matching is decided here from stored data alone, with the rule of `spec_files`: a file the
+Matching is decided here from stored data alone, with the rule of `ProjectTriggerRepository.spec_files`: a file the
 pull request adds, ending in `.json`, under the assignment's `watch_dir`. The trigger exposes
 those paths as `spec_files` and Dagster's evaluate step trusts them. A pull request that does
 not match gets no trigger for that assignment; the cause is logged at info level.
@@ -31,7 +31,6 @@ from sqlalchemy.orm import selectinload
 
 from app.dtos.trigger_repository import PullRequestRequest
 from app.database.base_model import db
-from app.tasks.spec_files import spec_files
 from app.models.project_trigger_repository import ProjectTriggerRepository, now_ts
 from app.models.pull_request import PullRequest, PullRequestFile
 from app.models.pull_request_trigger import PullRequestTrigger
@@ -50,7 +49,7 @@ def unmatched_cause(assignment: ProjectTriggerRepository, pull_request: PullRequ
         return f"Pull request was merged into {pull_request.base_branch}, not {assignment.base_branch}"
     if pull_request.files_truncated:
         return None
-    if spec_files(pull_request, assignment.watch_dir):
+    if assignment.spec_files(pull_request):
         return None
     return f"No new spec file under {assignment.watch_dir}"
 

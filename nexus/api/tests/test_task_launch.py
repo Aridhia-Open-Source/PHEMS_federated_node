@@ -1,5 +1,5 @@
 """
-POST /projects/<id>/tasks/<id>/launch, the launcher's one call: the decision (helpers/task_config.decide_launch, whose
+POST /projects/<id>/tasks/<id>/launch, the launcher's one call: the decision (Task.decide_launch, whose
 rules test_task_config.py covers), the FAILED move on "fail", the run inputs on "launch", and a repeat being safe.
 """
 import json
@@ -7,7 +7,7 @@ import json
 import pytest
 
 from app.database.base_model import db
-from app.tasks.limits import TASK_CAUSE_MAX_LENGTH
+from app.helpers.const import TASK_CAUSE_MAX_LENGTH
 from app.models.task import Task
 from tests.conftest import CONTRACT_DIR
 
@@ -129,8 +129,8 @@ def test_the_decision_in_config_and_in_launch_agree(client, admin_headers, syste
 
 
 def test_a_long_cause_is_cut_to_the_launchers_length(client, system_headers, project, full_task, monkeypatch):
-    from app.tasks.task_config import LaunchDecision
-    monkeypatch.setattr("app.projects.tasks_api.decide_launch", lambda task: LaunchDecision("fail", "revoked: " + "x" * 2000, [], []))
+    from app.models.task import LaunchDecision
+    monkeypatch.setattr("app.models.task.Task.decide_launch", lambda self: LaunchDecision("fail", "revoked: " + "x" * 2000, [], []))
 
     body = launch(client, system_headers, project, full_task).json()
 

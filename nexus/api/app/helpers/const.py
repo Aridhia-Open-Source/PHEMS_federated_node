@@ -17,4 +17,34 @@ TASK_COMPUTE_MAX_CPU = os.environ["TASK_COMPUTE_MAX_CPU"]
 TASK_COMPUTE_MAX_MEMORY = os.environ["TASK_COMPUTE_MAX_MEMORY"]
 TASK_COMPUTE_DEFAULT_LIMIT_CPU = os.environ["TASK_COMPUTE_DEFAULT_LIMIT_CPU"]
 TASK_COMPUTE_DEFAULT_LIMIT_MEMORY = os.environ["TASK_COMPUTE_DEFAULT_LIMIT_MEMORY"]
+# What a task spec's compute is validated against, as the context of the fednode TaskCompute model
+TASK_COMPUTE_LIMITS = {
+    "max_cpu": TASK_COMPUTE_MAX_CPU,
+    "max_memory": TASK_COMPUTE_MAX_MEMORY,
+    "default_limit_cpu": TASK_COMPUTE_DEFAULT_LIMIT_CPU,
+    "default_limit_memory": TASK_COMPUTE_DEFAULT_LIMIT_MEMORY,
+}
 
+# Task spec limits. Sizes are in bytes: the spec exactly as received, and the env as JSON.
+SPEC_RAW_MAX_BYTES = 64 * 1024
+
+TASK_NAME_MAX_LENGTH = 256
+
+TASK_IMAGE_MAX_LENGTH = 256
+
+TASK_ENV_KEY_REGEX = r'^[A-Za-z_][A-Za-z0-9_]*$'
+
+# Set by the run itself. A spec's env key is compared upper-cased: the exact names, and the prefixes
+TASK_ENV_RESERVED_KEYS = {
+    "ARTIFACT_PATH", "CDM_SCHEMA", "WRITE_SCHEMA", "DB_USERNAME", "DB_PASSWORD", "CONNECTION_STRING", "CONFIG_PATH"
+}
+
+TASK_ENV_RESERVED_PREFIXES = ("DAGSTER_", "KUBERNETES_")
+
+# Dagster stores a spec's tags as `user/<key>`, and its tag validation takes no further `/` in a key
+TASK_TAG_KEY_REGEX = r'^[A-Za-z0-9_.-]{1,63}$'
+
+TASK_ENV_MAX_BYTES = 32 * 1024
+
+# The longest state_cause the launch endpoint stores when it fails a task
+TASK_CAUSE_MAX_LENGTH = 1024

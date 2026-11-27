@@ -12,7 +12,7 @@ from fastapi import APIRouter, Body, Depends, Query, Response
 from app.dtos.result import PullRequestResultDTO, dump_result
 from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.tasks.task_config import config_changes, results_resource, revoked_resources
+from app.models.project_results_repository import ProjectResultsRepository
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.pull_request_result import PullRequestResult
 from app.models.pull_request_result_step import PullRequestResultStep
@@ -108,11 +108,11 @@ def post_result(
     after the revoked check below if it is not final yet (step UNKNOWN or PUSHED): when something the task uses is
     revoked by now, it is moved to step REVOKED and state FAILED, with the same error.
     Otherwise 409 unless the task is SUCCESS. When anything the task uses is revoked or deleted (its project, trigger, dataset
-    or results repository, see helpers/task_config.revoked_resources) the result is created as final,
+    or results repository, see Task.revoked_resources) the result is created as final,
     step REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the project resource is inactive for another
     reason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and
     state FAILED, with the error "results resource switched off": the delivery retry sensor delivers it once the project resource
-    is active. A task whose configuration changed since it was created (see helpers/task_config) is not delivered:
+    is active. A task whose configuration changed since it was created (see Task.config_changes) is not delivered:
     its result is created as final, step STALE and state FAILED, with the changes as its error. The checks run in
     that order: revoked, STALE, switched off.
     """
@@ -127,7 +127,7 @@ def post_result(
     does_user_own_task(task, caller)
     # The delivery is tracked against the project's own resource for the repository. A deleted project resource is
     # read too: it is revoked, so its delivery gets the final REVOKED result here, the only gate.
-    assignment = results_resource(project_id, body['results_repository_id'])
+    assignment = ProjectResultsRepository.latest(project_id, body['results_repository_id'])
     if assignment is None:
         raise InvalidRequest(
             f"Results repository {body['results_repository_id']} is not assigned to project {project_id}"
@@ -138,7 +138,7 @@ def post_result(
         # A result that is not final yet (recorded and held, or retried) is revoked here too, so the
         # delivery that posts again before it runs sees REVOKED and stops
         if result.step not in FINAL_STEPS:
-            revoked = revoked_resources(task, body['results_repository_id'])
+            revoked = task.revoked_resources(body['results_repository_id'])
             if revoked:
                 result.set_step(PullRequestResultStep.REVOKED.value)
                 result.state = ResultState.FAILED.value
@@ -148,7 +148,7 @@ def post_result(
 
     if task.status != TaskStatus.SUCCESS.value:
         raise InvalidRequest(f"Task {task.id} is {task.status}, only a SUCCESS task has results", HTTPStatus.CONFLICT)
-    revoked = revoked_resources(task, body['results_repository_id'])
+    revoked = task.revoked_resources(body['results_repository_id'])
     if revoked:
         result = PullRequestResult(
             task_id=task.id, results_repository_id=assignment.id,
@@ -158,7 +158,7 @@ def post_result(
         result.add()
         response.status_code = HTTPStatus.CREATED
         return dump_result(result)
-    changes = config_changes(task)
+    changes = task.config_changes()
     if changes:
         result = PullRequestResult(
             task_id=task.id, results_repository_id=assignment.id,

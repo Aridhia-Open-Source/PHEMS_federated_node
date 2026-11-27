@@ -312,7 +312,7 @@
           "projects"
         ],
         "summary": "Patch Project",
-        "description": "PATCH /projects/<project_id> endpoint. Enables or disables the project. Turning the project\non again skips the gap: what was merged while it was off gets no trigger. With\n`\"backfill\": true` it creates those triggers instead. `backfill` is only for enabling a\ndisabled project (`\"enabled\": true`), otherwise a 400, and is not stored.\n`revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:\nwhile it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger\n(see helpers/task_config.revoked_resources). Restoring it skips the gap like enabling does.",
+        "description": "PATCH /projects/<project_id> endpoint. Enables or disables the project. Turning the project\non again skips the gap: what was merged while it was off gets no trigger. With\n`\"backfill\": true` it creates those triggers instead. `backfill` is only for enabling a\ndisabled project (`\"enabled\": true`), otherwise a 400, and is not stored.\n`revoked` (a boolean, admin only) withdraws the project, or restores it, and does not change `enabled`:\nwhile it is revoked its tasks fail, nothing is delivered and no pull request gets a trigger\n(see Task.revoked_resources). Restoring it skips the gap like enabling does.",
         "operationId": "patch_project_projects__project_id__patch",
         "parameters": [
           {
@@ -1818,7 +1818,7 @@
           "tasks"
         ],
         "summary": "Patch Task",
-        "description": "PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.\nA move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same\nstatus again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.\nA task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see\nhelpers/task_resources): before the status is saved, so that a failed delete leaves the task as it was and\nthe next PATCH retries it.",
+        "description": "PATCH /projects/<project_id>/tasks/id endpoint. Records the progress of a task's run.\nA move not in TASK_MOVES is a 409, e.g. out of SUCCESS, FAILED or CANCELED; setting the same\nstatus again is allowed. Only POST /projects/<project_id>/tasks/id/retry moves it back to PENDING.\nA task that reaches SUCCESS, FAILED or CANCELED has the Secret and ConfigMap of its run deleted (see\nRunResources.delete): before the status is saved, so that a failed delete leaves the task as it was and\nthe next PATCH retries it.",
         "operationId": "patch_task_projects__project_id__tasks__task_id__patch",
         "parameters": [
           {
@@ -2089,7 +2089,7 @@
           "tasks"
         ],
         "summary": "Get Task Config",
-        "description": "GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created\nunder (its results repository and target_dir, its dataset) is still the current one. If not, the task\nmust not launch or publish, and changes lists what differs. A task without a stored snapshot is current.\nconfig_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the project resource may be deleted by then.\nrevoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a\ntask must not launch either, and its results are never delivered.\noutcome is the decision for a PENDING task, \"launch\" or \"fail\", and cause says why when it fails: see\nhelpers/task_config.decide_launch for the rules and their order. Read-only, safe to call every tick.",
+        "description": "GET /projects/<project_id>/tasks/id/config endpoint. Whether the configuration the task was created\nunder (its results repository and target_dir, its dataset) is still the current one. If not, the task\nmust not launch or publish, and changes lists what differs. A task without a stored snapshot is current.\nconfig_snapshot is the pinned configuration itself: delivery takes its target_dir from it, as the project resource may be deleted by then.\nrevoked names what the task uses that is revoked or deleted (its project, trigger, dataset or results repository): such a\ntask must not launch either, and its results are never delivered.\noutcome is the decision for a PENDING task, \"launch\" or \"fail\", and cause says why when it fails: see\nTask.decide_launch for the rules and their order. Read-only, safe to call every tick.",
         "operationId": "get_task_config_projects__project_id__tasks__task_id__config_get",
         "parameters": [
           {
@@ -2141,7 +2141,7 @@
           "tasks"
         ],
         "summary": "Launch Task",
-        "description": "POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides\nwith helpers/task_config.decide_launch, the same rules GET .../config reports, and answers:\n- \"fail\": the task is moved to FAILED here, its state_cause the cause cut to TASK_CAUSE_MAX_LENGTH. Returns\n  outcome, cause (as stored) and the failed task.\n- \"launch\": nothing is written. Returns outcome, the task (spec included) and its dataset, with the secret\n  reference, exactly what the run request needs; dataset is null for a task without one.\nA task that is no longer PENDING is a 409 and nothing changes, so a repeated call is safe.",
+        "description": "POST /projects/<project_id>/tasks/id/launch endpoint. The launcher's one call per PENDING task. It decides\nwith Task.decide_launch, the same rules GET .../config reports, and answers:\n- \"fail\": the task is moved to FAILED here, its state_cause the cause cut to TASK_CAUSE_MAX_LENGTH. Returns\n  outcome, cause (as stored) and the failed task.\n- \"launch\": nothing is written. Returns outcome, the task (spec included) and its dataset, with the secret\n  reference, exactly what the run request needs; dataset is null for a task without one.\nA task that is no longer PENDING is a 409 and nothing changes, so a repeated call is safe.",
         "operationId": "launch_task_projects__project_id__tasks__task_id__launch_post",
         "parameters": [
           {
@@ -2549,7 +2549,7 @@
           "results"
         ],
         "summary": "Post Result",
-        "description": "POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results\nrepository, by pull request. The repository is the global one's id, which has to\nbe assigned to the project (a deleted project resource counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned,\nafter the revoked check below if it is not final yet (step UNKNOWN or PUSHED): when something the task uses is\nrevoked by now, it is moved to step REVOKED and state FAILED, with the same error.\nOtherwise 409 unless the task is SUCCESS. When anything the task uses is revoked or deleted (its project, trigger, dataset\nor results repository, see helpers/task_config.revoked_resources) the result is created as final,\nstep REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the project resource is inactive for another\nreason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and\nstate FAILED, with the error \"results resource switched off\": the delivery retry sensor delivers it once the project resource\nis active. A task whose configuration changed since it was created (see helpers/task_config) is not delivered:\nits result is created as final, step STALE and state FAILED, with the changes as its error. The checks run in\nthat order: revoked, STALE, switched off.",
+        "description": "POST /projects/<project_id>/results endpoint. Creates the delivery of a task's results to a results\nrepository, by pull request. The repository is the global one's id, which has to\nbe assigned to the project (a deleted project resource counts, as a revoked one), and the task has to be the project's. If it exists already, that one is returned,\nafter the revoked check below if it is not final yet (step UNKNOWN or PUSHED): when something the task uses is\nrevoked by now, it is moved to step REVOKED and state FAILED, with the same error.\nOtherwise 409 unless the task is SUCCESS. When anything the task uses is revoked or deleted (its project, trigger, dataset\nor results repository, see Task.revoked_resources) the result is created as final,\nstep REVOKED and state FAILED, with the revoked resources as its error, and nothing is ever delivered for it. When the project resource is inactive for another\nreason (disabled by the project, or the global repository disabled) the result is created at step UNKNOWN and\nstate FAILED, with the error \"results resource switched off\": the delivery retry sensor delivers it once the project resource\nis active. A task whose configuration changed since it was created (see Task.config_changes) is not delivered:\nits result is created as final, step STALE and state FAILED, with the changes as its error. The checks run in\nthat order: revoked, STALE, switched off.",
         "operationId": "post_result_projects__project_id__results_post",
         "parameters": [
           {
@@ -2957,7 +2957,7 @@
           "trigger_repositories"
         ],
         "summary": "Patch Repository",
-        "description": "PATCH /global/repositories/triggers/<id> \u2014 update repository. The tasks created\nbefore are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be\nnamed (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,\nif secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every\nproject at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.",
+        "description": "PATCH /global/repositories/triggers/<id> \u2014 update repository. The tasks created\nbefore are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be\nnamed (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,\nif secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every\nproject at once, or restores it, and does not change `enabled`: see Task.revoked_resources.",
         "operationId": "patch_repository_global_repositories_triggers__repo_id__patch",
         "parameters": [
           {
@@ -4206,7 +4206,7 @@
           "git_providers"
         ],
         "summary": "Patch Provider",
-        "description": "PATCH /global/providers/<id> \u2014 update a provider. The tasks created before\nare pinned to the old setup and fail instead of running against the new one. `revoked` (a boolean) withdraws\nthe provider, and so every repository on it, from every project at once, or restores it, and does not\nchange `enabled`: see helpers/task_config.revoked_resources.",
+        "description": "PATCH /global/providers/<id> \u2014 update a provider. The tasks created before\nare pinned to the old setup and fail instead of running against the new one. `revoked` (a boolean) withdraws\nthe provider, and so every repository on it, from every project at once, or restores it, and does not\nchange `enabled`: see Task.revoked_resources.",
         "operationId": "patch_provider_global_providers__provider_id__patch",
         "parameters": [
           {
@@ -4487,7 +4487,7 @@
           "results_repositories"
         ],
         "summary": "Patch Repository",
-        "description": "PATCH /global/repositories/results/<id> \u2014 update repository. The tasks created\nbefore are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be\nnamed (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,\nif secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every\nproject at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.",
+        "description": "PATCH /global/repositories/results/<id> \u2014 update repository. The tasks created\nbefore are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be\nnamed (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,\nif secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every\nproject at once, or restores it, and does not change `enabled`: see Task.revoked_resources.",
         "operationId": "patch_repository_global_repositories_results__repo_id__patch",
         "parameters": [
           {
@@ -7442,7 +7442,7 @@
           "revoked"
         ],
         "title": "TaskConfigDTO",
-        "description": "Whether the configuration a task was created under still holds, see helpers/task_config.decide_launch."
+        "description": "Whether the configuration a task was created under still holds, see Task.decide_launch."
       },
       "TaskCreatedDTO": {
         "properties": {
@@ -7712,7 +7712,7 @@
           "config_map"
         ],
         "title": "TaskResourcesDTO",
-        "description": "The names of the Secret and the ConfigMap made for a run, null for the one it does not need: the Secret\nonly for a task with a dataset, the ConfigMap only for a task with a config. See tasks_api.create_run_resources."
+        "description": "The names of the Secret and the ConfigMap made for a run, null for the one it does not need: the Secret\nonly for a task with a dataset, the ConfigMap only for a task with a config. See RunResources.create."
       },
       "TaskSpecDTO": {
         "properties": {

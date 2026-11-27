@@ -1,38 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
-    "Compute": {
-      "additionalProperties": false,
-      "description": "The CPU and memory a task asks for. Only what is given is kept, the defaults are the task namespace's.",
-      "properties": {
-        "requests": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ComputeQuantities"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "What the task is guaranteed. A request without a limit of its own can't be over the default limit (chart value taskCompute.default.limits)"
-        },
-        "limits": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ComputeQuantities"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "What the task can't go over. A limit can't be lower than its request, and no value in compute can be over the node max (chart value taskCompute.max)"
-        }
-      },
-      "title": "Compute",
-      "type": "object"
-    },
     "ComputeQuantities": {
       "additionalProperties": false,
       "description": "CPU and memory, as Kubernetes quantities.",
@@ -128,7 +96,7 @@
           "title": "Config"
         },
         "compute": {
-          "$ref": "#/$defs/Compute",
+          "$ref": "#/$defs/TaskCompute",
           "description": "The CPU and memory the task asks for. Without it the defaults apply"
         }
       },
@@ -136,6 +104,38 @@
         "image"
       ],
       "title": "PrSpec",
+      "type": "object"
+    },
+    "TaskCompute": {
+      "additionalProperties": false,
+      "description": "The CPU and memory a task asks for. Only what is given is kept, the defaults are the task namespace's.",
+      "properties": {
+        "requests": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputeQuantities"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the task is guaranteed. A request without a limit of its own can't be over the default limit (chart value taskCompute.default.limits)"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputeQuantities"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the task can't go over. A limit can't be lower than its request, and no value in compute can be over the node max (chart value taskCompute.max)"
+        }
+      },
+      "title": "TaskCompute",
       "type": "object"
     }
   },

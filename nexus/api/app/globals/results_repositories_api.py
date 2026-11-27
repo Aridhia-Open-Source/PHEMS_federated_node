@@ -22,7 +22,7 @@ from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.repos.git_tokens import mint_token, require_token_allowed
 from app.rules.ownership import get_for_write, set_owner
 from app.database.soft_delete import delete_global
-from app.tasks.task_config import results_resource
+from app.models.project_results_repository import ProjectResultsRepository
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.git_provider import GitProvider
 from app.models.results_repository import ResultsRepository
@@ -65,7 +65,7 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
     Responds with token and expires_at (UTC).
     """
     repo = ResultsRepository.get_by_id(repo_id)
-    assignment = None if req.project_id is None else results_resource(req.project_id, repo.id)
+    assignment = None if req.project_id is None else ProjectResultsRepository.latest(req.project_id, repo.id)
     require_token_allowed(repo, req.project_id, assignment)
     token, expires_at = mint_token(repo.secret, repo, repo.TOKEN_PERMISSION)
     return GitTokenDTO(token=token, expires_at=expires_at)
@@ -116,7 +116,7 @@ def patch_repository(repo_id: int, req: RepositoryPatchRequest, caller: Caller =
     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
     named (400), unless it is the one already in use. Enabling the repository is a 409 while its secret (the new one,
     if secret_label is also sent) is disabled or deleted. `revoked` (a boolean) withdraws the repository from every
-    project at once, or restores it, and does not change `enabled`: see helpers/task_config.revoked_resources.
+    project at once, or restores it, and does not change `enabled`: see Task.revoked_resources.
     """
     repo = get_for_write(session, ResultsRepository, repo_id, caller)
 

@@ -31,7 +31,7 @@ def build_run_config(spec: TaskSpec, dataset: Dataset | None) -> dict:
     """
     op_config = K8sPipesOpConfig(
         env=spec.env,
-        compute=spec.compute,
+        compute=spec.compute.model_dump(exclude_none=True),
         docker_image=spec.image,
         config=spec.config,
         dataset=PipesDatasetConfig.model_validate(dataset.model_dump()) if dataset else None,

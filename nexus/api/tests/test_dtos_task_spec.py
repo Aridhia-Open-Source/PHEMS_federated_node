@@ -4,7 +4,7 @@ import pytest
 
 from app.dtos import task_spec
 from app.dtos.task_spec import PrSpecFile, TaskSpecRequest
-from app.tasks.limits import TASK_ENV_MAX_BYTES, TASK_IMAGE_MAX_LENGTH, TASK_NAME_MAX_LENGTH
+from app.helpers.const import TASK_ENV_MAX_BYTES, TASK_IMAGE_MAX_LENGTH, TASK_NAME_MAX_LENGTH
 from app.helpers.exceptions import InvalidRequest
 
 NO_COMPUTE = {"requests": None, "limits": None}
@@ -17,11 +17,10 @@ EXPECTED_DEFAULTS = {
 @pytest.fixture(autouse=True)
 def compute_config(monkeypatch):
     """The chart's defaults, whatever the environment the tests run in has."""
-    for name, value in (
-        ("TASK_COMPUTE_MAX_CPU", "4"), ("TASK_COMPUTE_MAX_MEMORY", "16Gi"),
-        ("TASK_COMPUTE_DEFAULT_LIMIT_CPU", "2"), ("TASK_COMPUTE_DEFAULT_LIMIT_MEMORY", "4Gi"),
-    ):
-        monkeypatch.setattr(task_spec, name, value)
+    monkeypatch.setattr(
+        task_spec, "TASK_COMPUTE_LIMITS",
+        {"max_cpu": "4", "max_memory": "16Gi", "default_limit_cpu": "2", "default_limit_memory": "4Gi"},
+    )
 
 
 class TestFromApiBody:
@@ -31,16 +30,17 @@ class TestFromApiBody:
             {"name": "t", "image": "img:1"},
         ),
         (
-            # The API's tags only name the dataset and its resources are validated elsewhere, neither is kept
+            # The API's tags only name the dataset and are not kept, its compute is the spec's
             {
                 "name": "t", "repository": "org/repo",
                 "executors": [{"image": "img:1", "env": {"K": 1}}],
                 "tags": {"dataset_name": "ds", "other": "x"},
-                "resources": {"limits": {"cpu": "1"}, "requests": {"cpu": "100m"}},
+                "compute": {"limits": {"cpu": "1"}, "requests": {"cpu": "100m"}},
             },
             {
                 "name": "t", "repository": "org/repo", "image": "img:1",
                 "env": {"K": 1}, "dataset": "ds",
+                "compute": {"requests": {"cpu": "100m", "memory": None}, "limits": {"cpu": "1", "memory": None}},
             },
         ),
         (
@@ -59,6 +59,9 @@ class TestFromApiBody:
         {"executors": ["img:1"]},
         {"executors": [{}]},
         {"executors": [{"image": 1}]},
+        {"executors": [{"image": "img:1"}], "compute": {"limits": {"cpu": "abc"}}},
+        {"executors": [{"image": "img:1"}], "compute": {"limits": {"cpu": "5"}}},
+        {"executors": [{"image": "img:1"}], "compute": {"requests": {"cpu": "1"}, "limits": {"cpu": "500m"}}},
     ])
     def test_invalid(self, body):
         with pytest.raises(InvalidRequest):
@@ -274,8 +277,8 @@ class TestCompute:
         assert TaskSpecRequest.from_pr_spec(pr_file({"image": "img:1"})).compute.model_dump(exclude_none=True) == {}
 
     def test_the_config_comes_from_the_environment(self, monkeypatch):
-        monkeypatch.setattr(task_spec, "TASK_COMPUTE_MAX_CPU", "8")
-        monkeypatch.setattr(task_spec, "TASK_COMPUTE_DEFAULT_LIMIT_CPU", "6")
+        monkeypatch.setitem(task_spec.TASK_COMPUTE_LIMITS, "max_cpu", "8")
+        monkeypatch.setitem(task_spec.TASK_COMPUTE_LIMITS, "default_limit_cpu", "6")
         assert self.parse({"requests": {"cpu": "6"}, "limits": {"cpu": "8"}}).compute.limits.cpu == "8"
         assert self.parse({"requests": {"cpu": "6"}}).compute.requests.cpu == "6"
         with pytest.raises(InvalidRequest, match="compute.requests.cpu 7 is over the default limit 6"):
@@ -301,9 +304,9 @@ class TestSpecFileSchema:
 
     def test_compute_has_requests_and_limits_of_cpu_and_memory(self):
         defs = self.schema["$defs"]
-        assert set(defs["Compute"]["properties"]) == {"requests", "limits"}
+        assert set(defs["TaskCompute"]["properties"]) == {"requests", "limits"}
         assert set(defs["ComputeQuantities"]["properties"]) == {"cpu", "memory"}
-        assert defs["Compute"]["additionalProperties"] is False
+        assert defs["TaskCompute"]["additionalProperties"] is False
         assert defs["ComputeQuantities"]["additionalProperties"] is False
 
     def test_keys_and_quantities_are_patterns(self):
@@ -322,9 +325,9 @@ class TestSpecFileSchema:
             "CONFIG_PATH", "DAGSTER_", "KUBERNETES_", str(TASK_ENV_MAX_BYTES)
         ):
             assert reserved in env
-        assert "node max" in defs["Compute"]["properties"]["limits"]["description"]
-        assert "lower than its request" in defs["Compute"]["properties"]["limits"]["description"]
-        assert "default limit" in defs["Compute"]["properties"]["requests"]["description"]
+        assert "node max" in defs["TaskCompute"]["properties"]["limits"]["description"]
+        assert "lower than its request" in defs["TaskCompute"]["properties"]["limits"]["description"]
+        assert "default limit" in defs["TaskCompute"]["properties"]["requests"]["description"]
         assert "65536" in self.schema["properties"]["metadata"]["description"]
 
 

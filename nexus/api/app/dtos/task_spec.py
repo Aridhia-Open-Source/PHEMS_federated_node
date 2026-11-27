@@ -1,21 +1,12 @@
 import json
 from typing import Annotated, Any
 
-from pydantic import (
-    BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
-)
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator
 
-from app.tasks.compute import convert_cpu_values_to_int, convert_memory_values_to_int
+from fednode.clients.nexus.models import TaskCompute
 from app.helpers.const import (
-    TASK_COMPUTE_DEFAULT_LIMIT_CPU,
-    TASK_COMPUTE_DEFAULT_LIMIT_MEMORY,
-    TASK_COMPUTE_MAX_CPU,
-    TASK_COMPUTE_MAX_MEMORY,
-)
-from app.tasks.limits import (
-    CPU_RESOURCE_REGEX,
-    MEMORY_RESOURCE_REGEX,
     SPEC_RAW_MAX_BYTES,
+    TASK_COMPUTE_LIMITS,
     TASK_ENV_KEY_REGEX,
     TASK_ENV_MAX_BYTES,
     TASK_ENV_RESERVED_KEYS,
@@ -28,66 +19,6 @@ from app.helpers.exceptions import InvalidRequest
 
 EnvKey = Annotated[str, StringConstraints(pattern=TASK_ENV_KEY_REGEX)]
 TagKey = Annotated[str, StringConstraints(pattern=TASK_TAG_KEY_REGEX)]
-
-
-class ComputeQuantities(BaseModel):
-    """CPU and memory, as Kubernetes quantities."""
-    model_config = ConfigDict(extra="forbid")
-
-    cpu: str | None = Field(
-        default=None, pattern=CPU_RESOURCE_REGEX, description="CPU in cores or millicores, e.g. 2, 0.5 or 500m"
-    )
-    memory: str | None = Field(
-        default=None, pattern=MEMORY_RESOURCE_REGEX,
-        description="Memory as a whole number with an optional unit, e.g. 512Mi, 4Gi or 2e9"
-    )
-
-
-class Compute(BaseModel):
-    """
-    The CPU and memory a task asks for. Only what is given is kept, the defaults are the task namespace's.
-    """
-    model_config = ConfigDict(extra="forbid")
-
-    requests: ComputeQuantities | None = Field(
-        default=None,
-        description=(
-            "What the task is guaranteed. A request without a limit of its own can't be over the default limit"
-            " (chart value taskCompute.default.limits)"
-        ),
-    )
-    limits: ComputeQuantities | None = Field(
-        default=None,
-        description=(
-            "What the task can't go over. A limit can't be lower than its request, and no value in compute can be"
-            " over the node max (chart value taskCompute.max)"
-        ),
-    )
-
-    @model_validator(mode="after")
-    def _validate_quantities(self):
-        for resource, convert, node_max, default_limit in (
-            ("cpu", convert_cpu_values_to_int, TASK_COMPUTE_MAX_CPU, TASK_COMPUTE_DEFAULT_LIMIT_CPU),
-            ("memory", convert_memory_values_to_int, TASK_COMPUTE_MAX_MEMORY, TASK_COMPUTE_DEFAULT_LIMIT_MEMORY),
-        ):
-            given = {}
-            for kind in ("requests", "limits"):
-                quantities = getattr(self, kind)
-                value = getattr(quantities, resource) if quantities else None
-                if value is None:
-                    continue
-                if convert(value) > convert(node_max):
-                    raise ValueError(f"compute.{kind}.{resource} {value} is over the node max {node_max}")
-                given[kind] = value
-            request, limit = given.get("requests"), given.get("limits")
-            if request and limit and convert(limit) < convert(request):
-                raise ValueError(f"compute.limits.{resource} {limit} is lower than its request {request}")
-            if request and not limit and convert(request) > convert(default_limit):
-                raise ValueError(
-                    f"compute.requests.{resource} {request} is over the default limit {default_limit}, "
-                    f"give a compute.limits.{resource} with it"
-                )
-        return self
 
 
 class PrSpec(BaseModel):
@@ -123,8 +54,8 @@ class PrSpec(BaseModel):
         default=None,
         description="A JSON object the task reads as a file, at the path in its CONFIG_PATH env. Contents are not checked",
     )
-    compute: Compute = Field(
-        default_factory=Compute, description="The CPU and memory the task asks for. Without it the defaults apply"
+    compute: TaskCompute = Field(
+        default_factory=TaskCompute, description="The CPU and memory the task asks for. Without it the defaults apply"
     )
 
     @field_validator("env")
@@ -178,7 +109,7 @@ class TaskSpecRequest(PrSpec):
     @classmethod
     def build(cls, **fields) -> "TaskSpecRequest":
         try:
-            return cls(**fields)
+            return cls.model_validate(fields, context={"limits": TASK_COMPUTE_LIMITS})
         except ValidationError as ve:
             raise InvalidRequest(f"Invalid task spec: {cls.readable(ve)}") from ve
 
@@ -186,7 +117,7 @@ class TaskSpecRequest(PrSpec):
     def from_api_body(cls, body: dict) -> "TaskSpecRequest":
         """
         The API shape is TES-like: the image and env sit on the first executor. Its tags only
-        name the dataset and its resources are only validated (see Task.validate), neither is kept.
+        name the dataset and are not kept. Its compute is the spec's, as in a pull request spec file.
         """
         executors = body.get("executors")
         if not isinstance(executors, list) or not executors or not isinstance(executors[0], dict):
@@ -201,6 +132,7 @@ class TaskSpecRequest(PrSpec):
             env=executor.get("env") or {},
             dataset=tags.get("dataset_name"),
             repository=body.get("repository"),
+            compute=body.get("compute") or {},
         )
 
     @classmethod
@@ -210,7 +142,7 @@ class TaskSpecRequest(PrSpec):
         `spec`, is refused. Its `metadata` is any JSON value, kept as it is.
         """
         try:
-            file = PrSpecFile.model_validate_json(spec_raw)
+            file = PrSpecFile.model_validate_json(spec_raw, context={"limits": TASK_COMPUTE_LIMITS})
         except ValidationError as ve:
             raise InvalidRequest(f"Invalid spec file: {cls.readable(ve)}") from ve
         return cls.build(**file.spec.model_dump(), metadata=file.metadata)

@@ -18,9 +18,9 @@ A short guide for coding agents and new developers. Deeper detail is in the docs
   - `app/health/` - the health checks the healthcheck routes call; `app/clients/secret_store.py` - the secret stores.
   - `app/dtos/` - Pydantic response DTOs (ADR 0016); `app/models/` - SQLAlchemy models.
   - `app/clients/` - the Keycloak rules, Kubernetes and outbound clients, and token checks; the Dagster client and the Keycloak login and admin calls are `fednode.clients.dagster` and `fednode.clients.keycloak` (`nexus/fednode`, ADR 0039).
-  - `app/repos/` - git tokens and addresses, pull request fan-out. `app/tasks/` - task config, resources and limits.
+  - `app/repos/` - git tokens and addresses, pull request fan-out. A task's pinned configuration and launch rules are methods of `app/models/task.py`; a run's Secret and ConfigMap are `app/clients/run_resources.py`; the task compute checks are `TaskCompute` in `nexus/fednode`.
   - `app/rules/` - state rules, ownership, authorization. `app/database/` - the model base, queries, soft delete.
-  - `app/helpers/` - errors, request wrappers and the env-derived constants still in `const.py`.
+  - `app/helpers/` - errors, request wrappers and the env-derived constants and task spec limits in `const.py`.
   - `migrations/versions/` - a single baseline migration (`001_baseline.py`, see ADR 0023).
   - `tests/` - unit tests; `integration_tests/` - Keycloak integration scripts.
 - `nexus/ui/` - React + Vite + TypeScript admin UI; API client and generated types in `src/api/`.

@@ -80,7 +80,7 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
     PATCH /global/providers/<id> — update a provider. The tasks created before
     are pinned to the old setup and fail instead of running against the new one. `revoked` (a boolean) withdraws
     the provider, and so every repository on it, from every project at once, or restores it, and does not
-    change `enabled`: see helpers/task_config.revoked_resources.
+    change `enabled`: see Task.revoked_resources.
     """
     provider = get_for_write(session, GitProvider, provider_id, caller)
 

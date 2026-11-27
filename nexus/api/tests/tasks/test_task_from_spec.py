@@ -5,7 +5,7 @@ import pytest
 from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
 from app.database.base_model import db
-from app.tasks.limits import SPEC_RAW_MAX_BYTES, TASK_NAME_MAX_LENGTH
+from app.helpers.const import SPEC_RAW_MAX_BYTES, TASK_NAME_MAX_LENGTH
 from app.helpers.exceptions import InvalidRequest
 from app.models.api_request_trigger import ApiRequestTrigger
 from app.models.dataset import Dataset
@@ -207,13 +207,13 @@ class TestPostTasks:
         assert (response.json()["project_name"], response.json()["dataset_name"]) == (project.name, dataset.name)
         assert "spec_raw" not in response.json()
 
-    def test_resources_are_validated_and_not_stored(self, client, post_json_admin_header, task_body, project):
-        task_body["resources"] = {"limits": {"cpu": "500m", "memory": "256Mi"}, "requests": {"cpu": "100m"}}
+    def test_compute_is_validated_and_stored(self, client, post_json_admin_header, task_body, project):
+        task_body["compute"] = {"limits": {"cpu": "500m", "memory": "256Mi"}, "requests": {"cpu": "100m"}}
         created = self.post(client, post_json_admin_header, project, task_body)
         assert created.status_code == 201, created.json()
         response = client.get(f"/projects/{project.id}/tasks/{created.json()['id']}", headers=post_json_admin_header)
-        assert "resources" not in response.json()["spec"] and response.json()["spec"]["compute"] == {}
-        assert Task.query.one().spec.compute == {}
+        assert "resources" not in response.json()["spec"] and response.json()["spec"]["compute"] == task_body["compute"]
+        assert Task.query.one().spec.compute == task_body["compute"]
 
     def test_a_task_without_a_dataset_is_created(
             self, client, post_json_admin_header, task_body, other_project
@@ -282,14 +282,14 @@ class TestPostTasks:
     def test_invalid_spec_keeps_a_rejected_request(
             self, client, post_json_admin_header, task_body, project
         ):
-        task_body["resources"] = {"limits": {"cpu": "abc"}}
+        task_body["compute"] = {"limits": {"cpu": "abc"}}
         response = self.post(client, post_json_admin_header, project, task_body)
         assert response.status_code == 400
         assert Task.query.count() == 0
         api_request = ApiRequestTrigger.query.one()
         assert api_request.state == TriggerState.REJECTED.value
         assert api_request.state_cause == response.json()["error"]
-        assert json.loads(api_request.spec_raw)["resources"] == {"limits": {"cpu": "abc"}}
+        assert json.loads(api_request.spec_raw)["compute"] == {"limits": {"cpu": "abc"}}
 
     def test_name_over_the_limit_keeps_a_rejected_request(
             self, client, post_json_admin_header, task_body, project
