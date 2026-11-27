@@ -32,10 +32,10 @@ class GitProviderDTO(GitProviderRefDTO):
 
 class GitProviderRequest(BaseModel):
     """A git provider in a create request."""
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True, use_enum_values=True)
 
     name: str = Field(min_length=1, max_length=253)
-    type: str = Field(min_length=1)
+    type: GitProviderType = Field(strict=False)
     uri: str = Field(min_length=1, max_length=4096)
     api_uri: str = Field(min_length=1, max_length=4096)
     enabled: bool = True
@@ -50,10 +50,10 @@ class GitProviderRequest(BaseModel):
 
 class GitProviderPatchRequest(BaseModel):
     """The fields of a git provider that can be updated, all optional but never null."""
-    model_config = ConfigDict(extra="forbid", strict=True)
+    model_config = ConfigDict(extra="forbid", strict=True, use_enum_values=True)
 
     name: str | None = Field(default=None, min_length=1, max_length=253)
-    type: str | None = Field(default=None, min_length=1)
+    type: GitProviderType | None = Field(default=None, strict=False)
     uri: str | None = Field(default=None, min_length=1, max_length=4096)
     api_uri: str | None = Field(default=None, min_length=1, max_length=4096)
     enabled: bool | None = None

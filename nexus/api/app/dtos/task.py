@@ -1,11 +1,12 @@
 from typing import Any, Self
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
-from app.dtos.base import DTO, WireDatetime
+from app.dtos.base import DTO, NaiveUtcDatetime, WireDatetime
 from app.dtos.dataset import DatasetDTO
 from app.dtos.task_spec import TaskSpecRequest
 from app.models.task import Task
+from app.models.task_status import TaskStatus
 from app.models.trigger import Trigger
 
 
@@ -125,3 +126,22 @@ class NewTaskDTO(DTO):
                 "metadata": spec.metadata,
             },
         )
+
+
+class TaskPatchRequest(BaseModel):
+    """The progress of a task's run, all fields optional but never null."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    status: TaskStatus | None = Field(default=None, strict=False)
+    executor_run_id: str | None = None
+    exit_code: int | None = None
+    state_cause: str | None = None
+    started_at: NaiveUtcDatetime | None = None
+    completed_at: NaiveUtcDatetime | None = None
+
+    @model_validator(mode="after")
+    def not_null(self):
+        nulls = sorted(f for f in self.model_fields_set if getattr(self, f) is None)
+        if nulls:
+            raise ValueError(f"{', '.join(nulls)} cannot be null")
+        return self

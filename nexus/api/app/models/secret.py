@@ -1,8 +1,7 @@
 from http import HTTPStatus
 
 import sqlalchemy as sa
-from fednode.clients.kubernetes.names import validate_dns_subdomain
-from sqlalchemy.orm import relationship, validates
+from sqlalchemy.orm import relationship
 
 from app.database.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
@@ -82,14 +81,6 @@ class Secret(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
             raise InvalidRequest(f"Secret {self.label} is deleted", code=HTTPStatus.CONFLICT)
         if not self.enabled:
             raise InvalidRequest(f"Secret {self.label} is disabled", code=HTTPStatus.CONFLICT)
-
-    @validates('label')
-    def validate_label(self, key, value):
-        """The key, "fn-secret-<label>", is a store secret name (a Kubernetes one today): a DNS subdomain, so it can be created as-is."""
-        if not isinstance(value, str):
-            raise InvalidRequest("label must be a string")
-        validate_dns_subdomain(f"{KEY_PREFIX}{value}", "label")
-        return value
 
     def __init__(
         self, label: str, provider: SecretProviderType,

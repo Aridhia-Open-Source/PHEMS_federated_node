@@ -1,12 +1,12 @@
 from typing import Annotated
 
-from fednode.clients.kubernetes.names import validate_secret_key
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from fednode.clients.kubernetes.names import validate_dns_subdomain, validate_secret_key
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.dtos.base import DTO, WireDatetime
 from app.dtos.user import UserRefDTO
 from app.models.project_secret import ProjectSecret
-from app.models.secret import Secret
+from app.models.secret import KEY_PREFIX, Secret
 from app.models.secret_provider_type import SecretProviderType
 
 
@@ -70,6 +70,13 @@ class SecretRequest(BaseModel):
     provider: SecretProviderType = Field(strict=False)
     values: SecretValues
     enabled: bool = True
+
+    @field_validator("label")
+    @classmethod
+    def label_is_a_store_name(cls, label: str) -> str:
+        """The key, "fn-secret-<label>", is a store secret name (a Kubernetes one today): a DNS subdomain, so it can be created as-is."""
+        validate_dns_subdomain(f"{KEY_PREFIX}{label}", "label")
+        return label
 
 
 class SecretPatchRequest(BaseModel):

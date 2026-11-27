@@ -3,7 +3,7 @@ from typing import Annotated, Self
 
 from fastapi_pagination import Page
 from fastapi_pagination.ext.sqlalchemy import paginate
-from pydantic import BaseModel, ConfigDict, PlainSerializer
+from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 from sqlalchemy.orm import Query
 
 from app.database.base_model import BaseModel as DBModel
@@ -12,6 +12,16 @@ WireDatetime = Annotated[
     datetime,
     PlainSerializer(lambda v: v.strftime(DBModel.WIRE_DATETIME_FORMAT), return_type=str),
 ]
+
+
+def _naive_utc(value):
+    if isinstance(value, str):
+        return datetime.fromisoformat(value.rstrip('Z'))
+    raise ValueError("must be an ISO 8601 datetime string")
+
+
+# A request's timestamp: an ISO 8601 string, stored without a time zone, as UTC, like every other timestamp
+NaiveUtcDatetime = Annotated[datetime, BeforeValidator(_naive_utc)]
 
 
 class DTO(BaseModel):

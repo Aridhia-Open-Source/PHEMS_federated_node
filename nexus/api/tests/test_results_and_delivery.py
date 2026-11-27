@@ -399,10 +399,10 @@ def test_post_result_refusals(
     # repository not assigned to the project: 400
     assert post_result(client, system_headers, project, ok_task, unassigned).status_code == 400
     assert client.post(results_url(project), json={**good, "results_repository_id": 999}, headers=system_headers).status_code == 400
-    # malformed bodies: 400
+    # malformed bodies: 422
     for body in ({}, {"task_id": ok_task.id}, {**good, "task_id": True}, {**good, "task_id": "x"},
                  {**good, "results_repository_id": "1"}):
-        assert client.post(results_url(project), json=body, headers=system_headers).status_code == 400, body
+        assert client.post(results_url(project), json=body, headers=system_headers).status_code == 422, body
     assert client.post(results_url(project), json=[1], headers=system_headers).status_code == 422  # not an object
     # revoked resource: the result is created as final, REVOKED and FAILED, and nothing is ever delivered for it
     assert client.patch(resource_url(project, global_results_repo), json={"revoked": True}, headers=admin_headers).status_code == 200
@@ -688,9 +688,9 @@ def test_state_changes_freely_but_only_to_valid_values(client, admin_headers, sy
     for state in ("DELIVERED", "FAILED", "IN_PROGRESS", "DELIVERED"):  # a failed delivery can be re-launched
         assert patch_result(client, system_headers, project, result_id, {"state": state}).json()["state"] == state
     for bad in ("delivered", "DONE", "", None, 1):
-        assert patch_result(client, system_headers, project, result_id, {"state": bad}).status_code == 400, bad
+        assert patch_result(client, system_headers, project, result_id, {"state": bad}).status_code == 422, bad
     for bad in ("BOGUS", "opened", None, 2, ["OPENED"]):
-        assert patch_result(client, system_headers, project, result_id, {"step": bad}).status_code == 400, bad
+        assert patch_result(client, system_headers, project, result_id, {"step": bad}).status_code == 422, bad
     assert get_result(client, admin_headers, project, result_id)["state"] == "DELIVERED"
 
 
@@ -718,11 +718,11 @@ def test_patch_invalid_fields_refused_and_nothing_applied(client, admin_headers,
         {"branch": "b" * 257}, {"branch": 7}, {"error": "e" * 1025},
         {"merged_at": "not a date"}, {"merged_at": 123},
         {"bogus": 1}, {"id": 1}, {"task_id": 1}, {"results_repository_id": 1}, {"project_id": 1}, {"type": "PR"},  # unknown/immutable
-        {},
         {"step": "PUSHED", "state": "NOPE"}, {"step": "OPENED", "bogus": 1},  # a bad field voids the valid one
     ]
     for body in bad_bodies:
-        assert patch_result(client, system_headers, project, result_id, body).status_code == 400, body
+        assert patch_result(client, system_headers, project, result_id, body).status_code == 422, body
+    assert patch_result(client, system_headers, project, result_id, {}).status_code == 400
     got = get_result(client, admin_headers, project, result_id)
     assert (got["step"], got["state"], got["number"], got["attempts"]) == ("UNKNOWN", "IN_PROGRESS", None, 0)
     assert patch_result(client, system_headers, project, 99999, {"step": "PUSHED"}).status_code == 404

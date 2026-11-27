@@ -4,11 +4,9 @@ from functools import partial
 import requests
 import sqlalchemy as sa
 from kubernetes.client.exceptions import ApiException
-from sqlalchemy.orm import validates
 
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.helpers.git import mint_token
-from fednode.clients.git.uri import normalise_repo_path
 from fednode.http import ClientError
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, request_check
 from app.models.git_provider_type import GitProviderType
@@ -31,11 +29,6 @@ class GitRepositoryMixin:
     secret_id = sa.Column(
         sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False
     )
-
-    @validates('repo_path')
-    def validate_repo_path(self, key, value):
-        """Keep the repo_path in its normalised form (see normalise_repo_path)."""
-        return normalise_repo_path(value)
 
     @property
     def uri(self) -> str:

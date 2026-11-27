@@ -1,4 +1,5 @@
 import json
+from http import HTTPStatus
 from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator
@@ -111,7 +112,9 @@ class TaskSpecRequest(PrSpec):
         try:
             return cls.model_validate(fields, context={"limits": TASK_COMPUTE_LIMITS})
         except ValidationError as ve:
-            raise InvalidRequest(f"Invalid task spec: {cls.readable(ve)}") from ve
+            raise InvalidRequest(
+                f"Invalid task spec: {cls.readable(ve)}", HTTPStatus.UNPROCESSABLE_ENTITY
+            ) from ve
 
     @classmethod
     def from_api_body(cls, body: dict) -> "TaskSpecRequest":
@@ -121,7 +124,7 @@ class TaskSpecRequest(PrSpec):
         """
         executors = body.get("executors")
         if not isinstance(executors, list) or not executors or not isinstance(executors[0], dict):
-            raise InvalidRequest("executors must be a non-empty list of objects")
+            raise InvalidRequest("executors must be a non-empty list of objects", HTTPStatus.UNPROCESSABLE_ENTITY)
         # Support only for one executor at a time
         executor = executors[0]
         tags = body.get("tags") or {}
@@ -144,5 +147,7 @@ class TaskSpecRequest(PrSpec):
         try:
             file = PrSpecFile.model_validate_json(spec_raw, context={"limits": TASK_COMPUTE_LIMITS})
         except ValidationError as ve:
-            raise InvalidRequest(f"Invalid spec file: {cls.readable(ve)}") from ve
+            raise InvalidRequest(
+                f"Invalid spec file: {cls.readable(ve)}", HTTPStatus.UNPROCESSABLE_ENTITY
+            ) from ve
         return cls.build(**file.spec.model_dump(), metadata=file.metadata)

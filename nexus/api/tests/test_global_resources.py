@@ -81,6 +81,12 @@ def test_same_repo_path_on_another_provider_is_a_different_repo(
     (RES, {"repo_path": "a/b/c"}),
     (RES, {"repo_path": "https://github.com/org/new"}),  # a uri, not a path
     (RES, {"repo_path": "   "}),
+])
+def test_repo_create_invalid_path_is_422(client, admin_headers, global_secret, git_provider, base, body):
+    assert_error(client.post(base, json=repo_body(git_provider, **body), headers=admin_headers), 422)
+
+
+@pytest.mark.parametrize("base,body", [
     (RES, {"provider_id": 999999}),  # no such provider
     (TRIG, {"secret_label": "nope"}),
 ])
@@ -302,7 +308,7 @@ def test_secret_label_valid_forms(client, admin_headers, k8s_client, label):
     {"label": "Upper"}, {"label": "sl/ash"}, {"label": "éclair"}, {"label": "a" * 250},  # not slug safe / too long
 ])
 def test_secret_create_invalid(client, admin_headers, k8s_client, body):
-    assert_error(client.post(SEC, json=secret_body(**body), headers=admin_headers), 400)
+    assert_error(client.post(SEC, json=secret_body(**body), headers=admin_headers), 422)
     assert not k8s_client["create_namespaced_secret_mock"].called
 
 

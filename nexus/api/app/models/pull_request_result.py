@@ -1,9 +1,5 @@
-from datetime import datetime as dt
-
 import sqlalchemy as sa
-from sqlalchemy.orm import validates
 
-from app.helpers.exceptions import InvalidRequest
 from app.rules.state_rules import forward_only
 from app.models.pull_request_result_step import RESULT_ORDER, PullRequestResultStep
 from app.models.result_state import ResultState
@@ -45,25 +41,12 @@ class PullRequestResult(Result):
     merged_at = sa.Column(sa.DateTime(timezone=False), nullable=True)
     merge_commit_sha = sa.Column(sa.String(40), nullable=True)
 
-    @validates('merged_at')
-    def validate_merged_at(self, key, value):
-        """Convert ISO 8601 string to datetime if needed."""
-        if isinstance(value, str):
-            try:
-                return dt.fromisoformat(value.rstrip('Z'))
-            except (ValueError, TypeError):
-                raise ValueError("merged_at must be a valid ISO 8601 datetime string")
-        return value
-
     def set_step(self, step: str):
         """
         Set the step, which only moves forward and nowhere once MERGED, CLOSED, REVOKED or STALE. Setting the
         current step again is allowed. Stops a late write, e.g. a delivery retry recording
         OPENED, from undoing what the sync sensor found.
         """
-        if not isinstance(step, str) or step not in RESULT_ORDER:
-            valid = ', '.join([s.value for s in PullRequestResultStep])
-            raise InvalidRequest(f"Invalid step: {step}. Must be one of: {valid}")
         forward_only(RESULT_ORDER, self.step, step)
         self.step = step
 

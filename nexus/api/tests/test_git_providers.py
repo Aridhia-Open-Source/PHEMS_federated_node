@@ -67,8 +67,11 @@ def test_create_duplicate_name_or_uri_is_409(client, admin_headers, changes):
     assert_error(client.post(PROV, json=body(**changes), headers=admin_headers), 409)
 
 
+def test_create_unknown_type_is_422(client, admin_headers):
+    assert_error(client.post(PROV, json=body(type="gitlab"), headers=admin_headers), 422)
+
+
 @pytest.mark.parametrize("changes", [
-    {"type": "gitlab"},
     {"uri": "github.com"}, {"uri": "ssh://github.com"}, {"uri": "https://user:pw@github.com"},
     {"api_uri": "https://evil.example.com"},  # the api has to be on the provider's own host
     {"api_uri": "https://user:pw@api.github.com"},
@@ -108,8 +111,12 @@ def test_patch_fields(client, admin_headers, git_provider):
     )
 
 
+def test_patch_unknown_type_is_422(client, admin_headers, git_provider):
+    assert_error(client.patch(f"{PROV}/{git_provider.id}", json={"type": "gitlab"}, headers=admin_headers), 422)
+
+
 @pytest.mark.parametrize("changes", [
-    {}, {"type": "gitlab"}, {"uri": "ftp://x"},
+    {}, {"uri": "ftp://x"},
     {"api_uri": "https://evil.example.com"},
     {"uri": "https://git.example.com"},  # the api_uri is no longer on the uri's host
 ])

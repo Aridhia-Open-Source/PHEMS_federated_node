@@ -35,7 +35,10 @@ from app.dtos.results_repository import (
     ProjectResultsRepositoryDTO, ProjectResultsRepositoryPatchRequest, ProjectResultsRepositoryRequest,
 )
 from app.dtos.secret import ProjectSecretDTO
-from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
+from app.dtos.project import (
+    ProjectCreatedDTO, ProjectDTO, ProjectPatchRequest, ProjectRequest, ProjectResourcePatchRequest,
+    ProjectResourceRequest,
+)
 from app.rules.ownership import get_for_write, require_member, require_members, set_owner
 from app.rules.project_state import require_disabled
 from app.helpers.git import normalise_dir
@@ -93,7 +96,7 @@ def create_project(req: ProjectRequest, caller: Caller = Depends(get_caller)):
 
 
 @router.patch('/{project_id}', response_model=ProjectDTO)
-def patch_project(project_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def patch_project(project_id: int, req: ProjectPatchRequest, caller: Caller = Depends(get_caller)):
     """
     PATCH /projects/<project_id> endpoint. Enables or disables the project. Turning the project
     on again skips the gap: what was merged while it was off gets no trigger. With
@@ -105,12 +108,9 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
     """
     project = get_for_write(db.session, Project, project_id, caller)
 
-    fields = {"enabled", "backfill", "revoked"}
-    if not body or not set(body) <= fields:
-        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
-    for field in body:
-        if not isinstance(body[field], bool):
-            raise InvalidRequest(f"{field} must be a boolean")
+    body = req.model_dump(exclude_unset=True)
+    if not body:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectPatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a project")
     if "backfill" in body and (body.get("enabled") is not True or project.enabled):
@@ -165,12 +165,6 @@ def _resource(model, project_id: int, resource_id: int, what: str):
     return resource
 
 
-def _enabled(body: dict) -> bool:
-    if not isinstance(body.get("enabled", True), bool):
-        raise InvalidRequest("enabled must be a boolean")
-    return body.get("enabled", True)
-
-
 def _dataset_resource(project_id: int, dataset_id: int) -> ProjectDataset:
     return _resource(ProjectDataset, project_id, dataset_id, f"Dataset {dataset_id}")
 
@@ -196,8 +190,8 @@ def get_project_dataset(project_id: int, dataset_id: int):
 
 @router.put('/{project_id}/datasets/{dataset_id}', response_model=ProjectDatasetDTO)
 def put_project_dataset(
-    project_id: int, dataset_id: int, response: Response, body: dict = Body(default_factory=dict),
-    caller: Caller = Depends(get_caller)
+    project_id: int, dataset_id: int, response: Response,
+    req: ProjectResourceRequest = Body(default_factory=ProjectResourceRequest), caller: Caller = Depends(get_caller)
 ):
     """
     PUT /projects/<project_id>/datasets/<dataset_id> endpoint. Assigns a global dataset to the
@@ -205,28 +199,27 @@ def put_project_dataset(
     Body: {"enabled": true}, optional.
     """
     project = require_member(Project.get_by_id(project_id), caller)
-    if not set(body) <= {"enabled"}:
-        raise InvalidRequest("Provide, optionally, enabled")
-    enabled = _enabled(body)
     dataset = Dataset.get_dataset_by_name_or_id(id=dataset_id)
 
     resource = get_for_write(
         db.session, ProjectDataset, {"project_id": project.id, "dataset_id": dataset.id}, caller, optional=True
     )
     if resource is None:
-        resource = ProjectDataset(project.id, dataset.id, enabled=enabled)
+        resource = ProjectDataset(project.id, dataset.id, enabled=req.enabled)
         set_owner(resource, caller)
         resource.add()
         response.status_code = HTTPStatus.CREATED
         return ProjectDatasetDTO.from_model(resource)
 
-    resource.enabled = enabled
+    resource.enabled = req.enabled
     db.session.commit()
     return ProjectDatasetDTO.from_model(resource)
 
 
 @router.patch('/{project_id}/datasets/{dataset_id}', response_model=ProjectDatasetDTO)
-def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def patch_project_dataset(
+    project_id: int, dataset_id: int, req: ProjectResourcePatchRequest, caller: Caller = Depends(get_caller)
+):
     """
     PATCH /projects/<project_id>/datasets/<dataset_id> endpoint. Turns the project resource on or
     off (enabled), or revokes and re-grants it (revoked), which is admin only and takes effect at once.
@@ -236,12 +229,9 @@ def patch_project_dataset(project_id: int, dataset_id: int, body: dict = Body(de
         db.session, ProjectDataset, {"project_id": project_id, "dataset_id": dataset_id}, caller,
         missing=f"Dataset {dataset_id} is not assigned to project {project_id}",
     )
-    fields = {"enabled", "revoked"}
-    if not body or not set(body) <= fields:
-        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
-    for field in body:
-        if not isinstance(body[field], bool):
-            raise InvalidRequest(f"{field} must be a boolean")
+    body = req.model_dump(exclude_unset=True)
+    if not body:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectResourcePatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a dataset")
 
@@ -307,8 +297,8 @@ def get_project_secret(project_id: int, label: str):
 
 @router.put('/{project_id}/secrets/{label}', response_model=ProjectSecretDTO)
 def put_project_secret(
-    project_id: int, label: str, response: Response, body: dict = Body(default_factory=dict),
-    caller: Caller = Depends(get_caller)
+    project_id: int, label: str, response: Response,
+    req: ProjectResourceRequest = Body(default_factory=ProjectResourceRequest), caller: Caller = Depends(get_caller)
 ):
     """
     PUT /projects/<project_id>/secrets/{label} endpoint. Assigns a global secret to the project,
@@ -316,39 +306,35 @@ def put_project_secret(
     Body: {"enabled": true}, optional.
     """
     project = require_member(Project.get_by_id(project_id), caller)
-    if not set(body) <= {"enabled"}:
-        raise InvalidRequest("Provide, optionally, enabled")
-    enabled = _enabled(body)
     secret = _secret(label)
 
     resource = get_for_write(
         db.session, ProjectSecret, {"project_id": project.id, "secret_id": secret.id}, caller, optional=True
     )
     if resource is None:
-        resource = ProjectSecret(project.id, secret.id, enabled=enabled)
+        resource = ProjectSecret(project.id, secret.id, enabled=req.enabled)
         set_owner(resource, caller)
         resource.add()
         response.status_code = HTTPStatus.CREATED
         return ProjectSecretDTO.from_model(resource)
 
-    resource.enabled = enabled
+    resource.enabled = req.enabled
     db.session.commit()
     return ProjectSecretDTO.from_model(resource)
 
 
 @router.patch('/{project_id}/secrets/{label}', response_model=ProjectSecretDTO)
-def patch_project_secret(project_id: int, label: str, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def patch_project_secret(
+    project_id: int, label: str, req: ProjectResourcePatchRequest, caller: Caller = Depends(get_caller)
+):
     """
     PATCH /projects/<project_id>/secrets/{label} endpoint. Turns the project resource on or off (enabled),
     or revokes and re-grants it (revoked), which is admin only and takes effect at once.
     """
     resource = _secret_resource_for_write(project_id, label, caller)
-    fields = {"enabled", "revoked"}
-    if not body or not set(body) <= fields:
-        raise InvalidRequest(f"Provide any of: {', '.join(sorted(fields))}")
-    for field in body:
-        if not isinstance(body[field], bool):
-            raise InvalidRequest(f"{field} must be a boolean")
+    body = req.model_dump(exclude_unset=True)
+    if not body:
+        raise InvalidRequest(f"Provide any of: {', '.join(sorted(ProjectResourcePatchRequest.model_fields))}")
     if "revoked" in body and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a secret")
 

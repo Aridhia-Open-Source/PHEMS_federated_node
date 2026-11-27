@@ -230,7 +230,7 @@ class TestPostTasks:
         ):
         task_body["executors"][0]["env"] = env
         response = self.post(client, post_json_admin_header, project, task_body)
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert Task.query.count() == 0
         assert TaskSpec.query.count() == 0
         api_request = ApiRequestTrigger.query.one()
@@ -284,7 +284,7 @@ class TestPostTasks:
         ):
         task_body["compute"] = {"limits": {"cpu": "abc"}}
         response = self.post(client, post_json_admin_header, project, task_body)
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert Task.query.count() == 0
         api_request = ApiRequestTrigger.query.one()
         assert api_request.state == TriggerState.REJECTED.value
@@ -296,7 +296,7 @@ class TestPostTasks:
         ):
         task_body["name"] = "a" * (TASK_NAME_MAX_LENGTH + 1)
         response = self.post(client, post_json_admin_header, project, task_body)
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert Task.query.count() == 0
         assert ApiRequestTrigger.query.one().state == TriggerState.REJECTED.value
 
@@ -321,7 +321,7 @@ class TestPostTasks:
         else:
             task_body["executors"] = executors
         response = self.post(client, post_json_admin_header, project, task_body)
-        assert response.status_code == 400
+        assert response.status_code == 422
         assert response.json()["error"] == "executors must be a non-empty list of objects"
         assert Task.query.count() == 0
         assert ApiRequestTrigger.query.one().state == TriggerState.REJECTED.value
