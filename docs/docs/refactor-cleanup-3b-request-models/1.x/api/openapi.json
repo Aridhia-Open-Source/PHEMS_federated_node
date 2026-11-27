@@ -1,0 +1,2830 @@
+{
+  "openapi": "3.0.2",
+  "info": {
+    "description": "Federated Node",
+    "title": "Federated Node",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Live service"
+    },
+    {
+      "url": "http://127.0.0.1:5000",
+      "description": "Local server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Datasets",
+      "description": "Datasets-related read/write endpoints"
+    },
+    {
+      "name": "Tasks",
+      "description": "Tasks-related endpoints"
+    },
+    {
+      "name": "Admin",
+      "description": "Admin-only endpoints"
+    },
+    {
+      "name": "General",
+      "description": "General use endpoints. No auth needed"
+    },
+    {
+      "name": "Tokens",
+      "description": "Endpoints related to the token retrieval from 3rd parties"
+    },
+    {
+      "name": "Registries",
+      "description": "Endpoints related to the Container registry management"
+    },
+    {
+      "name": "Containers",
+      "description": "Endpoints related to the Containers management"
+    },
+    {
+      "name": "Users",
+      "description": "Endpoints related to user management"
+    }
+  ],
+  "paths": {
+    "/datasets": {
+      "get": {
+        "operationId": "getDataset",
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "List all datasets available to the user",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DatasetList"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postDataset",
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Create a new dataset that the Federated Node can fetch data from",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/DatasetPost"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{id}": {
+      "get": {
+        "operationId": "getDatasetById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Get a datasets by id if available to the user",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DatasetById"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "editDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Edit a dataset information. Any of the fields provided on the POST or returned by the GET on this same endpoint, is a valid body",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/DatasetPost"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDataset",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "schema": {
+              "type": "integer"
+            },
+            "required": true
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Deletes a dataset mapping with its kubernetes secrets.",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{id}/catalogue": {
+      "get": {
+        "operationId": "getDatasetCatalogue",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Get the catalogue in a given dataset",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DatasetCatalogue"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{id}/dictionaries": {
+      "get": {
+        "operationId": "getDatasetDictionaries",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Get the dictionaries in a given dataset",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DatasetDictionary"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/{id}/dictionaries/{table_name}": {
+      "get": {
+        "operationId": "getDatasetDictionariesTable",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetIdPath"
+          },
+          {
+            "$ref": "#/components/parameters/dictionaryTablePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Get the dictionary for a given table in a given dataset",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DatasetDictionaryTable"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/token_transfer": {
+      "post": {
+        "operationId": "post_transfer_token",
+        "tags": [
+          "Tokens"
+        ],
+        "summary": "Endpoint to create a user's permission for a dataset, and returns a token for it",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/TokenResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}": {
+      "get": {
+        "operationId": "get_task_by_id",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get a single task by its id",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/Task"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks": {
+      "get": {
+        "operationId": "get_tasks",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get a full list of tasks",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TaskList"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_task",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Queue a new analytics task on a given dataset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/TaskPost"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/validate": {
+      "post": {
+        "operationId": "validate_task",
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Validate a task request. Checks if the docker image can be found, and the overall required fields to create a task",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/SimpleOk"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/cancel": {
+      "post": {
+        "operationId": "cancel_task",
+        "tags": [
+          "Tasks"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "summary": "Cancel a running task",
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/SimpleOk"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/results": {
+      "get": {
+        "operationId": "get_task_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get task results if available",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TaskResults"
+          },
+          "400": {
+            "$ref": "#/components/responses/ReviewNeededOrBlocked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/results/approve": {
+      "post": {
+        "operationId": "approve_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Approve the results release",
+        "responses": {
+          "201": {
+            "description": "Review successful"
+          },
+          "400": {
+            "$ref": "#/components/responses/MultipleReviewError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/results/block": {
+      "post": {
+        "operationId": "block_results",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Block the results release",
+        "responses": {
+          "201": {
+            "description": "Review successful"
+          },
+          "400": {
+            "$ref": "#/components/responses/MultipleReviewError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/tasks/{id}/logs": {
+      "get": {
+        "operationId": "get_task_logs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "description": "Unique task identifier",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "tags": [
+          "Tasks"
+        ],
+        "summary": "Get task logs if available",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/TaskLogs"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "operationId": "login",
+        "security": [],
+        "tags": [
+          "General"
+        ],
+        "summary": "Login with set of credentials (only admins can have them)",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/TokenResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          }
+        }
+      }
+    },
+    "/refresh_token": {
+      "post": {
+        "operationId": "refresh_token",
+        "tags": [
+          "General"
+        ],
+        "summary": "Refresh an existing token",
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/TokenResponse"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "operationId": "get_audit",
+        "parameters": [
+          {
+            "in": "query",
+            "description": "Filter by event time equal to",
+            "name": "event_time",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "description": "Filter by event time greater than or equal to",
+            "name": "event_time__gte",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "description": "Filter by event time lower than or equal to",
+            "name": "event_time__lte",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "description": "Filter by response status code",
+            "name": "status_code",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get the audit logs for the whole API, with filters",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/AuditList"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/delivery-secret": {
+      "patch": {
+        "operationId": "update_delivery_secret",
+        "parameters": [],
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Admin-only endpoint that is active only when the task controller is deployed. This endpoint will update a secret linked with the automatic delivery credentials",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeliverySecretBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/health_check": {
+      "get": {
+        "operationId": "health_check",
+        "security": [],
+        "tags": [
+          "General"
+        ],
+        "summary": "Health check with keycloak's availability",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/health_check"
+          },
+          "502": {
+            "$ref": "#/components/responses/502_health_check"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "get_all_users",
+        "tags": [
+          "Users"
+        ],
+        "summary": "List of all of the users",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/UserListResponse"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "create_user",
+        "tags": [
+          "Users"
+        ],
+        "summary": "Create a new user",
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/UserEntry"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/reset-password": {
+      "put": {
+        "operationId": "reset_password",
+        "tags": [
+          "Users"
+        ],
+        "security": [],
+        "summary": "Reset temporary password from user creation",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/SimpleOk"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPassBody"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/containers": {
+      "get": {
+        "operationId": "getContainers",
+        "tags": [
+          "Containers"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
+        "summary": "List all containers available to the user",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ContainerList"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postContainers",
+        "tags": [
+          "Containers"
+        ],
+        "summary": "Maps a new container that the Federated Node can fetch data from",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContainerPostObject"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/ContainerPost"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/containers/{id}": {
+      "get": {
+        "operationId": "getContainerById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/containerIdPath"
+          }
+        ],
+        "tags": [
+          "Containers"
+        ],
+        "summary": "Get a whitelisted image by id",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/ContainerEntry"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteContainer",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/containerIdPath"
+          }
+        ],
+        "tags": [
+          "Containers"
+        ],
+        "summary": "Remove a whitelisted image",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/registries": {
+      "get": {
+        "operationId": "getRegistries",
+        "tags": [
+          "Registries"
+        ],
+        "summary": "List all container registries available",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/paginationPage"
+          },
+          {
+            "$ref": "#/components/parameters/paginationPerPage"
+          }
+        ],
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RegistryList"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRegistries",
+        "tags": [
+          "Registries"
+        ],
+        "summary": "Delete all container registries",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postRegistries",
+        "tags": [
+          "Registries"
+        ],
+        "summary": "Create a new container registry mapping from which the Federated Node can pull image from for tasks",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistryPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "$ref": "#/components/responses/RegistryPost"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/registries/{id}": {
+      "get": {
+        "operationId": "getRegistryById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/registryIdPath"
+          }
+        ],
+        "tags": [
+          "Registries"
+        ],
+        "summary": "Get a registry by id if available to the user",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RegistryEntry"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchRegistryById",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/registryIdPath"
+          }
+        ],
+        "tags": [
+          "Registries"
+        ],
+        "summary": "Amend details for a registry",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistryPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/RegistryEntry"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/by-name/{name}": {
+      "get": {
+        "operationId": "getDatasetByName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Get a datasets by name if available to the user",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DatasetById"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "editDatasetByName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Edit a dataset information. Any of the fields provided on the POST or returned by the GET on this same endpoint, is a valid body",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetPostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/NoContent"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDatasetByName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Deletes a dataset mapping with its kubernetes secrets.",
+        "responses": {
+          "204": {
+            "$ref": "#/components/responses/DatasetPost"
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidBody"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/by-name/{name}/catalogue": {
+      "get": {
+        "operationId": "getDatasetCatalogueByName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Get the catalogue in a given dataset",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DatasetCatalogue"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/by-name/{name}/dictionaries": {
+      "get": {
+        "operationId": "getDatasetDictionariesByName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Get the dictionaries in a given dataset",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DatasetDictionary"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/datasets/by-name/{name}/dictionaries/{table_name}": {
+      "get": {
+        "operationId": "getDatasetDictionariesTableByName",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/datasetNamePath"
+          },
+          {
+            "$ref": "#/components/parameters/dictionaryTablePath"
+          },
+          {
+            "$ref": "#/components/parameters/projectNamePath"
+          }
+        ],
+        "tags": [
+          "Datasets"
+        ],
+        "summary": "Get the dictionary for a given table in a given dataset",
+        "responses": {
+          "200": {
+            "$ref": "#/components/responses/DatasetDictionaryTable"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "403": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "datasetIdPath": {
+        "in": "path",
+        "name": "id",
+        "schema": {
+          "type": "integer"
+        },
+        "required": true
+      },
+      "datasetNamePath": {
+        "in": "path",
+        "name": "name",
+        "schema": {
+          "type": "string"
+        },
+        "required": true,
+        "description": "Dataset name, the same set from the POST /dataset, or fetched from the dataset list"
+      },
+      "dictionaryTablePath": {
+        "in": "path",
+        "name": "table_name",
+        "schema": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "projectNamePath": {
+        "in": "header",
+        "name": "project_name",
+        "schema": {
+          "type": "string"
+        },
+        "required": false,
+        "description": "Used by non admin users. The value should match the project decalred on the roken_transfer endpoint"
+      },
+      "containerIdPath": {
+        "in": "path",
+        "name": "id",
+        "schema": {
+          "type": "integer"
+        },
+        "required": true
+      },
+      "registryIdPath": {
+        "in": "path",
+        "name": "id",
+        "schema": {
+          "type": "integer"
+        },
+        "required": true
+      },
+      "paginationPage": {
+        "in": "query",
+        "name": "page",
+        "schema": {
+          "type": "integer"
+        },
+        "description": "Page to return"
+      },
+      "paginationPerPage": {
+        "in": "query",
+        "name": "per_page",
+        "schema": {
+          "type": "integer"
+        },
+        "description": "How many entries maximum per page"
+      }
+    },
+    "responses": {
+      "DatasetPost": {
+        "description": "Successfully added",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "dataset_id": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "DatasetById": {
+        "description": "Successfully added",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DatasetById"
+            }
+          }
+        }
+      },
+      "DatasetList": {
+        "description": "Successfully added",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DatasetById"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
+              }
+            }
+          }
+        }
+      },
+      "DatasetCatalogue": {
+        "description": "Successfully added",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/DatasetCatalogue"
+              }
+            }
+          }
+        }
+      },
+      "DatasetDictionary": {
+        "description": "Successfully added",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/DatasetDictionary"
+              }
+            }
+          }
+        }
+      },
+      "DatasetDictionaryTable": {
+        "description": "Successfully added",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/DatasetDictionary"
+            }
+          }
+        }
+      },
+      "Task": {
+        "description": "Task description",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/TaskById"
+              }
+            }
+          }
+        }
+      },
+      "TaskList": {
+        "description": "List of tasks",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskById"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
+              }
+            }
+          }
+        }
+      },
+      "TaskPost": {
+        "description": "Successfully added",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "task_id": {
+                  "type": "string",
+                  "example": "1"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TaskResults": {
+        "description": "Successfully added",
+        "content": {
+          "application/zip": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          }
+        }
+      },
+      "TaskLogs": {
+        "description": "Pod's logs",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "logs": {
+                  "oneOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "example": "2025-03-11T14:14:43.770925327Z R version 4.3.3 (2024-02-29) -- \"Angel Food Cake\""
+                      }
+                    },
+                    {
+                      "type": "string",
+                      "description": "Response when a task is still initializing",
+                      "example": "Task queued"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "TokenResponse": {
+        "description": "Token created",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "token": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "SimpleOk": {
+        "description": "Simple text ok response",
+        "content": {
+          "text/plain": {
+            "example": "Ok"
+          }
+        }
+      },
+      "NoContent": {
+        "description": "No content response"
+      },
+      "AuditList": {
+        "description": "List of actions performed against the webserver",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "api_function": {
+                        "type": "string",
+                        "example": "get_datasets"
+                      },
+                      "details": {
+                        "type": "string",
+                        "example": "Requested by cea6868d-26b6-4e96-95d7-4aba8df7d06e - user@email.com"
+                      },
+                      "endpoint": {
+                        "type": "string",
+                        "example": "/datasets"
+                      },
+                      "event_time": {
+                        "type": "string",
+                        "example": "Thu, 14 Mar 2024 11:45:36 GMT"
+                      },
+                      "http_method": {
+                        "type": "string",
+                        "example": "GET"
+                      },
+                      "id": {
+                        "type": "integer",
+                        "example": 1
+                      },
+                      "ip_address": {
+                        "type": "string",
+                        "example": "15.24.87.9"
+                      },
+                      "requested_by": {
+                        "type": "string",
+                        "example": "cea6868d-26b6-4e96-95d7-4aba8df7d06e"
+                      },
+                      "status_code": {
+                        "type": "integer",
+                        "example": 200
+                      }
+                    }
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
+              }
+            }
+          }
+        }
+      },
+      "UserEntry": {
+        "description": "User Definition",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "example": "user@email.com"
+                },
+                "username": {
+                  "type": "string",
+                  "example": "user"
+                },
+                "info": {
+                  "type": "string",
+                  "example": "The user should change the temp password at https://localhost/users/reset-password"
+                },
+                "tempPassword": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "UserListResponse": {
+        "description": "List of users",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserEntry"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
+              }
+            }
+          }
+        }
+      },
+      "ContainerEntry": {
+        "description": "Container representation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ContainerObject"
+            }
+          }
+        }
+      },
+      "ContainerList": {
+        "description": "List of registries",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ContainerObject"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
+              }
+            }
+          }
+        }
+      },
+      "ContainerPost": {
+        "description": "Successfully added",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "RegistryEntry": {
+        "description": "Single repository representation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/RegistryObject"
+            }
+          }
+        }
+      },
+      "RegistryList": {
+        "description": "List of registries",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegistryObject"
+                  }
+                },
+                "page": {
+                  "type": "integer",
+                  "example": 1
+                },
+                "per_page": {
+                  "type": "integer",
+                  "example": 25
+                },
+                "total": {
+                  "type": "integer",
+                  "example": 100
+                },
+                "total_pages": {
+                  "type": "integer",
+                  "example": 4
+                }
+              }
+            }
+          }
+        }
+      },
+      "RegistryPost": {
+        "description": "Successfully added",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ReviewNeededOrBlocked": {
+        "description": "Review is needed, or release has been blocked",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string"
+                }
+              },
+              "example": {
+                "error": "Review needed"
+              }
+            }
+          }
+        }
+      },
+      "MultipleReviewError": {
+        "description": "Only one review per task is allowed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string"
+                }
+              },
+              "example": {
+                "error": "Task has been already reviewed"
+              }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Not found."
+      },
+      "InvalidBody": {
+        "description": "The request body cannot be parsed or is missing required values."
+      },
+      "Unauthenticated": {
+        "description": "Unauthenticated."
+      },
+      "Unauthorized": {
+        "description": "Unauthorized."
+      },
+      "InternalError": {
+        "description": "An internal error occurred."
+      },
+      "DBConnectionFailed": {
+        "description": "Could not connect to the database."
+      },
+      "Conflict": {
+        "description": "Conflict. Resource already exists",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "error": {
+                  "type": "string"
+                }
+              },
+              "example": {
+                "error": "Pod is already running"
+              }
+            }
+          }
+        }
+      },
+      "health_check": {
+        "description": "Service healthy",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "keycloak": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "example": "ok"
+                }
+              }
+            }
+          }
+        }
+      },
+      "502_health_check": {
+        "description": "Service unhealthy",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "keycloak": {
+                  "type": "boolean",
+                  "example": false
+                },
+                "status": {
+                  "type": "string",
+                  "example": "non operational"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "DatasetPostBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Human-readable name for the dataset",
+            "example": "Blood cancer database",
+            "maxLength": 256
+          },
+          "host": {
+            "type": "string",
+            "description": "Url where the database is hosted at. Server engines only",
+            "example": "http://somewhere",
+            "maxLength": 256
+          },
+          "port": {
+            "type": "number",
+            "description": "Port for the host field. Server engines only",
+            "example": 5432
+          },
+          "username": {
+            "type": "string",
+            "description": "Username for the Federated Node to access the DB",
+            "example": "usernameDB"
+          },
+          "password": {
+            "type": "string",
+            "description": "Password for the Federated Node to access the DB",
+            "example": "password"
+          },
+          "extra_connection_args": {
+            "type": "string",
+            "description": "Extra argument to use for connecting to the DB. Eventually this is passed to the tasks' pod as environment variable",
+            "example": "TrustServerCertificate=Yes"
+          },
+          "repository": {
+            "type": "string",
+            "description": "For outbound mode, it links the repository source to a dataset. So all of the CRD with that repo will be \"pre-authorized\" to run on that dataset",
+            "example": "Aridhia-Open-Source/PHEMS_federated_node"
+          },
+          "schema": {
+            "type": "string",
+            "description": "Read from DB schema. Defaults to main for duckdb and sqlite"
+          },
+          "schema_write": {
+            "type": "string",
+            "description": "DB schema to write to in case is needed. Server engines only"
+          },
+          "type": {
+            "description": "Type of DB engine. duckdb and sqlite are file based, and need a volume_claim and path",
+            "type": "string",
+            "enum": [
+              "postgres",
+              "mssql",
+              "mysql",
+              "oracle",
+              "mariadb",
+              "duckdb",
+              "sqlite"
+            ],
+            "example": "postgres"
+          },
+          "volume_claim": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "PVC name in the task namespace holding the file, for duckdb and sqlite",
+            "example": "clinic-files"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 1024,
+            "description": "Relative path of the file inside the volume, for duckdb and sqlite",
+            "example": "clinic.duckdb"
+          },
+          "catalogue": {
+            "$ref": "#/components/schemas/CataloguePostBody"
+          },
+          "dictionaries": {
+            "$ref": "#/components/schemas/DictionariesPostBody"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "DatasetById": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "host": {
+            "type": "string",
+            "example": "http://dblocation"
+          },
+          "port": {
+            "type": "integer",
+            "example": 5432
+          },
+          "name": {
+            "type": "string",
+            "example": "Blood Cancer Database"
+          },
+          "slug": {
+            "type": "string",
+            "example": "blood_cancer_database"
+          },
+          "schema": {
+            "type": "string",
+            "example": "readSchema"
+          },
+          "schema_write": {
+            "type": "string",
+            "example": "writeSchema"
+          },
+          "url": {
+            "type": "string",
+            "example": "https://federatednode.com/datasets/blood_cancer_database"
+          },
+          "type": {
+            "type": "string",
+            "example": "mssql"
+          },
+          "repository": {
+            "type": "string",
+            "example": "Aridhia-Open-Source/PHEMS_federated_node"
+          },
+          "extra_connection_args": {
+            "type": "string",
+            "example": "TrustServerCertificate=Yes"
+          },
+          "volume_claim": {
+            "type": "string",
+            "example": "clinic-files"
+          },
+          "path": {
+            "type": "string",
+            "example": "clinic.duckdb"
+          }
+        }
+      },
+      "DatasetCatalogue": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "created_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:00:45 GMT"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:00:45 GMT"
+          },
+          "dataset_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "description": {
+            "type": "string",
+            "example": "Blood Analysis results"
+          },
+          "title": {
+            "type": "string",
+            "example": "Blood Analysis"
+          },
+          "version": {
+            "type": "integer",
+            "example": 1
+          }
+        }
+      },
+      "DatasetDictionary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "created_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:00:45 GMT"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:00:45 GMT"
+          },
+          "dataset_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4096,
+            "example": "Blood Analysis results"
+          },
+          "field_name": {
+            "type": "string",
+            "maxLength": 256,
+            "example": "glucose_perc"
+          },
+          "table_name": {
+            "type": "string",
+            "maxLength": 256,
+            "example": "analysis"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 256
+          }
+        }
+      },
+      "CataloguePostBody": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "maxLength": 256,
+            "example": "Catalogue 1",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 4096,
+            "example": "",
+            "type": "string"
+          }
+        }
+      },
+      "DictionariesPostBody": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "table_name": {
+              "maxLength": 256,
+              "example": "patient",
+              "type": "string"
+            },
+            "description": {
+              "maxLength": 4096,
+              "example": "Patients' general information",
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TokenPostBody": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 256,
+            "example": "Data Access Request 1"
+          },
+          "project_name": {
+            "type": "string",
+            "maxLength": 256,
+            "example": "eu_research_2024"
+          },
+          "requested_by": {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "string",
+                "maxLength": 256,
+                "example": "user@email.com"
+              }
+            },
+            "required": [
+              "email"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4096,
+            "description": "Project/Data access request description"
+          },
+          "proj_start": {
+            "type": "string",
+            "example": "2024-02-10"
+          },
+          "proj_end": {
+            "type": "string",
+            "example": "2025-02-25"
+          },
+          "dataset_id": {
+            "type": "string",
+            "description": "This is here mostly for legacy purposes, but referring by name is more consistent across multiple nodes.",
+            "example": "1"
+          },
+          "dataset_name": {
+            "type": "string",
+            "example": "blood_samples"
+          }
+        },
+        "required": [
+          "title",
+          "project_name",
+          "requested_by",
+          "description",
+          "dataset_name",
+          "proj_start",
+          "proj_end"
+        ]
+      },
+      "LoginBody": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateDeliverySecretBody": {
+        "type": "object",
+        "properties": {
+          "auth": {
+            "type": "string"
+          }
+        }
+      },
+      "TaskPostBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "executors": {
+            "type": "object",
+            "properties": {
+              "image": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "command": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "env": {
+                "type": "object",
+                "example": {
+                  "LOGS": "debug",
+                  "PARAMETER1": 2
+                }
+              }
+            },
+            "required": [
+              "image"
+            ]
+          },
+          "tags": {
+            "type": "object",
+            "description": "Either dataset_id or dataset_name has to be set",
+            "properties": {
+              "dataset_id": {
+                "type": "string"
+              },
+              "dataset_name": {
+                "type": "string"
+              }
+            },
+            "example": {
+              "dataset_id": 1,
+              "custom_tag": "value"
+            },
+            "required": [
+              "dataset_id"
+            ]
+          },
+          "outputs": {
+            "type": "object",
+            "description": "An object where the key is a human readable name and the value is the path to which a volume will be mounted on at run time to fetch the results. The key value, in the example folder1, will be used as folder name in the results archive as well.",
+            "example": {
+              "folder1": "/mnt/data/results",
+              "folder2": "/home/john/analysis/csvs"
+            }
+          },
+          "db_query": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "The intended query to run",
+                "example": "SELECT AVERAGE(pressure) FROM patients_blood;"
+              },
+              "dialect": {
+                "type": "string",
+                "description": "The type of query engine is written for, just so it can be accurately converted to the hosts' local DB",
+                "enum": [
+                  "postgres",
+                  "mssql",
+                  "oracle",
+                  "mysql",
+                  "mariadb"
+                ]
+              }
+            }
+          },
+          "resources": {
+            "type": "object",
+            "properties": {
+              "cpu_cores": {
+                "type": "integer"
+              },
+              "preemptible": {
+                "type": "boolean"
+              },
+              "ram_gb": {
+                "type": "integer"
+              },
+              "disk_gb": {
+                "type": "integer"
+              },
+              "zones": {
+                "type": "string"
+              }
+            }
+          },
+          "repository": {
+            "type": "string",
+            "example": "Aridhia-Open-Source/PHEMS_federated_node"
+          }
+        },
+        "required": [
+          "executors",
+          "name",
+          "tags"
+        ]
+      },
+      "TaskById": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "1"
+          },
+          "created_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 10:41:54 GMT"
+          },
+          "description": {
+            "type": "string",
+            "example": "Custom task description"
+          },
+          "docker_image": {
+            "type": "string",
+            "example": "registry/image:1.2"
+          },
+          "dataset_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "requested_by": {
+            "type": "string",
+            "example": "aabf657d-e912-43ab-8df7-924731b0f74f"
+          },
+          "status": {
+            "type": "object",
+            "properties": {
+              "running": {
+                "type": "object"
+              },
+              "terminated": {
+                "type": "object"
+              },
+              "waiting": {
+                "type": "object"
+              }
+            }
+          },
+          "title": {
+            "type": "string",
+            "example": "Average age analysis"
+          },
+          "updated_at": {
+            "type": "string",
+            "example": "Mon, 19 Feb 2024 11:41:54 GMT"
+          }
+        }
+      },
+      "UserEntry": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@email.com"
+          },
+          "username": {
+            "type": "string",
+            "example": "user"
+          },
+          "role": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "example": "Administrator"
+            }
+          },
+          "firstName": {
+            "type": "string",
+            "example": "John"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Black"
+          },
+          "needs_to_reset_password": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateUserBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@email.com"
+          },
+          "username": {
+            "type": "string",
+            "example": "user"
+          },
+          "role": {
+            "type": "string",
+            "example": "Administrator"
+          },
+          "firstName": {
+            "type": "string",
+            "example": "John"
+          },
+          "lastName": {
+            "type": "string",
+            "example": "Black"
+          }
+        }
+      },
+      "ResetPassBody": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "user@email.com"
+          },
+          "tempPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        }
+      },
+      "ContainerObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "beautiful_image"
+          },
+          "tag": {
+            "type": "string",
+            "example": "1.2.0"
+          },
+          "sha": {
+            "type": "string",
+            "example": "sha256:abc..."
+          },
+          "registry_id": {
+            "type": "integer",
+            "example": 2
+          }
+        }
+      },
+      "ContainerPostObject": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "beautiful_image"
+          },
+          "registry": {
+            "type": "string",
+            "example": "acrregistry.io"
+          },
+          "tag": {
+            "type": "string",
+            "example": "1.2.0"
+          },
+          "sha": {
+            "type": "string",
+            "example": "sha256:abc..."
+          }
+        },
+        "required": [
+          "name",
+          "registry"
+        ]
+      },
+      "RegistryObject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "url": {
+            "type": "string",
+            "example": "acrregistry.io"
+          },
+          "needs_auth": {
+            "type": "boolean",
+            "example": true
+          },
+          "active": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "RegistryBody": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "url": {
+            "type": "string",
+            "example": "acrregistry.io"
+          },
+          "username": {
+            "type": "string",
+            "example": "user"
+          },
+          "password": {
+            "type": "string",
+            "example": "secrettoken"
+          },
+          "needs_auth": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "RegistryPostBody": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "acrregistry.io"
+          },
+          "username": {
+            "type": "string",
+            "example": "user"
+          },
+          "password": {
+            "type": "string",
+            "example": "secrettoken"
+          },
+          "needs_auth": {
+            "type": "boolean",
+            "example": true
+          },
+          "active": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      }
+    }
+  }
+}
