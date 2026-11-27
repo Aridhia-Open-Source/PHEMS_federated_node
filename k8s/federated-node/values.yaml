@@ -18,6 +18,9 @@ nexus:
     # In-cluster URL Dagster, fncli and the smoke tests use to reach the API. Leave empty to
     # derive it from the release namespace (http://nexus-api.<namespace>.svc:<nexus.api.port>).
     url:
+    # Comma-separated Keycloak client ids whose access tokens nexus-api accepts. Defaults to global.
+    allowedClients:
+      - global
     db:
       name: fn_nexus
       user: fn_nexus

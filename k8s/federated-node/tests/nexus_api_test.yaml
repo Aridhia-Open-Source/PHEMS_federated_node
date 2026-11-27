@@ -165,6 +165,17 @@ tests:
           path: data.SERVICES_DAGSTER_URI
           value: http://federatednode-dagster-webserver.federatednode.svc:80
 
+  - it: passes the allowed Keycloak clients as a comma-separated list
+    template: nexus-api-configmap.yaml
+    set:
+      nexus:
+        api:
+          allowedClients: [global, dagster]
+    asserts:
+      - equal:
+          path: data.SERVICES_KEYCLOAK_ALLOWED_CLIENTS
+          value: global,dagster
+
   - it: tells Dagster where it is
     template: dagster-env-config.yaml
     asserts:

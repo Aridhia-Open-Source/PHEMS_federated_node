@@ -23,7 +23,7 @@ class TestResourceValidators:
                 "memory": "100Mi"
             }
         }
-        Task.validate(task_body, "token")
+        Task.validate(task_body, "user-id")
 
     def test_valid_values_exp(
             self,
@@ -42,7 +42,7 @@ class TestResourceValidators:
                 "memory": "1M"
             }
         }
-        Task.validate(task_body, "token")
+        Task.validate(task_body, "user-id")
 
     def test_invalid_memory_values(
             self,
@@ -64,7 +64,7 @@ class TestResourceValidators:
                 }
             }
             with pytest.raises(InvalidRequest) as ir:
-                Task.validate(task_body, "token")
+                Task.validate(task_body, "user-id")
             assert ir.value.description == f'Memory resource value {in_val} not valid.'
 
     def test_invalid_cpu_values(
@@ -88,7 +88,7 @@ class TestResourceValidators:
                 }
             }
             with pytest.raises(InvalidRequest) as ir:
-                Task.validate(task_body, "token")
+                Task.validate(task_body, "user-id")
             assert ir.value.description == f'Cpu resource value {in_val} not valid.'
 
     def test_mem_limit_lower_than_request_fails(
@@ -109,7 +109,7 @@ class TestResourceValidators:
             }
         }
         with pytest.raises(InvalidRequest) as ir:
-            Task.validate(task_body, "token")
+            Task.validate(task_body, "user-id")
         assert ir.value.description == 'Memory limit cannot be lower than request'
 
     def test_cpu_limit_lower_than_request_fails(
@@ -130,5 +130,5 @@ class TestResourceValidators:
             }
         }
         with pytest.raises(InvalidRequest) as ir:
-            Task.validate(task_body, "token")
+            Task.validate(task_body, "user-id")
         assert ir.value.description == 'Cpu limit cannot be lower than request'

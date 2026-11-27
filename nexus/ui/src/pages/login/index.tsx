@@ -24,8 +24,8 @@ export default function Login() {
       },
     });
     setBusy(false);
-    const token = (data as { token?: string } | undefined)?.token;
-    if (token) setToken(token);
+    const tokens = data as { token?: string; refresh_token?: string } | undefined;
+    if (tokens?.token) setToken(tokens.token, tokens.refresh_token ?? null);
     else if (data) showToast(shellMessages.login.noToken);
   };
 

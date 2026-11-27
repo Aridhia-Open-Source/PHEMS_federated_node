@@ -58,7 +58,8 @@ export interface paths {
         /**
          * Login
          * @description POST /login endpoint.
-         *         Given a form, logs the user in, returning a refresh_token from Keycloak
+         *         Given a form, logs the user in: {"token": <access token>, "refresh_token": ...}.
+         *         Send the token as the Bearer; when it expires, swap the refresh token at /refresh_token.
          */
         post: operations["login_login_post"];
         delete?: never;
@@ -79,8 +80,7 @@ export interface paths {
         /**
          * Refresh Token
          * @description POST /refresh_token endpoint.
-         *         Given a token, exchanges it for a new one. Returns the same
-         *         response as /login
+         *         Given the refresh token as the Bearer, returns a new pair, the same response as /login
          */
         post: operations["refresh_token_refresh_token_post"];
         delete?: never;
@@ -795,7 +795,7 @@ export interface paths {
         /**
          * Create User
          * @description POST /global/users endpoint. Creates a KC user, and sets a temp
-         *         password for them.
+         *         password for them. The role is Users (default) or Administrator, which only the SuperUser may give.
          */
         post: operations["create_user_global_users_post"];
         delete?: never;
@@ -1807,6 +1807,26 @@ export interface components {
             tempPassword: string;
             /** Info */
             info: string;
+        };
+        /**
+         * NewUserRequest
+         * @description POST /global/users. The username defaults to the email; the role is Users or Administrator.
+         */
+        NewUserRequest: {
+            /** Email */
+            email: string;
+            /** Username */
+            username?: string | null;
+            /** Firstname */
+            firstName?: string | null;
+            /** Lastname */
+            lastName?: string | null;
+            /**
+             * Role
+             * @default Users
+             * @enum {string}
+             */
+            role?: "Users" | "Administrator";
         };
         /**
          * NodeHealthDTO
@@ -4275,11 +4295,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": components["schemas"]["NewUserRequest"];
             };
         };
         responses: {

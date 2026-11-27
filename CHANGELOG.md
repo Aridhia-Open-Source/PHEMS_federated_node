@@ -15,6 +15,12 @@
 - Removed unused nexus-api code: five `Task` methods, two exceptions, two `Keycloak` methods, `GitRepositoryMixin.check_connection` and the `ENABLE_IMAGE_WHITELIST` setting
 - Removed the dataset catalogue and dictionaries: the `catalogue` and `dictionaries` fields on dataset create and update, their tables, the UI fields and the Dagster models
 - nexus-api helpers are grouped by area: `app/clients/`, `app/repos/`, `app/tasks/`, `app/rules/` and `app/database/`, and `const.py` is split (task limits to `app/tasks/limits.py`, `build_sql_uri` to `app/database/uri.py`)
+- nexus-api verifies Keycloak access tokens itself, against the realm's cached keys, instead of asking Keycloak on every request ([#686](https://github.com/Aridhia-Open-Source/PHEMS_federated_node/pull/686), ADR 0035):
+  - `/login` and `/refresh_token` return `{"token": <access token>, "refresh_token": ...}`. Send the access token as the Bearer; refresh tokens are no longer accepted there. Access tokens live 5 minutes: nexus-ui refreshes them, Dagster and fncli log in again on a 401.
+  - A caller holds exactly one node role (SuperUser, Administrator, Service, Users, Dagster), or gets a 401. `POST /global/users` creates Users, or an Administrator when the SuperUser asks.
+  - Keycloak issues tokens for its address on the node's host (`KC_HOSTNAME=https://<host>/keycloak`); nexus-api gets it as `SERVICES_KEYCLOAK_ISSUER` and fetches the keys from the in-cluster Keycloak.
+  - Tokens are accepted from the Keycloak client and from any client in the chart's `nexus.api.allowedClients` (`SERVICES_KEYCLOAK_ALLOWED_CLIENTS`, for the operator's and Dagster's own clients).
+  - The global client no longer uses Keycloak Authorization Services (removed from `realms.json`; no realm migration for existing realms).
 
 ## 1.17.0
 - Fix volume mount path for AWS EBS storage job in task controller

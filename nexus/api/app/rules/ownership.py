@@ -3,6 +3,7 @@ Who created a record (ADR 0035). Every record a caller creates carries the calle
 """
 from app.helpers.exceptions import UnauthorizedError
 from app.helpers.wrappers import Caller
+from app.models.node_role import NodeRole
 from app.models.task import Task
 from app.models.user import OwnedMixin
 
@@ -20,6 +21,6 @@ def does_user_own_task(task: Task, caller: Caller):
 
     If they don't, an exception is raised with 403 status code
     """
-    # TODO(auth): revisit with the Keycloak/authorization rework.
-    if task.requested_by != caller.user_id and not caller.is_admin and not caller.is_system:
+    # Stopgap owner/role check: Cedar read enforcement (auth/8 #688, T-076) replaces it.
+    if task.requested_by != caller.user_id and not caller.is_admin and caller.role != NodeRole.DAGSTER:
         raise UnauthorizedError("User does not have enough permissions")
