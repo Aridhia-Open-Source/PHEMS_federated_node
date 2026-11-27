@@ -3,10 +3,10 @@ The secret stores: where a secret's values live. The database only keeps a refer
 """
 import logging
 
+from fednode.clients.kubernetes.client import KubernetesClient
 from kubernetes.client.exceptions import ApiException
 
-from app.clients.kubernetes import KubernetesClient
-from app.helpers.const import QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
+from app.helpers.const import IN_CLUSTER, QUARANTINE_NAMESPACE, SECRETS_NAMESPACE
 from app.helpers.exceptions import InvalidRequest
 from app.models.secret_provider_type import SecretProviderType
 
@@ -23,7 +23,7 @@ class K8sSecretProvider:
 
     def set(self, key: str, namespace: str, values: dict[str, str]):
         """The caller is the authority on the content, so it overwrites what is there."""
-        KubernetesClient().create_secret(
+        KubernetesClient(in_cluster=IN_CLUSTER).create_secret(
             name=key,
             values=values,
             namespaces=[namespace],
@@ -34,7 +34,7 @@ class K8sSecretProvider:
     def keys(self, key: str, namespace: str) -> list[str] | None:
         """The names of the keys the secret holds, or None if it is not in the store."""
         try:
-            secret = KubernetesClient().read_namespaced_secret(key, namespace)
+            secret = KubernetesClient(in_cluster=IN_CLUSTER).read_namespaced_secret(key, namespace)
         except ApiException as apie:
             if apie.status != 404:
                 raise
@@ -43,7 +43,7 @@ class K8sSecretProvider:
 
     def delete(self, key: str, namespace: str):
         try:
-            KubernetesClient().delete_namespaced_secret(key, namespace)
+            KubernetesClient(in_cluster=IN_CLUSTER).delete_namespaced_secret(key, namespace)
         except ApiException as apie:
             if apie.status != 404:
                 logger.error(apie)
@@ -66,14 +66,14 @@ class K8sSecretProvider:
         earlier move that failed after the copy left in the target.
         """
         try:
-            data = KubernetesClient().read_namespaced_secret(key, source).data or {}
+            data = KubernetesClient(in_cluster=IN_CLUSTER).read_namespaced_secret(key, source).data or {}
         except ApiException as apie:
             if apie.status == 404:
                 return
             logger.error(apie)
             raise InvalidRequest("Could not move the secret") from apie
         values = {name: KubernetesClient.decode_secret_value(value) for name, value in data.items()}
-        KubernetesClient().create_secret(
+        KubernetesClient(in_cluster=IN_CLUSTER).create_secret(
             name=key, values=values, namespaces=[target], labels=SECRET_LABELS, overwrite=True
         )
         self.delete(key, source)

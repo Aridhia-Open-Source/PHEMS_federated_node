@@ -29,6 +29,7 @@ not say which component a value belongs to.
 - What never goes in: business rules, nexus-api models or DTOs, or anything that decides (0021). The package talks to
   systems; the services decide what to do with the answers.
 - Callers catch `ClientError` and `ClientTimeout`, never `requests` exceptions.
+- A client's own failures are `ClientError` subclasses beside the client (`KeycloakError`, `KubernetesError`), carrying the status code and message the service answers with; nexus-api maps them in `app/errors.py`. The Kubernetes name checks raise `InvalidName`, a `ValueError`, which nexus-api answers with a 422.
 - `HttpClient` is the outbound layer for every service, nexus-api included. It keeps 0038's rules: a default
   `(connect, read)` timeout (3s, 10s) a service or a call can override; only a 429 is retried, 3 times with backoff,
   honouring `Retry-After`, for every method; a read timeout is never retried; shared sessions carry no cookies and no

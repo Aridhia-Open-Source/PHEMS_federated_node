@@ -1,6 +1,8 @@
 import os
 
 PUBLIC_URL = os.getenv("PUBLIC_URL")
+# Whether the API runs in a pod: its Kubernetes credentials are the pod's, not a kubeconfig
+IN_CLUSTER = bool(os.getenv("KUBERNETES_SERVICE_HOST"))
 
 # Where project secrets are stored, apart from the release namespace
 SECRETS_NAMESPACE = os.getenv("SECRETS_NAMESPACE")

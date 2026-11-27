@@ -28,7 +28,7 @@ from app.models.project_results_repository import ProjectResultsRepository
 from app.models.results_repository import ResultsRepository
 from app.models.results_backend import ResultsBackend
 from app.models.api_request_trigger import ApiRequestTrigger
-from app.helpers.exceptions import KeycloakError
+from fednode.clients.keycloak import KeycloakError
 from tests.helpers.pull_requests import pr_body
 
 # Sample responses shared with the nexus client (nexus/fednode/tests/contract). The test compose file mounts them at /contract; outside docker they are in the repo.
@@ -198,19 +198,19 @@ def k8s_config(mocker):
 def v1_mock(mocker):
     return {
         "read_namespaced_secret_mock": mocker.patch(
-            'app.clients.kubernetes.KubernetesClient.read_namespaced_secret'
+            'fednode.clients.kubernetes.client.KubernetesClient.read_namespaced_secret'
         ),
         "patch_namespaced_secret_mock": mocker.patch(
-            'app.clients.kubernetes.KubernetesClient.patch_namespaced_secret'
+            'fednode.clients.kubernetes.client.KubernetesClient.patch_namespaced_secret'
         ),
         "delete_namespaced_secret_mock": mocker.patch(
-            'app.clients.kubernetes.KubernetesClient.delete_namespaced_secret'
+            'fednode.clients.kubernetes.client.KubernetesClient.delete_namespaced_secret'
         ),
         "create_namespaced_secret_mock": mocker.patch(
-            'app.clients.kubernetes.KubernetesClient.create_namespaced_secret'
+            'fednode.clients.kubernetes.client.KubernetesClient.create_namespaced_secret'
         ),
         "create_namespaced_config_map_mock": mocker.patch(
-            'app.clients.kubernetes.KubernetesClient.create_namespaced_config_map'
+            'fednode.clients.kubernetes.client.KubernetesClient.create_namespaced_config_map'
         )
     }
 
@@ -222,8 +222,8 @@ def run_resources_deletes(mocker, k8s_config):
     ConfigMap, by label), for every test that PATCHes a task to one of them.
     """
     return {
-        "secrets": mocker.patch('app.clients.kubernetes.KubernetesClient.delete_collection_namespaced_secret'),
-        "config_maps": mocker.patch('app.clients.kubernetes.KubernetesClient.delete_collection_namespaced_config_map'),
+        "secrets": mocker.patch('fednode.clients.kubernetes.client.KubernetesClient.delete_collection_namespaced_secret'),
+        "config_maps": mocker.patch('fednode.clients.kubernetes.client.KubernetesClient.delete_collection_namespaced_config_map'),
     }
 
 

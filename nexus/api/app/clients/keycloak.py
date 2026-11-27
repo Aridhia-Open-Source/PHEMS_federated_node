@@ -7,10 +7,11 @@ import time
 
 from fednode.clients.kubernetes.mounted import MountedSecret
 
+from fednode.clients.keycloak import KeycloakError
 from fednode.clients.keycloak.admin import KeycloakAdmin
 from fednode.clients.keycloak.login import KeycloakLogin
 
-from app.helpers.exceptions import AuthenticationError, UnauthorizedError, KeycloakError
+from app.helpers.exceptions import AuthenticationError, UnauthorizedError
 
 logger = logging.getLogger('keycloak_helper')
 logger.setLevel(logging.INFO)

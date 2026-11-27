@@ -730,7 +730,7 @@ def test_tasks_list_filters_and_pagination(client, admin_headers, project, other
     assert (first["total"], first["pages"], first["page"], first["size"]) == (4, 2, 1, 2)
     assert tasks("?page=9&size=2").json()["items"] == []  # past the end is an empty page
     for below_one in ("page=0", "size=-1"):
-        assert tasks(f"?{below_one}").status_code == 400
+        assert tasks(f"?{below_one}").status_code == 422
     assert 400 <= tasks("?page=abc").status_code < 500
 
 

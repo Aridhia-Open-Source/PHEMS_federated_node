@@ -24,7 +24,7 @@ from fednode.http import ClientError
 
 from app.helpers.exceptions import InvalidRequest
 from app.helpers.git import mint_token
-from app.clients.kubernetes import KubernetesClient
+from fednode.clients.kubernetes.client import KubernetesClient
 from app.models.git_provider import GitProvider
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_trigger_repository import ProjectTriggerRepository
@@ -316,8 +316,8 @@ def test_an_unknown_repository_is_a_404(client, system_headers):
 
 @pytest.mark.parametrize("body", [{"project_id": "1"}, {"project_id": True}, {"project_id": 1.5}, {"repository": 1}],
                          ids=["string", "bool", "float", "unknown field"])
-def test_a_malformed_body_is_a_400(client, system_headers, kit, body):
-    assert client.post(kit.url, json=body, headers=system_headers).status_code == 400
+def test_a_malformed_body_is_a_422(client, system_headers, kit, body):
+    assert client.post(kit.url, json=body, headers=system_headers).status_code == 422
 
 
 def test_a_secret_with_no_credential_is_a_409(client, system_headers, k8s_client, kit):

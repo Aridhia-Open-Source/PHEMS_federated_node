@@ -45,7 +45,7 @@ This is a probe from the end-to-end README, not a pass or fail there.
 1. `GET /tasks?page=0&size=0`, then `?page=-1`.
 2. `PATCH /global/datasets/<id>` with a harmless change.
 
-- **Expected today:** step 1 returns a 400 (fastapi-pagination's limits: `page` at least 1, `size` 1 to 100; the previous backend clamped to 1); step 2 returns 200. Dataset `PATCH` is still an open question.
+- **Expected today:** step 1 returns a 422 (fastapi-pagination's limits: `page` at least 1, `size` 1 to 100; the previous backend clamped to 1); step 2 returns 200. Dataset `PATCH` is still an open question.
 - **Rule:** open questions in [Global resources and project resources].
 - **Automated by:** Partly automated: `nexus/api/tests/test_pagination_and_filters.py`. It misses a live node.
 - [ ] Pass (matches the open question)

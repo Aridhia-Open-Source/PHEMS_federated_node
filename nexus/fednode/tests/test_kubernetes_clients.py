@@ -1,7 +1,13 @@
+import json
 from unittest.mock import Mock, patch
 
-from fednode.clients.kubernetes.client import KubernetesClient, load_kubernetes_config
+import pytest
+from kubernetes.client.exceptions import ApiException
+
+from fednode.clients.kubernetes.client import KubernetesClient, KubernetesError, load_kubernetes_config
 from fednode.clients.kubernetes.mounted import MountedSecret
+from fednode.clients.kubernetes.names import InvalidName, validate_dns_label
+from fednode.http import ClientError
 
 
 def test_in_cluster_config_preserves_no_proxy(monkeypatch):
@@ -61,3 +67,32 @@ def test_mounted_secret_falls_back_to_environment(monkeypatch):
 def test_secret_data_helpers_round_trip():
     encoded = KubernetesClient.encode_secret_value("secret-value")
     assert KubernetesClient.decode_secret_value(encoded) == "secret-value"
+
+
+def test_a_kubernetes_error_carries_the_status_and_causes_of_a_json_body():
+    error = KubernetesError(json.dumps({"code": 422, "details": {"causes": [{"field": "data"}]}}))
+
+    assert isinstance(error, ClientError)
+    assert (error.code, error.extra_fields) == (422, [{"field": "data"}])
+    assert error.description == "An unexpected kubernetes error occurred. Check the details field"
+
+
+def test_a_kubernetes_error_with_a_plain_body_is_a_500_with_that_message():
+    error = KubernetesError("Forbidden")
+
+    assert (error.code, error.description, error.extra_fields) == (500, "Forbidden", None)
+
+
+def test_a_refused_secret_patch_is_a_kubernetes_error():
+    with patch("fednode.clients.kubernetes.client.load_kubernetes_config"), patch.object(
+        KubernetesClient, "patch_namespaced_secret", side_effect=ApiException(http_resp=Mock(status=403, data="Forbidden"))
+    ):
+        with pytest.raises(KubernetesError, match="Forbidden"):
+            KubernetesClient(in_cluster=False).patch_secret_data("a-secret", "default", {"KEY": "value"})
+
+
+def test_an_invalid_name_is_a_value_error():
+    with pytest.raises(InvalidName, match="name must be") as raised:
+        validate_dns_label("A", "name")
+
+    assert isinstance(raised.value, ValueError)

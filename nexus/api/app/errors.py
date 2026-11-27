@@ -5,6 +5,9 @@ from http import HTTPStatus
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fednode.clients.keycloak import KeycloakError
+from fednode.clients.kubernetes.client import KubernetesError
+from fednode.clients.kubernetes.names import InvalidName
 from fednode.http import ClientError, ClientTimeout
 from sqlalchemy import exc
 from starlette.exceptions import HTTPException
@@ -29,6 +32,23 @@ def register_error_handlers(app: FastAPI):
             body["details"] = e.extra_fields
         return JSONResponse(body, status_code=e.code)
 
+    @app.exception_handler(KeycloakError)
+    def keycloak_error(_: Request, e: KeycloakError):
+        logger.error(e)
+        return JSONResponse({"error": e.description}, status_code=e.code)
+
+    @app.exception_handler(KubernetesError)
+    def kubernetes_error(_: Request, e: KubernetesError):
+        logger.error(e)
+        body = {"error": e.description}
+        if e.extra_fields:
+            body["details"] = e.extra_fields
+        return JSONResponse(body, status_code=e.code)
+
+    @app.exception_handler(InvalidName)
+    def invalid_name(_: Request, e: InvalidName):
+        return JSONResponse({"error": str(e)}, status_code=HTTPStatus.UNPROCESSABLE_ENTITY)
+
     @app.exception_handler(ClientError)
     def client_error(_: Request, e: ClientError):
         logger.error(e)
@@ -48,7 +68,10 @@ def register_error_handlers(app: FastAPI):
         # The previous backend's <int:...> route converters made a non-integer id a route miss
         if any(error["loc"][0] == "path" for error in e.errors()):
             return JSONResponse({"error": "Not Found"}, status_code=HTTPStatus.NOT_FOUND)
-        return JSONResponse({"error": _validation_message(e)}, status_code=HTTPStatus.BAD_REQUEST)
+        # A body that is not JSON at all is a bad request; anything else that does not fit is unprocessable
+        if any(error["type"] == "json_invalid" for error in e.errors()):
+            return JSONResponse({"error": _validation_message(e)}, status_code=HTTPStatus.BAD_REQUEST)
+        return JSONResponse({"error": _validation_message(e)}, status_code=HTTPStatus.UNPROCESSABLE_ENTITY)
 
     @app.exception_handler(exc.IntegrityError)
     def integrity_error(_: Request, e: exc.IntegrityError):

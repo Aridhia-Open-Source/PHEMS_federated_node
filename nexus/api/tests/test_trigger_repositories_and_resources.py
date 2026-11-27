@@ -173,13 +173,13 @@ def test_assign_201_lists_and_active_filter(client, admin_headers, project, glob
 
 
 @pytest.mark.parametrize("repo, project_id, body, status", [
-    ("ok", "ok", {}, 400),                          # a resource needs watch_dir and base_branch
-    ("ok", "ok", {"watch_dir": "x"}, 400),
-    ("ok", "ok", {"base_branch": "main"}, 400),
-    ("ok", "ok", {"watch_dir": "x", "base_branch": ""}, 400),
-    ("ok", "ok", {"watch_dir": "x", "base_branch": None}, 400),
-    ("ok", "ok", {"watch_dir": "x", "base_branch": 1}, 400),
-    ("ok", "ok", {"watch_dir": "x", "base_branch": "main", "bogus": 1}, 400),
+    ("ok", "ok", {}, 422),                          # a resource needs watch_dir and base_branch
+    ("ok", "ok", {"watch_dir": "x"}, 422),
+    ("ok", "ok", {"base_branch": "main"}, 422),
+    ("ok", "ok", {"watch_dir": "x", "base_branch": ""}, 422),
+    ("ok", "ok", {"watch_dir": "x", "base_branch": None}, 422),
+    ("ok", "ok", {"watch_dir": "x", "base_branch": 1}, 422),
+    ("ok", "ok", {"watch_dir": "x", "base_branch": "main", "bogus": 1}, 422),
     (999, "ok", {"watch_dir": "x", "base_branch": "main"}, 404),
     ("ok", 999, {"watch_dir": "x", "base_branch": "main"}, 404),
 ])
@@ -214,8 +214,8 @@ def test_reassign_put_changes_settings_and_disables(client, admin_headers, assig
 def test_reassign_put_needs_a_base_branch(client, admin_headers, assigned_trigger_repo):
     url = f"/projects/{assigned_trigger_repo['project_id']}/repositories/triggers/{assigned_trigger_repo['trigger_repository']['id']}"
     for body in ({"watch_dir": "other"}, {"watch_dir": "other", "base_branch": ""}):
-        assert client.put(url, json=body, headers=admin_headers).status_code == 400, body
-    assert patch(client, admin_headers, url, {"base_branch": ""}).status_code == 400
+        assert client.put(url, json=body, headers=admin_headers).status_code == 422, body
+    assert patch(client, admin_headers, url, {"base_branch": ""}).status_code == 422
     got = get(client, admin_headers, url).json()
     assert (got["watch_dir"], got["base_branch"]) == ("triggers", "main")
 
@@ -448,7 +448,9 @@ by_global = pytest.mark.parametrize("ctx", ["dataset", "trigger", "results"], in
 @by_global
 @pytest.mark.parametrize("value", ["yes", 1, None])
 def test_patch_revoked_must_be_a_boolean(ctx, client, admin_headers, value):
-    assert patch(client, admin_headers, ctx.glob, {"revoked": value}).status_code == 400
+    # A results repository has a request model; the other kinds read a dict
+    expected = 422 if ctx.kind == "results" else 400
+    assert patch(client, admin_headers, ctx.glob, {"revoked": value}).status_code == expected
     assert get(client, admin_headers, ctx.glob).json()["revoked"] is False
 
 

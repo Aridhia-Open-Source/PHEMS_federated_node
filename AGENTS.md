@@ -106,7 +106,7 @@ Tests and lint:
 ## Working tips for agents
 
 - Find code with `git grep -n <symbol>` and read the lines around the hits; avoid reading whole modules.
-- Start from the router (`nexus/api/app/<resource>_api.py`), DTO, model, then helper; on the Dagster side, from the sensor in `dagster/app/definitions/sensors/`.
+- Start from the router (`nexus/api/app/globals/<resource>_api.py` or `app/projects/<resource>_api.py`), DTO, model, then helper; on the Dagster side, from the sensor in `dagster/app/definitions/sensors/`.
 - Follow the testing rule above; pass the test path to `run_tests.sh`.
 - Generated files, and how to regenerate them:
   - `requirements.txt` / `requirements-dev.txt` - `mise run pip-compile --dir <dir>`.

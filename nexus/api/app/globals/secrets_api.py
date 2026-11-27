@@ -16,11 +16,11 @@ from datetime import datetime as dt
 from http import HTTPStatus
 
 from fastapi import APIRouter, Body, Depends
+from fednode.clients.kubernetes.names import validate_secret_key
 
 from app.dtos.secret import SecretDTO
 from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
-from app.clients.kubernetes_names import validate_secret_key
 from app.clients.secret_store import SecretProvider
 from app.rules.ownership import get_for_write, require_members, set_owner
 from app.database.soft_delete import describe_project

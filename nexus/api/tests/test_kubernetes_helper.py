@@ -10,8 +10,7 @@ import pytest
 from kubernetes.client.exceptions import ApiException
 from unittest.mock import Mock
 
-from app.helpers.exceptions import KubernetesException
-from app.clients.kubernetes import KubernetesClient
+from fednode.clients.kubernetes.client import KubernetesClient, KubernetesError
 
 
 class TestKubernetesHelper:
@@ -27,7 +26,7 @@ class TestKubernetesHelper:
             status=409, reason="Conflict"
         )
 
-        k8s = KubernetesClient()
+        k8s = KubernetesClient(in_cluster=False)
         k8s.create_secret(
             name="a-secret",
             values={"PASSWORD": "newpass"},
@@ -50,7 +49,7 @@ class TestKubernetesHelper:
             status=409, reason="Conflict"
         )
 
-        k8s = KubernetesClient()
+        k8s = KubernetesClient(in_cluster=False)
         k8s.create_secret(
             name="a-secret",
             values={"PASSWORD": "newpass"},
@@ -87,7 +86,7 @@ class TestKubernetesHelper:
             ],
         )
 
-        KubernetesClient().create_secret(
+        KubernetesClient(in_cluster=False).create_secret(
             name="a-secret", values={"REFRESH_TOKEN": "new"}, namespaces=["default"], overwrite=True
         )
 
@@ -118,8 +117,8 @@ class TestKubernetesHelper:
             http_resp=Mock(status=403, reason="Forbidden", data="Forbidden")
         )
 
-        k8s = KubernetesClient()
-        with pytest.raises(KubernetesException):
+        k8s = KubernetesClient(in_cluster=False)
+        with pytest.raises(KubernetesError):
             k8s.create_secret(
                 name="a-secret",
                 values={"PASSWORD": "newpass"},
@@ -139,8 +138,8 @@ class TestKubernetesHelper:
             http_resp=Mock(status=500, reason="Error", data="Failed")
         )
 
-        k8s = KubernetesClient()
-        with pytest.raises(KubernetesException):
+        k8s = KubernetesClient(in_cluster=False)
+        with pytest.raises(KubernetesError):
             k8s.create_secret(
                 name="a-secret",
                 values={"PASSWORD": "newpass"},
@@ -158,7 +157,7 @@ class TestKubernetesHelper:
         The body is a plain dict of the changed keys, base64 encoded: no metadata and no
         resourceVersion, so the other keys are not touched and nothing can conflict
         """
-        k8s = KubernetesClient()
+        k8s = KubernetesClient(in_cluster=False)
         k8s.patch_secret_data("a-secret", "default", {"CACHED_TOKEN_1_read": "token"})
 
         k8s_client["patch_namespaced_secret_mock"].assert_called_once_with(
@@ -180,7 +179,7 @@ class TestKubernetesHelper:
             return_value=Mock(status=200, reason="OK", data=b"{}"),
         )
 
-        KubernetesClient().patch_secret_data("a-secret", "default", {"REFRESH_TOKEN": "new"})
+        KubernetesClient(in_cluster=False).patch_secret_data("a-secret", "default", {"REFRESH_TOKEN": "new"})
 
         request.assert_called_once()
         assert request.call_args.args[0] == "PATCH"
@@ -202,6 +201,6 @@ class TestKubernetesHelper:
             http_resp=Mock(status=404, reason="Not Found", data="Not found")
         )
 
-        with pytest.raises(KubernetesException):
-            KubernetesClient().patch_secret_data("a-secret", "default", {"REFRESH_TOKEN": "new"})
+        with pytest.raises(KubernetesError):
+            KubernetesClient(in_cluster=False).patch_secret_data("a-secret", "default", {"REFRESH_TOKEN": "new"})
         k8s_client["create_namespaced_secret_mock"].assert_not_called()

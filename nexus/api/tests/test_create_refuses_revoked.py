@@ -1,6 +1,6 @@
 """
-`revoked` is set by an admin-only PATCH, never on create: a POST that names it is a 400, whatever the value, and
-creates nothing. One test per resource.
+`revoked` is set by an admin-only PATCH, never on create: a POST that names it is refused, whatever the value, and
+creates nothing: a 400 from the handler, a 422 where the endpoint's request model refuses it. One test per resource.
 """
 import pytest
 
@@ -15,8 +15,8 @@ from tests.test_global_resources import DS, PROV, RES, TRIG, ds_body, repo_body
 REVOKED = pytest.mark.parametrize("revoked", [True, False])
 
 
-def refused(response):
-    assert response.status_code == 400, response.json()
+def refused(response, status=400):
+    assert response.status_code == status, response.json()
     assert "revoked" in response.json()["error"]
 
 
@@ -34,7 +34,7 @@ def test_trigger_repository_create_refuses_revoked(client, admin_headers, global
 
 @REVOKED
 def test_results_repository_create_refuses_revoked(client, admin_headers, global_secret, git_provider, revoked):
-    refused(client.post(RES, json=repo_body(git_provider, revoked=revoked), headers=admin_headers))
+    refused(client.post(RES, json=repo_body(git_provider, revoked=revoked), headers=admin_headers), 422)
     assert ResultsRepository.query.count() == 0
 
 
@@ -42,11 +42,11 @@ def test_results_repository_create_refuses_revoked(client, admin_headers, global
 def test_git_provider_create_refuses_revoked(client, admin_headers, revoked):
     body = {"name": "gt", "type": "gitea", "uri": "https://gitea.example.com", "api_uri": "https://gitea.example.com/api/v1",
             "revoked": revoked}
-    refused(client.post(PROV, json=body, headers=admin_headers))
+    refused(client.post(PROV, json=body, headers=admin_headers), 422)
     assert GitProvider.query.count() == 0
 
 
 @REVOKED
 def test_project_create_refuses_revoked(client, admin_headers, revoked):
-    refused(client.post("/projects", json={"name": "NewProject", "revoked": revoked}, headers=admin_headers))
+    refused(client.post("/projects", json={"name": "NewProject", "revoked": revoked}, headers=admin_headers), 422)
     assert Project.query.count() == 0

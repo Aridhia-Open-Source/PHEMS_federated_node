@@ -15,7 +15,7 @@ from app.globals import (
 from app.projects import project_trigger_repositories_api, projects_api, results_api, tasks_api
 from app.errors import register_error_handlers
 from app.helpers.wrappers import require_scope
-from app.middleware import JsonObjectBodyMiddleware, SessionMiddleware, TrailingSlashMiddleware
+from app.middleware import SessionMiddleware, TrailingSlashMiddleware
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger('main')
@@ -32,7 +32,6 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Federated Node", redirect_slashes=False)
     register_error_handlers(app)
     # The last added runs first: the session scope wraps everything
-    app.add_middleware(JsonObjectBodyMiddleware)
     app.add_middleware(SessionMiddleware)
     app.add_middleware(TrailingSlashMiddleware)
 

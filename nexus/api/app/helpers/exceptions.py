@@ -1,4 +1,3 @@
-import json
 import traceback
 
 
@@ -35,23 +34,9 @@ class UnauthorizedError(LogAndException):
     code = 403
     description = "Unauthorized"
 
-class KeycloakError(LogAndException):
-    pass
-
 class TaskImageException(LogAndException):
     code = 403
 
 class NotImplementedException(LogAndException):
     code = 501
     description = "Not implemented"
-
-class KubernetesException(LogAndException):
-    def __init__(self, body:dict|str = None, code:int = None):
-        try:
-            body_json: dict = json.loads(body)
-            self.code = body_json.pop("code")
-            self.description = "".join("An unexpected kubernetes error occurred. Check the details field")
-            self.extra_fields = body_json["details"]["causes"]
-        except json.decoder.JSONDecodeError:
-            self.description = body
-        super().__init__()

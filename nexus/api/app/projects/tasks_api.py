@@ -23,6 +23,7 @@ from http import HTTPStatus
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi_pagination import Page
 from fastapi.responses import PlainTextResponse
+from fednode.clients.kubernetes.names import validate_dns_label
 
 from app.database.base_model import db
 from app.helpers.const import TASK_CAUSE_MAX_LENGTH
@@ -33,7 +34,6 @@ from app.helpers.exceptions import (
 from app.clients.keycloak import Keycloak  # noqa: F401  patched by tests/conftest.py
 from app.rules.ownership import does_user_own_task
 from app.rules.project_state import require_accepts_tasks
-from app.clients.kubernetes_names import validate_dns_label
 from app.rules.state_rules import transition
 from app.clients.run_resources import RunResources
 from app.dtos.task_spec import TaskSpecRequest
