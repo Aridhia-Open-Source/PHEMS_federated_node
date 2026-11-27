@@ -92,7 +92,7 @@ class TriggerResourceMachine(RuleBasedStateMachine):
         Base.metadata.drop_all(engine)  # Hypothesis can build a machine it never tears down: start from empty tables
         Base.metadata.create_all(engine)
         self.tick = 0
-        clock = mock.patch("app.repos.pull_request_fanout.now_ts", lambda: CLOCK_START + timedelta(minutes=self.tick))
+        clock = mock.patch("app.models.project_trigger_repository.now_ts", lambda: CLOCK_START + timedelta(minutes=self.tick))
         clock.start()
         self.clock = clock
         self.client = TestClient(create_app(), raise_server_exceptions=False)

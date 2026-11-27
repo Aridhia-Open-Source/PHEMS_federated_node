@@ -7,6 +7,7 @@ from sqlalchemy.orm import relationship
 
 from app.database.base_model import BaseModel, db
 from app.database.soft_delete import SoftDeleteMixin
+from app.helpers.exceptions import UnauthorizedError
 from app.models.user import OwnedMixin
 
 
@@ -74,6 +75,15 @@ class ProjectResultsRepository(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel)
     @property
     def active(self) -> bool:
         return self.results_repository.active and self.enabled and not self.revoked
+
+    def require_token_allowed(self) -> None:
+        """A 403 if the project or this resource is revoked: no token for the results repository (ADR 0008)."""
+        if self.project.revoked:
+            raise UnauthorizedError(f"Project {self.project_id} is revoked")
+        if self.revoked:
+            raise UnauthorizedError(
+                f"Repository {self.results_repository.uri} is revoked for project {self.project_id}"
+            )
 
     def __repr__(self):
         return f'<ProjectResultsRepository {self.project_id}:{self.results_repository_id}>'

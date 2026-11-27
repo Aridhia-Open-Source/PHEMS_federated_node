@@ -19,7 +19,7 @@ from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
 from app.dtos.results_repository import ResultsRepositoryDTO
 from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.repos.git_tokens import mint_token, require_token_allowed
+from app.helpers.git import mint_token
 from app.rules.ownership import get_for_write, set_owner
 from app.database.soft_delete import delete_global
 from app.models.project_results_repository import ProjectResultsRepository
@@ -57,7 +57,7 @@ def get_repository(repo_id: int):
 def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitTokenRequest)):
     """
     POST /global/repositories/results/<id>/token — a short-lived write token for the repository, minted from the
-    credential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the
+    credential in its secret or taken from the secret's cache (helpers/git.py). Refused with 403 when the
     repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
     its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
     project or resource still gets a token. Dagster asks at the moment of use.
@@ -66,7 +66,7 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
     """
     repo = ResultsRepository.get_by_id(repo_id)
     assignment = None if req.project_id is None else ProjectResultsRepository.latest(req.project_id, repo.id)
-    require_token_allowed(repo, req.project_id, assignment)
+    repo.require_token_allowed(req.project_id, assignment)
     token, expires_at = mint_token(repo.secret, repo, repo.TOKEN_PERMISSION)
     return GitTokenDTO(token=token, expires_at=expires_at)
 

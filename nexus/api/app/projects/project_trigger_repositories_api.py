@@ -28,8 +28,7 @@ from app.dtos.trigger_repository import (
 from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
 from app.rules.project_state import require_accepts_tasks
-from app.repos.pull_request_fanout import skip_gap
-from app.repos.repository_loop import check_no_loop, normalise_dir
+from app.helpers.git import normalise_dir
 from app.rules.ownership import get_for_write, require_member, set_owner
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.project import Project
@@ -61,7 +60,7 @@ def _assignment(project_id: int, repo_id: int) -> ProjectTriggerRepository:
 def _check_loop(assignment: ProjectTriggerRepository):
     """Refuses the change, rolling it back, if the trigger would watch where results land."""
     try:
-        check_no_loop(assignment.trigger_repository.provider_id, assignment.trigger_repository.repo_path)
+        assignment.project.check_results_dir_not_watched()
     except InvalidRequest:
         session.rollback()
         raise
@@ -111,7 +110,7 @@ def put_project_trigger_repository(
         assignment.enabled = req.enabled
         # What was merged while it was off is not replayed
         if assignment.active and not was_active:
-            skip_gap([assignment])
+            ProjectTriggerRepository.skip_gap([assignment])
         session.flush()
         _check_loop(assignment)
         session.commit()
@@ -182,7 +181,7 @@ def patch_project_trigger_repository(
 
     # What was merged while it was disabled or revoked is not replayed
     if assignment.active and not was_active:
-        skip_gap([assignment])
+        ProjectTriggerRepository.skip_gap([assignment])
     session.flush()
     _check_loop(assignment)
     session.commit()

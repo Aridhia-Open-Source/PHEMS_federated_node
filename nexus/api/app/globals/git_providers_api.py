@@ -16,9 +16,9 @@ from app.dtos.git_provider import GitProviderDTO, GitProviderPatchRequest, GitPr
 from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
 from app.rules.ownership import get_for_write, set_owner
-from app.repos.pull_request_fanout import skip_gap
 from app.helpers.wrappers import Caller, get_caller
 from app.models.git_provider import GitProvider
+from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.dtos.healthcheck import GitProviderHealthDTO
 from app.health.providers import prepare_provider_health
 
@@ -106,7 +106,7 @@ def patch_provider(provider_id: int, req: GitProviderPatchRequest, caller: Calle
 
     # Switched back on or restored: what was merged while it was off or revoked gets no trigger
     if (provider.enabled and not was_enabled) or (was_revoked and not provider.revoked):
-        skip_gap([a for r in provider.trigger_repositories for a in r.project_assignments])
+        ProjectTriggerRepository.skip_gap([a for r in provider.trigger_repositories for a in r.project_assignments])
 
     session.commit()
     return GitProviderDTO.from_model(provider)

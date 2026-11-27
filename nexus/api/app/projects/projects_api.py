@@ -38,8 +38,7 @@ from app.dtos.secret import ProjectSecretDTO
 from app.dtos.project import ProjectCreatedDTO, ProjectDTO, ProjectRequest
 from app.rules.ownership import get_for_write, require_member, require_members, set_owner
 from app.rules.project_state import require_disabled
-from app.repos.pull_request_fanout import backfill, skip_gap
-from app.repos.repository_loop import check_no_loop, normalise_dir
+from app.helpers.git import normalise_dir
 from app.database.query_filters import QueryFilters, parse_query_params
 from app.helpers.wrappers import Caller, get_caller
 from app.models.dataset import Dataset
@@ -47,6 +46,7 @@ from app.models.project import Project
 from app.models.project_dataset import ProjectDataset
 from app.models.project_results_repository import ProjectResultsRepository
 from app.models.project_secret import ProjectSecret
+from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.results_repository import ResultsRepository
 from app.models.secret import Secret
 from app.dtos.healthcheck import ProjectDatasetHealthDTO, ProjectResultsRepositoryHealthDTO, ProjectSecretHealthDTO
@@ -122,14 +122,14 @@ def patch_project(project_id: int, body: dict = Body(default_factory=dict), call
     if body.get("enabled") and not project.enabled:
         project.enabled = True
         if body.get("backfill"):
-            backfill(project.trigger_repository_assignments)
+            ProjectTriggerRepository.backfill(project.trigger_repository_assignments)
         else:
-            skip_gap(project.trigger_repository_assignments)
+            ProjectTriggerRepository.skip_gap(project.trigger_repository_assignments)
     else:
         if "enabled" in body:
             project.enabled = body["enabled"]
         if was_revoked and not project.revoked:
-            skip_gap(project.trigger_repository_assignments)
+            ProjectTriggerRepository.skip_gap(project.trigger_repository_assignments)
     db.session.commit()
     return ProjectDTO.from_model(project)
 
@@ -376,7 +376,7 @@ def _results_resource(project_id: int, repository_id: int) -> ProjectResultsRepo
 def _check_results_loop(assignment: ProjectResultsRepository):
     """Refuses the change, rolling it back, if the results would land where a trigger watches."""
     try:
-        check_no_loop(assignment.results_repository.provider_id, assignment.results_repository.repo_path)
+        assignment.project.check_results_dir_not_watched()
     except InvalidRequest:
         db.session.rollback()
         raise

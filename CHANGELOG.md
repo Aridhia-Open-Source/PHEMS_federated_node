@@ -14,8 +14,10 @@
 - Dagster reads its Keycloak password from a mounted file at every login, so a credential rotation needs no pod restart
 - Removed unused nexus-api code: five `Task` methods, two exceptions, two `Keycloak` methods, `GitRepositoryMixin.check_connection` and the `ENABLE_IMAGE_WHITELIST` setting
 - Removed the dataset catalogue and dictionaries: the `catalogue` and `dictionaries` fields on dataset create and update, their tables, the UI fields and the Dagster models
-- nexus-api helpers are grouped by area: `app/clients/`, `app/repos/`, `app/rules/` and `app/database/`, and `const.py` is split (`build_sql_uri` to `app/database/uri.py`)
+- nexus-api helpers are grouped by area: `app/clients/`, `app/rules/` and `app/database/`, and `const.py` is split (`build_sql_uri` to `app/database/uri.py`)
 - nexus-api's `app/tasks/` is gone: a task's pinned configuration and launch rules are methods of the `Task` model, a run's Secret and ConfigMap are `RunResources` in `app/clients/run_resources.py`, the spec file match is `ProjectTriggerRepository.spec_files`, and the CPU and memory checks are the `TaskCompute` model in `nexus/fednode`, shared with Dagster
+- nexus-api's `app/repos/` is gone: pull request storage and fan-out are `PullRequest.store`, `TriggerRepository.ingest` and `ProjectTriggerRepository.create_triggers`, the token checks are `GitRepositoryMixin.require_token_allowed` and `require_token_allowed` on the project resources, and `mint_token` and the directory helpers are `app/helpers/git.py`
+- The check that a results directory is not a watched directory compares only the project's own trigger and results resources (`Project.check_results_dir_not_watched`); another project may watch where this one writes
 - Creating a task takes `compute` (requests and limits of cpu and memory, as in a pull request spec file) in place of `resources`. It is checked against the node's maximum and default limits, and kept on the task's spec
 
 ## 1.17.0

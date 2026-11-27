@@ -7,6 +7,7 @@ from sqlalchemy.sql import func
 
 from app.database.base_model import BaseModel, db
 from app.helpers.exceptions import InvalidRequest
+from app.helpers.git import dirs_overlap, normalise_dir
 from app.database.soft_delete import SoftDeleteMixin
 from app.models import Models, sqla_column
 from app.models.user import OwnedMixin
@@ -93,6 +94,34 @@ class Project(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
         if not assignment.active:
             raise InvalidRequest(f"Dataset {assignment.dataset.name} is not active in project {self.name}")
         return assignment.dataset
+
+    def check_results_dir_not_watched(self) -> None:
+        """
+        A results repository written into the directory a trigger repository watches would fire the trigger with
+        its own output. So where this project's results assignment and one of its trigger assignments are the same
+        repository, their directories must not overlap, and the trigger must watch a directory of its own. Only the
+        project's own assignments are compared: another project's directories are its own business.
+        """
+        results = Models.ProjectResultsRepository.query.filter_by(project_id=self.id).all()
+        triggers = Models.ProjectTriggerRepository.query.filter_by(project_id=self.id).all()
+        for results_assignment in results:
+            results_repository = results_assignment.results_repository
+            for trigger_assignment in triggers:
+                trigger_repository = trigger_assignment.trigger_repository
+                if (trigger_repository.provider_id, trigger_repository.repo_path) != (
+                    results_repository.provider_id, results_repository.repo_path
+                ):
+                    continue
+                if not normalise_dir(trigger_assignment.watch_dir):
+                    raise InvalidRequest(
+                        f"Trigger repository {trigger_repository.uri} watches the whole repository, "
+                        "which a results repository also writes to"
+                    )
+                if dirs_overlap(trigger_assignment.watch_dir, results_assignment.target_dir):
+                    raise InvalidRequest(
+                        f"Trigger watch_dir '{trigger_assignment.watch_dir}' and results target_dir "
+                        f"'{results_assignment.target_dir}' overlap in repository {trigger_repository.uri}"
+                    )
 
     def __repr__(self):
         return f'<Project {self.name}>'

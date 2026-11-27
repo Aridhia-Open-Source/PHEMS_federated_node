@@ -1,8 +1,8 @@
 from datetime import datetime
 
 from app.database.base_model import db
-from app.repos.pull_request_fanout import store_pull_request
 from app.models.project_trigger_repository import ProjectTriggerRepository
+from app.models.pull_request import PullRequest
 from app.models.pull_request_trigger import PullRequestTrigger
 
 SPEC_FILE = {"path": "spec.json", "status": "added"}
@@ -27,7 +27,7 @@ def add_pull_request_trigger(
         merge_commit_sha=sha or f"{number:040x}", **facts
     )
     body["merged_at"] = datetime.fromisoformat(body["merged_at"].rstrip("Z"))
-    pull_request, _ = store_pull_request(assignment.trigger_repository_id, **body)
+    pull_request, _ = PullRequest.store(assignment.trigger_repository_id, **body)
     trigger = PullRequestTrigger(assignment.project_id, assignment.id, pull_request.id)
     trigger.add()
     return trigger

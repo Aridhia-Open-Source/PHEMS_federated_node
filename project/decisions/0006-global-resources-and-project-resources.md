@@ -63,7 +63,7 @@ Datasets, secrets, trigger repositories and results repositories are all resourc
 
 ### Other rules
 
-- **Cross-project loops.** `check_no_loop` forbids a results resource that writes into a directory a trigger resource of any project watches, in the same repository, and a trigger resource that watches the whole repository when a results resource writes to it.
+- **Results directory loops.** `Project.check_results_dir_not_watched` forbids a results resource that writes into a directory one of the same project's trigger resources watches, in the same repository, and a trigger resource that watches the whole repository when the project's results resource writes to it. Other projects' resources are not compared.
 - **Shared by design.** Editing a global resource affects every project assigned to it; the tasks it affects fail or are `STALE` ([0009](0009-task-pinned-to-its-configuration.md)). Rotating a secret reaches every project using it.
 - **`delete_project`** soft deletes the project and its project resources only. It does not touch secrets, datasets, repositories or their stored values.
 - **Admin role.** Creating global resources and writing their flags requires the admin role.
@@ -92,4 +92,4 @@ Datasets, secrets, trigger repositories and results repositories are all resourc
 - Whether `whitelisted_images` should follow the same pattern.
 - Dataset `PATCH` returns 200, an unconfirmed choice.
 - A task that needs a dataset whose project resource is inactive fails at launch; whether it should wait instead.
-- The cross-project loop check keys on `(provider_id, repo_path)`, so the same server under two host names is not seen.
+- The results directory check keys on `(provider_id, repo_path)`, so the same server under two host names is not seen. A project that writes where another project's trigger watches is not refused, and its results can fire that project's trigger.

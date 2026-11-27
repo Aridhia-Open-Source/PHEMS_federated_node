@@ -1,15 +1,21 @@
 """
 A pull request merged to a global trigger repository: the provider's facts, stored once however
 many projects watch the repository. What a project makes of it (state, spec, task) is its
-`PullRequestTrigger`.
+`PullRequestTrigger`, created for each project that watches the repository (ADR 0011, see
+`TriggerRepository.ingest` and `ProjectTriggerRepository.create_triggers`).
 """
+import logging
 from datetime import datetime as dt
 
 import sqlalchemy as sa
 from sqlalchemy import orm
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import validates
 
 from app.database.base_model import BaseModel, db
+
+logger = logging.getLogger('pull_request_model')
+logger.setLevel(logging.INFO)
 
 
 class PullRequest(db.Model, BaseModel):
@@ -54,6 +60,51 @@ class PullRequest(db.Model, BaseModel):
             except (ValueError, TypeError):
                 raise ValueError("merged_at must be a valid ISO 8601 datetime string")
         return value
+
+    @classmethod
+    def store(
+        cls, trigger_repository_id: int, number: int, title: str, raised_by: str, merged_at: dt,
+        merge_commit_sha: str, base_branch: str, files_truncated: bool, changed_files: list[dict]
+    ) -> tuple["PullRequest", bool]:
+        """
+        Stores the pull request's facts unless the repository already has that number, or already has
+        that merge commit on the same base branch under another number, and returns the stored row
+        with whether this call stored it. The facts of a stored pull request are not changed. The unique
+        constraints decide, so two concurrent posts of one pull request store it once. A pull request whose merge
+        commit is already stored under another number for the same base branch is skipped with a warning.
+        `changed_files` is a list of {"path", "status"}.
+        """
+        stored_id = db.session.execute(
+            pg_insert(cls).values(
+                trigger_repository_id=trigger_repository_id, number=number, title=title, raised_by=raised_by,
+                merged_at=merged_at, merge_commit_sha=merge_commit_sha, base_branch=base_branch,
+                files_truncated=files_truncated,
+            ).on_conflict_do_nothing().returning(cls.id)
+        ).scalar_one_or_none()
+
+        if stored_id is None:
+            existing = cls.query.filter_by(trigger_repository_id=trigger_repository_id, number=number).first()
+            if existing is None:
+                existing = cls.query.filter_by(
+                    trigger_repository_id=trigger_repository_id, base_branch=base_branch,
+                    merge_commit_sha=merge_commit_sha
+                ).first()
+                if existing is None:
+                    raise RuntimeError(
+                        f"Pull request #{number} was not stored and no stored pull request conflicts with it"
+                    )
+                logger.warning(
+                    "Pull request #%s skipped: #%s already has merge commit %s on %s",
+                    number, existing.number, merge_commit_sha, base_branch,
+                )
+            return existing, False
+
+        if changed_files:
+            db.session.execute(
+                sa.insert(PullRequestFile),
+                [{"pull_request_id": stored_id, "path": f["path"], "status": f["status"]} for f in changed_files],
+            )
+        return db.session.get(cls, stored_id), True
 
     def __repr__(self):
         return f'<PullRequest (repository_id={self.trigger_repository_id}, pr={self.number})>'
