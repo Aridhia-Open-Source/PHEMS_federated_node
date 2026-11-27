@@ -1,4 +1,6 @@
 """Trigger repository model, global: projects are assigned to it."""
+from typing import TYPE_CHECKING
+
 import sqlalchemy as sa
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -8,6 +10,10 @@ from app.database.soft_delete import SoftDeleteMixin
 from app.models import Models, sqla_column
 from app.models.git_repository import GitRepositoryMixin
 from app.models.user import OwnedMixin
+
+# The DTO module imports the models, so it is only named in annotations
+if TYPE_CHECKING:
+    from app.dtos.trigger_repository import PullRequestRequest
 
 
 class TriggerRepository(SoftDeleteMixin, OwnedMixin, GitRepositoryMixin, db.Model, BaseModel):
@@ -40,6 +46,33 @@ class TriggerRepository(SoftDeleteMixin, OwnedMixin, GitRepositoryMixin, db.Mode
     secret = relationship(
         "Secret", back_populates="trigger_repositories"
     )
+
+    @property
+    def active_assignments(self) -> list:
+        """The repository's project resources that accept a trigger now, see `accepts_triggers` there."""
+        assignments = Models.ProjectTriggerRepository.query.filter_by(
+            trigger_repository_id=self.id
+        ).order_by(Models.ProjectTriggerRepository.id)
+        return [a for a in assignments if a.accepts_triggers]
+
+    def ingest(self, requests: list["PullRequestRequest"]) -> tuple[list, list]:
+        """
+        Stores the pull requests and creates their triggers for every active assignment of the
+        repository. Returns the pull requests stored by this call and those already stored, and
+        leaves the commit to the caller. Posting the same pull requests again changes nothing.
+        """
+        created, existing = [], []
+        for request in requests:
+            pull_request, is_new = Models.PullRequest.store(
+                self.id, request.number, request.title, request.raised_by, request.merged_at,
+                request.merge_commit_sha, request.base_branch, request.files_truncated,
+                [f.model_dump() for f in request.changed_files],
+            )
+            (created if is_new else existing).append(pull_request)
+        ids = [pr.id for pr in created]
+        for assignment in self.active_assignments:
+            assignment.create_triggers(ids)
+        return created, existing
 
     def get_pull_request_cursor(self) -> str | None:
         """The latest merge among the stored pull requests, None when there are none."""

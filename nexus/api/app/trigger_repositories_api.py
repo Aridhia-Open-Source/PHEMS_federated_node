@@ -25,9 +25,8 @@ from app.dtos.trigger_repository import (
 )
 from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
-from app.repos.git_tokens import mint_token, require_token_allowed
+from app.helpers.git import mint_token
 from app.rules.ownership import get_for_write, set_owner
-from app.repos.pull_request_fanout import ingest_pull_requests, skip_gap
 from app.database.soft_delete import delete_global
 from app.helpers.wrappers import Caller, get_caller, system_only
 from app.models.git_provider import GitProvider
@@ -105,7 +104,7 @@ def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dic
     if len(pull_requests) > 100:
         raise InvalidRequest("Maximum 100 pull requests per batch")
 
-    created, existing = ingest_pull_requests(repo.id, [PullRequestRequest.parse(pr) for pr in pull_requests])
+    created, existing = repo.ingest([PullRequestRequest.parse(pr) for pr in pull_requests])
     session.commit()
     return {
         'created': [pr.number for pr in created],
@@ -117,7 +116,7 @@ def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dic
 def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitTokenRequest)):
     """
     POST /global/repositories/triggers/<id>/token — a short-lived read token for the repository, minted from the
-    credential in its secret or taken from the secret's cache (repos/git_tokens.py). Refused with 403 when the
+    credential in its secret or taken from the secret's cache (helpers/git.py). Refused with 403 when the
     repository, its provider or its secret is disabled or revoked and, when a project_id is sent, the project or
     its resource for the repository is revoked (deleted counts as revoked) or the project has none; a disabled
     project or resource still gets a token. Dagster asks at the moment of use.
@@ -128,7 +127,7 @@ def post_token(repo_id: int, req: GitTokenRequest = Body(default_factory=GitToke
     assignment = None if req.project_id is None else ProjectTriggerRepository.query.filter_by(
         project_id=req.project_id, trigger_repository_id=repo.id
     ).execution_options(include_deleted=True).order_by(ProjectTriggerRepository.id.desc()).first()
-    require_token_allowed(repo, req.project_id, assignment)
+    repo.require_token_allowed(req.project_id, assignment)
     token, expires_at = mint_token(repo.secret, repo, repo.TOKEN_PERMISSION)
     return GitTokenDTO(token=token, expires_at=expires_at)
 
@@ -206,13 +205,13 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
     if 'enabled' in body:
         # Switched back on: what was merged while it was off gets no trigger
         if req.enabled and not repo.enabled:
-            skip_gap(repo.project_assignments)
+            ProjectTriggerRepository.skip_gap(repo.project_assignments)
         repo.enabled = req.enabled
 
     if 'revoked' in body:
         # Restored: what was merged while it was revoked gets no trigger
         if repo.revoked and not req.revoked:
-            skip_gap(repo.project_assignments)
+            ProjectTriggerRepository.skip_gap(repo.project_assignments)
         repo.revoked = req.revoked
 
     if 'provider_id' in body:

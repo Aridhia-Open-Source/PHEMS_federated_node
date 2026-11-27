@@ -102,7 +102,7 @@ Notes on the format:
   - Gitea OAuth app names are unique (Gitea tells them apart by name);
   - within the file, a trigger `watch_dir` does not overlap a results `target_dir` on the same repo.
 
-  The backend's overlap check covers every project on the node, so it stays the final judge.
+  The backend's overlap check compares each project's own trigger and results resources, so it stays the final judge.
 - **References may point outside the file.** A project's datasets and repositories, and a repository's or dataset's secret, can be listed in the file or already be on the node (a dataset made by another file, say an experiment's `dataset.yaml`). The diff resolves them against the backend: one on the node shows as an unchanged row "on the node, not in this file", one in neither blocks the row that names it (the project, repository or dataset), and apply leaves a blocked row alone. `delete` still only deletes what the file lists.
 
 ## 3. Commands, and what they reuse

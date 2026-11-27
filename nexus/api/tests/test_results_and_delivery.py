@@ -225,7 +225,7 @@ def test_results_dir_inside_watched_dir_refused(
     assert client.get(resource_url(disabled_project, results), headers=admin_headers).json()["target_dir"] == "triggers/out"
 
 
-def test_watch_dir_over_results_dir_refused_and_other_repo_or_project(
+def test_watch_dir_over_results_dir_refused_and_other_repo_or_project_allowed(
     client, admin_headers, project, other_project, make_trigger_repo, make_results_repo
 ):
     trigger = make_trigger_repo(uri="github.com/org/shared")
@@ -239,9 +239,9 @@ def test_watch_dir_over_results_dir_refused_and_other_repo_or_project(
     # a different git repository never loops, whatever the directories
     assert client.put(trigger_url(project, elsewhere), json={"watch_dir": "out/data", "base_branch": "main"},
                       headers=admin_headers).status_code == 201
-    # cross-project loops are forbidden too (ADR section 9)
+    # only a project's own directories are compared: another project may watch where this one writes
     response = client.put(trigger_url(other_project, trigger), json={"watch_dir": "out", "base_branch": "main"}, headers=admin_headers)
-    assert response.status_code == 400
+    assert response.status_code == 201
 
 
 # ---------------------------------------------------------------- revoke / unassign

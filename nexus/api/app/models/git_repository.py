@@ -6,8 +6,8 @@ import sqlalchemy as sa
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
 
-from app.helpers.exceptions import InvalidRequest
-from app.repos.git_tokens import mint_token
+from app.helpers.exceptions import InvalidRequest, UnauthorizedError
+from app.helpers.git import mint_token
 from fednode.clients.git.uri import normalise_repo_path
 from fednode.http import ClientError
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, request_check
@@ -26,7 +26,7 @@ class GitRepositoryMixin:
     )
     # Where the repository is on the provider (owner/name)
     repo_path = sa.Column(sa.String(512), nullable=False)
-    # The secret holding the git credential (see repos/git_tokens.py). Set explicitly rather than
+    # The secret holding the git credential (see helpers/git.py). Set explicitly rather than
     # derived from the repository, so repositories can share one credential.
     secret_id = sa.Column(
         sa.Integer, sa.ForeignKey('secrets.id', ondelete='RESTRICT'), nullable=False
@@ -53,6 +53,24 @@ class GitRepositoryMixin:
         secret this repository names. The same token the token routes hand out.
         """
         return mint_token(self.secret, self, self.TOKEN_PERMISSION)[0]
+
+    def require_token_allowed(self, project_id: int | None, assignment) -> None:
+        """
+        A 403 unless a token may be handed out for the repository: it, its provider and its secret are on and not
+        revoked and, when project_id names a project, the project and its resource for the repository are not revoked
+        (ADR 0008). Switched off is not revoked: a disabled project or resource still gets a token, as its finished
+        results are delivered. The assignment is that resource found with deleted ones included (a deleted one is
+        revoked), None when the project has none. Checked before the cache is read, so a cached token is refused too.
+        """
+        if not self.active:
+            raise UnauthorizedError(f"Repository {self.uri} is disabled or revoked")
+        if not self.secret.enabled or self.secret.deleted_at is not None:
+            raise UnauthorizedError(f"Secret {self.secret.label} is disabled or deleted")
+        if project_id is None:
+            return
+        if assignment is None:
+            raise UnauthorizedError(f"Repository {self.uri} is not assigned to project {project_id}")
+        assignment.require_token_allowed()
 
     def prepare_connection_check(self) -> Callable[[], ConnectionCheck]:
         """

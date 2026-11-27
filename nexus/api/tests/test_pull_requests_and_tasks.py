@@ -820,7 +820,7 @@ def test_a_repeated_merge_commit_on_the_same_base_branch_under_a_new_number_is_s
     assign(client, admin_headers, project.id, T)
     assert post_prs(client, system_headers, T, pr(1)).status_code == 201
 
-    with caplog.at_level("WARNING", logger="pull_request_fanout"):
+    with caplog.at_level("WARNING", logger="pull_request_model"):
         response = post_prs(client, system_headers, T, pr(2), pr(5, merge_commit_sha=f"{1:040x}"), pr(6))
 
     assert response.status_code == 201

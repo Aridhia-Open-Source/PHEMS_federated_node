@@ -23,7 +23,7 @@ from app.database.base_model import db
 from fednode.http import ClientError
 
 from app.helpers.exceptions import InvalidRequest
-from app.repos.git_tokens import mint_token
+from app.helpers.git import mint_token
 from app.clients.kubernetes import KubernetesClient
 from app.models.git_provider import GitProvider
 from app.models.project_results_repository import ProjectResultsRepository
