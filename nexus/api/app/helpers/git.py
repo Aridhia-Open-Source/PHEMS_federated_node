@@ -19,9 +19,10 @@ from typing import TYPE_CHECKING
 
 from fednode.clients.git import factory
 from fednode.clients.git.provider import Permission
+from fednode.clients.kubernetes.client import KubernetesClient
 
+from app.helpers.const import IN_CLUSTER
 from app.helpers.exceptions import InvalidRequest
-from app.clients.kubernetes import KubernetesClient
 
 # The models import this module (GitRepositoryMixin.get_token), so they are only named in annotations
 if TYPE_CHECKING:
@@ -42,7 +43,7 @@ def mint_token(
     to the secret in the same write. A secret with no credential for the repository's provider is a 409: the
     request is fine, the secret is not set up.
     """
-    k8s = KubernetesClient()
+    k8s = KubernetesClient(in_cluster=IN_CLUSTER)
     data = k8s.read_namespaced_secret(secret.key, secret.namespace).data or {}
     values = {key: KubernetesClient.decode_secret_value(value) for key, value in data.items()}
     provider = repository.provider

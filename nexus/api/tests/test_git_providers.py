@@ -68,23 +68,26 @@ def test_create_duplicate_name_or_uri_is_409(client, admin_headers, changes):
 
 
 @pytest.mark.parametrize("changes", [
-    {"type": "gitlab"}, {"type": 5},
+    {"type": "gitlab"},
     {"uri": "github.com"}, {"uri": "ssh://github.com"}, {"uri": "https://user:pw@github.com"},
     {"api_uri": "https://evil.example.com"},  # the api has to be on the provider's own host
     {"api_uri": "https://user:pw@api.github.com"},
-    {"name": ""}, {"enabled": "yes"},
-    {"bogus": 1},
 ])
 def test_create_invalid_is_400(client, admin_headers, changes):
     assert_error(client.post(PROV, json=body(**changes), headers=admin_headers), 400)
 
 
-def test_create_missing_field_is_400(client, admin_headers):
+@pytest.mark.parametrize("changes", [{"type": 5}, {"name": ""}, {"enabled": "yes"}, {"bogus": 1}])
+def test_create_malformed_is_422(client, admin_headers, changes):
+    assert_error(client.post(PROV, json=body(**changes), headers=admin_headers), 422)
+
+
+def test_create_missing_field_is_422(client, admin_headers):
     for missing in ("name", "type", "uri", "api_uri"):
         payload = body()
         del payload[missing]
         response = client.post(PROV, json=payload, headers=admin_headers)
-        assert_error(response, 400)
+        assert_error(response, 422)
         assert missing in response.json()["error"]
 
 
@@ -106,12 +109,17 @@ def test_patch_fields(client, admin_headers, git_provider):
 
 
 @pytest.mark.parametrize("changes", [
-    {}, {"bogus": 1}, {"name": None}, {"name": ""}, {"type": "gitlab"}, {"uri": "ftp://x"}, {"enabled": "no"},
+    {}, {"type": "gitlab"}, {"uri": "ftp://x"},
     {"api_uri": "https://evil.example.com"},
     {"uri": "https://git.example.com"},  # the api_uri is no longer on the uri's host
 ])
 def test_patch_invalid_is_400(client, admin_headers, git_provider, changes):
     assert_error(client.patch(f"{PROV}/{git_provider.id}", json=changes, headers=admin_headers), 400)
+
+
+@pytest.mark.parametrize("changes", [{"bogus": 1}, {"name": None}, {"name": ""}, {"enabled": "no"}])
+def test_patch_malformed_is_422(client, admin_headers, git_provider, changes):
+    assert_error(client.patch(f"{PROV}/{git_provider.id}", json=changes, headers=admin_headers), 422)
 
 
 def test_patch_to_a_taken_name_or_uri_is_409(client, admin_headers, git_provider, make_provider):
@@ -228,7 +236,7 @@ def test_switching_a_provider_back_on_skips_the_gap(
 
 @pytest.mark.parametrize("changes", [{"revoked": "yes"}, {"revoked": 1}, {"revoked": None}])
 def test_patch_revoked_must_be_a_boolean(client, admin_headers, git_provider, changes):
-    assert_error(client.patch(f"{PROV}/{git_provider.id}", json=changes, headers=admin_headers), 400)
+    assert_error(client.patch(f"{PROV}/{git_provider.id}", json=changes, headers=admin_headers), 422)
     assert client.get(f"{PROV}/{git_provider.id}", headers=admin_headers).json()["revoked"] is False
 
 

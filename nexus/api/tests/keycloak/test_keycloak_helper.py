@@ -2,7 +2,7 @@ import pytest
 from pytest import fixture
 import responses
 from responses import matchers
-from app.helpers.exceptions import KeycloakError
+from fednode.clients.keycloak import KeycloakError
 from app.clients.keycloak import (
     KEYCLOAK_SERVICE_USER,
     Keycloak,

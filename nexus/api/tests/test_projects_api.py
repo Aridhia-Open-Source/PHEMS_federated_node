@@ -48,11 +48,11 @@ def test_create_duplicate_name_is_409(client, admin_headers, project):
 
 @pytest.mark.parametrize("body", [
     {}, {"name": None}, {"name": ""}, {"name": "   "},  # missing, null, blank
-    {"name": 123}, {"name": "x" * 300},  # non-string, overlong: 400 and never 500
+    {"name": 123}, {"name": "x" * 300},  # non-string, overlong: 422 and never 500
     {"name": "Bad", "enabled": "yes"},
 ])
-def test_create_invalid_is_400(client, admin_headers, body):
-    assert create(client, admin_headers, **body).status_code == 400
+def test_create_invalid_is_422(client, admin_headers, body):
+    assert create(client, admin_headers, **body).status_code == 422
 
 
 def test_unknown_project_and_non_integer_id_are_404(client, admin_headers, global_secret):

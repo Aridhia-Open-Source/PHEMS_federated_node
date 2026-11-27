@@ -10,10 +10,10 @@ from http import HTTPStatus
 
 from kubernetes.client import V1ConfigMap, V1ObjectMeta, V1Secret
 from kubernetes.client.exceptions import ApiException
+from fednode.clients.kubernetes.client import KubernetesClient
 
-from app.helpers.const import TASK_NAMESPACE
+from app.helpers.const import IN_CLUSTER, TASK_NAMESPACE
 from app.helpers.exceptions import InvalidRequest
-from app.clients.kubernetes import KubernetesClient
 from app.models.task import Task
 
 # On the Secret, the ConfigMap and the task pod. The pod's are set in dagster/app/definitions/pipes.py.
@@ -41,7 +41,7 @@ class RunResources:
         names, None for one that is not needed. A name that is taken is a 409: the run's objects are never replaced.
         """
         labels = {RUN_LABEL: self.run_id, TASK_LABEL: str(self.task.id)}
-        k8s = KubernetesClient()
+        k8s = KubernetesClient(in_cluster=IN_CLUSTER)
         names: dict[str, str | None] = {"secret": None, "config_map": None}
 
         if self.task.spec.dataset_id:
@@ -75,7 +75,7 @@ class RunResources:
         Deletes the Secret and the ConfigMap labelled with the run, whichever there are: a run that had no dataset
         or config, or whose objects are gone, leaves nothing to delete and is not an error.
         """
-        k8s = KubernetesClient()
+        k8s = KubernetesClient(in_cluster=IN_CLUSTER)
         selector = f"{RUN_LABEL}={run_id}"
         k8s.delete_collection_namespaced_secret(TASK_NAMESPACE, label_selector=selector)
         k8s.delete_collection_namespaced_config_map(TASK_NAMESPACE, label_selector=selector)

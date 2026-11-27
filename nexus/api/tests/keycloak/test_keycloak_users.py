@@ -3,7 +3,8 @@ import responses
 from responses import matchers
 import urllib.parse
 
-from app.helpers.exceptions import AuthenticationError, KeycloakError
+from fednode.clients.keycloak import KeycloakError
+from app.helpers.exceptions import AuthenticationError
 from app.clients.keycloak import Keycloak
 from tests.helpers.keycloak import URLS
 from tests.keycloak.test_keycloak_helper import TestKeycloakMixin

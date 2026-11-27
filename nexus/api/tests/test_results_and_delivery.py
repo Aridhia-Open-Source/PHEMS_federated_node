@@ -84,7 +84,7 @@ def test_global_results_repo_create_get(client, admin_headers, global_secret, gl
     assert client.post(RESULTS_GLOBAL, json=body, headers=admin_headers).status_code == 409
     # target_dir belongs to the project resource, not the global repository
     assert client.post(RESULTS_GLOBAL, json={**body, "repo_path": "org/r3", "target_dir": "x"},
-                       headers=admin_headers).status_code == 400
+                       headers=admin_headers).status_code == 422
     assert client.get(f"{RESULTS_GLOBAL}/{global_results_repo.id}", headers=admin_headers).status_code == 200
     assert client.get(f"{RESULTS_GLOBAL}/999", headers=admin_headers).status_code == 404
 
@@ -141,15 +141,19 @@ def test_one_results_repo_per_project_but_repo_shared(
 def test_assign_target_dir_validation(client, admin_headers, disabled_project, global_results_repo):
     url = resource_url(disabled_project, global_results_repo)
     bad_bodies = [
-        {}, {"target_dir": ""}, {"target_dir": None},  # empty
         {"target_dir": "/"}, {"target_dir": "./."},  # normalises to empty
         {"target_dir": ".."}, {"target_dir": "a/../b"}, {"target_dir": "x/../../etc"},  # traversal
+    ]
+    for body in bad_bodies:
+        assert client.put(url, json={"base_branch": "main", **body}, headers=admin_headers).status_code == 400, body
+    malformed_bodies = [
+        {}, {"target_dir": ""}, {"target_dir": None},  # empty
         {"target_dir": 123}, {"target_dir": ["a"]}, {"target_dir": True},  # non-string
         {"target_dir": "r", "bogus": 1}, {"target_dir": "r", "revoked": True},  # revoked is PATCH only
         {"target_dir": "r", "enabled": "yes"}, {"target_dir": "r", "owned_by_federated_node": 1},
     ]
-    for body in bad_bodies:
-        assert client.put(url, json={"base_branch": "main", **body}, headers=admin_headers).status_code == 400, body
+    for body in malformed_bodies:  # the request model refuses them
+        assert client.put(url, json={"base_branch": "main", **body}, headers=admin_headers).status_code == 422, body
     assert resources(client, admin_headers, disabled_project) == []
 
     assert client.put(f"/projects/{disabled_project.id}/repositories/results/999", json={"target_dir": "r", "base_branch": "main"},
@@ -162,14 +166,14 @@ def test_assign_needs_a_base_branch(client, admin_headers, disabled_project, glo
     url = resource_url(disabled_project, global_results_repo)
     for body in ({"target_dir": "r"}, {"target_dir": "r", "base_branch": ""}, {"target_dir": "r", "base_branch": None},
                  {"target_dir": "r", "base_branch": 1}, {"base_branch": "main"}):
-        assert client.put(url, json=body, headers=admin_headers).status_code == 400, body
+        assert client.put(url, json=body, headers=admin_headers).status_code == 422, body
     assert resources(client, admin_headers, disabled_project) == []
 
     response = client.put(url, json={"target_dir": "r", "base_branch": "release"}, headers=admin_headers)
     assert response.status_code == 201 and response.json()["base_branch"] == "release"
     # a re-assign needs it too, and a refused one changes nothing
-    assert client.put(url, json={"target_dir": "r2"}, headers=admin_headers).status_code == 400
-    assert client.put(url, json={"target_dir": "r2", "base_branch": ""}, headers=admin_headers).status_code == 400
+    assert client.put(url, json={"target_dir": "r2"}, headers=admin_headers).status_code == 422
+    assert client.put(url, json={"target_dir": "r2", "base_branch": ""}, headers=admin_headers).status_code == 422
     got = client.get(url, headers=admin_headers).json()
     assert (got["target_dir"], got["base_branch"]) == ("r", "release")
     response = client.put(url, json={"target_dir": "r2", "base_branch": "dev"}, headers=admin_headers)
@@ -189,8 +193,10 @@ def test_patch_resource_settings(client, admin_headers, project, global_results_
     url = resource_url(project, global_results_repo)
     response = client.patch(url, json={"target_dir": "/new//dir/"}, headers=admin_headers)
     assert response.status_code == 200 and response.json()["target_dir"] == "new/dir"
-    for body in ({"target_dir": "../up"}, {"target_dir": ""}, {"base_branch": ""}, {"bogus": 1}, {}, {"enabled": "no"}):
+    for body in ({"target_dir": "../up"}, {"target_dir": ""}, {}):
         assert client.patch(url, json=body, headers=admin_headers).status_code == 400, body
+    for body in ({"base_branch": ""}, {"bogus": 1}, {"enabled": "no"}):  # the request model refuses them
+        assert client.patch(url, json=body, headers=admin_headers).status_code == 422, body
     assert client.get(url, headers=admin_headers).json()["target_dir"] == "new/dir"
     assert client.get(url, headers=admin_headers).json()["base_branch"] == "main"
     response = client.patch(url, json={"base_branch": "release"}, headers=admin_headers)
@@ -397,7 +403,7 @@ def test_post_result_refusals(
     for body in ({}, {"task_id": ok_task.id}, {**good, "task_id": True}, {**good, "task_id": "x"},
                  {**good, "results_repository_id": "1"}):
         assert client.post(results_url(project), json=body, headers=system_headers).status_code == 400, body
-    assert client.post(results_url(project), json=[1], headers=system_headers).status_code == 400
+    assert client.post(results_url(project), json=[1], headers=system_headers).status_code == 422  # not an object
     # revoked resource: the result is created as final, REVOKED and FAILED, and nothing is ever delivered for it
     assert client.patch(resource_url(project, global_results_repo), json={"revoked": True}, headers=admin_headers).status_code == 200
     created = post_result(client, system_headers, project, ok_task, global_results_repo)

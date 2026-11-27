@@ -60,18 +60,18 @@ def test_page_past_the_end_is_empty_200(client, admin_headers, paged):
     assert response.json()[key] == [] and response.json()["total"] == 2
 
 
-def test_page_or_size_below_one_or_size_above_100_is_400(client, admin_headers, paged):
+def test_page_or_size_below_one_or_size_above_100_is_422(client, admin_headers, paged):
     url, _ = paged
     for query in ("page=0", "page=-1", "size=0", "size=-5", "size=101"):
         response = get(client, admin_headers, f"{url}?{query}")
-        assert response.status_code == 400 and "error" in response.json(), query
+        assert response.status_code == 422 and "error" in response.json(), query
 
 
-def test_non_numeric_page_params_are_400(client, admin_headers, paged):
+def test_non_numeric_page_params_are_422(client, admin_headers, paged):
     url, _ = paged
     for query in ("page=abc", "size=xyz", "page=1.5"):
         response = get(client, admin_headers, f"{url}?{query}")
-        assert response.status_code == 400 and "error" in response.json(), query
+        assert response.status_code == 422 and "error" in response.json(), query
 
 
 # ---------------------------------------------------------------- projects

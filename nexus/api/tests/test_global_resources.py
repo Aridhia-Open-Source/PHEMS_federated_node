@@ -86,26 +86,29 @@ def test_same_repo_path_on_another_provider_is_a_different_repo(
     (TRIG, {"provider_id": "1"}),
     (RES, {"provider_id": 999999}),  # no such provider
     (TRIG, {"secret_label": ""}),
-    (RES, {"secret_label": 5}),
     (TRIG, {"secret_label": "nope"}),
-    (RES, {"enabled": "yes"}),
     (TRIG, {"uri": "github.com/org/new"}),  # the old fields are refused, not ignored
-    (RES, {"provider": "github"}),
     (TRIG, {"api_uri": "https://api.github.com"}),
     (TRIG, {"username": "u"}),
-    (RES, {"bogus": "x"}),
 ])
 def test_repo_create_invalid(client, admin_headers, global_secret, git_provider, base, body):
     assert_error(client.post(base, json=repo_body(git_provider, **body), headers=admin_headers), 400)
 
 
-@pytest.mark.parametrize("base", [TRIG, RES])
-def test_repo_create_missing_field_is_400(client, admin_headers, global_secret, git_provider, base):
+@pytest.mark.parametrize("body", [
+    {"secret_label": 5}, {"enabled": "yes"}, {"provider": "github"}, {"bogus": "x"},  # the request model refuses them
+])
+def test_results_repo_create_malformed_is_422(client, admin_headers, global_secret, git_provider, body):
+    assert_error(client.post(RES, json=repo_body(git_provider, **body), headers=admin_headers), 422)
+
+
+@pytest.mark.parametrize("base,status", [(TRIG, 400), (RES, 422)])  # a results repository has a request model
+def test_repo_create_missing_field_is_refused(client, admin_headers, global_secret, git_provider, base, status):
     for missing in ("provider_id", "repo_path", "secret_label"):
         body = repo_body(git_provider)
         del body[missing]
         response = client.post(base, json=body, headers=admin_headers)
-        assert_error(response, 400)
+        assert_error(response, status)
         assert missing in response.json()["error"]
 
 
@@ -278,11 +281,16 @@ def test_secret_label_valid_forms(client, admin_headers, k8s_client, label):
     {"label": "Upper"}, {"label": "sl/ash"}, {"label": "éclair"}, {"label": "a" * 250},  # not slug safe / too long
     {"label": ""}, {"label": 5},
     {"provider": "k8s"}, {"provider": "NOPE"},
-    {"values": {}}, {"values": "x"}, {"values": {"TOKEN": ""}}, {"values": {"bad key": "v"}},
+    {"values": {}}, {"values": "x"}, {"values": {"TOKEN": ""}},
     {"enabled": "yes"},
 ])
 def test_secret_create_invalid(client, admin_headers, k8s_client, body):
     assert_error(client.post(SEC, json=secret_body(**body), headers=admin_headers), 400)
+    assert not k8s_client["create_namespaced_secret_mock"].called
+
+
+def test_secret_create_with_a_key_kubernetes_refuses_is_422(client, admin_headers, k8s_client):
+    assert_error(client.post(SEC, json=secret_body(values={"bad key": "v"}), headers=admin_headers), 422)
     assert not k8s_client["create_namespaced_secret_mock"].called
 
 
@@ -386,10 +394,14 @@ def test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources(
 
 @pytest.mark.parametrize("body", [
     {}, {"bogus": 1}, {"label": "renamed", "values": {"TOKEN": "t"}},  # label is immutable, not ignored
-    {"values": {"bad key": "v"}}, {"enabled": "no"},
+    {"enabled": "no"},
 ])
 def test_secret_patch_invalid(client, admin_headers, k8s_client, global_secret, body):
     assert_error(client.patch(f"{SEC}/test-creds", json=body, headers=admin_headers), 400)
+
+
+def test_secret_patch_with_a_key_kubernetes_refuses_is_422(client, admin_headers, k8s_client, global_secret):
+    assert_error(client.patch(f"{SEC}/test-creds", json={"values": {"bad key": "v"}}, headers=admin_headers), 422)
 
 
 @pytest.mark.parametrize("make", ["global_dataset", "global_trigger_repo", "global_results_repo"])
@@ -454,7 +466,7 @@ def test_methods_bodies_and_empty_lists(client, admin_headers, global_dataset):
     for url in (DS, SEC, TRIG, RES, PROV):
         for method in ("put", "delete", "patch"):
             assert_error(getattr(client, method)(url, json={}, headers=admin_headers), 405)
-        assert_error(client.post(url, content="[1, 2]", headers=admin_headers), 400)  # non-object JSON
+        assert_error(client.post(url, content="[1, 2]", headers=admin_headers), 422)  # non-object JSON
         malformed = client.post(url, content="{not json", headers=admin_headers)
         assert 400 <= malformed.status_code < 500 and "error" in malformed.json()
     assert_error(client.put(f"{DS}/{global_dataset.id}", json={}, headers=admin_headers), 405)

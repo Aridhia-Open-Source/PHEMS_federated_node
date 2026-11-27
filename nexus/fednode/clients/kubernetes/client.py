@@ -1,10 +1,39 @@
 """Kubernetes API access shared by the node's services."""
 import base64
+import json
 import os
+from contextlib import contextmanager
 from functools import lru_cache
 
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
+
+from fednode.http import ClientError
+
+
+class KubernetesError(ClientError):
+    """The Kubernetes API refused a request. `code` is the status it answered with, `extra_fields` its causes."""
+    code = 500
+    extra_fields = None
+
+    def __init__(self, body: str) -> None:
+        try:
+            body_json: dict = json.loads(body)
+            self.code = body_json.pop("code")
+            self.description = "An unexpected kubernetes error occurred. Check the details field"
+            self.extra_fields = body_json["details"]["causes"]
+        except json.decoder.JSONDecodeError:
+            self.description = body
+        super().__init__(self.description)
+
+
+@contextmanager
+def kubernetes_errors():
+    """An ApiException in the block is a KubernetesError."""
+    try:
+        yield
+    except ApiException as exc:
+        raise KubernetesError(exc.body) from exc
 
 
 @lru_cache(maxsize=2)
@@ -56,25 +85,27 @@ class KubernetesClient(client.CoreV1Api):
             metadata={"name": name, "labels": labels or {}},
             type=type,
         )
-        for namespace in namespaces:
-            try:
-                self.create_namespaced_secret(namespace, body=body, pretty="true")
-            except ApiException as exc:
-                if exc.status != 409:
-                    raise
-                if overwrite:
-                    replacement = {
-                        "metadata": body.metadata,
-                        "type": body.type,
-                        "data": {"$patch": "replace", **body.data},
-                    }
-                    self.patch_namespaced_secret(name, namespace, body=replacement, pretty="true")
+        with kubernetes_errors():
+            for namespace in namespaces:
+                try:
+                    self.create_namespaced_secret(namespace, body=body, pretty="true")
+                except ApiException as exc:
+                    if exc.status != 409:
+                        raise
+                    if overwrite:
+                        replacement = {
+                            "metadata": body.metadata,
+                            "type": body.type,
+                            "data": {"$patch": "replace", **body.data},
+                        }
+                        self.patch_namespaced_secret(name, namespace, body=replacement, pretty="true")
         return body
 
     def patch_secret_data(self, name: str, namespace: str, values: dict[str, str]) -> None:
         """Update only the named keys of an existing secret."""
         body = {"data": {key: self.encode_secret_value(value) for key, value in values.items()}}
-        self.patch_namespaced_secret(name, namespace, body=body)
+        with kubernetes_errors():
+            self.patch_namespaced_secret(name, namespace, body=body)
 
 
 class KubernetesAppsClient(client.AppsV1Api):

@@ -126,9 +126,9 @@ def test_any_other_cluster_error_is_not_hidden(client, system_headers, project, 
 
 
 @pytest.mark.parametrize("run_id", ["Run_1", "run id", "-run", "r" * 64])
-def test_a_run_id_that_cannot_be_a_name_or_a_label_value_is_a_400(
+def test_a_run_id_that_cannot_be_a_name_or_a_label_value_is_a_422(
         client, system_headers, project, dataset_task, k8s_client, run_id):
-    assert create(client, system_headers, project, dataset_task, run_id).status_code == 400
+    assert create(client, system_headers, project, dataset_task, run_id).status_code == 422
     k8s_client["create_namespaced_secret_mock"].assert_not_called()
 
 

@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 import pymssql
 import sqlalchemy as sa
+from fednode.clients.kubernetes.client import KubernetesClient
 from kubernetes.client import V1Secret
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
@@ -14,12 +15,11 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.pool import NullPool
 
 from app.database.base_model import BaseModel, db
-from app.helpers.const import PUBLIC_URL
+from app.helpers.const import IN_CLUSTER, PUBLIC_URL
 from app.database.uri import build_sql_uri
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.clients.keycloak import Keycloak
 from app.database.soft_delete import SoftDeleteMixin
-from app.clients.kubernetes import KubernetesClient
 from app.models import sqla_column
 from app.models.git_provider import ConnectionCheck, ConnectionStatus
 from app.models.user import OwnedMixin
@@ -301,5 +301,5 @@ class Dataset(SoftDeleteMixin, OwnedMixin, db.Model, BaseModel):
         return dataset
 
     def _get_secret(self, name) -> V1Secret:
-        v1 = KubernetesClient()
+        v1 = KubernetesClient(in_cluster=IN_CLUSTER)
         return typing.cast(V1Secret, v1.read_namespaced_secret(name, self.secret.namespace))

@@ -59,7 +59,7 @@ The pattern for each kind of resource is the same: `GET` lists or reads, `POST` 
 - **Health checks.** A failing check is reported in the response body with a status of 200, never a 500, and never contains a secret value.
 - **Secrets are write-only.** No call returns a secret's values or even its key names.
 - **Unknown fields.** Some create bodies (a dataset, for example) ignore fields they do not know, so read a record back after creating it.
-- **Bad input.** An invalid request body is a `400`. A move a record's state does not allow is a `409`.
+- **Bad input.** A body or parameter that does not fit the endpoint, or a name Kubernetes would refuse, is a `422`. A body that is not JSON, or a rule of the record that a request breaks, is a `400`. A move a record's state does not allow is a `409`.
 
 
 ## Users

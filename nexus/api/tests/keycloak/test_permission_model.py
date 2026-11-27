@@ -2,7 +2,7 @@ import pytest
 import responses
 from responses import matchers
 from datetime import datetime as dt, timedelta as td
-from app.helpers.exceptions import KeycloakError
+from fednode.clients.keycloak import KeycloakError
 from app.clients.keycloak import Keycloak
 from tests.helpers.keycloak import URLS
 from tests.keycloak.test_keycloak_helper import TestKeycloakMixin

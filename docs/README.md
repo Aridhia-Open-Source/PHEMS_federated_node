@@ -23,7 +23,7 @@ Each is in [project/decisions](../project/decisions/README.md). Add a row here w
 | [0013](../project/decisions/0013-results-delivered-as-branch-and-pull-request.md) | Results delivered as a pushed branch plus a pull request | Layout under `target_dir`, size cap, resume after a partial push. |
 | [0014](../project/decisions/0014-dagster-pipeline-ops-sensors-and-retries.md) | Dagster pipeline: ingest op, twelve sensors | Batches of 100, one interval, STOPPED by default, any start order, 409 as skip. |
 | [0015](../project/decisions/0015-run-keys-retries-and-results-pr-sync.md) | Run keys, retries and the results pull request sync | Run keys and retries; delivery retry; the sync reconciler's limits. |
-| [0016](../project/decisions/0016-pydantic-dto-layer.md) | Pydantic DTO layer for API responses | Responses go through DTOs; validation gives a 400. |
+| [0016](../project/decisions/0016-pydantic-dto-layer.md) | Pydantic DTO layer for API responses | Responses go through DTOs; request validation gives a 422. |
 | [0017](../project/decisions/0017-authorization-detached-from-dar-and-keycloak.md) | Authorization detached from DAR, Keycloak and whitelisted images | What is disconnected is listed and nothing else calls it. |
 | [0018](../project/decisions/0018-fncli-dev-ops-tool.md) | fncli as a dev and ops tool | Scope stays small; models are imported, not copied. |
 | [0019](../project/decisions/0019-gitea-port-4000-and-localhost-forward.md) | Gitea on port 4000, localhost forward | In-cluster versus host URL translation. |
