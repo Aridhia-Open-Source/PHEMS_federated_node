@@ -1,0 +1,46 @@
+# MegaLinter config (ADR 0044). Linter keys are <DESCRIPTOR>_<LINTER>, from MegaLinter v10.2.0.
+# Run locally: docker run --rm -v "$PWD:/tmp/lint" ghcr.io/oxsecurity/megalinter-python@sha256:<digest as in the workflow>
+
+# Every file, not only the pull request diff: Bandit, actionlint and zizmor would otherwise skip the rest
+VALIDATE_ALL_CODEBASE: true
+APPLY_FIXES: none
+
+# Only the candidates below run. Stage 1 is report-only: no linter fails the job.
+# Stage 2 (ADR 0044) flips one linter at a time with <LINTER>_DISABLE_ERRORS: false.
+DISABLE_ERRORS: true
+ENABLE_LINTERS:
+  - REPOSITORY_TRIVY        # images' dependencies (requirements, npm lock), config, secrets
+  - REPOSITORY_GRYPE        # comparison for Trivy's dependency scan
+  - REPOSITORY_BETTERLEAKS  # secrets, reads .gitleaks.toml (MegaLinter v10 dropped Gitleaks for it)
+  - REPOSITORY_TRUFFLEHOG   # secrets, comparison
+  - REPOSITORY_CHECKOV      # Helm, Kubernetes, Dockerfile, Terraform-style config
+  - REPOSITORY_SEMGREP      # our Python, Pulumi Python
+  - REPOSITORY_OSV_SCANNER  # dependencies, OSV database
+  - PYTHON_BANDIT           # our Python, comparison for Semgrep
+  - ACTION_ACTIONLINT       # workflow syntax and expressions
+  - ACTION_ZIZMOR           # workflow security
+# Not in MegaLinter v10.2.0: Gitleaks (replaced by Betterleaks), KICS, pip-audit, npm audit.
+# KICS and a Gitleaks history scan get their own jobs in the next PR.
+
+# Scope: generated files and vendored trees
+EXCLUDED_DIRECTORIES:
+  - node_modules
+  - charts
+  - .venv
+  - megalinter-reports
+FILTER_REGEX_EXCLUDE: '(node_modules/|(^|/)charts/|\.venv/|nexus/ui/src/api/schema\.d\.ts|nexus/api/openapi\.json)'
+
+# Tool settings
+REPOSITORY_TRUFFLEHOG_ARGUMENTS: ["--no-verification"]  # never send a found key out to check it
+REPOSITORY_SEMGREP_ARGUMENTS: ["--metrics=off"]
+ACTION_ZIZMOR_UNSECURED_ENV_VARIABLES:
+  - GITHUB_TOKEN
+
+# Reports: SARIF for code scanning, JSON for the comparison job (per-linter time and counts)
+SARIF_REPORTER: true
+JSON_REPORTER: true
+TEXT_REPORTER: true
+REPORT_OUTPUT_FOLDER: megalinter-reports
+# The workflow has no pull-request write permission; the Security tab carries the findings
+GITHUB_COMMENT_REPORTER: false
+GITHUB_STATUS_REPORTER: false
