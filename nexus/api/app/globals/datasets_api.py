@@ -12,7 +12,7 @@ admin-only. Deleting a dataset is a soft delete, refused with a 409 naming the p
 """
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Depends
 from fastapi_pagination import Page
 
 from app.dtos.base import page_of
@@ -40,24 +40,6 @@ def get_datasets():
     return page_of(Dataset.query, DatasetDTO)
 
 
-def _reject_project(body: dict):
-    """A dataset belongs to no project, so naming one is a mistake, not something to ignore."""
-    if "project_id" in body:
-        raise InvalidRequest(
-            "project_id is not accepted, datasets are global. Assign one with "
-            "PUT /projects/<id>/datasets/<dataset id>"
-        )
-
-
-def _reject_credentials(body: dict):
-    """Credentials live in a k8s secret, so sending them here is a mistake, not something to ignore."""
-    if "username" in body or "password" in body:
-        raise InvalidRequest(
-            "username and password are not accepted. Create a secret with POST /global/secrets "
-            "(values USERNAME and PASSWORD) and pass its label as secret_label"
-        )
-
-
 def _reject_taken_name(name: str, own_id: int | None = None):
     """Dataset names are unique. The name is already lowercased, as it is stored."""
     taken = Dataset.query.filter(Dataset.name == name)
@@ -68,15 +50,12 @@ def _reject_taken_name(name: str, own_id: int | None = None):
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=DatasetDTO)
-def post_datasets(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def post_datasets(req: DatasetRequest, caller: Caller = Depends(get_caller)):
     """
     POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name
     already taken (case-insensitive) is a 409. A disabled secret_label is a 400
     """
     try:
-        _reject_credentials(body)
-        _reject_project(body)
-        req = DatasetRequest.parse(body)
         _reject_taken_name(req.name)
         secret = Secret.get_enabled_by_label(req.secret_label)
         fields = req.model_dump(exclude={"secret_label"})
@@ -115,7 +94,7 @@ def delete_dataset(dataset_id: int, force: bool = False, caller: Caller = Depend
 
 
 @router.patch('/{dataset_id}', response_model=DatasetDTO)
-def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def patch_dataset(dataset_id: int, req: DatasetPatchRequest, caller: Caller = Depends(get_caller)):
     """
     PATCH /global/datasets/id endpoint. Edits an existing dataset with a given id. The tasks created before
     are pinned to the old setup and fail instead of running against the new one. Admin only. Returns 200. A disabled secret_label is a 400, unless it is the
@@ -124,9 +103,6 @@ def patch_dataset(dataset_id: int, body: dict = Body(default_factory=dict), call
     """
     ds = get_for_write(session, Dataset, dataset_id, caller)
 
-    _reject_project(body)
-    _reject_credentials(body)
-    req = DatasetPatchRequest.parse(body)
     if not req.model_fields_set:
         raise InvalidRequest("No field to update")
     if req.revoked is not None and not caller.is_admin:

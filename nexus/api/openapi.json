@@ -140,12 +140,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Body"
+                "$ref": "#/components/schemas/PasswordResetRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "204": {
@@ -1408,12 +1407,11 @@
         "description": "POST /global/datasets/ endpoint. Creates a new global dataset. Admin only. A name\nalready taken (case-insensitive) is a 409. A disabled secret_label is a 400",
         "operationId": "post_datasets_global_datasets_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/DatasetRequest"
               }
             }
           }
@@ -1547,12 +1545,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/DatasetPatchRequest"
               }
             }
           }
@@ -2746,12 +2743,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Data"
+                "$ref": "#/components/schemas/UserRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
@@ -2832,12 +2828,11 @@
         "description": "POST /global/repositories/triggers/ \u2014 create a new repository, assigned to no project yet.",
         "operationId": "post_repository_global_repositories_triggers_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/TriggerRepositoryRequest"
               }
             }
           }
@@ -2971,12 +2966,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/RepositoryPatchRequest"
               }
             }
           }
@@ -3079,7 +3073,7 @@
           "trigger_repositories"
         ],
         "summary": "Post Pull Requests Batch",
-        "description": "POST /global/repositories/triggers/<id>/pull_requests \u2014 store up to 100 pull requests of the\nrepository and create their triggers for every active assignment. Idempotent: a number\nalready stored is left as it is. Refused for a disabled or revoked repository (or one on such a provider), which stores nothing.\nResponds with the numbers stored and those already there.\nBody: {\"pull_requests\": [pull requests, see PullRequestRequest]}",
+        "description": "POST /global/repositories/triggers/<id>/pull_requests \u2014 store up to 100 pull requests of the\nrepository and create their triggers for every active assignment. Idempotent: a number\nalready stored is left as it is. Refused for a disabled or revoked repository (or one on such a provider), which stores nothing.\nResponds with the numbers stored and those already there.\nBody: {\"pull_requests\": [pull requests, see PullRequestRequest]}, an invalid one refuses the whole batch.\nThe Dagster ingest sensor must chunk its posts.",
         "operationId": "post_pull_requests_batch_global_repositories_triggers__repo_id__pull_requests_post",
         "parameters": [
           {
@@ -3093,12 +3087,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/PullRequestBatchRequest"
               }
             }
           }
@@ -3686,12 +3679,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/PullRequestTriggerPatchRequest"
               }
             }
           }
@@ -3758,12 +3750,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/PullRequestTaskRequest"
               }
             }
           }
@@ -3880,12 +3871,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Body"
+                "$ref": "#/components/schemas/SecretRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
@@ -3972,12 +3962,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/SecretPatchRequest"
               }
             }
           }
@@ -4665,12 +4654,11 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": true,
-                "type": "object",
-                "title": "Body"
+                "$ref": "#/components/schemas/SensorsStatusRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -4761,12 +4749,11 @@
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "additionalProperties": true,
-                "title": "Body"
+                "$ref": "#/components/schemas/SensorStatusRequest"
               }
             }
           }
@@ -4984,6 +4971,30 @@
         "type": "object",
         "title": "Body_login_login_post"
       },
+      "ChangedFileRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path",
+          "status"
+        ],
+        "title": "ChangedFileRequest",
+        "description": "A file a pull request changed: its path and how it changed, never its content."
+      },
       "DatasetDTO": {
         "properties": {
           "id": {
@@ -5157,6 +5168,227 @@
         ],
         "title": "DatasetHealthDTO",
         "description": "A global dataset, and whether the node can connect to its database with its secret."
+      },
+      "DatasetPatchRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "host": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 65535.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          },
+          "read_schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Schema"
+          },
+          "write_schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Write Schema"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "extra_connection_args": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Connection Args"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "revoked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked"
+          },
+          "secret_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DatasetPatchRequest",
+        "description": "The fields a dataset PATCH may change, all optional. Anything else is refused."
+      },
+      "DatasetRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Host"
+          },
+          "port": {
+            "type": "integer",
+            "maximum": 65535.0,
+            "minimum": 1.0,
+            "title": "Port"
+          },
+          "read_schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Schema"
+          },
+          "write_schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Write Schema"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "postgres"
+          },
+          "extra_connection_args": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Connection Args"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "revoked": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked"
+          },
+          "secret_label": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Secret Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "host",
+          "port",
+          "secret_label"
+        ],
+        "title": "DatasetRequest",
+        "description": "A dataset to create: name, host, port and secret_label are required."
       },
       "GitProviderDTO": {
         "properties": {
@@ -5836,6 +6068,34 @@
           "pages"
         ],
         "title": "Page[TaskDTO]"
+      },
+      "PasswordResetRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Email"
+          },
+          "tempPassword": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Temppassword"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Newpassword"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "tempPassword",
+          "newPassword"
+        ],
+        "title": "PasswordResetRequest",
+        "description": "A new user swapping the temporary password they were given for their own."
       },
       "ProjectCreatedDTO": {
         "properties": {
@@ -6635,6 +6895,25 @@
         "title": "PullRequestBatchDTO",
         "description": "The response of storing a batch of pull requests: the numbers stored, and those already there."
       },
+      "PullRequestBatchRequest": {
+        "properties": {
+          "pull_requests": {
+            "items": {
+              "$ref": "#/components/schemas/PullRequestRequest"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Pull Requests"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pull_requests"
+        ],
+        "title": "PullRequestBatchRequest",
+        "description": "Up to 100 pull requests to store for a repository. One invalid one refuses the whole batch."
+      },
       "PullRequestDTO": {
         "properties": {
           "id": {
@@ -6689,6 +6968,67 @@
         ],
         "title": "PullRequestDTO",
         "description": "The provider's facts of a pull request, stored once per repository."
+      },
+      "PullRequestRequest": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Number"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Title"
+          },
+          "raised_by": {
+            "type": "string",
+            "maxLength": 256,
+            "title": "Raised By"
+          },
+          "merged_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Merged At"
+          },
+          "merge_commit_sha": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Merge Commit Sha"
+          },
+          "base_branch": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Base Branch"
+          },
+          "files_truncated": {
+            "type": "boolean",
+            "title": "Files Truncated"
+          },
+          "changed_files": {
+            "items": {
+              "$ref": "#/components/schemas/ChangedFileRequest"
+            },
+            "type": "array",
+            "title": "Changed Files"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "number",
+          "title",
+          "raised_by",
+          "merged_at",
+          "merge_commit_sha",
+          "base_branch",
+          "files_truncated",
+          "changed_files"
+        ],
+        "title": "PullRequestRequest",
+        "description": "A merged pull request as ingested: the provider's facts and the paths it changed."
       },
       "PullRequestResultDTO": {
         "properties": {
@@ -6833,6 +7173,21 @@
         ],
         "title": "PullRequestResultDTO"
       },
+      "PullRequestTaskRequest": {
+        "properties": {
+          "spec_raw": {
+            "type": "string",
+            "title": "Spec Raw"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "spec_raw"
+        ],
+        "title": "PullRequestTaskRequest",
+        "description": "The spec file of a pull request, as read, for the backend to validate and make the task from."
+      },
       "PullRequestTriggerDTO": {
         "properties": {
           "project_id": {
@@ -6920,6 +7275,35 @@
           "spec_files"
         ],
         "title": "PullRequestTriggerDTO"
+      },
+      "PullRequestTriggerPatchRequest": {
+        "properties": {
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TriggerState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state_cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Cause"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PullRequestTriggerPatchRequest",
+        "description": "The fields of a pull request's trigger that can be updated: its state, and the cause of a REJECTED."
       },
       "RepositoryConnectionDTO": {
         "properties": {
@@ -7325,6 +7709,41 @@
         "title": "SecretHealthDTO",
         "description": "A global secret, and whether it is in its store with the keys its datasets and\nrepositories need. Key names only, never values."
       },
+      "SecretPatchRequest": {
+        "properties": {
+          "values": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "type": "object",
+                "minProperties": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SecretPatchRequest",
+        "description": "The fields of a secret that can be updated, all optional but never null."
+      },
       "SecretProviderType": {
         "type": "string",
         "enum": [
@@ -7332,6 +7751,52 @@
         ],
         "title": "SecretProviderType",
         "description": "Which secret store holds the value of a secret."
+      },
+      "SecretRequest": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Label"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/SecretProviderType"
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            },
+            "type": "object",
+            "minProperties": 1,
+            "title": "Values"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "provider",
+          "values"
+        ],
+        "title": "SecretRequest",
+        "description": "A secret in a create request: the values go to the secret store, never to the database."
       },
       "SensorDTO": {
         "properties": {
@@ -7371,6 +7836,58 @@
           "error"
         ],
         "title": "SensorDTO"
+      },
+      "SensorStatusRequest": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "STOPPED"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "SensorStatusRequest",
+        "description": "The status to set on a sensor."
+      },
+      "SensorsStatusRequest": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "RUNNING",
+              "STOPPED"
+            ],
+            "title": "Status"
+          },
+          "names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Names"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "SensorsStatusRequest",
+        "description": "The status to set on every sensor, or only on those in names."
       },
       "TaskConfigDTO": {
         "properties": {
@@ -7965,6 +8482,49 @@
         "title": "TriggerRepositoryRefDTO",
         "description": "A trigger repository named by where it is, without its secret or cursor."
       },
+      "TriggerRepositoryRequest": {
+        "properties": {
+          "provider_id": {
+            "type": "integer",
+            "title": "Provider Id"
+          },
+          "repo_path": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Repo Path"
+          },
+          "secret_label": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Secret Label"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider_id",
+          "repo_path",
+          "secret_label"
+        ],
+        "title": "TriggerRepositoryRequest",
+        "description": "A trigger repository in a create request."
+      },
+      "TriggerState": {
+        "type": "string",
+        "enum": [
+          "UNKNOWN",
+          "REJECTED",
+          "YIELDED"
+        ],
+        "title": "TriggerState",
+        "description": "The verdict on a trigger, the request to run a task (a pull request or an API request).\nA trigger is recorded first, then evaluated, and a Task is only created when evaluation\nsucceeds.\n\n- UNKNOWN: recorded, not evaluated yet.\n- REJECTED: for us, but invalid, e.g. a bad spec. Needs a state_cause. Final. A pull request\n  that is not for a project gets no trigger at all.\n- YIELDED: valid, and a Task was created from it."
+      },
       "UserDTO": {
         "properties": {
           "username": {
@@ -8025,6 +8585,68 @@
         ],
         "title": "UserRefDTO",
         "description": "A nexus-api user as a record names it, as its owner (ADR 0036)."
+      },
+      "UserRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Email"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "firstName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstname"
+          },
+          "lastName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastname"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "UserRequest",
+        "description": "A Keycloak user to create. The username is the email unless given, the role is Users."
       },
       "ValidationError": {
         "properties": {

@@ -1,11 +1,10 @@
 import urllib.parse
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, model_validator
 
 from app.dtos.base import DTO, WireDatetime
 from app.helpers.const import PUBLIC_URL
-from app.helpers.exceptions import InvalidRequest
 from app.dtos.secret import SecretDTO
 from app.dtos.user import UserRefDTO
 from app.models.dataset import SUPPORTED_ENGINES, Dataset
@@ -121,13 +120,22 @@ class DatasetPatchRequest(BaseModel):
             raise ValueError(f"{info.field_name} must not be null")
         return value
 
+    @model_validator(mode="before")
     @classmethod
-    def parse(cls, body):
-        """Validates a request body, mapping a pydantic error to a 400."""
-        try:
-            return cls.model_validate(body)
-        except ValidationError as ve:
-            raise InvalidRequest(f"Invalid dataset: {ve}") from ve
+    def not_another_resource_field(cls, data):
+        """Credentials live in a k8s secret and a dataset belongs to no project, so naming either is a mistake."""
+        if isinstance(data, dict):
+            if "username" in data or "password" in data:
+                raise ValueError(
+                    "username and password are not accepted. Create a secret with POST /global/secrets "
+                    "(values USERNAME and PASSWORD) and pass its label as secret_label"
+                )
+            if "project_id" in data:
+                raise ValueError(
+                    "project_id is not accepted, datasets are global. Assign one with "
+                    "PUT /projects/<id>/datasets/<dataset id>"
+                )
+        return data
 
 
 class DatasetRequest(DatasetPatchRequest):

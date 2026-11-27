@@ -116,7 +116,7 @@ function DatasetCreate() {
   ];
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      call(api.POST("/global/datasets", { body })),
+      call(api.POST("/global/datasets", { body: body as Schemas["DatasetRequest"] })),
     onSuccess: (d) => {
       qc.invalidateQueries({ queryKey: KEY });
       nav(`../${d.id}`);

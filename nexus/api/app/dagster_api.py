@@ -7,16 +7,14 @@ dagster endpoints:
 """
 from functools import lru_cache
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter
 from fednode.clients.dagster.client import DagsterClient
 
-from app.dtos.sensor import SensorDTO
+from app.dtos.sensor import SensorDTO, SensorsStatusRequest, SensorStatusRequest
 from app.helpers.const import DAGSTER_WEBSERVER_URI
-from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
+from app.helpers.exceptions import DBRecordNotFoundError
 
 router = APIRouter(prefix='/dagster', tags=["dagster"])
-
-STATUSES = ("RUNNING", "STOPPED")
 
 
 @lru_cache
@@ -33,13 +31,6 @@ def get_sensor(name: str) -> dict:
     if sensor is None:
         raise DBRecordNotFoundError(f"Sensor {name} not found")
     return sensor
-
-
-def requested_status(body: dict) -> str:
-    status = body.get("status")
-    if status not in STATUSES:
-        raise InvalidRequest(f"status must be one of {', '.join(STATUSES)}")
-    return status
 
 
 def apply_status(sensors: list[dict], status: str):
@@ -65,30 +56,24 @@ def get_one_sensor(name: str):
 
 
 @router.patch('/sensors', response_model=list[SensorDTO])
-def patch_sensors(body: dict = Body(default_factory=dict)):
+def patch_sensors(req: SensorsStatusRequest):
     """
     PATCH /dagster/sensors — start or stop every sensor, or only those in `names`.
         Unknown names change nothing. Returns every sensor after the change.
     """
-    status = requested_status(body)
-    names = body.get("names")
-    if names is not None and not (isinstance(names, list) and all(isinstance(n, str) for n in names)):
-        raise InvalidRequest("names must be a list of sensor names")
-
     sensors = dagster().list_sensors()
-    if names is not None:
-        unknown = set(names) - {s["name"] for s in sensors}
+    if req.names is not None:
+        unknown = set(req.names) - {s["name"] for s in sensors}
         if unknown:
             raise DBRecordNotFoundError(f"Sensors not found: {', '.join(sorted(unknown))}")
-    apply_status([s for s in sensors if names is None or s["name"] in names], status)
+    apply_status([s for s in sensors if req.names is None or s["name"] in req.names], req.status)
     return dto_of(dagster().list_sensors())
 
 
 @router.patch('/sensors/{name}', response_model=SensorDTO)
-def patch_sensor(name: str, body: dict = Body(default_factory=dict)):
+def patch_sensor(name: str, req: SensorStatusRequest):
     """
     PATCH /dagster/sensors/<name> — start or stop a single sensor
     """
-    status = requested_status(body)
-    apply_status([get_sensor(name)], status)
+    apply_status([get_sensor(name)], req.status)
     return dto_of([get_sensor(name)])[0]

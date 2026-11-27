@@ -6,9 +6,9 @@ user-related endpoints:
 """
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter
 
-from app.dtos.user import NewUserDTO, UserDTO
+from app.dtos.user import NewUserDTO, UserDTO, UserRequest
 from app.helpers.const import PUBLIC_URL
 from app.helpers.exceptions import InvalidRequest
 from app.clients.keycloak import KEYCLOAK_ADMIN, KEYCLOAK_SERVICE_USER, Keycloak
@@ -17,25 +17,19 @@ router = APIRouter(prefix='/global/users', tags=["users"])
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=NewUserDTO)
-def create_user(data: dict = Body(default_factory=dict)):
+def create_user(req: UserRequest):
     """
     POST /global/users endpoint. Creates a KC user, and sets a temp
         password for them.
     """
-    if data.get("email") is None:
-        raise InvalidRequest("An email should be provided")
-
-    # If a username is not provided, use the email
-    if data.get("username") is None:
-        data["username"] = data["email"]
-
     kc = Keycloak()
-    if kc.get_user_by_email(email=data["email"]):
+    if kc.get_user_by_email(email=req.email):
         raise InvalidRequest("User already exists")
-    user_info = kc.create_user(set_temp_pass=True, **data)
+    # If a username is not provided, use the email
+    user_info = kc.create_user(set_temp_pass=True, **{"username": req.email, **req.model_dump(exclude_none=True)})
 
     return {
-        "email": data["email"],
+        "email": req.email,
         "username": user_info["username"],
         "tempPassword": user_info["password"],
         "info": "The user should change the temp password at " \

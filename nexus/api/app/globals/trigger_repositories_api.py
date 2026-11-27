@@ -19,9 +19,9 @@ from fastapi_pagination import Page
 
 from app.dtos.base import page_of
 from app.dtos.git_token import GitTokenDTO, GitTokenRequest
-from app.dtos.repository_uri import RepositoryPatchRequest, RepositoryRequest
+from app.dtos.repository_uri import RepositoryPatchRequest
 from app.dtos.trigger_repository import (
-    PullRequestBatchDTO, PullRequestDTO, PullRequestRequest, TriggerRepositoryDTO
+    PullRequestBatchDTO, PullRequestBatchRequest, PullRequestDTO, TriggerRepositoryDTO, TriggerRepositoryRequest
 )
 from app.database.base_model import db
 from app.helpers.exceptions import InvalidRequest, UnauthorizedError
@@ -87,26 +87,19 @@ def get_pull_requests(repo_id: int):
     '/{repo_id}/pull_requests', status_code=HTTPStatus.CREATED, response_model=PullRequestBatchDTO,
     dependencies=[Depends(system_only)]
 )
-def post_pull_requests_batch(repo_id: int, body: dict = Body(default_factory=dict)):
+def post_pull_requests_batch(repo_id: int, req: PullRequestBatchRequest):
     """
     POST /global/repositories/triggers/<id>/pull_requests — store up to 100 pull requests of the
     repository and create their triggers for every active assignment. Idempotent: a number
     already stored is left as it is. Refused for a disabled or revoked repository (or one on such a provider), which stores nothing.
     Responds with the numbers stored and those already there.
-    Body: {"pull_requests": [pull requests, see PullRequestRequest]}
+    Body: {"pull_requests": [pull requests, see PullRequestRequest]}, an invalid one refuses the whole batch.
+    The Dagster ingest sensor must chunk its posts.
     """
     repo = TriggerRepository.get_by_id(repo_id)
     if not repo.active:
         raise InvalidRequest(f"Trigger repository {repo.uri} is disabled or revoked")
-    pull_requests = body.get('pull_requests')
-    if not isinstance(pull_requests, list):
-        raise InvalidRequest("pull_requests must be a list of pull requests")
-    # The cap is fine; the Dagster ingest sensor must chunk its posts.
-    # One invalid PR (PullRequestRequest.parse) also refuses the whole batch.
-    if len(pull_requests) > 100:
-        raise InvalidRequest("Maximum 100 pull requests per batch")
-
-    created, existing = repo.ingest([PullRequestRequest.parse(pr) for pr in pull_requests])
+    created, existing = repo.ingest(req.pull_requests)
     session.commit()
     return {
         'created': [pr.number for pr in created],
@@ -144,17 +137,10 @@ def delete_repository(repo_id: int, force: bool = False, caller: Caller = Depend
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=TriggerRepositoryDTO)
-def post_repository(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def post_repository(req: TriggerRepositoryRequest, caller: Caller = Depends(get_caller)):
     """
     POST /global/repositories/triggers/ — create a new repository, assigned to no project yet.
     """
-    if "project_id" in body or "watch_dir" in body or "base_branch" in body:
-        raise InvalidRequest(
-            "project_id, watch_dir and base_branch are not accepted, trigger "
-            "repositories are global. Assign one with PUT /projects/<id>/repositories/triggers/<repository id>"
-        )
-    req = RepositoryRequest.parse(body)
-
     provider = GitProvider.get_by_request_id(req.provider_id)
     secret = Secret.get_enabled_by_label(req.secret_label)
 
@@ -178,7 +164,7 @@ def post_repository(body: dict = Body(default_factory=dict), caller: Caller = De
 
 
 @router.patch('/{repo_id}', response_model=TriggerRepositoryDTO)
-def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def patch_repository(repo_id: int, req: RepositoryPatchRequest, caller: Caller = Depends(get_caller)):
     """
     PATCH /global/repositories/triggers/<id> — update repository. The tasks created
     before are pinned to the old setup and fail instead of running against the new one. A disabled secret cannot be
@@ -188,35 +174,32 @@ def patch_repository(repo_id: int, body: dict = Body(default_factory=dict), call
     """
     repo = get_for_write(session, TriggerRepository, repo_id, caller)
 
-    if not body:
+    sent = req.model_fields_set
+    if not sent:
         raise InvalidRequest("No fields provided to update")
-    unknown = set(body) - {'provider_id', 'secret_label', 'enabled', 'revoked'}
-    if unknown:
-        raise InvalidRequest(f"Fields cannot be updated: {', '.join(sorted(unknown))}")
-    req = RepositoryPatchRequest.parse(body)
-    if 'revoked' in body and not caller.is_admin:
+    if 'revoked' in sent and not caller.is_admin:
         raise UnauthorizedError("Only an admin can revoke or re-grant a trigger repository")
 
     secret = repo.secret
-    if 'secret_label' in body:
+    if 'secret_label' in sent:
         secret = Secret.get_enabled_by_label(req.secret_label, repo.secret_id)
-    if 'enabled' in body and req.enabled:
+    if 'enabled' in sent and req.enabled:
         secret.require_usable()
     repo.secret_id = secret.id
 
-    if 'enabled' in body:
+    if 'enabled' in sent:
         # Switched back on: what was merged while it was off gets no trigger
         if req.enabled and not repo.enabled:
             ProjectTriggerRepository.skip_gap(repo.project_assignments)
         repo.enabled = req.enabled
 
-    if 'revoked' in body:
+    if 'revoked' in sent:
         # Restored: what was merged while it was revoked gets no trigger
         if repo.revoked and not req.revoked:
             ProjectTriggerRepository.skip_gap(repo.project_assignments)
         repo.revoked = req.revoked
 
-    if 'provider_id' in body:
+    if 'provider_id' in sent:
         provider = GitProvider.get_by_request_id(req.provider_id)
         if TriggerRepository.query.filter(
             TriggerRepository.provider_id == provider.id, TriggerRepository.repo_path == repo.repo_path, TriggerRepository.id != repo.id

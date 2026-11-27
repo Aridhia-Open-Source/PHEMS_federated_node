@@ -14,7 +14,7 @@ the pull request routes (evaluation state). With ?active=true the list has only 
 """
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body, Depends, Response
+from fastapi import APIRouter, Depends, Response
 from fastapi_pagination import Page
 from sqlalchemy.exc import IntegrityError
 
@@ -23,7 +23,7 @@ from app.dtos.task import NewTaskDTO, TaskDTO
 from app.dtos.task_spec import TaskSpecRequest
 from app.dtos.trigger_repository import (
     ProjectTriggerRepositoryDTO, ProjectTriggerRepositoryPatchRequest, ProjectTriggerRepositoryRequest,
-    PullRequestTriggerDTO,
+    PullRequestTaskRequest, PullRequestTriggerDTO, PullRequestTriggerPatchRequest,
 )
 from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest, UnauthorizedError
@@ -255,15 +255,15 @@ def get_pull_request(project_id: int, repo_id: int, number: int):
 @router.patch(
     '/{repo_id}/pull_requests/{number}', response_model=PullRequestTriggerDTO, dependencies=[Depends(system_only)]
 )
-def patch_pull_request(project_id: int, repo_id: int, number: int, body: dict = Body(default_factory=dict)):
+def patch_pull_request(project_id: int, repo_id: int, number: int, req: PullRequestTriggerPatchRequest):
     """
     PATCH /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number> —
     update PR state and state_cause
     """
     pr = _pull_request(project_id, repo_id, number)
 
-    if 'state' in body or 'state_cause' in body:
-        pr.set_state(body.get('state', pr.state), body.get('state_cause'))
+    if req.model_fields_set:
+        pr.set_state(req.state.value if req.state else pr.state, req.state_cause)
 
     session.commit()
     return PullRequestTriggerDTO.from_model(pr)
@@ -273,7 +273,7 @@ def patch_pull_request(project_id: int, repo_id: int, number: int, body: dict = 
     '/{repo_id}/pull_requests/{number}/task', response_model=TaskDTO, dependencies=[Depends(system_only)]
 )
 def post_task(
-    project_id: int, repo_id: int, number: int, response: Response, body: dict = Body(default_factory=dict)
+    project_id: int, repo_id: int, number: int, response: Response, req: PullRequestTaskRequest
 ):
     """
     POST /projects/<project_id>/repositories/triggers/<repo_id>/pull_requests/<number>/task
@@ -294,14 +294,10 @@ def post_task(
     if not _assignment(project_id, repo_id).active:
         raise InvalidRequest(f"The project's trigger repository {repo_id} is not active", HTTPStatus.CONFLICT)
 
-    spec_raw = body.get('spec_raw')
-    if not isinstance(spec_raw, str):
-        raise InvalidRequest("spec_raw is required and must be a string")
-
     try:
-        pr.set_spec_raw(spec_raw)
+        pr.set_spec_raw(req.spec_raw)
         session.commit()
-        spec = TaskSpecRequest.from_pr_spec(spec_raw)
+        spec = TaskSpecRequest.from_pr_spec(req.spec_raw)
         # A bad dataset override fails now, before anything is written
         new_task = NewTaskDTO.from_spec(spec, pr)
     except InvalidRequest as error:

@@ -21,7 +21,7 @@ class KubernetesError(ClientError):
             body_json: dict = json.loads(body)
             self.code = body_json.pop("code")
             self.description = "An unexpected kubernetes error occurred. Check the details field"
-            self.extra_fields = body_json["details"]["causes"]
+            self.extra_fields = body_json.get("details", {}).get("causes", [])
         except json.decoder.JSONDecodeError:
             self.description = body
         super().__init__(self.description)

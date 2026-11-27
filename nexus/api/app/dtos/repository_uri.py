@@ -34,13 +34,6 @@ class RepositoryRequest(BaseModel):
     secret_label: str = Field(min_length=1)
     enabled: bool = True
 
-    @classmethod
-    def parse(cls, body) -> "RepositoryRequest":
-        try:
-            return cls.model_validate(body)
-        except ValidationError as ve:
-            raise InvalidRequest(f"Invalid repository: {ve}") from ve
-
 
 class RepositoryPatchRequest(BaseModel):
     """The fields of a trigger or results repository that can be updated, all optional but never null."""
@@ -57,10 +50,3 @@ class RepositoryPatchRequest(BaseModel):
         if nulls:
             raise ValueError(f"{', '.join(nulls)} cannot be null")
         return self
-
-    @classmethod
-    def parse(cls, body) -> "RepositoryPatchRequest":
-        try:
-            return cls.model_validate(body)
-        except ValidationError as ve:
-            raise InvalidRequest(f"Invalid repository update: {ve}") from ve
