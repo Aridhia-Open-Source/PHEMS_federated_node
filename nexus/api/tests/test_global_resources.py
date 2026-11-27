@@ -81,47 +81,59 @@ def test_same_repo_path_on_another_provider_is_a_different_repo(
     (RES, {"repo_path": "a/b/c"}),
     (RES, {"repo_path": "https://github.com/org/new"}),  # a uri, not a path
     (RES, {"repo_path": "   "}),
-    (TRIG, {"repo_path": 123}),
-    (TRIG, {"repo_path": "org/" + "a" * 5000}),  # absurdly long, still a clean error
-    (TRIG, {"provider_id": "1"}),
     (RES, {"provider_id": 999999}),  # no such provider
-    (TRIG, {"secret_label": ""}),
     (TRIG, {"secret_label": "nope"}),
-    (TRIG, {"uri": "github.com/org/new"}),  # the old fields are refused, not ignored
-    (TRIG, {"api_uri": "https://api.github.com"}),
-    (TRIG, {"username": "u"}),
 ])
 def test_repo_create_invalid(client, admin_headers, global_secret, git_provider, base, body):
     assert_error(client.post(base, json=repo_body(git_provider, **body), headers=admin_headers), 400)
 
 
+@pytest.mark.parametrize("base", [TRIG, RES])
 @pytest.mark.parametrize("body", [
     {"secret_label": 5}, {"enabled": "yes"}, {"provider": "github"}, {"bogus": "x"},  # the request model refuses them
+    {"repo_path": 123},
+    {"repo_path": "org/" + "a" * 5000},  # absurdly long, still a clean error
+    {"provider_id": "1"},
+    {"secret_label": ""},
+    {"uri": "github.com/org/new"},  # the old fields are refused, not ignored
+    {"api_uri": "https://api.github.com"},
+    {"username": "u"},
 ])
-def test_results_repo_create_malformed_is_422(client, admin_headers, global_secret, git_provider, body):
-    assert_error(client.post(RES, json=repo_body(git_provider, **body), headers=admin_headers), 422)
+def test_repo_create_malformed_is_422(client, admin_headers, global_secret, git_provider, base, body):
+    assert_error(client.post(base, json=repo_body(git_provider, **body), headers=admin_headers), 422)
 
 
-@pytest.mark.parametrize("base,status", [(TRIG, 400), (RES, 422)])  # a results repository has a request model
-def test_repo_create_missing_field_is_refused(client, admin_headers, global_secret, git_provider, base, status):
+@pytest.mark.parametrize("field", ["project_id", "watch_dir", "base_branch"])
+def test_trigger_repo_create_names_the_project_fields_it_does_not_take(client, admin_headers, global_secret, git_provider, field):
+    response = client.post(TRIG, json=repo_body(git_provider, **{field: "x"}), headers=admin_headers)
+    assert_error(response, 422)
+    assert "are global" in response.json()["error"]
+
+
+@pytest.mark.parametrize("base", [TRIG, RES])
+def test_repo_create_missing_field_is_422(client, admin_headers, global_secret, git_provider, base):
     for missing in ("provider_id", "repo_path", "secret_label"):
         body = repo_body(git_provider)
         del body[missing]
         response = client.post(base, json=body, headers=admin_headers)
-        assert_error(response, status)
+        assert_error(response, 422)
         assert missing in response.json()["error"]
 
 
 # ---------------------------------------------------------------- repositories: patch
 
-@pytest.mark.parametrize("body", [
-    {}, {"bogus": 1}, {"repo_path": "org/other"}, {"uri": "github.com/org/other"},  # empty, unknown and immutable fields
-    {"provider": "github"}, {"api_uri": "https://api.github.com"},
-    {"provider_id": "x"}, {"provider_id": None}, {"provider_id": 999999}, {"enabled": "false"},
-    {"secret_label": "nope"}, {"secret_label": ""},
-])
+@pytest.mark.parametrize("body", [{}, {"provider_id": 999999}, {"secret_label": "nope"}])  # nothing to update, not found
 def test_repo_patch_invalid(client, admin_headers, global_trigger_repo, body):
     assert_error(client.patch(f"{TRIG}/{global_trigger_repo.id}", json=body, headers=admin_headers), 400)
+
+
+@pytest.mark.parametrize("body", [
+    {"bogus": 1}, {"repo_path": "org/other"}, {"uri": "github.com/org/other"},  # unknown and immutable fields
+    {"provider": "github"}, {"api_uri": "https://api.github.com"},
+    {"provider_id": "x"}, {"provider_id": None}, {"enabled": "false"}, {"secret_label": ""},
+])
+def test_repo_patch_malformed_is_422(client, admin_headers, global_trigger_repo, body):
+    assert_error(client.patch(f"{TRIG}/{global_trigger_repo.id}", json=body, headers=admin_headers), 422)
 
 
 @pytest.mark.parametrize("base,make", REPO_KINDS)
@@ -183,23 +195,27 @@ def test_dataset_duplicate_name_is_409_case_insensitive(client, admin_headers, g
     assert_error(client.post(DS, json=ds_body(name="NEWDS"), headers=admin_headers), 409)
 
 
+def test_dataset_create_with_an_unknown_secret_label_is_400(client, admin_headers, global_secret):
+    assert_error(client.post(DS, json=ds_body(secret_label="nope"), headers=admin_headers), 400)
+
+
 @pytest.mark.parametrize("body", [
     {"name": ""}, {"name": 5}, {"name": "a" * 300},  # empty, wrong type, too long
     {"host": 5}, {"port": "5432"}, {"port": True}, {"port": 70000},
     {"type": "nosql"}, {"enabled": "true"},
-    {"secret_label": "nope"}, {"secret_label": ""},
+    {"secret_label": ""},
     {"username": "u"}, {"project_id": 1},  # credentials and project are refused
 ])
-def test_dataset_create_invalid(client, admin_headers, global_secret, body):
-    assert_error(client.post(DS, json=ds_body(**body), headers=admin_headers), 400)
+def test_dataset_create_malformed_is_422(client, admin_headers, global_secret, body):
+    assert_error(client.post(DS, json=ds_body(**body), headers=admin_headers), 422)
 
 
-def test_dataset_create_missing_required_field_is_400(client, admin_headers, global_secret):
+def test_dataset_create_missing_required_field_is_422(client, admin_headers, global_secret):
     for missing in ("name", "host", "port", "secret_label"):  # secret_label is required: no inline credentials
         body = ds_body()
         del body[missing]
-        assert_error(client.post(DS, json=body, headers=admin_headers), 400)
-    assert_error(client.post(DS, json={}, headers=admin_headers), 400)
+        assert_error(client.post(DS, json=body, headers=admin_headers), 422)
+    assert_error(client.post(DS, json={}, headers=admin_headers), 422)
 
 
 def test_dataset_get_list_and_404(client, admin_headers, global_dataset):
@@ -232,11 +248,16 @@ def test_a_deleted_dataset_name_can_be_created_again(client, admin_headers, glob
     assert again.status_code == 201 and again.json()["id"] != created.json()["id"]
 
 
-@pytest.mark.parametrize("body", [
-    {}, {"bogus": 1}, {"project_id": 1}, {"port": None}, {"type": "nosql"}, {"enabled": "no"}, {"secret_label": "nope"},
-])
+@pytest.mark.parametrize("body", [{}, {"secret_label": "nope"}])  # nothing to update, not found
 def test_dataset_patch_invalid(client, admin_headers, global_dataset, body):
     assert_error(client.patch(f"{DS}/{global_dataset.id}", json=body, headers=admin_headers), 400)
+
+
+@pytest.mark.parametrize("body", [
+    {"bogus": 1}, {"project_id": 1}, {"username": "u"}, {"port": None}, {"type": "nosql"}, {"enabled": "no"},
+])
+def test_dataset_patch_malformed_is_422(client, admin_headers, global_dataset, body):
+    assert_error(client.patch(f"{DS}/{global_dataset.id}", json=body, headers=admin_headers), 422)
 
 
 def test_dataset_patch_name_secret_and_disabled_secret(
@@ -279,13 +300,20 @@ def test_secret_label_valid_forms(client, admin_headers, k8s_client, label):
 
 @pytest.mark.parametrize("body", [
     {"label": "Upper"}, {"label": "sl/ash"}, {"label": "éclair"}, {"label": "a" * 250},  # not slug safe / too long
-    {"label": ""}, {"label": 5},
-    {"provider": "k8s"}, {"provider": "NOPE"},
-    {"values": {}}, {"values": "x"}, {"values": {"TOKEN": ""}},
-    {"enabled": "yes"},
 ])
 def test_secret_create_invalid(client, admin_headers, k8s_client, body):
     assert_error(client.post(SEC, json=secret_body(**body), headers=admin_headers), 400)
+    assert not k8s_client["create_namespaced_secret_mock"].called
+
+
+@pytest.mark.parametrize("body", [
+    {"label": ""}, {"label": 5},
+    {"provider": "k8s"}, {"provider": "NOPE"},
+    {"values": {}}, {"values": "x"}, {"values": {"TOKEN": ""}}, {"values": {"TOKEN": 5}},
+    {"enabled": "yes"}, {"bogus": 1},
+])
+def test_secret_create_malformed_is_422(client, admin_headers, k8s_client, body):
+    assert_error(client.post(SEC, json=secret_body(**body), headers=admin_headers), 422)
     assert not k8s_client["create_namespaced_secret_mock"].called
 
 
@@ -294,11 +322,11 @@ def test_secret_create_with_a_key_kubernetes_refuses_is_422(client, admin_header
     assert not k8s_client["create_namespaced_secret_mock"].called
 
 
-def test_secret_create_missing_field_is_400(client, admin_headers, k8s_client):
+def test_secret_create_missing_field_is_422(client, admin_headers, k8s_client):
     for missing in ("label", "provider", "values"):
         body = secret_body()
         del body[missing]
-        assert_error(client.post(SEC, json=body, headers=admin_headers), 400)
+        assert_error(client.post(SEC, json=body, headers=admin_headers), 422)
 
 
 def test_secret_list_get_and_404(client, admin_headers, k8s_client, global_secret):
@@ -392,16 +420,52 @@ def test_a_non_admin_is_refused_on_the_write_routes_of_the_global_resources(
     assert kept.status_code == 200 and kept.json()["enabled"] is True
 
 
+def test_secret_patch_with_nothing_to_update_is_400(client, admin_headers, k8s_client, global_secret):
+    assert_error(client.patch(f"{SEC}/test-creds", json={}, headers=admin_headers), 400)
+
+
 @pytest.mark.parametrize("body", [
-    {}, {"bogus": 1}, {"label": "renamed", "values": {"TOKEN": "t"}},  # label is immutable, not ignored
-    {"enabled": "no"},
+    {"bogus": 1}, {"label": "renamed", "values": {"TOKEN": "t"}},  # label is immutable, not ignored
+    {"enabled": "no"}, {"enabled": None}, {"values": None}, {"values": {}},
 ])
-def test_secret_patch_invalid(client, admin_headers, k8s_client, global_secret, body):
-    assert_error(client.patch(f"{SEC}/test-creds", json=body, headers=admin_headers), 400)
+def test_secret_patch_malformed_is_422(client, admin_headers, k8s_client, global_secret, body):
+    assert_error(client.patch(f"{SEC}/test-creds", json=body, headers=admin_headers), 422)
 
 
 def test_secret_patch_with_a_key_kubernetes_refuses_is_422(client, admin_headers, k8s_client, global_secret):
     assert_error(client.patch(f"{SEC}/test-creds", json={"values": {"bad key": "v"}}, headers=admin_headers), 422)
+
+
+# ---------------------------------------------------------------- users
+
+USERS = "/global/users"
+
+
+@pytest.mark.parametrize("body", [
+    {}, {"email": ""}, {"email": None}, {"email": "a@b.c", "role": 5}, {"email": "a@b.c", "bogus": 1},
+])
+def test_user_create_malformed_is_422(client, admin_headers, body):
+    assert_error(client.post(USERS, json=body, headers=admin_headers), 422)
+
+
+def test_user_create_defaults_the_username_to_the_email(client, admin_headers, mocker):
+    kc = mocker.patch("app.globals.users_api.Keycloak").return_value
+    kc.get_user_by_email.return_value = None
+    kc.create_user.return_value = {"username": "a@b.c", "password": "temp"}
+
+    response = client.post(USERS, json={"email": "a@b.c", "role": "Users"}, headers=admin_headers)
+
+    assert response.status_code == 201, response.json()
+    assert response.json()["tempPassword"] == "temp"
+    kc.create_user.assert_called_once_with(set_temp_pass=True, username="a@b.c", email="a@b.c", role="Users")
+
+
+@pytest.mark.parametrize("body", [
+    {}, {"email": "a@b.c"}, {"email": "a@b.c", "tempPassword": "t"}, {"email": "a@b.c", "tempPassword": "t", "newPassword": 5},
+    {"email": "a@b.c", "tempPassword": "", "newPassword": "n"},
+])
+def test_reset_password_malformed_is_422(client, body):
+    assert_error(client.put(f"{USERS}/reset-password", json=body), 422)
 
 
 @pytest.mark.parametrize("make", ["global_dataset", "global_trigger_repo", "global_results_repo"])

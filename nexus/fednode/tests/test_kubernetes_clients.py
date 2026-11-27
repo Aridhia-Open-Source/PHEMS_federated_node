@@ -77,6 +77,12 @@ def test_a_kubernetes_error_carries_the_status_and_causes_of_a_json_body():
     assert error.description == "An unexpected kubernetes error occurred. Check the details field"
 
 
+def test_a_kubernetes_error_without_details_has_no_causes():
+    error = KubernetesError(json.dumps({"code": 404, "reason": "NotFound", "message": "secrets \"x\" not found"}))
+
+    assert (error.code, error.extra_fields) == (404, [])
+
+
 def test_a_kubernetes_error_with_a_plain_body_is_a_500_with_that_message():
     error = KubernetesError("Forbidden")
 

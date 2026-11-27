@@ -50,3 +50,19 @@ def test_a_client_error_is_a_gateway_error(client, admin_headers, dagster, error
 
     assert response.status_code == status
     assert response.json() == {"error": str(error)}
+
+
+@pytest.mark.parametrize("body", [{}, {"status": "PAUSED"}, {"status": None}, {"status": "RUNNING", "bogus": 1}])
+def test_a_sensor_status_that_is_not_running_or_stopped_is_a_422(client, admin_headers, dagster, body):
+    response = client.patch(f"/dagster/sensors/{SENSOR['name']}", headers=admin_headers, json=body)
+
+    assert response.status_code == 422
+    dagster.set_sensor_status.assert_not_called()
+
+
+@pytest.mark.parametrize("names", ["x", [1], {"a": 1}])
+def test_the_names_of_sensors_must_be_a_list_of_names(client, admin_headers, dagster, names):
+    response = client.patch("/dagster/sensors", headers=admin_headers, json={"status": "RUNNING", "names": names})
+
+    assert response.status_code == 422
+    dagster.set_sensor_status.assert_not_called()

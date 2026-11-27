@@ -90,7 +90,7 @@ function SecretCreate() {
   const nav = useNavigate();
   const create = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
-      call(api.POST("/global/secrets", { body })),
+      call(api.POST("/global/secrets", { body: body as Schemas["SecretRequest"] })),
     onSuccess: (s) => {
       qc.invalidateQueries({ queryKey: KEY });
       nav(`../${s.label}`);

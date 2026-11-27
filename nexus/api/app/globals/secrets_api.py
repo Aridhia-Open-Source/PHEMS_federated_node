@@ -15,10 +15,9 @@ reading the secret where the row says it is can get it, and moved back when the 
 from datetime import datetime as dt
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body, Depends
-from fednode.clients.kubernetes.names import validate_secret_key
+from fastapi import APIRouter, Depends
 
-from app.dtos.secret import SecretDTO
+from app.dtos.secret import SecretDTO, SecretPatchRequest, SecretRequest
 from app.database.base_model import db
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 from app.clients.secret_store import SecretProvider
@@ -26,24 +25,11 @@ from app.rules.ownership import get_for_write, require_members, set_owner
 from app.database.soft_delete import describe_project
 from app.helpers.wrappers import Caller, get_caller
 from app.models.secret import Secret
-from app.models.secret_provider_type import SecretProviderType
 from app.dtos.healthcheck import SecretHealthDTO
 from app.health.secrets import prepare_secret_health
 
 router = APIRouter(prefix='/global/secrets', tags=["secrets"])
 session = db.session
-
-def _get_values(body: dict) -> dict[str, str]:
-    values = body.get('values')
-    if not isinstance(values, dict) or not values:
-        raise InvalidRequest("values is required and must be a non-empty object")
-    for key, value in values.items():
-        validate_secret_key(key, f"Key {key!r}")
-        if not isinstance(value, str) or not value:
-            raise InvalidRequest(f"The value for {key} must be a non-empty string")
-    # create_secret encodes the values in place, so it gets a copy
-    return dict(values)
-
 
 def _get_secret(label: str) -> Secret:
     secret = Secret.query.filter(Secret.label == label).one_or_none()
@@ -69,7 +55,7 @@ def get_secret(label: str):
 
 
 @router.post('', status_code=HTTPStatus.CREATED, response_model=SecretDTO)
-def post_secret(body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def post_secret(req: SecretRequest, caller: Caller = Depends(get_caller)):
     """
     POST /global/secrets — create the secret in its store and the reference to it. The label is
     unique across the node; the secret is stored under the generated key
@@ -77,26 +63,16 @@ def post_secret(body: dict = Body(default_factory=dict), caller: Caller = Depend
     Body: {"label": "...", "description": "...", "provider": "K8S", "values": {"KEY": "value", ...}, "enabled": true}
     The description and enabled are optional.
     """
-    if not isinstance(body.get('enabled', True), bool):
-        raise InvalidRequest("enabled must be a boolean")
-    if not body.get('label') or not isinstance(body['label'], str):
-        raise InvalidRequest("label is required and must be a string")
-    try:
-        provider = SecretProviderType(body.get('provider'))
-    except ValueError:
-        raise InvalidRequest(f"provider must be one of {[t.value for t in SecretProviderType]}")
-    values = _get_values(body)
-
-    if Secret.query.filter(Secret.label == body['label']).one_or_none():
-        raise InvalidRequest(f"Secret {body['label']} already exists", code=HTTPStatus.CONFLICT)
+    if Secret.query.filter(Secret.label == req.label).one_or_none():
+        raise InvalidRequest(f"Secret {req.label} already exists", code=HTTPStatus.CONFLICT)
 
     try:
         secret = Secret(
-            label=body['label'],
-            provider=provider,
-            description=body.get('description'),
-            namespace=SecretProvider(provider).namespace,
-            enabled=body.get('enabled', True),
+            label=req.label,
+            provider=req.provider,
+            description=req.description,
+            namespace=SecretProvider(req.provider).namespace,
+            enabled=req.enabled,
         )
     except ValueError as e:
         raise InvalidRequest(str(e))
@@ -105,7 +81,7 @@ def post_secret(body: dict = Body(default_factory=dict), caller: Caller = Depend
     # then fails, the stored secret is left for a retry to adopt: writing it overwrites.
     # One created disabled goes straight to quarantine, as if it had been disabled after.
     store = SecretProvider(secret.provider)
-    store.set(secret.key, secret.namespace if secret.enabled else store.quarantine_namespace, values)
+    store.set(secret.key, secret.namespace if secret.enabled else store.quarantine_namespace, req.values)
     set_owner(secret, caller)
     secret.add()
 
@@ -113,7 +89,7 @@ def post_secret(body: dict = Body(default_factory=dict), caller: Caller = Depend
 
 
 @router.patch('/{label}', response_model=SecretDTO)
-def patch_secret(label: str, body: dict = Body(default_factory=dict), caller: Caller = Depends(get_caller)):
+def patch_secret(label: str, req: SecretPatchRequest, caller: Caller = Depends(get_caller)):
     """
     PATCH /global/secrets/<label> — replace the stored values, e.g. to rotate a token, and/or turn it on
     or off (enabled). The secret then holds exactly these keys, so send every key it needs: any other,
@@ -129,14 +105,11 @@ def patch_secret(label: str, body: dict = Body(default_factory=dict), caller: Ca
     Body: {"values": {"KEY": "value", ...}, "enabled": true}, any of them.
     """
     secret = get_for_write(session, Secret, {"label": label}, caller, missing=f"Secret {label} does not exist")
-    unknown = set(body) - {"values", "enabled"}
-    if unknown and ("values" in body or "enabled" in body):
-        raise InvalidRequest(f"Unknown fields: {', '.join(sorted(unknown))}")
-    if "enabled" in body and not isinstance(body["enabled"], bool):
-        raise InvalidRequest("enabled must be a boolean")
-    values = _get_values(body) if "values" in body or "enabled" not in body else None
-    turning_on = body.get("enabled") is True and not secret.enabled
-    turning_off = body.get("enabled") is False and secret.enabled
+    if not req.model_fields_set:
+        raise InvalidRequest("values or enabled is required")
+    values = req.values
+    turning_on = req.enabled is True and not secret.enabled
+    turning_off = req.enabled is False and secret.enabled
     if values and not secret.enabled and not turning_on:
         raise InvalidRequest(
             f"Secret {secret.label} is disabled: enable it before rotating it", code=HTTPStatus.CONFLICT
@@ -157,8 +130,8 @@ def patch_secret(label: str, body: dict = Body(default_factory=dict), caller: Ca
         store.quarantine(secret.key, namespace)
         for resource in (*secret.datasets, *secret.trigger_repositories, *secret.results_repositories):
             resource.enabled = False
-    if "enabled" in body:
-        secret.enabled = body["enabled"]
+    if req.enabled is not None:
+        secret.enabled = req.enabled
     secret.namespace = namespace
     secret.updated_at = dt.now()
     session.commit()

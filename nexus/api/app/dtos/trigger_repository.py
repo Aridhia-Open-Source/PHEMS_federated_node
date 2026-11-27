@@ -1,14 +1,15 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.dtos.base import DTO
 from app.dtos.git_provider import GitProviderRefDTO
+from app.dtos.repository_uri import RepositoryRequest
 from app.dtos.secret import SecretDTO
 from app.dtos.user import UserRefDTO
-from app.helpers.exceptions import InvalidRequest
 from app.models.project_trigger_repository import ProjectTriggerRepository
 from app.models.pull_request_trigger import PullRequestTrigger
+from app.models.trigger_state import TriggerState
 from app.models.trigger_repository import TriggerRepository
 
 
@@ -186,9 +187,45 @@ class PullRequestRequest(BaseModel):
             return datetime.fromisoformat(value.rstrip('Z'))
         raise ValueError("merged_at must be an ISO 8601 datetime string")
 
+
+class PullRequestBatchRequest(BaseModel):
+    """Up to 100 pull requests to store for a repository. One invalid one refuses the whole batch."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    pull_requests: list[PullRequestRequest] = Field(max_length=100)
+
+
+class PullRequestTriggerPatchRequest(BaseModel):
+    """The fields of a pull request's trigger that can be updated: its state, and the cause of a REJECTED."""
+    model_config = ConfigDict(extra="forbid")
+
+    state: TriggerState | None = None
+    state_cause: str | None = None
+
+    @model_validator(mode="after")
+    def state_not_null(self):
+        if "state" in self.model_fields_set and self.state is None:
+            raise ValueError("state cannot be null")
+        return self
+
+
+class PullRequestTaskRequest(BaseModel):
+    """The spec file of a pull request, as read, for the backend to validate and make the task from."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    spec_raw: str
+
+
+class TriggerRepositoryRequest(RepositoryRequest):
+    """A trigger repository in a create request."""
+
+    @model_validator(mode="before")
     @classmethod
-    def parse(cls, body) -> "PullRequestRequest":
-        try:
-            return cls.model_validate(body)
-        except ValidationError as ve:
-            raise InvalidRequest(f"Invalid pull request: {ve}") from ve
+    def not_a_project_field(cls, data):
+        """Trigger repositories are global, so naming what only a project's resource has is a mistake."""
+        if isinstance(data, dict) and ("project_id" in data or "watch_dir" in data or "base_branch" in data):
+            raise ValueError(
+                "project_id, watch_dir and base_branch are not accepted, trigger repositories are global. "
+                "Assign one with PUT /projects/<id>/repositories/triggers/<repository id>"
+            )
+        return data

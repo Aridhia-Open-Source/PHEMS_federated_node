@@ -6,8 +6,9 @@ Getting and keeping a token. These need no token, so they are in OPEN_ROUTERS:
 """
 from http import HTTPStatus
 
-from fastapi import APIRouter, Body, Form, Request
+from fastapi import APIRouter, Form, Request
 
+from app.dtos.user import PasswordResetRequest
 from app.helpers.exceptions import AuthenticationError, InvalidRequest
 from app.clients.keycloak import Keycloak
 
@@ -41,16 +42,16 @@ def refresh_token(request: Request) -> dict:
 
 
 @router.put('/global/users/reset-password', status_code=HTTPStatus.NO_CONTENT)
-def reset_password(body: dict = Body(default_factory=dict)):
+def reset_password(req: PasswordResetRequest):
     """
     PUT /global/users/reset-password endpoint. Interface to keycloak
         API, so we can change the credentials and make sure
         there are no pending action to undertake
     """
     kc = Keycloak()
-    user = kc.get_user_by_email(email=body.get("email"))
+    user = kc.get_user_by_email(email=req.email)
     kc.reset_user_pass(
         user_id=user["id"], username=user["username"],
-        old_pass=body.get("tempPassword"),
-        new_pass=body.get("newPassword")
+        old_pass=req.tempPassword,
+        new_pass=req.newPassword
     )

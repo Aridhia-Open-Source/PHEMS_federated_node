@@ -111,7 +111,7 @@ def test_ingest_fans_out_and_is_idempotent(client, admin_headers, system_headers
     assert g["total"] == 4 and {"number", "title", "base_branch", "merged_at"} <= set(g["items"][0])
 
 
-@pytest.mark.parametrize("count, status", [(100, 201), (101, 400)])
+@pytest.mark.parametrize("count, status", [(100, 201), (101, 422)])
 def test_batch_limit(client, admin_headers, system_headers, project, global_trigger_repo, count, status):
     T = global_trigger_repo.id
     assign(client, admin_headers, project.id, T)
@@ -139,10 +139,10 @@ def _bad(**fields):
     _bad(changed_files=[{"path": "a.json"}]),                    # changed file needs a status
     _bad(files_truncated="false"),
 ], ids=lambda b: "-".join(str(k) for k in b) or "empty")
-def test_invalid_ingest_bodies_are_400_and_store_nothing(client, admin_headers, system_headers, global_trigger_repo, body):
+def test_invalid_ingest_bodies_are_422_and_store_nothing(client, admin_headers, system_headers, global_trigger_repo, body):
     T = global_trigger_repo.id
     r = client.post(f"/global/repositories/triggers/{T}/pull_requests", json=body, headers=system_headers)
-    assert r.status_code == 400
+    assert r.status_code == 422
     assert global_total(client, admin_headers, T) == 0
 
 
@@ -441,14 +441,25 @@ def test_patch_state_unknown_to_yielded_is_final(client, system_headers, pr_trig
 
 
 @pytest.mark.parametrize("body", [
-    {"state": "IGNORED", "state_cause": "not ours"},   # IGNORED is not a stored state
     {"state": "REJECTED"},                             # REJECTED needs a cause
     {"state": "UNKNOWN", "state_cause": "no cause allowed"},
-    {"state": "BOGUS"},
     {"state_cause": "why"},                            # a cause alone is only valid on a REJECTED trigger
 ])
 def test_patch_state_illegal_bodies_are_400_and_change_nothing(client, admin_headers, system_headers, pr_trigger, body):
     assert client.patch(pr_trigger, json=body, headers=system_headers).status_code == 400
+    assert client.get(pr_trigger, headers=admin_headers).json()["state"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("body", [
+    {"state": "IGNORED", "state_cause": "not ours"},   # IGNORED is not a stored state
+    {"state": "BOGUS"},
+    {"state": None},
+    {"state": 1},
+    {"state_cause": 5},
+    {"bogus": 1},
+])
+def test_patch_malformed_bodies_are_422_and_change_nothing(client, admin_headers, system_headers, pr_trigger, body):
+    assert client.patch(pr_trigger, json=body, headers=system_headers).status_code == 422
     assert client.get(pr_trigger, headers=admin_headers).json()["state"] == "UNKNOWN"
 
 
@@ -489,10 +500,9 @@ def test_create_task_yields_pr_and_is_idempotent(client, admin_headers, system_h
     pr_row = pr_state(client, admin_headers, pr_trigger)
     assert (pr_row["state"], pr_row["task_id"], pr_row["state_cause"]) == ("YIELDED", task["id"], None)
 
-    # an existing task is returned (200) whatever the second body is
-    for body in ({"spec_raw": spec(image="other:2")}, {}):
-        again = client.post(f"{pr_trigger}/task", json=body, headers=system_headers)
-        assert again.status_code == 200 and again.json()["id"] == task["id"] and again.json()["spec"]["image"] == "img:1"
+    # an existing task is returned (200) whatever the second spec is
+    again = post_task(client, system_headers, pr_trigger, spec(image="other:2"))
+    assert again.status_code == 200 and again.json()["id"] == task["id"] and again.json()["spec"]["image"] == "img:1"
     assert client.get(f"/projects/{project.id}/tasks", headers=admin_headers).json()["total"] == 1
 
 
@@ -596,7 +606,7 @@ def test_bad_spec_rejects_the_pr(client, admin_headers, system_headers, pr_trigg
 
 @pytest.mark.parametrize("body", [{}, {"spec_raw": 5}])
 def test_spec_raw_must_be_a_string_and_the_pr_is_not_judged(client, admin_headers, system_headers, pr_trigger, body):
-    assert client.post(f"{pr_trigger}/task", json=body, headers=system_headers).status_code == 400
+    assert client.post(f"{pr_trigger}/task", json=body, headers=system_headers).status_code == 422
     assert pr_state(client, admin_headers, pr_trigger)["state"] == "UNKNOWN"
 
 

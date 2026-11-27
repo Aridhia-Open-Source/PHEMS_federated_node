@@ -1,3 +1,5 @@
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.dtos.base import DTO
 
 
@@ -29,3 +31,23 @@ class UserRefDTO(DTO):
     def of(cls, user) -> "UserRefDTO | None":
         """The user as a reference, None for no user."""
         return None if user is None else cls.model_validate(user)
+
+
+class UserRequest(BaseModel):
+    """A Keycloak user to create. The username is the email unless given, the role is Users."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    email: str = Field(min_length=1)
+    username: str | None = Field(default=None, min_length=1)
+    firstName: str | None = None
+    lastName: str | None = None
+    role: str | None = Field(default=None, min_length=1)
+
+
+class PasswordResetRequest(BaseModel):
+    """A new user swapping the temporary password they were given for their own."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    email: str = Field(min_length=1)
+    tempPassword: str = Field(min_length=1)
+    newPassword: str = Field(min_length=1)

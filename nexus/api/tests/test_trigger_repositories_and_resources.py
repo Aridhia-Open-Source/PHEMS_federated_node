@@ -107,11 +107,16 @@ def test_create_get_and_404(client, admin_headers, global_secret, git_provider):
 @pytest.mark.parametrize("changes", [
     {"secret_label": "nope"},      # unknown secret
     {"provider_id": 999999},       # unknown provider
-    {"watch_dir": "x"},            # watch_dir belongs to the project resource, not the global repository
 ])
 def test_create_validation_failures_are_400(client, admin_headers, global_secret, git_provider, changes):
     body = {"provider_id": git_provider.id, "repo_path": "org/new", "secret_label": "test-creds", **changes}
     assert client.post(BASE, json=body, headers=admin_headers).status_code == 400
+
+
+def test_create_with_a_project_resource_field_is_422(client, admin_headers, global_secret, git_provider):
+    # watch_dir belongs to the project resource, not the global repository
+    body = {"provider_id": git_provider.id, "repo_path": "org/new", "secret_label": "test-creds", "watch_dir": "x"}
+    assert client.post(BASE, json=body, headers=admin_headers).status_code == 422
 
 
 def test_edit_enabled_and_delete_with_a_task_in_flight(client, admin_headers, assigned_trigger_repo, project, make_task):
@@ -448,9 +453,7 @@ by_global = pytest.mark.parametrize("ctx", ["dataset", "trigger", "results"], in
 @by_global
 @pytest.mark.parametrize("value", ["yes", 1, None])
 def test_patch_revoked_must_be_a_boolean(ctx, client, admin_headers, value):
-    # A results repository has a request model; the other kinds read a dict
-    expected = 422 if ctx.kind == "results" else 400
-    assert patch(client, admin_headers, ctx.glob, {"revoked": value}).status_code == expected
+    assert patch(client, admin_headers, ctx.glob, {"revoked": value}).status_code == 422
     assert get(client, admin_headers, ctx.glob).json()["revoked"] is False
 
 
