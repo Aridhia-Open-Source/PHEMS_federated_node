@@ -14,14 +14,14 @@ from pydantic import Field
 from fncli.backend import FncliBackendAPI
 from app.config import EnvConfig
 from app.definitions.sensors.git.base import GitAPIFactory
-from app.git_uri import normalise_repo_uri
-from app.gitea import GiteaAPI
-from app.github import GH_API_BASE_URL, GithubAPI, GithubClient
-from app.models import ResultsRepository, TriggerRepository
+from fednode.clients.git.github import GH_API_BASE_URL, GitHubClient
+from fednode.clients.git.provider import GitProvider
+from fednode.clients.git.uri import normalise_repo_uri
+from fednode.clients.nexus.models import ResultsRepository, TriggerRepository
 from fncli.gitea import GiteaAdminAPI, GiteaAdminClient, GiteaWebClient
 from fncli.k8s import get_k8s_secret
 from fncli.nodefile.schema import NodeSpec
-from app.utils import BackendAdapter, BackendSession
+from fednode.http import BackendAdapter, BackendSession
 
 IN_CLUSTER_SUFFIX = "fn.svc"
 
@@ -206,14 +206,14 @@ def get_repository(config: RepoConfig, backend_api: FncliBackendAPI) -> TriggerR
     return repository
 
 
-def build_researcher_git_api(config: RepoConfig) -> GiteaAdminAPI | GithubAPI:
+def build_researcher_git_api(config: RepoConfig) -> GitProvider:
     """
     What makes the trigger repo's branches, files and pull requests. That is the researcher's work, not the node's,
     so it uses no token the backend mints: Gitea as its admin user, GitHub with RESEARCHER_GIT_TOKEN or else the
     token of `gh auth login`.
     """
     if not config.is_github:
-        return build_gitea_api(config)
+        return build_gitea_api(config).client
     token = config.researcher_git_token
     if not token:
         try:
@@ -222,10 +222,10 @@ def build_researcher_git_api(config: RepoConfig) -> GiteaAdminAPI | GithubAPI:
             raise click.ClickException(
                 "Writing to a GitHub repo needs RESEARCHER_GIT_TOKEN, or `gh auth login` for the gh CLI to give one"
             ) from error
-    return GithubAPI(GithubClient(token))
+    return GitHubClient(GH_API_BASE_URL, token)
 
 
-def build_git_api(config: RepoConfig) -> GiteaAPI | GithubAPI:
+def build_git_api(config: RepoConfig) -> GitProvider:
     """
     What makes the repo's branches, files and pull requests, as Dagster builds it: the client for the provider the
     repo's backend record names, with a token the backend mints for the repository as a whole. The provider's api_uri is

@@ -30,6 +30,12 @@ RUN --mount=type=secret,id=proxy_ca --mount=type=tmpfs,target=/ca \
 RUN groupadd -g "$USER_GID" "$APP_USER" \
     && useradd --uid "$USER_UID" --gid "$USER_GID" "$APP_USER"
 
+# The shared fednode package, from the fednode named build context (docker-bake.hcl). Editable and owned by the app
+# user, so Tilt syncs into it; its dependencies are in requirements.txt.
+# hadolint ignore=DL3022
+COPY --from=fednode --chown=${APP_USER}:${APP_USER} . /opt/fednode
+RUN pip install --no-cache-dir --no-deps -e /opt/fednode
+
 COPY --chown=${APP_USER}:${APP_USER} app ./app
 COPY --chown=${APP_USER}:${APP_USER} migrations ./migrations
 COPY --chown=${APP_USER}:${APP_USER} alembic.ini .

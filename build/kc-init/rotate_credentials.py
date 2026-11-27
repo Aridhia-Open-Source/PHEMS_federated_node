@@ -36,9 +36,9 @@ import string
 import sys
 from datetime import datetime, timezone
 
-from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 
+from fednode.clients.kubernetes.client import KubernetesClient
 from common import (
     get_client_uuid,
     health_check,
@@ -77,7 +77,7 @@ def dagster_namespaces() -> list:
     return [ns.strip() for ns in raw.split(",") if ns.strip()]
 
 
-def patch_secret(v1: client.CoreV1Api, namespace: str, name: str, values: dict) -> bool:
+def patch_secret(v1: KubernetesClient, namespace: str, name: str, values: dict) -> bool:
     """Patch specific keys of a secret, leaving every other key untouched."""
     body = {"data": {k: base64.b64encode(v.encode()).decode() for k, v in values.items()}}
     try:
@@ -93,8 +93,7 @@ def patch_secret(v1: client.CoreV1Api, namespace: str, name: str, values: dict) 
 
 
 def main() -> int:
-    config.load_incluster_config()
-    v1 = client.CoreV1Api()
+    v1 = KubernetesClient(in_cluster=True)
 
     namespaces = target_namespaces()
     if not namespaces:

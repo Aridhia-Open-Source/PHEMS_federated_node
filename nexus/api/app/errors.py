@@ -5,6 +5,7 @@ from http import HTTPStatus
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fednode.http import ClientError, ClientTimeout
 from sqlalchemy import exc
 from starlette.exceptions import HTTPException
 
@@ -27,6 +28,16 @@ def register_error_handlers(app: FastAPI):
         if e.extra_fields:
             body["details"] = e.extra_fields
         return JSONResponse(body, status_code=e.code)
+
+    @app.exception_handler(ClientError)
+    def client_error(_: Request, e: ClientError):
+        logger.error(e)
+        return JSONResponse({"error": str(e)}, status_code=HTTPStatus.BAD_GATEWAY)
+
+    @app.exception_handler(ClientTimeout)
+    def client_timeout(_: Request, e: ClientTimeout):
+        logger.error(e)
+        return JSONResponse({"error": str(e)}, status_code=HTTPStatus.GATEWAY_TIMEOUT)
 
     @app.exception_handler(HTTPException)
     def http_exception(_: Request, e: HTTPException):

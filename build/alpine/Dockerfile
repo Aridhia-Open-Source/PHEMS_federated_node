@@ -24,6 +24,11 @@ RUN --mount=type=secret,id=proxy_ca --mount=type=tmpfs,target=/ca \
     python3 -m venv /venv \
     && /venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt
 
+# The shared Kubernetes client is installed from the fednode named build context.
+# hadolint ignore=DL3022
+COPY --from=fednode . /opt/fednode
+RUN /venv/bin/pip install --no-cache-dir --no-deps -e /opt/fednode
+
 # Create non-root user
 RUN addgroup -S "${APP_USER}" --gid "${USER_GID}" \
     && adduser -S "${APP_USER}" -G "${APP_USER}" -u "${USER_UID}"

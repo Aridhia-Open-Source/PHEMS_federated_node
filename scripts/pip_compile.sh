@@ -20,7 +20,15 @@ if [[ -n "${1:-}" && "${1}" != --* ]]; then
     OUTPUT_FILE="${1}"
     shift
 fi
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 pushd "$DIR" > /dev/null
+
+# Consumers of the shared fednode package compile its dependencies into their own hashed file (ADR 0039)
+SOURCES=(pyproject.toml)
+case "$(realpath --relative-to="$ROOT" .)" in
+    dagster | nexus/api | build/kc-init | build/alpine)
+        SOURCES+=("$(realpath --relative-to=. "$ROOT/nexus/fednode/pyproject.toml")") ;;
+esac
 
 # The component's own Python (its mise.toml), which `mise run setup` gives pip-tools
 if ! mise exec -- python -m piptools --help > /dev/null 2>&1; then
@@ -40,5 +48,5 @@ mise exec -- python -m piptools compile \
     --verbose \
     --output-file="$OUTPUT_FILE" \
     "$@" \
-    pyproject.toml
+    "${SOURCES[@]}"
 

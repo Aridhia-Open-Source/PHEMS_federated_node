@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from app.models import PullRequestResultStep, ResultState, TaskStatus, TriggerState
+from fednode.clients.nexus.models import PullRequestResultStep, ResultState, TaskStatus, TriggerState
 
 NEXUS_MODELS = Path(__file__).resolve().parents[3] / "nexus" / "api" / "app" / "models"
 

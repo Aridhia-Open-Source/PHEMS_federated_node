@@ -1,7 +1,7 @@
 import dagster as dg
 
-from app.backend import BackendAPI
-from app.utils import BackendSession, PasswordFileAdapter
+from fednode.clients.nexus.client import BackendAPI
+from fednode.http import BackendSession, PasswordFileAdapter
 from app.config import BackendConfig
 from app.definitions.sensors.git.base import GitAPIFactory
 

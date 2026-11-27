@@ -3,15 +3,16 @@ from typing import cast
 import dagster as dg
 from dagster import OpExecutionContext as OpExecCtx
 
-from app.backend import BackendAPI
-from app.definitions.sensors.git.base import GitAPI, GitAPIFactory
-from app.models import NewPullRequest, TriggerRepository
+from fednode.clients.git.provider import GitProvider
+from fednode.clients.nexus.client import BackendAPI
+from app.definitions.sensors.git.base import GitAPIFactory
+from fednode.clients.nexus.models import NewPullRequest, TriggerRepository
 
 # The most pull requests the backend takes in one ingest
 MAX_BATCH_SIZE = 100
 
 
-def fetch_pull_request(git_api: GitAPI, repo: TriggerRepository, pr_number: int) -> NewPullRequest:
+def fetch_pull_request(git_api: GitProvider, repo: TriggerRepository, pr_number: int) -> NewPullRequest:
     """The pull request and the files it changed, which the backend matches against each watcher's watch_dir."""
     pr = git_api.get_pull_request(repo.repo_path, pr_number)
     files = git_api.get_pull_request_files(repo.repo_path, pr_number)

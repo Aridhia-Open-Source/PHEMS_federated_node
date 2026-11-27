@@ -30,7 +30,7 @@ from fncli.cmds.state import (
     resource_set_command,
     project_set_command,
 )
-from fncli.sensors import DagsterAPI
+from fednode.clients.dagster.client import DagsterClient
 from fncli.tests.e2e.conftest import (
     DELIVERED_STEPS,
     QUIET_SENSORS,
@@ -245,7 +245,7 @@ def test_lost_token_ingest_shows_an_auth_error(fncli):
     """The ingest sensor fails its tick naming the repository, rather than silently skipping or crashing. The other
     sensors kept ticking: the quiet wait above only returns when ingest, evaluate and launcher all ticked."""
     fncli.call(sensor_status_command)
-    ticks = DagsterAPI(DagsterConfig().dagster_url).get_sensor_ticks("git_pull_request_ingest_sensor", QUIET_TICKS + 2)
+    ticks = DagsterClient(DagsterConfig().dagster_url).get_sensor_ticks("git_pull_request_ingest_sensor", QUIET_TICKS + 2)
     def error_text(error: dict) -> str:
         """The tick's error is a wrapper (SensorExecutionError): the sensor's own message is in its stack and causes."""
         causes = " ".join(error_text(cause) for cause in error.get("causes") or [])

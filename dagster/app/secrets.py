@@ -1,11 +1,9 @@
-import base64
 from typing import cast
 
-from dagster_k8s.utils import load_kubernetes_config
-from kubernetes import client
 from kubernetes.client import V1Secret
 
-from app.models import Secret, SecretProviderType
+from fednode.clients.kubernetes.client import KubernetesClient
+from fednode.clients.nexus.models import Secret, SecretProviderType
 
 
 class K8sSecretProvider:
@@ -13,13 +11,10 @@ class K8sSecretProvider:
 
     def get(self, key: str, namespace: str, value_key: str) -> str:
         """The decoded value stored under value_key in a Kubernetes secret."""
-        # dagster-k8s's loader keeps NO_PROXY for the API server behind a proxy (kubernetes 35 drops it).
-        load_kubernetes_config(load_incluster_config=True)
-        v1 = client.CoreV1Api()
-        secret = cast(V1Secret, v1.read_namespaced_secret(key, namespace))
+        secret = cast(V1Secret, KubernetesClient(in_cluster=True).read_namespaced_secret(key, namespace))
         if secret.data is None:
             raise ValueError(f"Secret {key} has no data")
-        return base64.b64decode(secret.data[value_key].encode()).decode()
+        return KubernetesClient.decode_secret_value(secret.data[value_key])
 
 
 class SecretProvider:

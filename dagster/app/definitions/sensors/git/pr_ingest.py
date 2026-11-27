@@ -3,7 +3,7 @@ import dagster as dg
 from app.definitions.sensors.base import LaunchingSensor, run_key
 from app.definitions.sensors.git.base import GitSensor
 from app.definitions.sensors.git.ingest_job import ingest_pull_requests, ingest_pull_requests_job
-from app.models import TriggerRepository
+from fednode.clients.nexus.models import TriggerRepository
 
 
 class PullRequestIngestSensor(LaunchingSensor, GitSensor):

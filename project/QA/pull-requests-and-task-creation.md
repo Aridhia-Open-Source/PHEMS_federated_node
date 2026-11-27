@@ -129,7 +129,7 @@ Needs a test repository on GitHub and a token for it. The end-to-end suites use 
 
 - **Expected:** the same states as on Gitea: trigger `UNKNOWN`, `YIELDED`, a task, a results pull request. Ingest uses the list-pulls endpoint (no search rate limit). Errors map the same way as on Gitea.
 - **Rule:** both providers give the same results ([GitAPI protocol and GitAPIFactory over Gitea and GitHub]; [Ingest merged pull requests through the pulls endpoint, not search]).
-- **Automated by:** Partly automated: `dagster/app/tests/test_github.py`, `dagster/app/tests/test_github_parity.py` (canned responses). No end-to-end test uses GitHub. A pull request whose file list hit the provider's cap (3000 on GitHub) is treated as matching every project resource of the right branch, so its trigger may be rejected at evaluation for having no spec file ([Pull requests stored once per repository, fanned out to project resources, with cursors]); do not try that by hand.
+- **Automated by:** Partly automated: `nexus/fednode/tests/test_git_github.py`, `dagster/app/tests/test_github_parity.py` (canned responses). No end-to-end test uses GitHub. A pull request whose file list hit the provider's cap (3000 on GitHub) is treated as matching every project resource of the right branch, so its trigger may be rejected at evaluation for having no spec file ([Pull requests stored once per repository, fanned out to project resources, with cursors]); do not try that by hand.
 - [ ] Pass
 - [ ] Fail — notes:
 

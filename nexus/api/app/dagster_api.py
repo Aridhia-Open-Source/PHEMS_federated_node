@@ -5,10 +5,13 @@ dagster endpoints:
 - PATCH /dagster/sensors
 - PATCH /dagster/sensors/<name>
 """
+from functools import lru_cache
+
 from fastapi import APIRouter, Body
+from fednode.clients.dagster.client import DagsterClient
 
 from app.dtos.sensor import SensorDTO
-from app.clients.dagster import list_sensors, set_sensor_status
+from app.helpers.const import DAGSTER_WEBSERVER_URI
 from app.helpers.exceptions import DBRecordNotFoundError, InvalidRequest
 
 router = APIRouter(prefix='/dagster', tags=["dagster"])
@@ -16,12 +19,17 @@ router = APIRouter(prefix='/dagster', tags=["dagster"])
 STATUSES = ("RUNNING", "STOPPED")
 
 
+@lru_cache
+def dagster() -> DagsterClient:
+    return DagsterClient(DAGSTER_WEBSERVER_URI)
+
+
 def dto_of(sensors: list[dict]) -> list[SensorDTO]:
     return [SensorDTO.model_validate(s) for s in sensors]
 
 
 def get_sensor(name: str) -> dict:
-    sensor = next((s for s in list_sensors() if s["name"] == name), None)
+    sensor = next((s for s in dagster().list_sensors() if s["name"] == name), None)
     if sensor is None:
         raise DBRecordNotFoundError(f"Sensor {name} not found")
     return sensor
@@ -37,7 +45,7 @@ def requested_status(body: dict) -> str:
 def apply_status(sensors: list[dict], status: str):
     for sensor in sensors:
         if sensor["status"] != status:
-            set_sensor_status(sensor, status)
+            dagster().set_sensor_status(sensor, status)
 
 
 @router.get('/sensors', response_model=list[SensorDTO])
@@ -45,7 +53,7 @@ def get_sensors():
     """
     GET /dagster/sensors — every sensor with its status and latest tick
     """
-    return dto_of(list_sensors())
+    return dto_of(dagster().list_sensors())
 
 
 @router.get('/sensors/{name}', response_model=SensorDTO)
@@ -67,13 +75,13 @@ def patch_sensors(body: dict = Body(default_factory=dict)):
     if names is not None and not (isinstance(names, list) and all(isinstance(n, str) for n in names)):
         raise InvalidRequest("names must be a list of sensor names")
 
-    sensors = list_sensors()
+    sensors = dagster().list_sensors()
     if names is not None:
         unknown = set(names) - {s["name"] for s in sensors}
         if unknown:
             raise DBRecordNotFoundError(f"Sensors not found: {', '.join(sorted(unknown))}")
     apply_status([s for s in sensors if names is None or s["name"] in names], status)
-    return dto_of(list_sensors())
+    return dto_of(dagster().list_sensors())
 
 
 @router.patch('/sensors/{name}', response_model=SensorDTO)

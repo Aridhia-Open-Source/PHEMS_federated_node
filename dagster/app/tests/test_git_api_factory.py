@@ -3,9 +3,9 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.definitions.sensors.git.base import GitAPIFactory
-from app.gitea import GiteaAPI
-from app.github import GithubAPI
-from app.models import GitToken, ResultsRepository, TriggerRepository
+from fednode.clients.git.gitea import GiteaClient
+from fednode.clients.git.github import GitHubClient
+from fednode.clients.nexus.models import GitToken, ResultsRepository, TriggerRepository
 from app.tests.conftest import SAMPLE_PROVIDER, SAMPLE_TRIGGER_REPOSITORY
 
 
@@ -29,17 +29,17 @@ def factory(backend_api):
 def test_github_repository_gets_a_github_api(factory):
     api = factory.for_repository(repo("github", "https://api.github.com"))
 
-    assert isinstance(api, GithubAPI)
-    assert api.client._base_uri == "https://api.github.com"
-    assert api.client.token == "tok"
+    assert isinstance(api, GitHubClient)
+    assert api._base_uri == "https://api.github.com"
+    assert api.token == "tok"
 
 
 def test_gitea_repository_gets_a_gitea_api_on_its_api_uri(factory):
     api = factory.for_repository(repo("gitea", "http://gitea.fn.svc:3000/api/v1/"))
 
-    assert isinstance(api, GiteaAPI)
-    assert api.client._base_uri == "http://gitea.fn.svc:3000/api/v1"
-    assert api.client.token == "tok"
+    assert isinstance(api, GiteaClient)
+    assert api._base_uri == "http://gitea.fn.svc:3000/api/v1"
+    assert api.token == "tok"
 
 
 def test_the_token_of_a_trigger_repository_comes_from_the_backend(factory, backend_api):

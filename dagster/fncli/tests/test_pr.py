@@ -7,12 +7,12 @@ from unittest.mock import MagicMock
 import click
 from click.testing import CliRunner
 import pytest
-import requests
 
 from fncli.cmds import pr
 from fncli.cmds.pr import KINDS, file_for, load_trigger, new_branch_name
 from fncli.tests.conftest import NODE, results_config, trigger_config
-from app.models import TriggerState
+from fednode.clients.nexus.models import TriggerState
+from fednode.http import ClientError
 
 TRIGGER = {"spec": {"image": "busybox:1"}}
 
@@ -187,7 +187,7 @@ def watch(monkeypatch):
             pr, "build_backend_api",
             lambda config: FakeBackend(list(prs), deliveries=deliveries, sensors=sensors),
         )
-        monkeypatch.setattr(pr, "DagsterAPI", lambda url: dagster_api)
+        monkeypatch.setattr(pr, "DagsterClient", lambda url: dagster_api)
         monkeypatch.setattr(pr, "find_project", lambda config, api: SimpleNamespace(id=1))
         monkeypatch.setattr(pr, "POLL_SECONDS", 0)
         try:
@@ -318,7 +318,7 @@ def test_watch_timeout_names_the_stopped_sensor_of_the_stage(watch, caplog):
 
 def test_watch_survives_a_dropped_connection(watch, caplog):
     caplog.set_level(logging.INFO, logger="pr")
-    outcomes = [requests.exceptions.ConnectionError("Remote end closed connection"), run_of("SUCCESS")]
+    outcomes = [ClientError("Remote end closed connection"), run_of("SUCCESS")]
 
     code = watch([[pr_of("YIELDED")]], runs=outcomes)
 
@@ -330,7 +330,7 @@ def test_watch_survives_a_dropped_connection(watch, caplog):
 def test_watch_gives_up_after_too_many_connection_errors(watch, caplog):
     caplog.set_level(logging.INFO, logger="pr")
 
-    code = watch([[pr_of("YIELDED")]], runs=[requests.exceptions.ConnectionError("down")])
+    code = watch([[pr_of("YIELDED")]], runs=[ClientError("down")])
 
     assert code == 1
     assert f"{pr.MAX_CONNECTION_ERRORS} connection errors in a row" in caplog.text

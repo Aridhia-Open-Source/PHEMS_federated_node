@@ -10,7 +10,7 @@
 # - Helm deployed (mise run deploy)
 # Then: tilt up
 
-load('ext://restart_process', 'docker_build_with_restart')
+load('ext://restart_process', 'custom_build_with_restart')
 load('ext://dotenv', 'dotenv')
 
 # Load environment config: .generated.env (scripts/configure.sh) first, so .dev.env wins
@@ -54,19 +54,33 @@ k8s_yaml(local(
 # ==============================================================================
 # Image ref has NO tag: Tilt assigns its own tag and injects it into the
 # deployment, matching by the tag-stripped name. uvicorn --reload picks up synced code itself.
-docker_build_with_restart(
+# The image also takes the shared fednode package (nexus/fednode) from the fednode named build context,
+# which docker_build has none of, so it is a custom build, like Dagster's.
+NEXUS_API_BUILD_CMD = ' '.join(
+  ['docker buildx build --load --build-context fednode=nexus/fednode'] + BUILD_SECRET + ['-t {ref} nexus/api'])
+custom_build_with_restart(
   '{}/nexus-api-fn'.format(DOCKER_REGISTRY),
-  'nexus/api',
-  extra_flags=BUILD_SECRET,
+  NEXUS_API_BUILD_CMD.format(ref='$EXPECTED_REF'),
+  deps=[
+    'nexus/api/app',
+    'nexus/api/requirements.txt',
+    'nexus/api/alembic.ini',
+    'nexus/api/migrations',
+    'nexus/api/Dockerfile',
+    'nexus/api/.dockerignore',
+    'nexus/fednode',
+  ],
   entrypoint=[
     'uvicorn', '--factory', 'app:create_app', '--reload',
+    '--reload-dir=/nexus', '--reload-dir=/opt/fednode',
     '--host=0.0.0.0', '--port=5000',
   ],
-  only=[
-    'app',
-    'requirements.txt',
-    'alembic.ini',
-    'migrations',
+  ignore=[
+    'nexus/fednode/tests',
+    '**/.pytest_cache',
+    '**/__pycache__',
+    '**/*.pyc',
+    '**/*.egg-info',
   ],
   live_update=[
     # Dependency / packaging changes => full rebuild
@@ -74,18 +88,22 @@ docker_build_with_restart(
       'nexus/api/requirements.txt',
       'nexus/api/alembic.ini',
       'nexus/api/migrations',
+      'nexus/fednode/pyproject.toml',
     ]),
     # Python code changes => sync into the running container
     sync('nexus/api/app', '/nexus/app'),
+    # The package is installed editable from here (nexus/api/Dockerfile)
+    sync('nexus/fednode', '/opt/fednode'),
   ],
 )
 
 # ==============================================================================
 # DAGSTER USER CODE DEPLOYMENT
 # ==============================================================================
-# What the code server and the run pods use from the Dagster image. Everything else under
-# dagster/ (fncli, tests, docs, lint and CI files) is not used by either, so changing it
-# rebuilds nothing. (A full `docker build dagster` still copies fncli and conftest.py, per
+# What the code server and the run pods use from the Dagster image, plus the shared nexus-api
+# client (nexus/fednode), which the image takes from the fednode named build context.
+# Everything else under dagster/ (fncli, tests, docs, lint and CI files) is not used by either,
+# so changing it rebuilds nothing. (The build still copies fncli and conftest.py, per
 # dagster/.dockerignore.)
 DAGSTER_IMAGE_FILES = [
   'app',
@@ -94,28 +112,46 @@ DAGSTER_IMAGE_FILES = [
   'dagster.yaml',
   'workspace.yaml',
 ]
+DAGSTER_BUILD_DEPS = ['dagster/' + f for f in DAGSTER_IMAGE_FILES] + [
+  'dagster/Dockerfile',
+  'dagster/.dockerignore',
+  'nexus/fednode',
+]
+# Test edits and pytest runs don't rebuild or restart the code server
+DAGSTER_BUILD_IGNORE = [
+  'dagster/app/tests',
+  'nexus/fednode/tests',
+  '**/.pytest_cache',
+  '**/__pycache__',
+  '**/*.pyc',
+  '**/*.egg-info',
+]
+# docker_build has no named build context, so the Dagster image is a custom build
+DAGSTER_BUILD_CMD = ' '.join(
+  ['docker buildx build --load --build-context fednode=nexus/fednode'] + BUILD_SECRET + ['-t {ref} dagster'])
 
 # The image has no ENTRYPOINT or CMD: the chart passes the whole gRPC command as the
 # container args (templates/dagster-code-server.yaml). With an empty entrypoint Tilt's
 # command is just the restart wrapper, and Kubernetes appends those args to it, so the
 # wrapper runs the chart's own command. Don't set an entrypoint here and don't clear the
 # args: either one doubles the command or leaves the wrapper with nothing to run.
-docker_build_with_restart(
+custom_build_with_restart(
   '{}/dagster-fn'.format(DOCKER_REGISTRY),
-  'dagster',
-  extra_flags=BUILD_SECRET,
+  DAGSTER_BUILD_CMD.format(ref='$EXPECTED_REF'),
+  deps=DAGSTER_BUILD_DEPS,
   entrypoint=[],
-  only=DAGSTER_IMAGE_FILES,
-  # Test edits and pytest runs don't rebuild or restart the code server
-  ignore=['app/tests', '**/.pytest_cache', '**/__pycache__'],
+  ignore=DAGSTER_BUILD_IGNORE,
   live_update=[
     fall_back_on([
       'dagster/requirements.txt',
       'dagster/pyproject.toml',
       'dagster/dagster.yaml',
       'dagster/workspace.yaml',
+      'nexus/fednode/pyproject.toml',
     ]),
     sync('dagster/app', '/opt/dagster/home/app'),
+    # The client is installed editable from here (dagster/Dockerfile)
+    sync('nexus/fednode', '/opt/dagster/nexus/fednode'),
   ],
 )
 
@@ -124,13 +160,13 @@ docker_build_with_restart(
 # Run pods always pull, so the next run picks it up.
 local_resource(
   'dagster-run-image',
-  cmd='docker build dagster {secret} -t {img} && docker push {img}'.format(
-    secret=' '.join(BUILD_SECRET),
+  cmd='{build} && docker push {img}'.format(
+    build=DAGSTER_BUILD_CMD.format(ref='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY)),
     img='{}/dagster-fn:tilt-run'.format(DOCKER_REGISTRY),
   ),
   # Only what the code server and run pods use. The docs, fncli, CI and lint files next to it don't.
-  deps=['dagster/' + f for f in DAGSTER_IMAGE_FILES] + ['dagster/Dockerfile', 'dagster/.dockerignore'],
-  ignore=['dagster/**/__pycache__', 'dagster/**/*.pyc', 'dagster/**/.pytest_cache', 'dagster/app/tests'],
+  deps=DAGSTER_BUILD_DEPS,
+  ignore=DAGSTER_BUILD_IGNORE,
   labels=['dev'],
 )
 

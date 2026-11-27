@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pylint app --output /tmp/pylint.txt
+pylint app ../nexus/fednode --output /tmp/pylint.txt

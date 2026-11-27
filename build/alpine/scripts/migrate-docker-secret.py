@@ -9,9 +9,10 @@ import base64
 import json
 import requests
 import time
-from kubernetes import client, config
+from kubernetes import client
 from kubernetes.client.exceptions import ApiException
 
+from fednode.clients.kubernetes.client import KubernetesClient
 
 NEXUS_API_URL = os.getenv("NEXUS_API_URL", "http://localhost:5000")
 ADMIN_USER = os.getenv("KEYCLOAK_ADMIN")
@@ -60,14 +61,7 @@ if not reg_resp.ok:
 registries = reg_resp.json()["items"]
 
 # Check for kubectl config
-if os.getenv('KUBERNETES_SERVICE_HOST'):
-    # Get configuration for an in-cluster setup
-    config.load_incluster_config()
-else:
-    # Get config from outside the cluster. Mostly DEV
-    config.load_kube_config()
-
-v1_client = client.CoreV1Api()
+v1_client = KubernetesClient(in_cluster=bool(os.getenv("KUBERNETES_SERVICE_HOST")))
 
 # Loop through register's secrets and create a docker one
 for reg in registries:
