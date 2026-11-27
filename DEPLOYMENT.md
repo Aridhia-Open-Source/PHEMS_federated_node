@@ -81,7 +81,7 @@ Run these from the repo root.
    mise run deploy
    ```
 
-   It claims the dev cluster (see [one owner at a time](#one-owner-at-a-time)), renders the chart as a check, prepares the host directories, builds every image into `localhost:5001` (`docker-bake.hcl`; `mise run image --target nexus-api-fn` rebuilds one), creates the namespace and the `keycloak-first-user` secret, then runs `helm install` (up to 10 minutes). At the end it prints the database passwords the chart generated.
+   It claims the dev cluster (see [one owner at a time](#one-owner-at-a-time)), renders the chart as a check, prepares the host directories, builds every image into `localhost:5001` (`docker-bake.hcl`; `mise run image --target nexus-api-fn` rebuilds one), creates the release, Keycloak and tasks namespaces and the `keycloak-first-user` secret in the Keycloak one, then runs `helm install` (up to 10 minutes). At the end it prints the database passwords the chart generated.
 
 7. Start Tilt for the port-forwards and live reload.
 
@@ -180,7 +180,7 @@ More Tilt detail is in [.tilt/TILT_QUICKSTART.md](.tilt/TILT_QUICKSTART.md).
 
 Start with [PROXY_CA_SETUP.md](PROXY_CA_SETUP.md): `mise run configure --proxy[=URL] [--ca-cert=FILE]` checks the proxy and CA and sets up the machine side (`--ca-cert[=FILE]` alone: a private CA, no proxy). It writes the gitignored `.generated.env` and `k8s/federated-node/generated.values.yaml` (never `.dev.env` or `dev.values.yaml`); the scripts and `mise run` load them before your own files, which win. The setting below is optional dev tooling and does nothing when unset.
 
-- `CUSTOM_CA_FILE=/path/ca.pem` in `.generated.env` (or `.dev.env`), set before `mise run cluster up`: the kind node trusts the CA for image pulls, and `mise run deploy` puts it in the Secret `fn-custom-ca-dev`. The pods trust it for outbound TLS once `customCA.secretName` names that Secret, which `mise run configure --ca-cert` or `--proxy` writes in `generated.values.yaml`. A `CUSTOM_CA_FILE` you set by hand in `.dev.env` no longer reaches the pods: use `mise run configure --ca-cert=FILE`.
+- `CUSTOM_CA_FILE=/path/ca.pem` in `.generated.env` (or `.dev.env`), set before `mise run cluster up`: the kind node trusts the CA for image pulls, and `mise run deploy` gives it to the chart as `customCA.pem`, so the pods trust it for outbound TLS.
 
 Image builds receive `CUSTOM_CA_FILE` as the BuildKit secret `proxy_ca` (Docker 23 or later). Not covered: the registry mirrors that `mise run cluster up` starts.
 
@@ -262,8 +262,12 @@ Leave `default_image_tag` unset. Every image tag then follows the chart's `appVe
 
 ### 4. Create the namespace and the secrets you must provide
 
+The chart copies no Secret between namespaces, so the Keycloak and tasks namespaces are yours to create, before the Secrets that go in them. Set `global.createNamespaces: false` in your values so the chart does not create them too.
+
 ```bash
 kubectl create namespace federated-node
+kubectl create namespace keycloak
+kubectl create namespace tasks
 ```
 
 The chart creates every database password, the Keycloak credentials and the Dagster login for you, and puts them in the namespaces that need them. These are the ones it cannot invent:
@@ -271,15 +275,15 @@ The chart creates every database password, the Keycloak credentials and the Dags
 | Secret | Key | When | What it is |
 |---|---|---|---|
 | `postgres-superuser` | `password` | Postgres is external and `db.manageRolesAndDatabases` is true (the default) | Password of `db.superuser` on your server |
-| the secret named by `firstUserSecret.name` | the key in `firstUserSecret.passKey` | Always | Password of the first admin user. The chart copies it to the Keycloak namespace |
+| the secret named by `firstUserSecret.name` | the key in `firstUserSecret.passKey` | Always | Password of the first admin user. Goes in the Keycloak namespace, where it is read |
 | `tls` (or the name in `tls.secretName`) | `tls.crt`, `tls.key` | No cert-manager | The certificate for `host`, full chain |
-| the Azure storage secret | `azurestorageaccountname`, `azurestorageaccountkey` | `storage.azure` | The chart copies it to the tasks namespace |
+| the Azure storage secret | `azurestorageaccountname`, `azurestorageaccountkey` | `storage.azure` | In the release namespace |
 
 ```bash
 kubectl create secret generic postgres-superuser -n federated-node \
   --from-literal=password='<postgres admin password>'
 
-kubectl create secret generic fn-first-user -n federated-node \
+kubectl create secret generic fn-first-user -n keycloak \
   --from-literal=password='<admin password you will log in with>'
 
 kubectl create secret tls tls -n federated-node \

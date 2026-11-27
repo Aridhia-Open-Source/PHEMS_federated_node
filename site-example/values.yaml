@@ -6,6 +6,10 @@
 # so bumping the chart version in helmrelease.yaml moves the images with it.
 
 local_development: true
+
+global:
+  # namespaces.yaml makes them, so the first-user Secret can be in the keycloak one before install
+  createNamespaces: false
 create_db_deployment: true
 
 taskNetworkPolicy:

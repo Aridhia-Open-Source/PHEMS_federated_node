@@ -1,0 +1,11 @@
+# The namespaces the chart reads Secrets in, made here so the Secrets can go in before the release
+# (values.yaml global.createNamespaces: false). Same names as the chart's global.namespaces.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tasks
