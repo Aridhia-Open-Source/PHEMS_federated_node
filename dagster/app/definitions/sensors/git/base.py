@@ -3,8 +3,7 @@ from typing import Any, Union
 
 from dagster import OpExecutionContext as OpExecCtx, RunStatusSensorContext
 
-from fednode.clients.git.gitea import GiteaClient
-from fednode.clients.git.github import GitHubClient
+from fednode.clients.git.factory import build_client
 from fednode.clients.git.provider import GitProvider
 from fednode.clients.nexus.client import BackendAPI
 from app.definitions.sensors.base import BaseSensor
@@ -25,13 +24,7 @@ class GitAPIFactory:
         """The client for a repository. project_id names the project the work is for, None for the repository as a whole."""
         kind = "trigger" if isinstance(repo, TriggerRepository) else "results"
         token = self.backend_api.get_repository_token(kind, repo.id, project_id).token
-        match repo.provider.type:
-            case "github":
-                return GitHubClient(repo.provider.api_uri, token)
-            case "gitea":
-                return GiteaClient(repo.provider.api_uri, token)
-            case provider_type:
-                raise ValueError(f"Unsupported git provider {provider_type!r} for repository {repo.uri}")
+        return build_client(repo.provider.type, repo.provider.api_uri, token)
 
 
 class GitSensor(BaseSensor):

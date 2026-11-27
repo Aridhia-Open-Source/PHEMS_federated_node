@@ -1,8 +1,10 @@
 """
 Secret health: is it in its store with the keys its users need (a git credential is any complete set of
-keys: see repos/git_tokens.py). Never the values.
+keys: see fednode.clients.git.factory). Never the values.
 """
 from collections.abc import Callable
+
+from fednode.clients.git.factory import missing_credential_keys
 
 from app.clients.secret_store import SecretProvider
 from app.dtos.healthcheck import ProjectSecretHealthDTO, SecretHealthDTO
@@ -11,7 +13,6 @@ from app.models.dataset import Dataset
 from app.models.git_provider import ConnectionCheck, ConnectionStatus
 from app.models.project_secret import ProjectSecret
 from app.models.secret import Secret
-from app.repos.git_tokens import missing_credential_keys
 
 
 def _missing_keys(secret: Secret, keys: list[str]) -> set[str]:

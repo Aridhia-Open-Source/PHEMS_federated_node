@@ -2,8 +2,9 @@
 
 import base64
 import logging
+from datetime import datetime, timedelta, timezone
 
-from fednode.clients.git.provider import GitProvider
+from fednode.clients.git.provider import GitProvider, MintedToken, Permission, post_for_token
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,31 @@ GITEA_PAGE_SIZE = 50
 class GiteaClient(GitProvider):
     name = "Gitea"
     pulls_order = {"sort": "recentupdate"}
+    CREDENTIAL_KEYS = frozenset({"CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"})
+
+    @classmethod
+    def mint_token(
+        cls, uri: str, api_uri: str, repo_path: str, credentials: dict[str, str], permission: Permission
+    ) -> MintedToken:
+        """
+        An OAuth2 access token of the Gitea application, from its refresh token, which the answer replaces. The
+        token acts as the user who authorized the application: Gitea cannot restrict it to one repository or
+        permission.
+        """
+        now = datetime.now(tz=timezone.utc)
+        body = post_for_token(
+            f"{uri}/login/oauth/access_token",
+            headers={"Accept": "application/json"},
+            data={
+                "grant_type": "refresh_token",
+                "client_id": credentials["CLIENT_ID"],
+                "client_secret": credentials["CLIENT_SECRET"],
+                "refresh_token": credentials["REFRESH_TOKEN"],
+            },
+        )
+        return MintedToken(
+            body["access_token"], now + timedelta(seconds=body["expires_in"]), {"REFRESH_TOKEN": body["refresh_token"]}
+        )
 
     def page_params(self, page: int) -> dict:
         return {"limit": GITEA_PAGE_SIZE, "page": page}

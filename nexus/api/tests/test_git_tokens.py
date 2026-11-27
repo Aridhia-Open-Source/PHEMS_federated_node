@@ -20,7 +20,9 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from kubernetes.client.exceptions import ApiException
 
 from app.database.base_model import db
-from app.helpers.exceptions import GitProviderError, InvalidRequest
+from fednode.http import ClientError
+
+from app.helpers.exceptions import InvalidRequest
 from app.repos.git_tokens import mint_token
 from app.clients.kubernetes import KubernetesClient
 from app.models.git_provider import GitProvider
@@ -164,9 +166,8 @@ def test_a_provider_that_refuses_is_a_502_and_nothing_is_cached(client, k8s_clie
     use_secret(k8s_client, **GITHUB_KEYS)
     with responses.RequestsMock() as rsps:
         rsps.add(responses.POST, GITHUB_TOKEN_URL, json={"message": "Bad credentials"}, status=401)
-        with pytest.raises(GitProviderError) as refused:
+        with pytest.raises(ClientError, match="Bad credentials"):
             mint_token(global_secret, global_trigger_repo, "read")
-    assert refused.value.code == 502 and "Bad credentials" in refused.value.description
     k8s_client["patch_namespaced_secret_mock"].assert_not_called()
 
 

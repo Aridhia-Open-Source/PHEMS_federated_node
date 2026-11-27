@@ -7,16 +7,48 @@ sensors, the results delivery and fncli handle either the same way (ADR 0010).
 import logging
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from datetime import datetime as dt
+from typing import Literal
 
 import requests
 
-from fednode.http import HttpClient
+from fednode.http import ClientError, HttpClient
 
 logger = logging.getLogger(__name__)
 
 MERGE_ATTEMPTS = 10
 MERGE_RETRY_SECONDS = 3
+TOKEN_REQUEST_TIMEOUT = 10
+MAX_MESSAGE_LENGTH = 200
+
+# What a token may do on the repository: read for a trigger repository, write for a results repository
+Permission = Literal["read", "write"]
+
+
+@dataclass
+class MintedToken:
+    """A short-lived token for one repository (ADR 0023), and when it expires (UTC)."""
+    token: str
+    expires_at: dt
+    # Keys to write back to the credential's secret with the token (Gitea's new refresh token)
+    secret_updates: dict[str, str] = field(default_factory=dict)
+
+
+def post_for_token(url: str, **kwargs) -> dict:
+    """
+    POST to a provider's token endpoint and the JSON answer. A refusal is a ClientError with the provider's own
+    message; the request holds credentials, so it is not in it.
+    """
+    response = requests.post(url, timeout=TOKEN_REQUEST_TIMEOUT, **kwargs)
+    if not response.ok:
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        message = body.get("message") if isinstance(body, dict) else None
+        raise ClientError(f"{url} answered {response.status_code}: {str(message or response.reason)[:MAX_MESSAGE_LENGTH]}")
+    return response.json()
 
 
 def parse_time(value: str) -> dt:
@@ -33,6 +65,18 @@ class GitProvider(HttpClient, ABC):
     name: str
     # The query parameters that list the pull requests most recently updated first
     pulls_order: dict[str, str]
+    # The keys of the long-lived credential in a repository's secret that mint_token exchanges for a token
+    CREDENTIAL_KEYS: frozenset[str]
+
+    @classmethod
+    @abstractmethod
+    def mint_token(
+        cls, uri: str, api_uri: str, repo_path: str, credentials: dict[str, str], permission: Permission
+    ) -> MintedToken:
+        """
+        A short-lived token for the repository at repo_path from the credential (the secret's values, holding
+        CREDENTIAL_KEYS). uri is the provider's web address, api_uri its API.
+        """
 
     @abstractmethod
     def page_params(self, page: int) -> dict:

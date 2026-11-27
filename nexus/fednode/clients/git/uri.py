@@ -63,3 +63,14 @@ def validate_api_uri(api_uri: str, uri: str) -> str:
 def repo_path_of(uri: str) -> str:
     """Where the repository is on its provider (owner/name): the last two segments of its uri"""
     return "/".join(normalise_repo_uri(uri).split("/")[-2:])
+
+def normalise_repo_path(repo_path: str) -> str:
+    """
+    The one form a repository's path on its provider is kept in: owner/name, lowercase,
+    with no slash around it or '.git' suffix. Raises ValueError for anything else.
+    """
+    path = repo_path.strip().strip("/").removesuffix(".git").lower()
+    segments = path.split("/")
+    if len(segments) != 2 or not all(segments):
+        raise ValueError(f"Repository path {repo_path!r} must be of the form owner/name")
+    return path

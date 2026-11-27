@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from app.helpers.exceptions import InvalidRequest
-from app.repos.git_uri import normalise_repo_uri
+from fednode.clients.git.uri import normalise_repo_uri
 
 
 class RepositoryUriRequest(BaseModel):

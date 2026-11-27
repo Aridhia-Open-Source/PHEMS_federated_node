@@ -1,6 +1,6 @@
 import pytest
 
-from app.repos.git_uri import (
+from fednode.clients.git.uri import (
     normalise_provider_uri, normalise_repo_path, normalise_repo_uri, validate_api_uri
 )
 

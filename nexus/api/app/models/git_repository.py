@@ -6,9 +6,10 @@ import sqlalchemy as sa
 from kubernetes.client.exceptions import ApiException
 from sqlalchemy.orm import validates
 
-from app.helpers.exceptions import GitProviderError, InvalidRequest
+from app.helpers.exceptions import InvalidRequest
 from app.repos.git_tokens import mint_token
-from app.repos.git_uri import normalise_repo_path
+from fednode.clients.git.uri import normalise_repo_path
+from fednode.http import ClientError
 from app.models.git_provider import ConnectionCheck, ConnectionStatus, request_check
 from app.models.git_provider_type import GitProviderType
 
@@ -76,8 +77,8 @@ class GitRepositoryMixin:
                 ConnectionStatus.SECRET_MISSING, f"Secret {self.secret.label} not found"
             )
             return lambda: check
-        except GitProviderError as e:
-            check = ConnectionCheck(ConnectionStatus.ERROR, e.description)
+        except ClientError as e:
+            check = ConnectionCheck(ConnectionStatus.ERROR, str(e))
             return lambda: check
         except requests.RequestException as e:
             check = ConnectionCheck(ConnectionStatus.UNREACHABLE, type(e).__name__)
