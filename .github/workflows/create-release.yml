@@ -29,8 +29,9 @@ permissions:
 
 jobs:
   release:
-    if: ${{inputs.majorVersion == 'true'}} || ${{inputs.minorVersion == 'true'}} || ${{inputs.patchVersion == 'true'}}
-    uses: Aridhia-Open-Source/pipelines/.github/workflows/create-release.yml@main
+    if: inputs.majorVersion || inputs.minorVersion || inputs.patchVersion
+    # our own org's shared workflow, tracked on main on purpose
+    uses: Aridhia-Open-Source/pipelines/.github/workflows/create-release.yml@main # zizmor: ignore[unpinned-uses]
     with:
       chartPath: k8s/federated-node
       majorVersion: ${{ inputs.majorVersion }}
